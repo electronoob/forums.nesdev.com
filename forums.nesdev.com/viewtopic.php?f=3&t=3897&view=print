@@ -1,0 +1,403 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - frame IRQ / APU discussion</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">frame IRQ / APU discussion</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=3&amp;t=3897">http://forums.nesdev.com/viewtopic.php?f=3&amp;t=3897</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Zepper</b> [ Tue Feb 12, 2008 6:44 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>frame IRQ / APU discussion</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />- Short question: What PPU cycle does the VBlank flag rise (NTSC NES)?
+<br />
+<br />- Long question: I am doing an insane trace of CPU/PPU because all the previous test ROMs were OK, but the recent "NMI under IRQ/BRK" is giving me an early NMI triggering on its 4th sequence of numbers (21 00, should be 20 00). Anyway, I read an old topic regarding the exact time the CPU checks the NMI/IRQ flags (request). If an instruction is 4 bytes long, the flags should be checked during the 3rd/4th byte fetching, or during the last byte fetching. Nintendulator checks every time the CPU reads/writes, but it fails in most of those test ROMs. Nestopia passes, but it uses a cycle counter to define the time when a flag should be set/clear, as far as I understood it.
+<br />
+<br />- My problem: during the 4th sequence, an NMI is requested during a LDA #$imm instruction. Depending of the time this flag is checked, a test ROM passes (nmi_during_irq) and another fails. It's happening during a LDX #$imm too in another test ROM (nmi_timing).
+<br />
+<br />- I'd like some help.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Tue Feb 12, 2008 7:59 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: VBlank rising time?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Fx3 wrote:</div><div class="quotecontent">- Short question: What PPU cycle does the VBlank flag rise (NTSC NES)?</div><br /><br />cycle 0 of the very first scanline of VBlank<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">- My problem: during the 4th sequence, an NMI is requested during a LDA #$imm instruction. Depending of the time this flag is checked, a test ROM passes (nmi_during_irq) and another fails. It's happening during a LDX #$imm too in another test ROM (nmi_timing).<br /></div><br /><br />I'm not sure if this is your problem... but it takes a full cycle for the CPU to see that there's an NMI, and the perform it... so if the NMI happens on the last cycle of an instruction... the NMI won't occur until <em>after the next</em> instruction.  Example:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">if you have the following:<br /><br />LDA $6000<br />STA $6001<br /><br /><br />you have 8 cycles:<br /><br />cyc - rd/wr<br />0&nbsp; &nbsp; &nbsp;&#40;LDA opcode&#41;&nbsp; &nbsp; &nbsp; &nbsp; - NMI here happens before STA<br />1&nbsp; &nbsp; &nbsp;&#40;low addr:&nbsp; $00&#41;&nbsp; &nbsp; - NMI here happens before STA<br />2&nbsp; &nbsp; &nbsp;&#40;high addr:&nbsp; $60&#41;&nbsp; &nbsp;- NMI here happens before STA<br />3&nbsp; &nbsp; &nbsp;&#40;$6000&#41;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;- NMI here happens *AFTER* STA<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;&lt;---&nbsp; NMI here if happened before cyc 3<br />4&nbsp; &nbsp; &nbsp;&#40;STA opcode&#41;&nbsp; &nbsp; &nbsp; &nbsp; - NMI here happens after STA<br />5&nbsp; &nbsp; &nbsp;&#40;low addr: $01&#41;&nbsp; &nbsp; &nbsp;- NMI here happens after STA<br />6&nbsp; &nbsp; &nbsp;&#40;high addr: $60&#41;&nbsp; &nbsp; - NMI here happens after STA<br />7&nbsp; &nbsp; &nbsp;&#40;$6001&#41;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;- NMI here happens after *next instruction*<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;&lt;---&nbsp; NMI here if happened before cyc 7<br /></div><br /><br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">- I'd like some help. Perhaps it's me, but the "emulation support" is almost null here... why?</div>
+<br />
+<br />I think it's largely a language problem  =(
+<br />
+<br />Sometimes I have a hard time understanding what you're asking because of the language barrier.  I realize you're not a native English speaker, so I try my best to understand your questions, but sometimes it can be hard to.  I'm guessing others on the board are the same way  =(
+<br />
+<br />Sorry
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Zepper</b> [ Tue Feb 12, 2008 9:20 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: VBlank rising time?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Disch wrote:</div><div class="quotecontent">cycle 0 of the very first scanline of VBlank</div><br />- Hmm... Was this tested in the NES?<br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">I'm not sure if this is your problem... but it takes a full cycle for the CPU to see that there's an NMI, and the perform it... so if the NMI happens on the last cycle of an instruction... the NMI won't occur until <em>after the next</em> instruction.</div><br /><br />- Nintendulator verifies if a NMI is pending at every CPU read/write, including fetching the instruction opcode/operands. I don't know if this is correct. You wrote about the last cycle, I'll give a try.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">I think it's largely a language problem  =(</div>
+<br />
+<br />- Heh, so you are c)...
+<br />- Maybe. Well, I speak Portuguese. I'm sorry for my bad writting.
+<br />- I don't wish to drift the topic but I'm inside the NES emulation since 1998. Yes, I already was a pathetic newbie... but <strong>still</strong> an "all your base" man around? <img src="./images/smilies/icon_sad.gif" alt=":(" title="Sad" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Tue Feb 12, 2008 9:57 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: VBlank rising time?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Fx3 wrote:</div><div class="quotecontent">- Hmm... Was this tested in the NES?<br /></div><br /><br />Yes.  Blargg's PPU test ROMs verify its timing right down to the PPU cycle.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">- Nintendulator verifies if a NMI is pending at every CPU read/write, including fetching the instruction opcode/operands. I don't know if this is correct. You wrote about the last cycle, I'll give a try.</div><br /><br />Nintendulator emulates things on a lower level.  It may check for pending NMI every CPU cycle because the NES does -- however it will not actually make the NMI happen until the CPU is between instructions -- so the only cycle where a pending NMI really matters is the 2nd-to-last cycle of an instruction.<br /><br />I suddenly remembered that CLI latency problem...  here, this thread:<br /><!-- m --><a class="postlink" href="http://nesdev.com/bbs/viewtopic.php?p=19655#19655">http://nesdev.com/bbs/viewtopi ... 9655#19655</a><!-- m --><br /><br />NMIs are exactly the same.  They have that exact same delay for the exact same reason.  To recreate a similar example diagram:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">LDA $6000&nbsp; &nbsp;&#40;cyc 0&#41;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &#40;cyc 1&#41;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &#40;cyc 2&#41;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;---&gt;&nbsp; is NMI pending?&nbsp; If so... NMI&nbsp; -+<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &#40;cyc 3&#41;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; |<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;&lt;------------- here &lt;-----------------+<br />STA $6001&nbsp; &nbsp;&#40;cyc 0&#41;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &#40;cyc 1&#41;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &#40;cyc 2&#41;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;---&gt;&nbsp; is NMI pending?&nbsp; If so... NMI&nbsp; -+<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &#40;cyc 3&#41;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; |<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;&lt;------------- here &lt;-----------------+<br /></div><br /><br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">- Maybe. Well, I speak Portuguese. I'm sorry for my bad writting.<br />- I don't wish to drift the topic but I'm inside the NES emulation since 1998. Yes, I already was a pathetic newbie... but <strong>still</strong> an "all your base" man around? :(<br /></div>
+<br />
+<br />Your English isn't that bad.  In fact... as far as general conversation goes, it's actually very good.  I can easily get the jist of what you're saying, but when it comes down to understanding the finer details, sometimes there are just little things here and there that are slightly off which can make it hard.  And when giving technical explanations of emulator workings and stuff like that, details are everything.
+<br />
+<br />Don't be hard on yourself.  I have a lot of respect for bilingual people.  I know how hard it is to learn another language (especially one as crazy as English).  I am actually very impressed with how well you speak  =)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Zepper</b> [ Wed Feb 13, 2008 7:13 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: VBlank rising time?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Disch wrote:</div><div class="quotecontent">Nintendulator emulates things on a lower level.  It may check for pending NMI every CPU cycle because the NES does -- however it will not actually make the NMI happen until the CPU is between instructions -- so the only cycle where a pending NMI really matters is the 2nd-to-last cycle of an instruction.</div>
+<br />
+<br />- What a coincidence. RockNES does that too... ^_^;; Hehehe
+<br />- I will explain it a bit:
+<br />
+<br />1. verify the flags (nmi_trigger = cpu_nmi_request).
+<br />2. fetch a byte
+<br />- 2a: ppu runs for 3 cycles
+<br />- 2b: byte is read
+<br />3. Instruction is executed.
+<br />
+<br />- OK, if a NMI occurs during 2a (cpu_nmi_request = 1), it will not be triggered after that instruction. The nmi_trigger flag is verified right when an instruction is finished; if <em>true</em>, then a NMI is triggered.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Wed Feb 13, 2008 8:49 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I'm going to back up and try to address your original problem.  If blargg's PPU test ROMs all pass, then the problem isn't going to be easily identified by using them.  Since the problem you're having is with NMI during IRQ, let's look at what that ROM is supposed to be doing.
+<br />
+<br />
+<br />From the source:
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp;clv<br />&nbsp; &nbsp;sec<br />&nbsp; &nbsp;; Z and C set, others clear<br />&nbsp; &nbsp;<br />; NMI occurs here first,<br />&nbsp; &nbsp;lda #1&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; clear Z flag<br />; then here for two clocks,<br />&nbsp; &nbsp;clc&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; clear C flag<br />; then here.<br />&nbsp; &nbsp;<br />; IRQ always occurs here.<br />&nbsp; &nbsp;nop<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;; Read interrupt flags<br />&nbsp; &nbsp;ldx nmi_flag<br />&nbsp; &nbsp;ldy irq_flag<br /></div><br /><br />You get an error on the 4th sequence of numbers, which is when the NMI is supposed to happen *after* that CLC... but in your emu it's happening before it.  Here's a diagram (I hope these diagrams are helpful, heh):<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">CLV&nbsp; &nbsp; &nbsp; &nbsp;&#40;cyc 0&#41;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &#40;cyc 1&#41;<br /><br />SEC&nbsp; &nbsp; &nbsp; &nbsp;&#40;cyc 0&#41;&nbsp; &lt;---&nbsp; 1st NMI<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &#40;cyc 1&#41;&nbsp; &lt;---&nbsp; 2nd NMI<br />&nbsp; &nbsp; &nbsp;&#91;NMI 1 occurs here&#93;<br />LDA #1&nbsp; &nbsp; &#40;cyc 0&#41;&nbsp; &lt;---&nbsp; 3rd NMI<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &#40;cyc 1&#41;&nbsp; &lt;---&nbsp; 4th NMI &#40;your problem&#41;<br />&nbsp; &nbsp; &nbsp;&#91;NMI 2,3 occur here&#93;<br />CLC&nbsp; &nbsp; &nbsp; &nbsp;&#40;cyc 0&#41;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &#40;cyc 1&#41;<br />&nbsp; &nbsp; &nbsp;&#91;NMI 4 occurs here&#93;<br /></div>
+<br />
+<br />For whatever reason, the NMI is occuring early in your emulator.  If you can make a tracelog to find out exactly when those NMIs are occuring, that might give you some clue as to what's going on.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Zepper</b> [ Sat Feb 16, 2008 8:02 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />- OK, I traced it but cannot think about a correct solution...
+<br />
+<br />1. PPU timing is correct, VBlank rising/down is okay.
+<br />2. NMI timing looks correct, but it isn't the problem.
+<br />3. IRQ timing looks correct when I run the test rom, no errors, but it's an IRQ that's causing errors.
+<br />
+<br />- Now, the trace result of "nmi_during_irq.nes" test ROM:
+<br />
+<br />a) My emu gets 23 00, 21 00, 21 00, 20 00, but the next is 21 00 instead of 20 00 (the rest is irrelevant).
+<br />- There's a frame IRQ being requested during the immediate byte of a LDA. It is triggered when LDA ends.
+<br />- Hack: do not verify the IRQ flag during the immediate byte fetching.
+<br />
+<br />b) <strong>With this hack</strong>, the two last lines are 20 00 and 25 00, instead of 25 00 and 25 00.
+<br />- During the 7 cycles sequence for IRQ, a NMI is being requested during the 5th cycle.
+<br />- Hack: verify the NMI flag during the cycles 6 and 7.
+<br />
+<br />- I'm stuck.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Sat Feb 16, 2008 10:26 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">a) My emu gets 23 00, 21 00, 21 00, 20 00, but the next is 21 00 instead of 20 00 (the rest is irrelevant).</div><br /><br />looks like the NMI (or IRQ) is occuring early.  From the looks of that, it's occuring before the CLC when it should be occuring after.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">- There's a frame IRQ being requested during the immediate byte of a LDA. It is triggered when LDA ends.</div>
+<br />
+<br />The immediate byte of LDA?  You mean the last cycle?
+<br />
+<br />If it happens during the last cycle, you need to push it back another instruction:
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">LDA #1&nbsp; &nbsp; &#40;cyc 0&#41;&nbsp; &lt;--- NMI/IRQ here happens before CLC<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &#40;cyc 1&#41;&nbsp; &lt;--- NMI/IRQ here happens *AFTER* CLC<br />CLC&nbsp; &nbsp; &nbsp; &nbsp;&#40;cyc 0&#41;&nbsp; &lt;--- NMI/IRQ here happens after CLC<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &#40;cyc 1&#41;&nbsp; &lt;--- NMI/IRQ here happens after next instruction<br /></div><br /><br />Remember the CPU has to see the interrupt as pending <em>before</em> it starts the last cycle of an instruction.  So you could say that NMI/IRQs get pushed back 1 CPU cycle.<br /><br /><br />I made a tracelog of the behavior I get in my emu (which passes).  You can ignore most of the numbers:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">E4E8:B8&nbsp; &nbsp;CLV&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; 00 00 00 &#91;...Z.&#93;&nbsp; FA --&nbsp; &nbsp;0, -7 -- &lt;0060,0862&gt;<br />E4E9:38&nbsp; &nbsp;SEC&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; 00 00 00 &#91;...Z.&#93;&nbsp; FA --&nbsp; &nbsp;0, -1 -- &lt;0060,0862&gt;<br />*** NMI ***&nbsp; &#40;1st&#41;<br />E4AD:85&nbsp; &nbsp;STA&nbsp; $11&nbsp; &nbsp; &nbsp; &nbsp; &#91;0011=00&#93;&nbsp; 00 00 00 &#91;..IZC&#93;&nbsp; F7 --&nbsp; &nbsp;0, 26 -- &lt;0060,0862&gt;<br /><br />E4E8:B8&nbsp; &nbsp;CLV&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; 00 00 00 &#91;...Z.&#93;&nbsp; FA --&nbsp; &nbsp;0,-10 -- &lt;0080,0000&gt;<br />E4E9:38&nbsp; &nbsp;SEC&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; 00 00 00 &#91;...Z.&#93;&nbsp; FA --&nbsp; &nbsp;0, -4 -- &lt;0080,0000&gt;<br />E4EA:A9&nbsp; &nbsp;LDA&nbsp; #$01&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; 00 00 00 &#91;...ZC&#93;&nbsp; FA --&nbsp; &nbsp;0,&nbsp; 2 -- &lt;0080,0000&gt;<br />*** NMI ***&nbsp; &#40;2nd&#41;<br />E4AD:85&nbsp; &nbsp;STA&nbsp; $11&nbsp; &nbsp; &nbsp; &nbsp; &#91;0011=00&#93;&nbsp; 01 00 00 &#91;..I.C&#93;&nbsp; F7 --&nbsp; &nbsp;0, 29 -- &lt;0080,0000&gt;<br /><br />E4E8:B8&nbsp; &nbsp;CLV&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; 00 00 00 &#91;...Z.&#93;&nbsp; FA --&nbsp; &nbsp;0,-13 -- &lt;00A0,0000&gt;<br />E4E9:38&nbsp; &nbsp;SEC&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; 00 00 00 &#91;...Z.&#93;&nbsp; FA --&nbsp; &nbsp;0, -7 -- &lt;00A0,0000&gt;<br />E4EA:A9&nbsp; &nbsp;LDA&nbsp; #$01&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; 00 00 00 &#91;...ZC&#93;&nbsp; FA --&nbsp; &nbsp;0, -1 -- &lt;00A0,0000&gt;<br />*** NMI ***&nbsp; &#40;3rd&#41;<br />E4AD:85&nbsp; &nbsp;STA&nbsp; $11&nbsp; &nbsp; &nbsp; &nbsp; &#91;0011=00&#93;&nbsp; 01 00 00 &#91;..I.C&#93;&nbsp; F7 --&nbsp; &nbsp;0, 26 -- &lt;00A0,0000&gt;<br /><br />E4E8:B8&nbsp; &nbsp;CLV&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; 00 00 00 &#91;...Z.&#93;&nbsp; FA --&nbsp; &nbsp;0,-16 -- &lt;00C0,0000&gt;<br />E4E9:38&nbsp; &nbsp;SEC&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; 00 00 00 &#91;...Z.&#93;&nbsp; FA --&nbsp; &nbsp;0,-10 -- &lt;00C0,0000&gt;<br />E4EA:A9&nbsp; &nbsp;LDA&nbsp; #$01&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; 00 00 00 &#91;...ZC&#93;&nbsp; FA --&nbsp; &nbsp;0, -4 -- &lt;00C0,0000&gt;<br />E4EC:18&nbsp; &nbsp;CLC&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; 01 00 00 &#91;....C&#93;&nbsp; FA --&nbsp; &nbsp;0,&nbsp; 2 -- &lt;00C0,0000&gt;<br />*** NMI ***&nbsp; &#40;4th&#41;<br />E4AD:85&nbsp; &nbsp;STA&nbsp; $11&nbsp; &nbsp; &nbsp; &nbsp; &#91;0011=00&#93;&nbsp; 01 00 00 &#91;..I..&#93;&nbsp; F7 --&nbsp; &nbsp;0, 29 -- &lt;00C0,0000&gt;<br /><br />E4E8:B8&nbsp; &nbsp;CLV&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; 00 00 00 &#91;...Z.&#93;&nbsp; FA --&nbsp; &nbsp;0,-19 -- &lt;00E0,0000&gt;<br />E4E9:38&nbsp; &nbsp;SEC&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; 00 00 00 &#91;...Z.&#93;&nbsp; FA --&nbsp; &nbsp;0,-13 -- &lt;00E0,0000&gt;<br />E4EA:A9&nbsp; &nbsp;LDA&nbsp; #$01&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; 00 00 00 &#91;...ZC&#93;&nbsp; FA --&nbsp; &nbsp;0, -7 -- &lt;00E0,0000&gt;<br />E4EC:18&nbsp; &nbsp;CLC&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; 01 00 00 &#91;....C&#93;&nbsp; FA --&nbsp; &nbsp;0, -1 -- &lt;00E0,0000&gt;<br />*** NMI ***&nbsp; &#40;5th&#41;<br />E4AD:85&nbsp; &nbsp;STA&nbsp; $11&nbsp; &nbsp; &nbsp; &nbsp; &#91;0011=00&#93;&nbsp; 01 00 00 &#91;..I..&#93;&nbsp; F7 --&nbsp; &nbsp;0, 26 -- &lt;00E0,0000&gt;<br /><br />E4E8:B8&nbsp; &nbsp;CLV&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; 00 00 00 &#91;...Z.&#93;&nbsp; FA --&nbsp; &nbsp;0,-22 -- &lt;0100,0000&gt;<br />E4E9:38&nbsp; &nbsp;SEC&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; 00 00 00 &#91;...Z.&#93;&nbsp; FA --&nbsp; &nbsp;0,-16 -- &lt;0100,0000&gt;<br />E4EA:A9&nbsp; &nbsp;LDA&nbsp; #$01&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; 00 00 00 &#91;...ZC&#93;&nbsp; FA --&nbsp; &nbsp;0,-10 -- &lt;0100,0000&gt;<br />E4EC:18&nbsp; &nbsp;CLC&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; 01 00 00 &#91;....C&#93;&nbsp; FA --&nbsp; &nbsp;0, -4 -- &lt;0100,0000&gt;<br />*** IRQ ***&nbsp; &#40;6th&#41; -- interrupted by NMI<br />E4AD:85&nbsp; &nbsp;STA&nbsp; $11&nbsp; &nbsp; &nbsp; &nbsp; &#91;0011=00&#93;&nbsp; 01 00 00 &#91;..I..&#93;&nbsp; F7 --&nbsp; &nbsp;0, 23 -- &lt;0100,0000&gt;<br /><br />E4E8:B8&nbsp; &nbsp;CLV&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; 00 00 00 &#91;...Z.&#93;&nbsp; FA --&nbsp; &nbsp;0,-25 -- &lt;0120,0000&gt;<br />E4E9:38&nbsp; &nbsp;SEC&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; 00 00 00 &#91;...Z.&#93;&nbsp; FA --&nbsp; &nbsp;0,-19 -- &lt;0120,0000&gt;<br />E4EA:A9&nbsp; &nbsp;LDA&nbsp; #$01&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; 00 00 00 &#91;...ZC&#93;&nbsp; FA --&nbsp; &nbsp;0,-13 -- &lt;0120,0000&gt;<br />E4EC:18&nbsp; &nbsp;CLC&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; 01 00 00 &#91;....C&#93;&nbsp; FA --&nbsp; &nbsp;0, -7 -- &lt;0120,0000&gt;<br />*** IRQ ***&nbsp; &#40;7th&#41; -- interrupted by NMI<br />E4AD:85&nbsp; &nbsp;STA&nbsp; $11&nbsp; &nbsp; &nbsp; &nbsp; &#91;0011=00&#93;&nbsp; 01 00 00 &#91;..I..&#93;&nbsp; F7 --&nbsp; &nbsp;0, 20 -- &lt;0120,0000&gt;<br /></div>
+<br />
+<br />Notice that IRQ doesn't happen <em>at all</em> until the 6th test.  Before that, NMI happens first.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Zepper</b> [ Sun Feb 17, 2008 7:28 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><strong>EDIT:</strong> I used "7.nmi_timing.nes" and still error 7. With my new VBlank flag code (edge case), the NMI must trigger right when the instruction finishes. Next, I got error 8, it enables NMI (2000h write) when the VBlank flag is already set. So, I added a check in the 2000h write and the test has passed, including a private nmi testing sent by blargg. <strong>However</strong>, the nmi_during_irq.nes still fails. The last possibility is to check the APU frame IRQ timing, even if passes in the private test rom. <img src="./images/smilies/icon_sad.gif" alt=":(" title="Sad" />:(:(
+<br />==========================
+<br />
+<br />- Actually, you look confused. <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" /> Anyway, the thing is quite simple: for each CPU clock, the PPU clocks 3 times; plus, for each CPU clock, the APU clocks.
+<br />
+<br />- Ok, I believe the method used by *ahem*Nintendulator requires fine tuning. <em>The IRQ/NMI requests are verified at every CPU read/write, no matter what's being read/written</em>. My emu uses the same "idea" as reference.
+<br />
+<br />- Here, when I mentioned "the immediate byte of a LDA", I mean "the byte that follows A9", or 01h for a "LDA #$01", right? The instruction (A9h) has an <em>immediate byte</em> addressing mode. So, I'm having problems right here. I'm sure you know how *ahem*Nintendulator does, so there's no need to explain. Nestopia passes through all the test, but its source code looks cryptic.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Sun Feb 17, 2008 7:55 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Fx3 wrote:</div><div class="quotecontent">- Actually, you look confused. :) Anyway, the thing is quite simple: for each CPU clock, the PPU clocks 3 times; plus, for each CPU clock, the APU clocks.<br /><br />- Ok, I believe the method used by *ahem*Nintendulator requires fine tuning. <em>The IRQ/NMI requests are verified at every CPU read/write, no matter what's being read/written</em>. My emu uses the same "idea" as reference.</div><br /><br />Well your approach doesn't matter as long as you have the desired resulting behavior.  :P<br /><br />Whether or not you examine the NMI every cycle really doesn't matter as long as you perform the NMI at the right time.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">- Here, when I mentioned "the immediate byte of a LDA", I mean "the byte that follows A9", or 01h for a "LDA #$01", right?</div>
+<br />
+<br />That's what I thought you meant -- just wasn't sure.
+<br />
+<br />So yeah... it's like I said.  If the NMI/IRQ is occuring on that cycle, it does <em>NOT</em> happen after the LDA -- instead it happens after the instruction <em>after</em> the LDA (after the CLC).
+<br />
+<br />Anyway -- I provided my tracelogs because they're what <em>should</em> be happening.  You can compare them to your emu's tracelogs to find out where you're going wrong.  Randomly guessing and moving around the NMI time likely won't solve your problem.
+<br />
+<br />Basically I think your problem is this:
+<br />
+<br />- you have an IRQ tripping on the 4th test (this is what it sounds like to me, anyway)
+<br />- IRQs should not trip at all until the 6th test (see my tracelog)
+<br />- on the first 5 tests, the NMI happens before IRQ, so IRQs get disabled before one occurs
+<br />
+<br />If the tracelog is too cryptic... here's it in plain English:
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">test 1:&nbsp; &nbsp; NMI after SEC<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;no IRQ<br /><br />test 2,3:&nbsp; NMI after LDA #1<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;no IRQ<br /><br />test 4,5:&nbsp; NMI after CLC<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;no IRQ<br /><br />test 6,7:&nbsp; IRQ after CLC, but it's interrupted by NMI<br /></div>
+<br />
+<br />
+<br />EDIT:
+<br />
+<br />I just thought I'd mention again that <em>I don't think this is an NMI problem</em>.  Judging from your emu passing the first few tests, I'd wager your NMI timing is correct.  It's your <em>IRQ</em> timing that needs work.  IRQs are occuring too early, and the NMI is interrupting them so it <em>looks</em> like the NMI is occuring early when it really isn't.
+<br />
+<br />I'd bet you just need to push your IRQ back 1 CPU cycle and you'd pass everything.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

@@ -1,0 +1,144 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - SMS/Z80 Zexall</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">SMS/Z80 Zexall</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=23&amp;t=16654">http://forums.nesdev.com/viewtopic.php?f=23&amp;t=16654</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>DParrott</b> [ Fri Nov 03, 2017 7:03 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>SMS/Z80 Zexall</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Hi all,<br /><br />I wondered if anyone else had worked on a Z80/SMS emulator that passes zexall sms?<br /><br />I've managed to implement all the instructions and have a full pass on zexdoc (using the sdsc version as I do not currently implement the vdp).<br /><br />Running zexall shows passes on all except this one:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">bit n,&lt;b,c,d,e,h,l,(hl),a&gt;...&nbsp; &nbsp;CRC:e283c214 expected:a937a161</div><br />I believe it has something to do with  the bizarro bit n,(hl) undocumented flags, but from the documentation I can find online I think I've implemented MEMPTR in the instructions that affect it. <br /><br />Looking at the source for the version of the test available at <a href="https://github.com/maxim-zhao/zexall-sms/blob/5b0e32f9d4b2a665f11f77a90e909652713ccd27/source/zexall.asm#L1301-L1306" class="postlink">https://github.com/maxim-zhao/zexall-sms/blob/5b0e32f9d4b2a665f11f77a90e909652713ccd27/source/zexall.asm#L1301-L1306</a> it looks like the instruction immediately before the instruction under test is ld sp,(nn), which I believe places addr+1 into MEMPTR. StackPointerBeforeTest is set to $C07E so would place $C07F into MEMPTR, so if I'm understanding correctly bits 3 and 5 of the high byte would not be set anyway, so shouldn't affect the flags.<br /><br />Anyone able to help?<br /><br />Also, has anyone got any build instrcutions for zexall? The latest source in that repo doesn't correspond with the latest released version, and I've never done anything with wla-dx to know where to start building it.<br /><br />Cheers
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>DParrott</b> [ Tue Nov 07, 2017 3:47 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: SMS/Z80 Zexall</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Ok, self posting, but it does appear that I might have resolved this.<br /><br />If what I've got is correct it wasn't in fact the MEMPTR but the flags on the non indirect BIT instruction.<br /><br />My implementation followed the comments inside of the Undocumentd Z80 PDF which states:<br /><br />SF flag Set if n = 7 and tested bit is set.<br />ZF flag Set if the tested bit is reset.<br />YF flag <strong>Set if n = 5 and tested bit is set.</strong><br />HF flag Always set.<br />XF flag <strong>Set if n = 3 and tested bit is set.</strong><br />PF flag Set just like ZF flag.<br />NF flag Always reset.<br />CF flag Unchanged.<br /><br />Which I was doing, and failing. If I change my BIT instruction to take Bit 5/Bit 3 (YF/XF) from the value being tested, ignoring the bit being tested, it passes.<br /><br />Is the documentation incorrect or have I missed something else?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

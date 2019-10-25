@@ -1,0 +1,207 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - SuperGrafx VPC emulation</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">SuperGrafx VPC emulation</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=23&amp;t=15436">http://forums.nesdev.com/viewtopic.php?f=23&amp;t=15436</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>byuu</b> [ Tue Jan 24, 2017 11:44 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>SuperGrafx VPC emulation</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I'm trying to emulate the priority effects of the VPC, and it's giving me quite a bit of trouble.<br /><br />First up, i notice that only Daimakaimura uses window 1 (set to 1023), and nothing else uses either window.<br /><br />Yet still ... sgxtech says this:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp;The VPC has two 10-bit registers which define the width of Window 1 and<br />&nbsp;Window 2. The windows start from the leftmost pixel of the physical screen,<br />&nbsp;not the active display area, which is a window width setting of $0040.<br />&nbsp;Values smaller than this disable the window, and values larger than this<br />&nbsp;make the window extend horizontally across the screen, from left to right,<br />&nbsp;A setting of $3FF makes the window take up the entire width of the screen.</div><br /><br />So the invalid ranges are 0 - 63. And the valid ranges are 64 - 1023.<br /><br />But each VDC has its own H/V timing values, and of course the VCE has the clock frequency select of 5/7/10mhz.<br /><br />So when it says it starts from the leftmost pixel of the physical screen, what is it talking about, exactly?<br /><br />Given the regular resolutions are 256/340/512, should I assume that with a range of 1023, that a value of 66 is saying &quot;the window affects one pixel at 256-width, one and a half pixels (roughly) at 340-width, two pixels at 512-width&quot;?<br /><br />I don't think it'd be rated at the full 21mhz, because then 1023 wouldn't cover the entire width of the screen. Let alone if you overdrive the width to its theoretical limits (~285/~380/~560).<br /><br />Next problem is the priorities themselves ... what a mess. sgxtech lists it like this:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp;Back&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Front<br />&nbsp;SP2 &gt; BG2 &gt; SP2' &gt; SP1 &gt; BG1 &gt; SP1'<br /><br />&nbsp;BG2 = VDC #2 background<br />&nbsp;SP2 = VDC #2 low priority sprites<br />&nbsp;SP2'= VDC #2 high priority sprites<br />&nbsp;BG1 = VDC #1 background<br />&nbsp;SP1 = VDC #1 low priority sprites<br />&nbsp;SP1'= VDC #1 high priority sprites</div><br /><br />First of all, the sprite priority isn't exposed on the supposed 9-bit data bus from each VDC, that's:<br />d8 =&gt; 0=background, 1=sprite<br />d7-d4 =&gt; palette index<br />d3-d0 =&gt; color<br />Which is also a direct index into CRAM, which is convenient.<br /><br />I am also unsure what happens when both the background and sprite are off. It sounds like on a regular PCE, it returns 0x100 (so you use the sprite palette #0 color), and on the SGX, it returns 0x000 (so you use the background palette #0 color.) Is that right?<br /><br />So with that in mind, we can refactor the default priority to:<br />BG2 &gt; SP2 &gt; BG1 &gt; SP1<br /><br />Which ... using &gt; is a really poor choice. Up until just now I thought that meant BG2 had greater priority &gt;_&lt;<br /><br />So this can be further refactored to this:<br />return VDC1.color ? VDC1 : VDC2;<br /><br />But that's only for modes 0 and 3.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp;The 2-bit priority field affects the layer ordering. The above default<br />&nbsp;priority setting is selected for values of 00b and 11b.</div><br /><br />But what about the other two modes?<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp;For 01b, VDC #1 sprites are shown behind the VDC #2 background. However,<br />&nbsp;the VDC #1 background has missing sprite-shaped areas where it's sprites<br />&nbsp;are, even though they are hidden behind both background layers.</div><br /><br />So that would mean:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp;SP1 = VDC #1 sprites<br />&nbsp;BG2 = VDC #2 background<br />&nbsp;SP2 = VDC #2 sprites<br />&nbsp;BG1 = VDC #1 background</div><br /><br />SP1 &gt; BG2 &gt; SP2 &gt; BG1 (BG1 = highest priority. Again, weird usage of &gt; here.)<br /><br />And finally:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp;For 10b, VDC #2 sprites are shown in front of the VDC #1 background and<br />&nbsp;behind VDC #1 sprites. However, low priority VDC #2 sprites are still<br />&nbsp;shown behind VDC #2 background tiles.</div><br /><br />So thus:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp;BG2 = VDC #2 background<br />&nbsp;BG1 = VDC #1 background<br />&nbsp;SP2 = VDC #2 sprites<br />&nbsp;SP1 = VDC #1 sprites</div><br /><br />BG2 &gt; BG1 &gt; SP2 &gt; SP1.<br /><br />Of course, the enable VDC1/2 flags come into play as well. So I skip them when said VDC is not enabled.<br /><br />And if both VDCs aren't enable and we fall through, for now I'm returning 0x000 (CRAM color #0), is that right?<br /><br />Thus, my code ends up looking like this:<br /><br />(I know it's horribly unoptimized, it's just to get things working initially, then I'll revise.)<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">auto VPC::bus(uint hclock) -&gt; uint9 {<br />&nbsp; auto bus0 = vdc0.bus();&nbsp; //0 = VDC1<br />&nbsp; auto bus1 = vdc1.bus();&nbsp; //1 = VDC2<br /><br />&nbsp; auto color0 = bus0.bits(0,3);<br />&nbsp; auto color1 = bus1.bits(0,3);<br /><br />&nbsp; auto palette0 = bus0.bits(4,7);<br />&nbsp; auto palette1 = bus1.bits(4,7);<br /><br />&nbsp; auto mode0 = bus0.bit(8);&nbsp; //0 = background, 1 = sprite<br />&nbsp; auto mode1 = bus1.bit(8);<br /><br />&nbsp; bool window0 = window&#91;0&#93; &gt;= 64 &amp;&amp; (window&#91;0&#93; - 64) &gt;= hclock / 2;<br />&nbsp; bool window1 = window&#91;1&#93; &gt;= 64 &amp;&amp; (window&#91;1&#93; - 64) &gt;= hclock / 2;<br /><br />&nbsp; uint2 mode;<br />&nbsp; if(!window0 &amp;&amp; !window1) mode = 1;<br />&nbsp; if( window0 &amp;&amp; !window1) mode = 0;<br />&nbsp; if(!window0 &amp;&amp;&nbsp; window1) mode = 3;<br />&nbsp; if( window0 &amp;&amp;&nbsp; window1) mode = 2;<br /><br />&nbsp; //mode 0 = $08.d0-d3, 1 = $08.d4-d7, 2 = $09.d0-d3, 3 = $09.d4-d7<br />&nbsp; auto enableVDC0 = settings&#91;mode&#93;.enableVDC0;<br />&nbsp; auto enableVDC1 = settings&#91;mode&#93;.enableVDC1;<br />&nbsp; auto priority = settings&#91;mode&#93;.priority;<br /><br />&nbsp; if(priority == 0 || priority == 3) {<br />&nbsp; &nbsp; if( mode0 &amp;&amp; enableVDC0) return bus0;<br />&nbsp; &nbsp; if(!mode0 &amp;&amp; enableVDC0) return bus0;<br />&nbsp; &nbsp; if( mode1 &amp;&amp; enableVDC1) return bus1;<br />&nbsp; &nbsp; if(!mode1 &amp;&amp; enableVDC1) return bus1;<br />&nbsp; }<br /><br />&nbsp; if(priority == 1) {<br />&nbsp; &nbsp; if(!mode0 &amp;&amp; enableVDC0) return bus0;<br />&nbsp; &nbsp; if( mode1 &amp;&amp; enableVDC1) return bus1;<br />&nbsp; &nbsp; if(!mode1 &amp;&amp; enableVDC1) return bus1;<br />&nbsp; &nbsp; if( mode0 &amp;&amp; enableVDC0) return bus0;<br />&nbsp; }<br /><br />&nbsp; if(priority == 2) {<br />&nbsp; &nbsp; if( mode0 &amp;&amp; enableVDC0) return bus0;<br />&nbsp; &nbsp; if( mode1 &amp;&amp; enableVDC1) return bus1;<br />&nbsp; &nbsp; if(!mode0 &amp;&amp; enableVDC0) return bus0;<br />&nbsp; &nbsp; if(!mode1 &amp;&amp; enableVDC1) return bus1;<br />&nbsp; }<br /><br />&nbsp; return 0x000;<br />}</div><br /><br />... but it doesn't work well at all.<br /><br />Gallery of results here: <!-- m --><a class="postlink" href="http://imgur.com/a/1fE82">http://imgur.com/a/1fE82</a><!-- m --><br /><br />So ... what am I missing here? :/
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>byuu</b> [ Tue Jan 24, 2017 2:04 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: SuperGrafx VPC emulation</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />In-game, Daimakaimura sets $08 = #$75, $09 = #$56. Since our first window doesn't match, and second window does match, that gives us $08.d4-d7, or #$07.<br /><br />d0=enable VDC0<br />d1=enable VDC1<br />d2-d3=priority 01<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp;Bits 7-4 of $0008 are for the region occupied by window 2<br />&nbsp;Bits 3-0 of $0008 are for the region where window 1 and 2 overlap<br />&nbsp;Bits 7-4 of $0009 are for the region where no window is present<br />&nbsp;Bits 3-0 of $0009 are for the region occupied by window 1</div><br /><br />So with that said ... this is the priority that makes Daimakaimura run correctly:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; if(priority == 1) {<br />&nbsp; &nbsp; if( mode0 &amp;&amp; enableVDC0) return bus0;&nbsp; //SP1<br />&nbsp; &nbsp; if( mode1 &amp;&amp; enableVDC1) return bus1;&nbsp; //SP2<br />&nbsp; &nbsp; if(!mode0 &amp;&amp; enableVDC0) return bus0;&nbsp; //BG1<br />&nbsp; &nbsp; if(!mode1 &amp;&amp; enableVDC1) return bus1;&nbsp; //BG2<br />&nbsp; }</div><br /><br />In other words: BG2 &gt; BG1 &gt; SP2 &gt; SP1, or per sgxtech, this is mode 2.<br /><br />So ... my suspicion is that sgxtech has accidentally swapped mode 1 and mode 2's priorities.<br /><br />My questions still remain about the fallback colors when both BG and Sprites are disabled, both on individual VDCs and on the VPC's combined mode (eg with the two enable VDC bits being cleared.) And also I am still unsure on how the window should work. But ... this code seems to be enough to run all the games.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">auto VPC::bus(uint hclock) -&gt; uint9 {<br />&nbsp; auto bus0 = vdc0.bus();<br />&nbsp; auto bus1 = vdc1.bus();<br /><br />&nbsp; auto color0 = bus0.bits(0,3);<br />&nbsp; auto color1 = bus1.bits(0,3);<br /><br />&nbsp; auto palette0 = bus0.bits(4,7);<br />&nbsp; auto palette1 = bus1.bits(4,7);<br /><br />&nbsp; auto mode0 = bus0.bit(8);<br />&nbsp; auto mode1 = bus1.bit(8);<br /><br />&nbsp; bool window0 = window&#91;0&#93; &gt;= 64 &amp;&amp; (window&#91;0&#93; - 64) &gt;= hclock / 2;<br />&nbsp; bool window1 = window&#91;1&#93; &gt;= 64 &amp;&amp; (window&#91;1&#93; - 64) &gt;= hclock / 2;<br /><br />&nbsp; uint2 mode;<br />&nbsp; if(!window0 &amp;&amp; !window1) mode = 3;<br />&nbsp; if( window0 &amp;&amp; !window1) mode = 2;<br />&nbsp; if(!window0 &amp;&amp;&nbsp; window1) mode = 1;<br />&nbsp; if( window0 &amp;&amp;&nbsp; window1) mode = 0;<br /><br />&nbsp; auto enableVDC0 = (bool)color0 &amp;&amp; settings&#91;mode&#93;.enableVDC0;<br />&nbsp; auto enableVDC1 = (bool)color1 &amp;&amp; settings&#91;mode&#93;.enableVDC1;<br />&nbsp; auto priority = settings&#91;mode&#93;.priority;<br /><br />&nbsp; if(priority == 0 || priority == 3) {<br />&nbsp; &nbsp; if( mode0 &amp;&amp; enableVDC0) return bus0;<br />&nbsp; &nbsp; if(!mode0 &amp;&amp; enableVDC0) return bus0;<br />&nbsp; &nbsp; if( mode1 &amp;&amp; enableVDC1) return bus1;<br />&nbsp; &nbsp; if(!mode1 &amp;&amp; enableVDC1) return bus1;<br />&nbsp; }<br /><br />&nbsp; if(priority == 1) {<br />&nbsp; &nbsp; if( mode0 &amp;&amp; enableVDC0) return bus0;&nbsp; //SP1<br />&nbsp; &nbsp; if( mode1 &amp;&amp; enableVDC1) return bus1;&nbsp; //SP2<br />&nbsp; &nbsp; if(!mode0 &amp;&amp; enableVDC0) return bus0;&nbsp; //BG1<br />&nbsp; &nbsp; if(!mode1 &amp;&amp; enableVDC1) return bus1;&nbsp; //BG2<br />&nbsp; }<br /><br />&nbsp; if(priority == 2) {<br />&nbsp; &nbsp; if(!mode0 &amp;&amp; enableVDC0) return bus0;&nbsp; //BG1<br />&nbsp; &nbsp; if( mode1 &amp;&amp; enableVDC1) return bus1;&nbsp; //SP2<br />&nbsp; &nbsp; if(!mode1 &amp;&amp; enableVDC1) return bus1;&nbsp; //BG2<br />&nbsp; &nbsp; if( mode1 &amp;&amp; enableVDC1) return bus1;&nbsp; //SP1<br />&nbsp; }<br /><br />&nbsp; return 0x000;<br />}</div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ccovell</b> [ Tue Jan 24, 2017 4:54 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: SuperGrafx VPC emulation</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">byuu wrote:</div><div class="quotecontent">But each VDC has its own H/V timing values, and of course the VCE has the clock frequency select of 5/7/10mhz.<br /><br />So when it says it starts from the leftmost pixel of the physical screen, what is it talking about, exactly?<br /><br />Given the regular resolutions are 256/340/512, should I assume that with a range of 1023, that a value of 66 is saying &quot;the window affects one pixel at 256-width, one and a half pixels (roughly) at 340-width, two pixels at 512-width&quot;?<br /><br />Next problem is the priorities themselves ... what a mess. sgxtech lists it like this:<br /><br />[code] Back                          Front<br /> SP2 &gt; BG2 &gt; SP2' &gt; SP1 &gt; BG1 &gt; SP1'</div><br />I'm pretty sure the VPC is clocked at the same rate as the VDC, based on the VCE's data rate (resolution setting).  There are no 1/2 or 1/3 pixels on this system, as far as I know.<br /><br />And I'm sure Charles Macdonald intended for the &gt;  &gt; to be read as arrows, not 'greater than' signs.  Back --&gt; Front.<br /><br />I wonder if there are any adjustable SGX windowing programs/demos out there?  Perhaps I could make one sometime, someday... :/<br /><br />Tomaitheous made some SGX demos with sine-wave effects from windowing adjustments; perhaps he could explain how the windows are finely-controlled?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>byuu</b> [ Tue Jan 24, 2017 10:34 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: SuperGrafx VPC emulation</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />&gt; I'm pretty sure the VPC is clocked at the same rate as the VDC, based on the VCE's data rate (resolution setting). There are no 1/2 or 1/3 pixels on this system, as far as I know.<br /><br />So in other words, a window of 66 counts for two pixels regardless of the clock setting. Okay, that's doable.<br /><br />A minor detail that's tricky for me ... with there being a fixed 1365 clock cycles per scanline so as to meet the NTSC standard, and the VCE clock rate being immediately adjustable, it seems like there's a fixed window where the chip can run and generate a 5mhz, 7mhz, 10mhz-wide &quot;pixel&quot;. And then eventually it'll have to resynchronize things again through areas where it's not driving the VDC(s)/VPC at all. Easy enough to handle, but still feels really clunky. I'm not sure why they didn't cache the VCE clock rate once per scanline. You'd have to be insane to try and tweak it mid-scanline, but apparently you can :/<br /><br />&gt; And I'm sure Charles Macdonald intended for the &gt; &gt; to be read as arrows, not 'greater than' signs. Back --&gt; Front.<br /><br />Yeah, he does amazingly great work and I hate to seem like I'm complaining, but yeah I would have ordered the priority the other way in this one instance.<br /><br />&gt; I wonder if there are any adjustable SGX windowing programs/demos out there?<br /><br />Again my personal challenge here is that I don't own a real PCE or flash cart, so I can't do much with a demo, unless there's an emulator that we know gets this 100% right. And even then, I'm weary of emulating an emulator.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>TOUKO</b> [ Wed Jan 25, 2017 6:25 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: SuperGrafx VPC emulation</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">First up, i notice that only Daimakaimura uses window 1 (set to 1023), and nothing else uses either window.</div><br />You can use a game i'am currently doing for testing window(successfully tested on a real SGX):<br /><!-- m --><a class="postlink" href="https://www.dropbox.com/s/tb8at21xz5w461t/bombOnPC.pce?dl=0">https://www.dropbox.com/s/tb8at21xz5w46 ... C.pce?dl=0</a><!-- m --><br /><br />PS: But beware it's in 10mhz dot clock(i don't know if it's important or not for you to know) .<br />PS2: if you test with mednafen, be sure using the latest 0.9.41.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

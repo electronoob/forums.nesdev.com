@@ -1,0 +1,347 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Bytecode system (improvement on SWEET-16)</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Bytecode system (improvement on SWEET-16)</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=17629">http://forums.nesdev.com/viewtopic.php?f=2&amp;t=17629</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Sun Aug 05, 2018 7:43 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Bytecode system (improvement on SWEET-16)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />So guys, those last years I've been always less and less into NESdev, and the probability that I ever release a full-featured game in my lifetime is getting smaller and smaller. In the last 2 years I have made pretty much zero (that is, 0) progress at all in my NESdev projects. Lack of time is not the only reason for that; lack of motivation and the start of other interest is the main reasons.<br /><br />I don't know what I will do with my unfinished projects, but at least I'd like to share what I consider the more advanced and most &quot;general purpose&quot; thing I've developed. I developed this quite recently as I already started to slow down my progress on my main NESdev project, however I still think it is a great success.<br /><br />The goal is to have a bytecode system that allows to waste less ROM memory to store programms as 6502 code, instead the 6502 interprets a byte-code having code in a more upper-level assembly language using 8 16-bit registers. This allows not only to save lots of ROM, but also to write some pieces of program more convieniently. The project is largely inspired by SWEET-16, however I found SWEET-16 was fairly lacking so I brought the following improvements over the concept :<br /><ul><li>Uses 32 instructions x 8 registers instead of 16 instructions x 16 registers</li><li>More instructions means a more complete instruction set, as such logical operations are added</li><li>Status registers are abandoned</li><li>Fully mergeable with native 6502 code (bytecode and native 6502 code routines can call eachother transparently)</li><li>Possibility to access to VRAM directly, as well as execute bytecode from CHR-ROM directly</li></ul><br />The last point is what makes the project NES specific instead of 6502 specific. The idea is to code routines which are heavy in complex computations and VRAM access, such as loading routines, in bytecodes, and routines which needs to be fast and executed during normal gameplay in native 6502 assembly. Bytecode execution is around 10-20 times slower as native 6502 ASM, but can save PRG-ROM (up to 100%, since code can be stored in CHR-ROM and executed from there without using RAM).<br /><br />I used WLA-DX marcos for coding, probably with some modifications it's easy to port this to other assembler's macros. To not confuse byte code with 6502 code, it uses 4-letter mnemonics. As a remainder it uses 8 registers, and most operations are operations are automatically operations between any register and R0 (just like the original SWEET-16). It does uses the same stack as 6502 code.<br /><br />As an example code of what bytecode looks, here is an example from my game project that clears entiere name and attribute tables:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">ClearVRAM<br />&nbsp; &nbsp;LDIW R6, $2000<br />&nbsp; &nbsp;LDZP M2000&nbsp; &nbsp; &nbsp;; Load previous $2000 value from M2000 in zeropage<br />&nbsp; &nbsp;LDIB R1, $80<br />&nbsp; &nbsp;LIOR R1<br />&nbsp; &nbsp;STZP M2000&nbsp; &nbsp;; M2000 |= $80<br />&nbsp; &nbsp;STMB R6&nbsp; &nbsp;&nbsp; &nbsp;; store it to actual $2000 registers<br />&nbsp; &nbsp;CALL PaletteFadeOut&nbsp; &nbsp; ; Call bytecode program that will fade out the palette over several frames<br /><br />&nbsp; &nbsp;DECR R6&nbsp; &nbsp;&nbsp; &nbsp;; R6 = $2000 (compensate auto-increment from previous STMB instruction !)<br /><br />&nbsp; &nbsp;CLER R0<br />&nbsp; &nbsp;STMB R6&nbsp; &nbsp;&nbsp; &nbsp;; $2000 := 0<br />&nbsp; &nbsp;STMB R6&nbsp; &nbsp;&nbsp; &nbsp;; $2001 := 0<br />&nbsp; &nbsp;STZP M2000&nbsp; &nbsp;; M2000 := 0<br />&nbsp; &nbsp;STZP M2001&nbsp; &nbsp;; M2001 := 0<br />&nbsp; &nbsp;CALL ClrNamTbl<br /><br />Clr2ndNamTbl<br />&nbsp; &nbsp;LDIW R1, $2400&nbsp; &nbsp; &nbsp; ; R1 points to second nametable<br />&nbsp; &nbsp;BRNZ R1, SetNamAdress<br />ClrNamTbl<br />&nbsp; &nbsp;LDIW R1, $2000&nbsp; &nbsp; &nbsp; ; R1 points to first nametable<br />SetNamAdress<br />&nbsp; &nbsp;LDIB R0, $ff&nbsp; &nbsp;; R3 (carry flag from 6502) nonzero -&gt; Clear nametable with $ff<br />&nbsp; &nbsp;BRNZ R3, _ff<br />&nbsp; &nbsp;LDIB R0, $60&nbsp; &nbsp;; R3 (carry flag from 6502) zero -&gt; Clear nametable with $60<br />_ff<br />&nbsp; &nbsp;LDIW R2, $3c0&nbsp; &nbsp;; R2 counts bytes to write to nametable<br />&nbsp; &nbsp;CALL _sub&nbsp; &nbsp; &nbsp; &nbsp;;Clear name table<br />&nbsp; &nbsp;LDIB R2, $40<br />&nbsp; &nbsp;CLER R0&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;;Clear attribute table<br />_sub<br />&nbsp; &nbsp;STVB R1&nbsp; &nbsp; &nbsp; &nbsp; ; Store R0 to VRAM<br />&nbsp; &nbsp;DJNZ R2, _sub&nbsp; &nbsp;; Loop until done<br />&nbsp; &nbsp;RETN<br /></div><br /><br />Here is the code and documentation. Note that some aspects of the bytecodes were engineered for this game specifically (in particular it relies on CNROM mapper, and some instructions that went unused in the game were removed, but could be added back).
+
+		
+			<br clear="all" /><br />
+
+			<table class="tablebg" width="100%" cellspacing="1">
+			<tr>
+				<td><b class="genmed">Attachments: </b></td>
+			</tr>
+			
+				<tr>
+					<td>
+			<span class="genmed">
+				<img src="./styles/subsilver2/imageset/icon_topic_attach.gif" width="14" height="18" alt="" title="" /> 
+				<a href="./download/file.php?id=13235">bytecode_doc.txt</a> [13.52 KiB]
+			</span><br />
+			<span class="gensmall">Downloaded 29 times</span>
+		
+
+		<br />
+	</td>
+				</tr>
+			
+				<tr>
+					<td>
+			<span class="genmed">
+				<img src="./styles/subsilver2/imageset/icon_topic_attach.gif" width="14" height="18" alt="" title="" /> 
+				<a href="./download/file.php?id=13234">bytecode.asm</a> [10.4 KiB]
+			</span><br />
+			<span class="gensmall">Downloaded 19 times</span>
+		
+
+		<br />
+	</td>
+				</tr>
+			
+			</table>
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Banshaku</b> [ Sun Aug 05, 2018 8:24 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Bytecode system (improvement on SWEET-16)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />It's great that you are releasing some part of the technology that you used for your game but if you have a chance, even if the project is not finished or never will be, it would be great to see up to what point you where able to make your game.<br /><br />I still remember it, from 10 years ago and would love to see how much you where able to do. It's up to you, it would bring some closure as long as you explain what can be done or not with the current built <img src="./images/smilies/icon_wink.gif" alt=";)" title="Wink" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Sun Aug 05, 2018 9:27 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Bytecode system (improvement on SWEET-16)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Banshaku wrote:</div><div class="quotecontent">It's great that you are releasing some part of the technology that you used for your game but if you have a chance, even if the project is not finished or never will be, it would be great to see up to what point you where able to make your game.<br /><br />I still remember it, from 10 years ago and would love to see how much you where able to do. It's up to you, it would bring some closure as long as you explain what can be done or not with the current built <img src="./images/smilies/icon_wink.gif" alt=";)" title="Wink" /></div><br />Doing so would mean officially abandoning the project. I'm not here yet, but if I ever officially abandon the project then yeah, I'll release everything I guess.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Sun Aug 05, 2018 11:24 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Bytecode system (improvement on SWEET-16)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I've been working on a thing with its own bytecode myself lately, always good to see someone else's ideas and implementation. <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Sun Aug 05, 2018 12:36 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Bytecode system (improvement on SWEET-16)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />This is pretty interesting, but I don't know if I'd ever trade performance for ROM space, considering that mappers can easily provide us with tons of PRG-ROM space, while performance will always be limited by the 1.79 MHz CPU, unless you use much more complex/expensive/questionable expansions.<br /><br />I also don't consider 6502 assembly a chore to code, I actually find it pretty fun, so I don't really feel the need to &quot;raise the level&quot; in order to get things done. I mean, not that I can easily get things done, I just don't feel that the language is what's holding me back.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Sun Aug 05, 2018 12:58 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Bytecode system (improvement on SWEET-16)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tokumaru wrote:</div><div class="quotecontent">This is pretty interesting, but I don't know if I'd ever trade performance for ROM space, considering that mappers can easily provide us with tons of PRG-ROM space, while performance will always be limited by the 1.79 MHz CPU, unless you use much more complex/expensive/questionable expansions.</div><br />I think we already had this debate countless times. Basically I limited myself to mapper #3, 32kb PRG + 32kb CHR and did not want to develop for a more advanced mapper (yet). The goal was originally then to make further games using more complex mappers as I progressed.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">I also don't consider 6502 assembly a chore to code, I actually find it pretty fun, so I don't really feel the need to &quot;raise the level&quot; in order to get things done. I mean, not that I can easily get things done, I just don't feel that the language is what's holding me back.</div><br />To be honest it entirely depends on what you want to do. Sometimes, in most cases 6502 code will come naturally and do the job just fine. In some rare cases though, especially when dealing with a lot of 16-bit stuff, having just 3 registers is a complete hassle, and coding things becomes a nightmare. Of course if you don't care about code size then it becomes less a problem as you can afford having all your variables in RAM and doing worthless LDA / STA all the time, but if you want something more optimal it's not easy.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Banshaku</b> [ Sun Aug 05, 2018 5:54 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Bytecode system (improvement on SWEET-16)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Ok, no problem then! I hope that you make some kind of demo someday, even 1 level, would love to see it. Sorry for derailing a little bit.<br /><br />As for the current post, I'm not knowledgable enough about bytecode system so I will abstain from commenting on it. I will keep a copy and browse the code for educational purpose.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>pubby</b> [ Sun Aug 05, 2018 8:17 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Bytecode system (improvement on SWEET-16)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tokumaru wrote:</div><div class="quotecontent">This is pretty interesting, but I don't know if I'd ever trade performance for ROM space, considering that mappers can easily provide us with tons of PRG-ROM space, while performance will always be limited by the 1.79 MHz CPU, unless you use much more complex/expensive/questionable expansions.</div><br />I suppose the byte code instructions can be implemented in a way that's faster but less space efficient. It's kinda cool to have that choice without having to rewrite the entire program.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Sun Aug 05, 2018 11:32 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Bytecode system (improvement on SWEET-16)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">pubby wrote:</div><div class="quotecontent">I suppose the byte code instructions can be implemented in a way that's faster but less space efficient. It's kinda cool to have that choice without having to rewrite the entire program.</div><br />No, no, no. The whole point of the bytecode system is to reduce ROM consumption to the bare minimum possible to store a program/algorithm, and speed of execution is sacrified for that. If you need real-time execution, then the program should be written in native 6502. And most of the game is written in native 6502, only key parts of particularly complex initializing and loading are written in byte code; every piece of code which is executed regularly on a frame-basis is always written in native 6502.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>NovaSquirrel</b> [ Mon Aug 06, 2018 2:30 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Bytecode system (improvement on SWEET-16)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I found it very interesting that math instructions are swapped around, where the &quot;special&quot; register is the only source instead of the only destination.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

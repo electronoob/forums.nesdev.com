@@ -1,0 +1,492 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Organizing and processing objects.</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Organizing and processing objects.</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=9077">http://forums.nesdev.com/viewtopic.php?f=2&amp;t=9077</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Movax12</b> [ Fri Jul 06, 2012 8:50 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Organizing and processing objects.</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I have been thinking over more and more, without much actual coding, on how to handle cycling through objects, collision detection, sprite frames, etc.
+<br />
+<br />I'm looking for discussion of ideas or solutions for these problems. My goal is a good balance of flexibility and speed.
+<br />
+<br />So far I've figured I want to have a 'engine' that can cycle through objects and update everything. So the top level I am thinking about would be that: the code that updates each object. I have a lot of thoughts bouncing around, so maybe start there instead of typing a really long post. What kind of data structure should the object have? I'm thinking about handling everything a player interacts with as an object (platforms and doors too) and I'm imagining a platform/action type of game. 
+<br />
+<br />So far I want my object to potentially have (in RAM):
+<br />
+<br />-object number
+<br />-object type
+<br />-X,Y (screen? world? I guess it doesn't matter)
+<br />-deltax,deltay 
+<br />-pointer to metasprite
+<br />-current frame (metasprite)
+<br />-direction (metasprite flipping)
+<br />-status  (attacking, defending, resting, hit points, whatever.. extra data as needed for object type)
+<br />-incoming event (set by another function doing something to this object)
+<br />-pointers to various function for this object number on events. ( I guess this could be a separate jump table in ROM)
+<br />
+<br />Is something like this normal/good coding? 
+<br />Issues: 
+<br />How to allocate and track RAM on creation/destruction of an object? 
+<br />I think I would like to sort by at least one coordinate for better collision detection, any suggestion how to have a sorted list index the object?
+<br />
+<br />Thanks
+<br />
+<br />Edit: Made this test program last week.. can't get much further yet.. : <!-- m --><a class="postlink" href="http://wikisend.com/download/164710/ball.nes">http://wikisend.com/download/164710/ball.nes</a><!-- m -->
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Fri Jul 06, 2012 11:17 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Organizing and processing objects.</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Movax12 wrote:</div><div class="quotecontent">-status  (attacking, defending, resting, hit points, whatever.. extra data as needed for object type)<br />-pointers to various function for this object number on events. ( I guess this could be a separate jump table in ROM)</div><br />Instead of using codes for status and jump tables (or God forbids, long chains of IFs), I prefer to store the PC of the object's AI, so that it can resume from where it stopped last frame.<br /><br />That way, to call an object I copy its PC to the stack and RTS. If the state doesn't change, the PC doesn't change (i.e. the same code will be called again), but when it jumps to another state there's a routine they JSR to that saves their PC to their RAM. Something like this:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">CallObject: ;index of object in X<br />&nbsp; &nbsp;lda ObjectPCHi, x<br />&nbsp; &nbsp;pha<br />&nbsp; &nbsp;lda ObjectPCLo, x<br />&nbsp; &nbsp;pha<br />&nbsp; &nbsp;rts<br /><br />SaveObject: ;index of object in X<br />&nbsp; &nbsp;pla<br />&nbsp; &nbsp;sta ObjectPCLo, x<br />&nbsp; &nbsp;pla<br />&nbsp; &nbsp;sta ObjectPCHi, x<br />&nbsp; &nbsp;rts</div><br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">How to allocate and track RAM on creation/destruction of an object?</div><br />I have a linked list of free object slots. Since the slots are free, I can use any byte to indicate the next free slot (a negative index indicates that there are no more free slots). A separate variable indicates the first free slot (if this is negative, there are no free slots at all). To allocate/deallocate memory for objects I just remove/add entries at/to the beginning of the linked list. The GetObjectSlot routine returnes the index of the first free slot, and makes the second free slot the new first. The ReturnObjectSlot routine makes the current slot the first free one and makes it point to the old one as the new second.<br /><br />All my object memory is a series of arrays, which I access using the X register. That way, routines that manipulate the objects using the base addresses of the arrays and the index of the object in X. For example, ldx #$04; dec ObjectHealth, x; would decrase the health of the object in the 5th slot.<br /><br />The disadvantage is that you don't have any permanent linear memory for the objects, so if you need to use pointers and such (anything requiring consecutive bytes, really) you have to copy them to some scratchpad RAM first.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">I think I would like to sort by at least one coordinate for better collision detection, any suggestion how to have a sorted list index the object?</div>
+<br />Personally I don't bother with sorting, I just try to minimize the number of collision checks. Most objects don't have to collide with each other, and some don't even collide with anything, so most of the time I just make the objects check for collisions with the player and that's it.
+<br />
+<br />If you need objects of different types to collide, you should have a linked list for each type. For example, bullets would have in their AI a loop that only checks for collisions against objects in a list of objects that can be hit by bullets.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Movax12</b> [ Fri Jul 06, 2012 12:09 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Organizing and processing objects.</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">subroutine wrote:</div><div class="quotecontent">Instead of using codes for status and jump tables (or God forbids, long chains of IFs), I prefer to store the PC of the object's AI, so that it can resume from where it stopped last frame.</div> <br /> <br />I am not sure if understand exactly how you are using that technique. Rather than checking the state and jumping to a subroutine, you just have an address saved that you jump to. I like that, but how to you decide when to change the saved address? Wouldn't it result in the same problem of looking up an address of the appropriate code? Or are you talking about a yield and continue type idea? (I think that is beyond my ability at this point.) <br /> <br /> <br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">How to allocate and track RAM on creation/destruction of an object?</div> <br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">I have a linked list of free object slots. </div>  <br />I haven't done linked lists in asm, but seems easy enough and an appropriate use of linked lists. This seems to require an object data structure of fixed length to avoid fragmentation, but a variable size seems overly complicated to track. <br /> <br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent"> <br />The disadvantage is that you don't have any permanent linear memory for the objects, so if you need to use pointers and such (anything requiring consecutive bytes, really) you have to copy them to some scratchpad RAM first.</div> <br /> <br />I think you are saying this is a way around the fixed size of object data? <br /> <br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Personally I don't bother with sorting, I just try to minimize the number of collision checks. Most objects don't have to collide with each other, and some don't even collide with anything, so most of the time I just make the objects check for collisions with the player and that's it. <br /> <br />If you need objects of different types to collide, you should have a linked list for each type. For example, bullets would have in their AI a loop that only checks for collisions against objects in a list of objects that can be hit by bullets.</div> 
+<br /> 
+<br />Good point...  Still thinking about this.
+<br />
+<br />EDIT:
+<br />
+<br />I think I understand your PC saving idea a bit better: There is -no- need to save a list of addresses if your current object code can handle the possible  changes in status and decide how to jmp to the new subroutine - which sets itself up as the new default subroutine if it should persist for more than one frame. Correct?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Fri Jul 06, 2012 1:15 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Organizing and processing objects.</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Movax12 wrote:</div><div class="quotecontent">Or are you talking about a yield and continue type idea? (I think that is beyond my ability at this point.)</div><br />Yeah, something like that. But it's probably not as complicated as you think it is.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">I think I understand your PC saving idea a bit better: There is need to save a list of addresses if your current object code can handle the possible  changes in status and decide how to jmp to the new subroutine - which sets itself up as the new default subroutine if it should persist for more than one frame. Correct?</div><br />There's only one list, with pointers to the "reset" address of each object. This is called when objects are first loaded, so they can initialize themselves. After that, objects enter their first state, and you can freely move between states with JMPs. Each object would look something like this:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">Object01:<br /><br />&nbsp; &nbsp;;INITIALIZE THE OBJECT HERE<br /><br />Object01State0:<br /><br />&nbsp; &nbsp;;HANDLE STATE 0 HERE &#40;can JMP to other states if necessary&#41;<br /><br />&nbsp; &nbsp;jsr SaveObjectStateAndReturn ;start from here next time<br />&nbsp; &nbsp;jmp Object01State0 ;loop<br /><br />Object01State1:<br /><br />&nbsp; &nbsp;;HANDLE STATE 1 HERE &#40;can JMP to other states if necessary&#41;<br /><br />&nbsp; &nbsp;jsr SaveObjectStateAndReturn ;start from here next time<br />&nbsp; &nbsp;jmp Object01State1 ;loop<br /><br />Object01State2:<br /><br />&nbsp; &nbsp;;HANDLE STATE 2 HERE &#40;can JMP to other states if necessary&#41;<br /><br />&nbsp; &nbsp;jsr SaveObjectStateAndReturn ;start from here next time<br />&nbsp; &nbsp;jmp Object01State2 ;loop</div><br />There's nothing wrong with jump tables though, so if you feel more comfortable with them maybe you should go that way.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">I haven't done linked lists in asm, but seems easy enough and an appropriate use of linked lists.</div><br />They sure make the process of getting and freeing object slots very fast, as there's no need to scan the list looking for free slots.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">This seems to require an object data structure of fixed length to avoid fragmentation, but a variable size seems overly complicated to track.</div><br />True. If you need more memory than a single object slot provides, you can just request another slot and reference it in the first, while using a bogus AI pointer on the second one so that it doesn't do anything when called.<br /> <br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">I think you are saying this is a way around the fixed size of object data?</div>
+<br />The object data remain the same, but while the AI is running it should have a slice of RAM for temporary calculations. I do have some extra RAM for objects which I use to preserve their state when they are unloaded and reloaded again, and there's a pointer to this memory in the object slot when it's active. That kind of circumvents the fixed size of object memory.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Movax12</b> [ Fri Jul 06, 2012 1:30 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Thanks for your input.
+<br />
+<br />I have one other question:
+<br />
+<br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">All my object memory is a series of arrays, which I access using the X register. That way, routines that manipulate the objects using the base addresses of the arrays and the index of the object in X. For example, ldx #$04; dec ObjectHealth, x; would decrase the health of the object in the 5th slot. </div>
+<br />
+<br />I guess this is more a matter of preference, but you are saying your setup your data structures with all the ObjectHealth slots together linearly, rather than all the elements of an object together, then the next object? I suppose it makes for easier coding and I hadn't thought of doing it that way.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Fri Jul 06, 2012 2:20 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Movax12 wrote:</div><div class="quotecontent">I guess this is more a matter of preference, but you are saying your setup your data structures with all the ObjectHealth slots together linearly, rather than all the elements of an object together, then the next object? I suppose it makes for easier coding and I hadn't thought of doing it that way.</div>
+<br />Exactly. I prefer to do it like this because you can quickly switch from an object to the next by changing the X register, which is the index of the object slot. If X is 0, you access the object in the first slot, if it's 1, you access the second slot, and so on. If the memory of each object was linear, you'd probably have to use pointers and the <strong>($XX), Y</strong> addressing mode to access everything, which would be slow and not as versatile.
+<br />
+<br />The 6502 favors access to structures of arrays rather than arrays of structures, so in many cases it makes sense to store data interleaved like that.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Shiru</b> [ Fri Jul 06, 2012 3:36 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />If you don't have too many objects and they don't have many variables, you can have linear layout using lda $nnnn,x addressing. Say, you can have 16 objects max, each uses 16 bytes, or 32 objects, 8 bytes each - 256 bytes total. You can use $PP0n offsets to access individual variables of an object (PP is page for the list, n is offset in the object), and X contains object number*size of object.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Fri Jul 06, 2012 5:38 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Yeah, if the total memory for objects doesn't exceed 256 bytes, you can do like Shiru said and not give up the benefits of linear memory. 256 bytes is too little for me though (I suppose I could dedicate more than 1 page of memory for this so that each object would have 2 blocks of consecutive bytes  that are not consecutive themselves, but this would be kinda confusing...), so I'd rather do it the other way.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Movax12</b> [ Fri Jul 06, 2012 7:25 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I was actually thinking of making the objects powers of two - so an object has to use 2,4,8,16, or 32 bytes. Then you could lda an object number, asl a a few times and add to that to the base address, then index it with x.
+<br />
+<br />I think I really like the interleaved method though, it works well with the 6502.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Fri Jul 06, 2012 8:09 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Objects occupying different amounts of memory would be too much trouble IMO... Think about it, the memory area dedicated to holding objects would get fragmented really fast, and finding room for the larger objects would get harder and harder, unless you constantly reordered the used memory to keep the unused bytes together, which would be a fairly slow procedure during gameplay.
+<br />
+<br />Object handling is one of the slowest things in games. Just watch how famous games like SMB3, Kirby and Mega Man start lagging terribly when a slightly larger number of enemies are active. You really should do things as optimally as you can in this area, if you expect to have a lot of action going on in your game.
+<br />
+<br />I've come to a few conclusions about processing objects over the last few years. One of them is that I would only loop through the list of objects once, because doing this is slow. This meant that objects would run their AI and draw themselves in one go (scanning the list once for processing and again for drawing would be slow). One consequence of that is that the player object must be processed first, because he dictates how the camera moves, and all objects must know the position of the camera in order to draw themselves.
+<br />
+<br />And this poses another problem, because if the player is processed first and the camera coordinate is decided, what happens if later during object processing some obstacle pushes the player back? This would mean that the data we calculated before (the camera's position, for example) would be wrong, and that some objects were drawn using that wrong data.
+<br />
+<br />My solution was actually to always keep the processing one step ahead of the drawing. Every frame, objects will first draw themselves, using information that is known to be valid (because all objects have been processed last frame, so even if they modified each other somehow by now they would be at their final positions and states), and then they run the AI. Hopefully 1 frame of lag won't be noticeable since there are 60 of them in a second.
+<br />
+<br />Using these rules, I can guarantee that objects are only processed once per frame, meaning that I'm not wasting valuable processing time.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Movax12</b> [ Fri Jul 06, 2012 8:40 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I only meant I would have pick one of those - for all objects.. 8 bytes, maybe 16.. so I could use shifts to quickly calculate the address. Variable sizes isn't going to happen. I'm going to go with interleaved and indexed with x anyway.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>thefox</b> [ Fri Jul 06, 2012 10:38 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Organizing and processing objects.</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tokumaru wrote:</div><div class="quotecontent">That way, to call an object I copy its PC to the stack and RTS. If the state doesn't change, the PC doesn't change (i.e. the same code will be called again), but when it jumps to another state there's a routine they JSR to that saves their PC to their RAM. Something like this:</div>
+<br />Nice idea. Have to consider implementing this when I start needing objects with multiple states.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Sat Jul 07, 2012 3:50 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />It's funny because in the game I am developing I do it exactly as Tokumaru describes.
+<br />That way every object is like a thread, which is created and destroyed, and when active is called once per frame.
+<br />
+<br />I was under the impression that I had a super original idea but maybe it was not the case  <img src="./images/smilies/icon_lol.gif" alt=":lol:" title="Laughing" /> 
+<br />
+<br />Personally I find it much more intuitive to program "AI" in a linear way, like if it was a program in ifself, than dealing with a finite-state-machine and long chain of ifs.
+<br />
+<br />Otherwise I do it pretty much like you descibed. I have object type, X, Y, current frame and direction variables. The "status", "incoming event" variables are not needed because of what Tokumaru said.
+<br />
+<br />Collision detection is done by the object's AI itself, that is an object that is suppoed to interact with others objects is supposed to have it's AI calling the routine. There is a much standard procedure though.
+<br />
+<br />This is a total pain to code in assembly by the way.
+<br />
+<br />I do not sort the objects for collision detection, this is not necessary. However I sort them to display their sprites, so that the topmost objects are drawn last and looks "behind" the bottom most objects. I use a bubble sort to achieve this.
+<br />
+<br />In my engine I have a limitation that every object is associated with a single meta-sprite. This works well but some times it is limiting, I can't for example have a large boss with two metasprites without having two distinct objects (and in fact I plan to have bosses which are like this).
+<br />
+<br />The metasprites associated with every frame and direction for all objects of the game are hard-coded in a huge table. Not the most flexible solution, I know, a metasprite pointer like you said would be more flexible, BUT every object would have to manually update it's own pointer every frame, while my engine does everything automatically becasue it's hard-wired.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Movax12</b> [ Wed Jul 11, 2012 6:31 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Rather than linked lists, wouldn't it be easier/faster to use a few bytes and use one bit per object to indicate if it is available or not. Maybe not faster to find the first free object, but much easier to remove one from the list. You could use 8 bytes to indicate which OAM slot is free as well. Is this too many branches/loops to find the next free?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Shiru</b> [ Wed Jul 11, 2012 6:36 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I personally use lists with a 'free' flag. It is not too slow to find first free object, actually - because it is the last one that was removed from the list. It could be slow to find a free object if there were no objects removed since last object addition, though.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

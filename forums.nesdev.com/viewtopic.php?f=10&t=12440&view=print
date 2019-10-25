@@ -1,0 +1,333 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - need refresher on proper loading of $2007 with palettes</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">need refresher on proper loading of $2007 with palettes</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=10&amp;t=12440">http://forums.nesdev.com/viewtopic.php?f=10&amp;t=12440</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>infidelity</b> [ Sat Feb 28, 2015 12:09 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>need refresher on proper loading of $2007 with palettes</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I'm trying to load up all of $3F00-$3F1F, and have those 20 bytes of my palettes stored into ram. I'm able to do it, but, I get a very quick vram glitch. Idk if its cause I'm loading 20 bytes, or if I'm not doing this in the proper way? Ill show the asm I have going on.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">; what I do, is set X as 00, and create the address '3F00' to store at ram $50-$51<br />LDX #$00<br />LDA #$3F<br />STA $50<br />LDA #$00<br />STA $51<br />LDA #$20<br />STA $52<br /><br />;I then load $50-$51 for palette address loading, and alter the ram address $51, so I can load through all of $3F00-$3F1Fppu, and store it through ram address $53-$72<br />LDA $50<br />STA $2006<br />LDA $51<br />STA $2006<br />LDA $2007<br />STA $53,x<br />INX<br />LDA $51<br />CMP #$20<br />BEQ (to LDA #$FF, after my next description)<br />INC $51<br />BNE (to LDA $50, up above)<br /><br />;the INC $E1, is for my asm address pointer table, to make it so when the cpu finishes it's cycle, it will no longer read the asm I just pasted here, I have it looking at just an RTS for now.<br />LDA #$FF<br />STA $73<br />INC $E1<br />RTS</div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>koitsu</b> [ Sat Feb 28, 2015 3:23 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: need refresher on proper loading of $2007 with palettes</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Two things:<br /><br />1. I would guess the sta $2006/sta $2006/lda $2007 is what's causing your problem (particularly the lda).  I'm not even sure what you're trying to accomplish there (I understand the code, just not the purpose).  It looks like you're trying to back up parts of the palette *while* changing parts of the palette.  I think because of the load, you may end up tweaking some of the internal PPU addressing bits, causing glitching on-screen.  You may need to set $2005 to zero twice, and/or touch $2000, either in the middle of this routine or at the very end (see #2).  The details are here (be prepared for pain): <!-- m --><a class="postlink" href="http://wiki.nesdev.com/w/index.php/The_skinny_on_NES_scrolling">http://wiki.nesdev.com/w/index.php/The_ ... _scrolling</a><!-- m --><br /><br />I'd suggest just keeping all of the palette contents somewhere yourself (e.g. in ROM) and just writing them out to the PPU as needed.  Only update the palette entries you need to (i.e. don't update all of them unless you truly require such).<br /><br />2. You didn't disclose where/when this routine is being called.  If it's being done in NMI/during VBlank, then possibly your routine combined with other code in NMI/during VBlank is taking too long (extending outside of VBlank), thus causing problems.  You might need to set $2005 to zero twice, and/or touch $2000 as well, before the end of the routine (so that when VBlank ends and the raster gun begins reading from PPU memory, it starts reading from the correct address).<br /><br />Just thoughts that came to mind.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>infidelity</b> [ Sat Feb 28, 2015 8:09 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: need refresher on proper loading of $2007 with palettes</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />the purpose of my code, is to have the current palette set from $3F00-$3F1F, backed up to ram, so that I can alter it later on, by INC'ing each value gradually to 30 (white). I tried adding two writes of zero to $2005 twice, I tired during, and even at the end of the routine but got the same result. I also tried doing a simple check of $2000, but still got the same result.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Sat Feb 28, 2015 8:46 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: need refresher on proper loading of $2007 with palettes</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">infidelity wrote:</div><div class="quotecontent">the purpose of my code, is to have the current palette set from $3F00-$3F1F, backed up to ram</div><br />Reading from the PPU to write back is a terribly inefficient thing to do, since access to it is so restricted. Why don't you keep a copy of the current palette in RAM at all times? That would probably simplify things.<br /><br />That being said, I don't see any serious bug with this specific piece of code, so the problem must be the timing, or some other configuration. We'd need to see more code... but judging from the lack of labels and variable names I guess you're the guy who codes in hex, right? A ROM would also help us debug this.<br /><br />I must say that incrementing the VRAM address manually is an odd choice, considering the PPU automatically increments it after each access (by 1 or 32, it's your choice). You only need to set up the address once at the start ($3F00), and then read all the bytes in a loop. You can end the loop when X reaches #$20, there's no need to keep track of the address.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Sat Feb 28, 2015 9:04 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: need refresher on proper loading of $2007 with palettes</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><s>Reads through $2007 have a one byte buffer. After setting the address via $2006, read $2007 once to discard the buffer before you try to read the byte at the address.</s><br /><br /><a href="http://wiki.nesdev.com/w/index.php/PPU_registers#The_PPUDATA_read_buffer_.28post-fetch.29" class="postlink">http://wiki.nesdev.com/w/index.php/PPU_registers#The_PPUDATA_read_buffer_.28post-fetch.29</a><br /><br />Oh wait, sorry this doesn't apply to palettes. Never mind.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Sat Feb 28, 2015 9:19 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: need refresher on proper loading of $2007 with palettes</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">rainwarrior wrote:</div><div class="quotecontent"><s>Reads through $2007 have a one byte buffer.</s></div><br />That's the first thing that came to my mind too, but while replying I remembered that palettes, being part of the PPU chip and not external memory, don't suffer from this.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tomaitheous</b> [ Sun Mar 01, 2015 11:46 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: need refresher on proper loading of $2007 with palettes</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">infidelity wrote:</div><div class="quotecontent">I'm trying to load up all of $3F00-$3F1F, and have those 20 bytes of my palettes stored into ram. I'm able to do it, but, I get a very quick vram glitch. Idk if its cause I'm loading 20 bytes, or if I'm not doing this in the proper way? Ill show the asm I have going on.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">; what I do, is set X as 00, and create the address '3F00' to store at ram $50-$51<br />LDX #$00<br />LDA #$3F<br />STA $50<br />LDA #$00<br />STA $51<br />LDA #$20<br />STA $52<br /><br />;I then load $50-$51 for palette address loading, and alter the ram address $51, so I can load through all of $3F00-$3F1Fppu, and store it through ram address $53-$72<br />LDA $50<br />STA $2006<br />LDA $51<br />STA $2006<br />LDA $2007<br />STA $53,x<br />INX<br />LDA $51<br />CMP #$20<br />BEQ (to LDA #$FF, after my next description)<br />INC $51<br />BNE (to LDA $50, up above)<br /><br />;the INC $E1, is for my asm address pointer table, to make it so when the cpu finishes it's cycle, it will no longer read the asm I just pasted here, I have it looking at just an RTS for now.<br />LDA #$FF<br />STA $73<br />INC $E1<br />RTS</div></div><br /><br /> Since you're the one that did that Legend of Link hack, I'm going to assume this is also hook/hack code. <br /><br /> I was going to say what some others have already said; the setting of the vram palette address is redundant and wasting cycles since the PPU auto-increments. But then I thought, if this is your hook code to capture the game's already written palette data, then it's possible that you don't know the state of the incrementor (+1 or +32) so you're playing it safe in that respect.<br /><br /> It sounds like you're reading from the palette ram during active display. Can you post a pic?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>infidelity</b> [ Sun Mar 01, 2015 1:12 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: need refresher on proper loading of $2007 with palettes</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />The code that I pasted is my own code. I'm not that familiar with increments of the vram. I have (borrowed) the vram engine from Legend of Zelda, where i can load up nametable updates, quick palette updates, all while PPU Rendering is on, and i get the correct results. The issue I'm having, is definitely the reading of $2007. Someone suggested i should have my palette values, to be stored in ram while it's being written to vram, so i can simply alter the ram contents, and have the engine load the ram address, and store the new updated palettes to $3F00-$3F1F.<br /><br />So i may just have to redo my asm, to incorporate the ram storage of any palette updates. It's just tedious, cause i have certain palette updates going on, that are small in nature, and will have to come up with different setups, to have those portions stored into the correct areas in ram. I figured i could just bypass all of that with a simple read of $3F00-$3F1F.<br /><br />For a poor mans cheat way of doing it, i have ppu rendering turned off, i then read the palettes, store to ram, then turn ppu rendering back on. Obviously i get the millisecond black screen, but that quick flash I'm able to live with, compared to the alteration of my vertical scroll position.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Movax12</b> [ Sun Mar 01, 2015 2:05 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: need refresher on proper loading of $2007 with palettes</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />If you write the whole PPU palette at once, the only thing that matters for setting the background is the write to $3F10.<br />Other writes don't matter as far as what is displayed for the background. I would also suggest not reading from the PPU, just shadow everything to RAM first. <br />My code always writes to the shadow, normally only the NMI code will write to the real palette.<br /><br />This is how I write to the PPU for palette:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent"><br />&nbsp; &nbsp; ; +1 : skip the first entry to save 4 cycles on total palette write time<br />&nbsp; &nbsp; <br />&nbsp; &nbsp; LDA #&gt;(PALETTE_ADDRESS+1)<br />&nbsp; &nbsp; STA PPU_ADDRESS<br />&nbsp; &nbsp; LDA #&lt;(PALETTE_ADDRESS+1)<br />&nbsp; &nbsp; STA PPU_ADDRESS<br />&nbsp; &nbsp;<br />&nbsp; &nbsp; ; we already skipped the palette first entry, so skip this write to $3F00<br />&nbsp; &nbsp; ; LDA paletteShadow + 0<br />&nbsp; &nbsp; ; STA PPU_DATA<br /><br />&nbsp; &nbsp; LDA paletteShadow + 01<br />&nbsp; &nbsp; STA PPU_DATA<br />&nbsp; &nbsp; LDA paletteShadow + 02<br />&nbsp; &nbsp; STA PPU_DATA<br />&nbsp; &nbsp; LDA paletteShadow + 03<br />&nbsp; &nbsp; STA PPU_DATA<br />&nbsp; &nbsp; STA PPU_DATA&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; this write is just to advance PPU memory, value is not important<br /><br />&nbsp; &nbsp; LDA paletteShadow + 05<br />&nbsp; &nbsp; STA PPU_DATA<br />&nbsp; &nbsp; LDA paletteShadow + 06<br />&nbsp; &nbsp; STA PPU_DATA<br />&nbsp; &nbsp; LDA paletteShadow + 07<br />&nbsp; &nbsp; STA PPU_DATA<br />&nbsp; &nbsp; STA PPU_DATA<br /><br />&nbsp; &nbsp; LDA paletteShadow + 09<br />&nbsp; &nbsp; STA PPU_DATA<br />&nbsp; &nbsp; LDA paletteShadow + 10<br />&nbsp; &nbsp; STA PPU_DATA<br />&nbsp; &nbsp; LDA paletteShadow + 11<br />&nbsp; &nbsp; STA PPU_DATA<br />&nbsp; &nbsp; STA PPU_DATA <br /><br />&nbsp; &nbsp; LDA paletteShadow + 13<br />&nbsp; &nbsp; STA PPU_DATA<br />&nbsp; &nbsp; LDA paletteShadow + 14<br />&nbsp; &nbsp; STA PPU_DATA<br />&nbsp; &nbsp; LDA paletteShadow + 15<br />&nbsp; &nbsp; STA PPU_DATA<br />&nbsp; &nbsp; LDA paletteShadow + 00&nbsp; &nbsp;<br />&nbsp; &nbsp; STA PPU_DATA&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; This write sets the background, so write to paletteShadow + 0 to set background<br /><br />&nbsp; &nbsp; LDA paletteShadow + 17<br />&nbsp; &nbsp; STA PPU_DATA<br />&nbsp; &nbsp; LDA paletteShadow + 18<br />&nbsp; &nbsp; STA PPU_DATA<br />&nbsp; &nbsp; LDA paletteShadow + 19<br />&nbsp; &nbsp; STA PPU_DATA<br />&nbsp; &nbsp; STA PPU_DATA&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; this write is just to advance PPU memory, value is not important<br /><br />&nbsp; &nbsp; LDA paletteShadow + 21<br />&nbsp; &nbsp; STA PPU_DATA<br />&nbsp; &nbsp; LDA paletteShadow + 22<br />&nbsp; &nbsp; STA PPU_DATA<br />&nbsp; &nbsp; LDA paletteShadow + 23<br />&nbsp; &nbsp; STA PPU_DATA<br />&nbsp; &nbsp; STA PPU_DATA<br /><br />&nbsp; &nbsp; LDA paletteShadow + 25<br />&nbsp; &nbsp; STA PPU_DATA<br />&nbsp; &nbsp; LDA paletteShadow + 26<br />&nbsp; &nbsp; STA PPU_DATA<br />&nbsp; &nbsp; LDA paletteShadow + 27<br />&nbsp; &nbsp; STA PPU_DATA<br />&nbsp; &nbsp; STA PPU_DATA <br /><br />&nbsp; &nbsp; LDA paletteShadow + 29<br />&nbsp; &nbsp; STA PPU_DATA<br />&nbsp; &nbsp; LDA paletteShadow + 30<br />&nbsp; &nbsp; STA PPU_DATA<br />&nbsp; &nbsp; LDA paletteShadow + 31<br />&nbsp; &nbsp; STA PPU_DATA<br /><br />&nbsp; &nbsp; RTS<br /></div><br /><br />EDIT: You changed your post, this is not as relevant as it was, but I'll leave it.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>infidelity</b> [ Sun Mar 01, 2015 4:42 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: need refresher on proper loading of $2007 with palettes</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Yeah, cause stupid me realized when I was inc'ing everything by +10, that it was simply inc'ing the black 0F, to 1F,2F,3F. Cant believe I didn't notice that, so its all set. I really do appreciate your post! I think for my next project, ill have palettes backed up to ram, before it is written to vram. <br /><br />Thank you everybody! When the project is finished, ill upload a video. <img src="./images/smilies/icon_smile.gif" alt=":-)" title="Smile" /><br /><br />Also, here is another question I have on the $3F00,04,08,0C bg palettes<br /><br />On-the-fly, I can alter the individual color to either of the addresses above, like, I goto the ppu hex viewer and alter the hex value, and I can see the color change within the ppu viewer, and see the results obviously on screen. But, if I try to simply have my vram load the address and color id to store, it just does not work. Is there a way to have individual colors in those 4 spots, or do they all have to match? Thanks again, this is something that has been puzzling me for a long time.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>koitsu</b> [ Sun Mar 01, 2015 6:21 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: need refresher on proper loading of $2007 with palettes</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">infidelity wrote:</div><div class="quotecontent">Also, here is another question I have on the $3F00,04,08,0C bg palettes<br /><br />On-the-fly, I can alter the individual color to either of the addresses above, like, I goto the ppu hex viewer and alter the hex value, and I can see the color change within the ppu viewer, and see the results obviously on screen. But, if I try to simply have my vram load the address and color id to store, it just does not work. Is there a way to have individual colors in those 4 spots, or do they all have to match? Thanks again, this is something that has been puzzling me for a long time.</div><br /><!-- m --><a class="postlink" href="http://wiki.nesdev.com/w/index.php/PPU_palettes#Memory_Map">http://wiki.nesdev.com/w/index.php/PPU_ ... Memory_Map</a><!-- m --><br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Addresses $3F04/$3F08/$3F0C can contain unique data, though these values are not used by the PPU when normally rendering (since the pattern values that would otherwise select those cells select the backdrop color instead). They can still be shown using the background palette hack, explained below.<br /><br />Addresses $3F10/$3F14/$3F18/$3F1C are mirrors of $3F00/$3F04/$3F08/$3F0C. Note that this goes for writing as well as reading. A symptom of not having implemented this correctly in an emulator is the sky being black in Super Mario Bros., which writes the backdrop color through $3F10.</div><br />TL;DR (and choosing to keep it simple here, not going to discuss <a href="http://wiki.nesdev.com/w/index.php/PPU_palettes#The_background_palette_hack" class="postlink">tricky/clever behaviours</a>) -- you cannot have individual colours in those spots.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

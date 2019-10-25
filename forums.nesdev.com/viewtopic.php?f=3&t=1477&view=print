@@ -1,0 +1,484 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Down to the cycle</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Down to the cycle</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=3&amp;t=1477">http://forums.nesdev.com/viewtopic.php?f=3&amp;t=1477</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Sat May 06, 2006 5:58 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Down to the cycle</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I've probably brought up some of these issues before...  but these things have been bugging me for a while.
+<br />
+<br />1)  Hypothetical example:  $2002 is read on the same cycle that sprite 0 is hit.  Does the value come back with bit 6 high?  Another:  $2005 is written to on the same cycle that the PPU address gets reloaded... does the written value get moved to Loopy_V?
+<br />
+<br />I vaguely remember someone on here saying they perform reads at the start of the cycle and writes at the end of the cycle.  I'd take that to mean that with a "catch-up" style implimentation, you'd run the PPU/APU to cycle X on a read, but would run it to X+1 on a write.
+<br />
+<br />Can any clarification be made on this?  That seems like a pretty decent method to me, but what do you guys think?
+<br />
+<br />
+<br />2)  APU Frame IRQ seems to have a latency of 2 cycles (the IRQ doesn't happen until two cycles after the flag goes high).... or at least, that's what blargg's test ROMs lead me to believe.  Is it just Frame IRQs?  Or do DMC and/or mapper IRQs exhibit this behavior as well?  I was having some difficulty with VRC IRQs, as they wouldn't work quite right when given that 2 cycle delay.  Other mappers that used a CPU-cycle based IRQ counter had problems when adding that delay.
+<br />
+<br />
+<br />3)  MMC2 and MMC4 latches are said to be affected by PPU accesses to $0FDx or $0FEx.  However it seems that the "swap" doesn't happen until AFTER the $FD/$FE tile has been fully fetched.  Wouldn't this mean they're only affected by accesses to $0FD8-0FDF and $0FE8-0FEF?  I would assume the latch can be manually manipulated by reading $2007, right?  What about writing to $2007?  Is the latch affected by writes as well?  or just reads?
+<br />
+<br />4)  I still have problems with the Retrocoders:  Years Behind demo.  For the most part it works fine, but when songs which use the DMC come up, it has some graphical distortion (it's mostly noticable in Boomjunk).  I've chalked this up to incorrect handling of the "stolen cycles" by the DMC, but I've been looking at my trace logs and am almost positive I'm stealing the right amount of cycles at the right intervals.  Does this demo actually work?
+<br />
+<br />I guess that's it for now.  Any and all help appreciated
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>mozz</b> [ Sat May 06, 2006 7:02 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Down to the cycle</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Disch wrote:</div><div class="quotecontent">I vaguely remember someone on here saying they perform reads at the start of the cycle and writes at the end of the cycle.<br /></div><br />NOTE: What follows is mostly speculation, so if anyone knows better please reply.   <img src="./images/smilies/icon_wink.gif" alt=";)" title="Wink" /><br /><br />In the W65C02S datasheet (which describes a CMOS 6502 and not an NMOS 6502, but it may be relevant) there is a timing diagram Figure 6-3 that shows how memory accesses occur.  <br />From the diagram, it looks like a 65C02 pulls the address lines to the correct address in the first half of the cycle (about 20-25% of the way through the cycle?).  In the case of a read, you could treat it as occurring right then (i.e. in the first half of the cycle).  Most of the cycle is tACC ("Access Time") during which the address is valid and the memory system can think about what data value it wants to reply with.  Eventually the data lines stabilize and the CPU then samples them right at the end of the cycle.<br /><br />In the case of a write, it looks like the CPU does not pull the data lines to the correct value until sometime in the second half of the cycle (looks like about 75% of the way through the cycle, to me?).  It will hold them at that value into the next cycle to allow writes to occur, but the memory system will not see the value until the second half of the cycle.<br /><br />Hmm...It sounds weird when described like that.  I would have assumed that both reads and writes should be emulated as occurring near the end of a cycle...I guess the reality is, a memory access is not an instantaneous operation in the real world.  It takes a certain length of time for the logic to stabilize and clock skew, etc.  So when you emulate a memory access as "occurring at" a particular time, its not the CPU's half of the access that is interesting---it is the time at which a hardware register is latched, or at which a mapper starts to respond to an address.  In the case of reads, that could be sometime in the first half of the cycle?  Whereas in the case of writes, it has to be in the second half.<br /><br /><br /><div class="quotetitle">Disch wrote:</div><div class="quotecontent">I'd take that to mean that with a "catch-up" style implimentation, you'd run the PPU/APU to cycle X on a read, but would run it to X+1 on a write. </div>
+<br />It sounds like that would be equivalent to pretending there is a half-cycle delay in all interactions between CPU and APU/PPU.  I.e. if the CPU starts a write at some point in a cycle, the APU/PPU [Edit: or the relevant mapper!] actually sees the write half a cycle later, and vice versa.  I guess it depends on exactly what 'being at cycle X' means in your catch-up system.
+<br />
+<br />You could arbitrarily decide that the point at which you increment your cycle counter is the middle of the cycle--when the clock (PHI2) goes from low to high.  It seems like that might require some fudging of other things, though.  By counting 1 tick for each cycle, aren't you essentially pretending that all the work in a cycle occurs instanteously at the point you increment the cycle counter?
+<br />
+<br />Maybe a more accurate way would be to count 2 ticks per cycle, one for each half?  I don't know if the extra precision is actually useful on a NES (somehow I doubt it).  But emulators for some other systems need to do stuff like that anyway because of variable-length cycles.  For example, one CPU cycle on the SNES might actually be 6, 8 or 12 'master clock cycles'.  For SNES I would reserve the word 'cycle' to mean 'CPU cycle', and describe them as 6, 8 or 12 ticks long.  I think some people simulate reads as occurring 2 ticks after the start of the cycle and writes as occurring 2 ticks before the end of the cycle, for reasons similar to the discussion above.  This may seem like overkill, but if your goal is to produce as <strong>accurate</strong> an emulator as possible, I guess it is worth thinking about in detail.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>hap</b> [ Sun May 07, 2006 2:09 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />2: I've not implemented any latency, and blargg's tests run fine.
+<br />
+<br />4: same problem here, even with correct PAL DMC timing (using blargg's measurement on the NESdev subforum), but I don't blame my emulator: it's a PD ROM, and might not have been tested (well) on a real <img src="./images/smilies/icon_wink.gif" alt=";-)" title="Wink" /> NES.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Hyde</b> [ Sun May 07, 2006 10:31 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">hap wrote:</div><div class="quotecontent">but I don't blame my emulator: it's a PD ROM, and might not have been tested (well) on a real <img src="./images/smilies/icon_wink.gif" alt=";-)" title="Wink" /> NES.</div>
+<br />You're wrong: there is something wrong with your emulator, not the demo.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bananmos</b> [ Sun May 07, 2006 1:52 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Years Behind wasn't "tested" on a real NES. It was developed on one. Emulation was only used to trace bugs in the code that I couldn't find out otherwise.
+<br />
+<br />That said, there were a few glitches in the scrollbar that I never emiliminated fully. 
+<br />
+<br />The first one has to do which syncing correctly to update the scroll value. Timing the demo so that it would keep in sync even when dpcm was stealing cycles wasn't easy when I could use just one sprite scroll hit and lots of timed code to keep in sync. So there are a few tunes where you can occasionally see the scrolltext glitch. And correctly, boomfunk shows the biggest problems. I don't think it's that noticable in the other tunes though. I suppose I could have given it enough time, but getting it perfect for every combination of dpcm pitches and random sprite hits proved harder than expected. 
+<br />
+<br />The second one has to do with the fact that when rendering is off and $2006 points to the palette address, the PPU will no longer output BG0 but instead the color value pointed to. The palette is changed at the beginning and the end of the scrollbar, and I couldn't find a good workaround for this problem, so I just considered this acceptable. As a side note, Chris Covell did find a decent work-around in his "sayoonaara!" demo, by turning on the monochrome bit when changing the palette, so that you would just see a white line having a few glitches of gray in it, which should be more kind to the eyes. I really wish I had thought of that when coding Years Behind.
+<br />
+<br />So the bottom line is: if you emulate it perfectly, the scrollbar WILL have a few minor glitches left. And the palette changing is most noticable. Nintendulator gives a good idea of the artifacts. Hope it didn't cost you too many aspirins. ;)
+<br />
+<br />
+<br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Does this demo actually work?</div>
+<br />
+<br />Depends on how you define "work"?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Sun May 07, 2006 2:10 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />The page <a href="http://nesdevwiki.ath.cx/index.php/Program_Compatibility" class="postlink">"Program Compatibility" on the new wiki</a> should describe the defects in any widely distributed homebrew NES ROM image (or Nesticle ROM image). Thank you for the info on Years Behind, which I have summarized on that page.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bananmos</b> [ Sun May 07, 2006 2:50 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Good to see there's also a game bugs list nowadays. I suspect quite a few emulator authors have tried eliminating artifacts that are just as present on the real deal. :P
+<br />
+<br />Offtopic: the scrollbar code in Years Behind contains one of three easter eggs in total. How many of them have you found? :)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>hap</b> [ Sun May 07, 2006 3:14 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Years Behind wasn't "tested" on a real NES. It was developed on one.</div>
+<br />That's good, and makes my assumption an incorrect one, sorry about that; glitches or total lockups in older PD material were usually unseen due to it only having been ran on (then thought to be accurate) emulators and/or not thoroughly tested on hardware.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Wed May 10, 2006 11:17 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Sorry about my late reply.  Thanks for all the feedback so far.
+<br />
+<br />mozz:  your post was very interesting and enlightening!  Thanks a million.
+<br />
+<br />hap:
+<br />
+<br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">2: I've not implemented any latency, and blargg's tests run fine.</div><br /><br />According to the readme in blargg's tests:<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">The IRQ handler is invoked at minimum <span style="text-decoration: underline">29833</span> clocks after writing $00</div><br /><br />and...<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Step 4<br /><span style="text-decoration: underline">29830</span> Set frame irq<br />29831 Clock linear &amp; length and set frame irq<br />29832 Set frame irq<br /></div>
+<br />
+<br />The IRQ flag can be read as set as early as 29830 cycles in, however the IRQ does not occur until at least 29833 cycles in, implying a latency of 2 or 3 cycles.  I don't know how your emu dodges that and still passes the tests -- I had nothing but trouble trying to tweak the timing settings to get both tests to pass in my emu until I added a 2 cycle latency.
+<br />
+<br />How are you implimenting this in your emu?
+<br />
+<br />
+<br />
+<br />Bananmos:
+<br />
+<br />Okay... so there are some quirks even when emulating properly.  I get what I *think* is the desired result when I only steal 3 CPU cycles for each DMC fetch instead of stealing 4.
+<br />
+<br />Could it be that only 3 cycles are stolen on PAL?  That doesn't make a lot of sense... but I can't seem to figure out anything else that could be the problem here.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>hap</b> [ Wed May 10, 2006 2:29 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I set _IRQ at the same time the frame IRQ flag is set. The IRQ handler is ran, unless the CPU was just fetching a new opcode. So practically, a delay of one instruction may sometimes happen, in the same way when enabling NMIs in the middle of vblank before reading $2002.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Wed May 10, 2006 2:43 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I don't know man... <a href="http://nesdev.com/bbs/viewtopic.php?t=635" class="postlink">I remember conversing with blargg</a> about this very issue.  I'm pretty certain there has to be some latency.  His readme and his tests in that thread make it apparent (to me anyway).
+<br />
+<br />EDIT -- well maybe not.  I'm going to re-read that thread again to see if I can't understand it better.
+<br />
+<br />Could it just be a fluke that those tests are working in your emu?  What about other emu authors in here?  Is anyone else passing those tests with no delay?  I'd really like to get to the bottom of this.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>hap</b> [ Wed May 10, 2006 3:22 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Yes, it could very well be a bug in my emulator with 'positive' aftermath, until I find it (or don't, and being very certain there is no spoon.. er, bug).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Wed May 10, 2006 7:03 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Okay... so there are some quirks even when emulating properly. I get what I *think* is the desired result when I only steal 3 CPU cycles for each DMC fetch instead of stealing 4.<br /><br />Could it be that only 3 cycles are stolen on PAL? That doesn't make a lot of sense... but I can't seem to figure out anything else that could be the problem here.</div><br /><br />When I was recently testing the PAL DMC rates, I ran into lots of weirdness when trying to do it via a parallel CPU loop. It seemed that the number of clocks used by DMA averaged to less than 4 (and I'm assuming the same will occur on NTSC). I need to look further into this.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">The IRQ flag can be read as set as early as 29830 cycles in, however the IRQ does not occur until at least 29833 cycles in, implying a latency of 2 or 3 cycles.</div>
+<br />
+<br />The model I have in my mind is that the 6502 latches the IRQ/NMI status at the beginning of the last clock of each instruction. This means that it effectively looks at the IRQ/NMI input just before that time, i.e. what its status was on the next-to-last clock. This would account for most of the latency. I'm thinking I need to be more precise about the pipelining.
+<br />
+<br />Remember, you can completely ignore my theories and simply examine the tests to determine the timing. They test the edge cases for reading $4015 and the IRQ occurring.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Wed May 10, 2006 7:25 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">blargg wrote:</div><div class="quotecontent">When I was recently testing the PAL DMC rates, I ran into lots of weirdness when trying to do it via a parallel CPU loop. It seemed that the number of clocks used by DMA averaged to less than 4 (and I'm assuming the same will occur on NTSC). I need to look further into this.</div>
+<br />Does it happen more often when you use write instructions (e.g. STA $FE)? Does it happen more often when you use read-write-write instructions (e.g. ROL $FE)? Does it happen more often when you use a stream of BRK $00 (the only instruction to write-write-write) that heads straight to RTI? If so, I think I know what's happening.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Thu May 11, 2006 11:55 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I investigated the DMC wait-state behavior more by generating a tone manually and adjusting the loop delay until it synchronized with a square wave. This agrees with previous measurements of 4 clocks per DMC byte read. But when I increase the loop delay by one clock, it stays in sync. I'm guessing that in some cases, only 3 wait-states are inserted, somehow related to the instruction being executed. I tried tepples' suggestion of using various instructions (including BRK) but that didn't seem to affect it. I don't even know exactly when the DMC read is occuring each loop iteration, making it more difficult to determine what's happening.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

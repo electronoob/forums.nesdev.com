@@ -1,0 +1,67 @@
+/* FCE Ultra - NES/Famicom Emulator
+ *
+ * Copyright notice for this file:
+ *  Copyright (C) 2012 CaH4e3
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ */
+
+#include "mapinc.h"
+
+static uint16 reg;
+static SFORMAT StateRegs[] =
+{
+	{ &reg, 1, "REG" },
+	{ 0 }
+};
+
+static void Sync(void) {
+	if (reg & 0x02) { //32K
+		setprg32(0x8000, (reg >> 3) & 0x3f);
+	}
+	else { //16K
+		setprg16(0x8000, (reg >> 2) & 0x7F);
+		setprg16(0xc000, (reg >> 2) & 0x7F);
+	}
+	setchr8(0);
+	setmirror((reg & 1) ^ 1);
+}
+
+static DECLFW(M63Write) {
+	reg = A;
+	Sync();
+}
+
+static void M63Power(void) {
+	reg = 0;
+	Sync();
+	SetWriteHandler(0x8000, 0xFFFF, M63Write);
+	SetReadHandler(0x8000, 0xFFFF, CartBR);
+}
+
+static void M63Reset(void) {
+	Sync();
+}
+
+static void StateRestore(int version) {
+	Sync();
+}
+
+void Mapper63_Init(CartInfo *info) {
+	info->Power = M63Power;
+	info->Reset = M63Reset;
+	AddExState(&StateRegs, ~0, 0, 0);
+	GameStateRestore = StateRestore;
+}

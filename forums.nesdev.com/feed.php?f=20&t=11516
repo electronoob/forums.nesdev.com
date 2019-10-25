@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=20&amp;t=11516" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2014-08-11T01:19:36-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=20&amp;t=11516</id>
+<entry>
+<author><name><![CDATA[venge]]></name></author>
+<updated>2014-08-11T01:19:36-07:00</updated>
+<published>2014-08-11T01:19:36-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11516&amp;p=132385#p132385</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11516&amp;p=132385#p132385"/>
+<title type="html"><![CDATA[Re: Question about Channel 3 Waveform]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11516&amp;p=132385#p132385"><![CDATA[
+oh, hello.<br /><div class="quotetitle">Shonumi wrote:</div><div class="quotecontent"><br />Make sure you calculate the frequency as 65536/(2048-x) Hz where x represents Bits 0-2 of NR34.<br /></div><br />Actually, at channel INIT I was grabbing NR34 bits 2-0, and all bits of NR33, OR them to get 11bit frequency, subtract them from 2048 and multiply the result with 2. Then compare it with cpu cycles (cpu cycles &gt;= frequency timer as you said) to hear just static (like a mic with a bad cable). Although I ran a square channel on that frequency, the same way I run channels 1 &amp; 2 and it played correctly (in square of course). The problem is my timings advancing the wave sample: I think i'm advancing it VERY slowly, hence the static (it's like i'm changing DC offsets fast, which is not fast enough to be considered a wave).<br /><br /><div class="quotetitle">Shonumi wrote:</div><div class="quotecontent"><br />To calculate the period (in GB CPU cycles) you just do 4194304 / (65536/(2048-x)). So if x is 0, you get an output frequency of 32 Hz, meaning your period is 131072 CPU cycles. In the case where x = 0, your if statement would have to check if channel3_clocks is greater than or equal to 131072.<br /></div><br />Ok, I totally aggree, but no matter how small the frequency, I just hear static. Shouldn't I consider sample rate somewhere in the phase/time calculations?<br /><br /><div class="quotetitle">Shonumi wrote:</div><div class="quotecontent"><br />My APU emulation doesn't even count CPU cycles, and my Sound 3 code is atrociously inaccurate, but it somehow manages to work 98% of the time :p<br /></div><br /><img src="http://forums.nesdev.com/images/smilies/icon_biggrin.gif" alt=":D" title="Very Happy" /> ! My APU doesn't count clocks at channels 1 &amp; 2 too! xD. That's why I find it hard to get chann 3 working i believe.<br /><br />edit: Actually after playing with my sound (laughing hard after each result), I came up with a code that slightly reminded me of channel 3 in some games. The practice is the worst possible: Keep track of phase 0-2π . Divide phase by 32 this gives 0.196. After 0.196 (rads?) I advance one sample. It's not better than having no channel 3 at all, but at least it reminded me of something <img src="http://forums.nesdev.com/images/smilies/icon_biggrin.gif" alt=":D" title="Very Happy" /><br /><br />edit2:<br />Ok I think i got it working now (with this nasty way as well):<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">public float update_wave(float volume) {<br />            sample_num = (int)(phase * 5.09);<br />            byte sample = Memory.mem&#91;0xFF30 + sample_num / 2&#93;;<br /><br />            if (sample_num % 2 == 0) {<br />                amplitude = ((sample &gt;&gt; 4) - 8);<br />            }<br />            else amplitude = ((sample &amp; 0xF) - 8);<br /><br />            phase = phase + ((Math.PI * frequency) / 44100);<br /><br />            if (phase &gt; 2 * Math.PI) {<br />                phase = phase - (2 * Math.PI);<br />            }<br />            return amplitude * 0.0625f * volume;<br />}<br /></div><br /><br />Don't ask me why it works. But if you think it, it's quite logic. 32 / (2 * π) = 5.09 . Each gives one sample. So I multiply phase with 5.09, apparently giving me the sample number. And so, this is the ratio of period-to-game boy sample.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6640">venge</a> — Mon Aug 11, 2014 1:19 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Shonumi]]></name></author>
+<updated>2014-08-10T10:19:45-07:00</updated>
+<published>2014-08-10T10:19:45-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11516&amp;p=132340#p132340</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11516&amp;p=132340#p132340"/>
+<title type="html"><![CDATA[Re: Question about Channel 3 Waveform]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11516&amp;p=132340#p132340"><![CDATA[
+One thing to verify is that you have the playback/output frequency of Sound 3 correctly calculated. At least for me, I misread the documentation and had the frequency playing twice as fast. Sound 3's Frequency Timer actually runs at half the rate of Sound 1 and Sound 2's, so naturally the playback/output frequency of the sound itself is half of Sound 1 and Sound 2. Make sure you calculate the frequency as 65536/(2048-x) Hz where x represents Bits 0-2 of NR34.<br /><br />To calculate the period (in GB CPU cycles) you just do 4194304 / (65536/(2048-x)). So if x is 0, you get an output frequency of 32 Hz, meaning your period is 131072 CPU cycles. In the case where x = 0, your if statement would have to check if channel3_clocks is greater than or equal to 131072.<br /><br />But you have the right idea. Whenever you clock the frequency timer (cpu cycles &gt;= frequency timer), you advance one step in the Wave Table, grab the amplitude of the step, and continue generating audio samples. Have you tried running any code yet? I'm probably the last person to give you advice on this subject though. My APU emulation doesn't even count CPU cycles, and my Sound 3 code is atrociously inaccurate, but it somehow manages to work 98% of the time :p Though I need to fix that soon. Anyone can feel free to correct me since I am not the best when it comes to sound programming or maths.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6368">Shonumi</a> — Sun Aug 10, 2014 10:19 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[venge]]></name></author>
+<updated>2014-08-10T05:04:13-07:00</updated>
+<published>2014-08-10T05:04:13-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11516&amp;p=132336#p132336</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11516&amp;p=132336#p132336"/>
+<title type="html"><![CDATA[Question about Channel 3 Waveform]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11516&amp;p=132336#p132336"><![CDATA[
+Hi,<br />I managed to get the two square channels in my emulator play correctly. Now I'm in the process of creating the channel 3, but I think I'm really stuck. In Blargg's &quot;Game Boy Sound Operation&quot; at &quot;Wave Channel&quot; it says:<br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent"><br />The wave channel's frequency timer period is set to (2048-frequency)*2.<br />When the timer generates a clock, the position counter is advanced one<br />sample in the wave table, looping back to the beginning when it goes<br />past the end, then a sample is read into the sample buffer from this NEW<br />position.<br /></div><br /><br />Now what does that mean in raw practice? I got it like this in my mind (pseudo):<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">channel3_clocks += CPU.clock; //increment a counter with cpu clocks<br />if(channel3_clocks &gt;= frequency) {<br />    advance_one_sample(); <br />    get_sample_amplitude();<br />    channel3_clocks -= frequency;<br />}<br /></div><br /><br />Apparently this is SO BAD as it sounds, but is there any other way to implement it using only the cpu clocks? Or I'm missing a lot of things here.<br /><br />Thank you very much.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6640">venge</a> — Sun Aug 10, 2014 5:04 am</p><hr />
+]]></content>
+</entry>
+</feed>

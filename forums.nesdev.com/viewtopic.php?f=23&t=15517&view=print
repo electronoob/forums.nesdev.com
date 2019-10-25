@@ -1,0 +1,207 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - [PC Engine] PSG (sound) emulation</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">[PC Engine] PSG (sound) emulation</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=23&amp;t=15517">http://forums.nesdev.com/viewtopic.php?f=23&amp;t=15517</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>byuu</b> [ Thu Feb 09, 2017 2:21 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>[PC Engine] PSG (sound) emulation</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Having quite a bit of trouble getting good, clean sound out of my PSG emulation.<br />All of the documentation I can find on the chip is <em>extremely</em> barebones and high level.<br />The best public source of info I know of is: <!-- m --><a class="postlink" href="http://www.magicengine.com/mkit/doc_hard_psg.html">http://www.magicengine.com/mkit/doc_hard_psg.html</a><!-- m --><br />pcetext.txt barely covers that the PSG even exists.<br /><br />My current emulation source code is here: <!-- m --><a class="postlink" href="https://hastebin.com/raw/fagecaxano">https://hastebin.com/raw/fagecaxano</a><!-- m --><br /><br />(Note that I'm emulating sound output at the full ~3.57MHz, and then using a sixth-order biquad IIR butterworth filter to remove aliasing prior to using hermite to resample the audio to the native PC sound card rate.)<br /><br />But I'm stuck on lots of points. Is anyone here knowledgable with this chip that could lend a hand?<br /><br />Right now, I support waveform mode, direct D/A mode, and noise generation mode. However for noise, I'm not actually generating a proper square wave, and I don't know the PRNG algorithm used for choosing the random values. So for now, I'm just feeding in random values to it.<br /><br />I'm also not sure about the noise mode's frequency counter. Magic Kit is implying it's 64*~frequency, but that results in an 11-bit period. It seems only logical that we'd want a 12-bit period. So my guess is that it's actually 12-bit, and halfway through it alternates between two randomly generated values every 32 samples, and the two values are generated every time the period hits zero.<br /><br />Next up, it's not clear when the period counter is reloaded, either for the waveform or the noise mode. So for now, when enabling the channel, I reload the waveform period. And when enabling noise mode, I reload the noise period. I don't know if you need to do it when writing to the frequency registers or not.<br /><br />Next, it's not clear whether the period is a decrement-and-compare, or a compare-and-decrement, and whether we reload with frequency, frequency-1, or frequency+1. There's this cryptic note in pcetext.txt:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp;- The PSG channel frequency is 12 bits, $001 is the highest frequency,<br />&nbsp; &nbsp;$FFF is the next to lowest frequency, and $000 is the lowest frequency.</div><br />As best I can tell, he's trying to say that it's decrement-and-compare.<br /><br />Whatever the case, there's periodic popping noises every few seconds. I thought it might be because this is the first system with a fractional sampling rate (~3.57MHz), but rounding the frequency to a whole number doesn't help at all, and emulator/audio should be able to handle fractional resampling rates anyway.<br /><br />The popping noises could also be due to PSG writes being cycle-timed, and my HuC6280 cycle timings not being very great yet. The PSG has no kind of interrupts, so I think careful timing is the only way to do certain things, especially D/A mode.<br /><br />Next up, I really don't understand the frequency modulation mode at all. It also has a frequency value that we'll need to understand how the period works and reloads. Basic idea though is the channel 1 output turns into a value to modulate channel 0's frequency by, and channel 1's output gets muted. But how does one turn that idea into code? All kinds of subtleties abound.<br /><br />Next up, I don't know how the volume controls work at all. There's a master volume left+right, per-channel volume left+right, and per-channel overall volume. The documentation lists their effects in terms of decibels. I have no clue how to turn decibels into multiply-by values. Let alone how to stack THREE levels of audio volume controls &gt;_&gt;<br /><br />Next, it looks like the output is always 5-bit unsigned per-channel, but there's also all the volume adjustments. So I don't know the final bit-depth of the final output to normalize the value into a signed floating point value between -1.0 and +1.0. So for now, half the potential speaker range (anything below zero) isn't used in the generated output.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ccovell</b> [ Thu Feb 09, 2017 6:04 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: [PC Engine] PSG (sound) emulation</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />calling Tomaitheous...<br /><br />Here's one link, sorry it's all in Japanese: <!-- m --><a class="postlink" href="http://www.geocities.jp/team_zero_three/PCE/psg.html">http://www.geocities.jp/team_zero_three/PCE/psg.html</a><!-- m --><br /><br />Do not reload the WF period when changing frequencies -- that's an NES bug, not PCE <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" /> ).  I'm not sure, but I believe you reload the WF period only when bit 6 of $0804 is set to 1.<br /><br />The waveform data is 5-bit linear PCM, but all the volume &amp; panning controls are logarithmic, so they all add together (in binary) rather than being multiplied, and actually saturate at some bit depth -- I don't remember the fine details, sorry.<br /><br />As for the LFO, IIRC, looking at channel 1 waveform, a waveform value of $10 means no change, and $11 means increase channel 0's frequency &quot;register&quot; by 1 / 16 / 256 depending on the multiplier setting.  A waveform value of $0f decreases by 1 / 16, etc.<br /><br />For noise, apparently $00-$1E are valid values, but $1F is &quot;undefined&quot;.  In practice $1F is a higher frequency than $1E of course, but a tad quieter.  Who knows how that translates to code.<br /><br />I would normally recommend real hardware for testing, but Mednafen is quite accurate for most sound emulation -- the LFO seems a bit off, perhaps due to sampling/emulation rate limits.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>byuu</b> [ Thu Feb 09, 2017 8:07 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: [PC Engine] PSG (sound) emulation</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />&gt; Here's one link, sorry it's all in Japanese<br /><br />Quite alright. My Japanese isn't the best, but I can manage.<br /><br />Thanks a bunch for the link!<br /><br />&gt; Do not reload the WF period when changing frequencies -- that's an NES bug, not PCE<br /><br />Really? Mednafen reloads on both.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp; &nbsp; &nbsp; case 0x02: /* Channel frequency (LSB) */<br />&nbsp; &nbsp;&nbsp; &nbsp; if(select &gt; 5) return; // no more than 6 channels, silly game.<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ch-&gt;frequency = (ch-&gt;frequency &amp; 0x0F00) | V;<br />&nbsp; &nbsp;&nbsp; &nbsp; RecalcFreqCache(select);<br />&nbsp; &nbsp;&nbsp; &nbsp; RecalcUOFunc(select);<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; break;<br />&nbsp; &nbsp; &nbsp; &nbsp; case 0x03: /* Channel frequency (MSB) */<br />&nbsp; &nbsp;&nbsp; &nbsp; if(select &gt; 5) return; // no more than 6 channels, silly game.<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ch-&gt;frequency = (ch-&gt;frequency &amp; 0x00FF) | ((V &amp; 0x0F) &lt;&lt; 8);<br />&nbsp; &nbsp;&nbsp; &nbsp; RecalcFreqCache(select);<br />&nbsp; &nbsp;&nbsp; &nbsp; RecalcUOFunc(select);<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; break;<br />&nbsp; &nbsp; &nbsp; &nbsp; case 0x04: /* Channel enable, DDA, volume */<br />&nbsp; &nbsp;&nbsp; &nbsp; if(select &gt; 5) return; // no more than 6 channels, silly game.<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if((ch-&gt;control &amp; 0x40) &amp;&amp; !(V &amp; 0x40)) {<br />&nbsp; &nbsp;&nbsp; &nbsp; &nbsp;ch-&gt;waveform_index = 0;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;ch-&gt;dda = ch-&gt;waveform&#91;ch-&gt;waveform_index&#93;;<br />&nbsp; &nbsp;&nbsp; &nbsp; &nbsp;ch-&gt;counter = ch-&gt;freq_cache;<br />&nbsp; &nbsp;&nbsp; &nbsp; }<br />&nbsp; &nbsp;&nbsp; &nbsp; if(!(ch-&gt;control &amp; 0x80) &amp;&amp; (V &amp; 0x80))&nbsp; {<br />&nbsp; &nbsp;&nbsp; &nbsp; &nbsp;if(!(V &amp; 0x40))&nbsp; {<br />&nbsp; &nbsp;&nbsp; &nbsp; &nbsp; ch-&gt;waveform_index = (ch-&gt;waveform_index + 1) &amp; 0x1F;<br />&nbsp; &nbsp;&nbsp; &nbsp; &nbsp; ch-&gt;dda = ch-&gt;waveform&#91;ch-&gt;waveform_index&#93;;<br />&nbsp; &nbsp;&nbsp; &nbsp; &nbsp;}<br />&nbsp; &nbsp;&nbsp; &nbsp; }<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ch-&gt;control = V;<br />&nbsp; &nbsp;&nbsp; &nbsp; RecalcFreqCache(select);<br />&nbsp; &nbsp;&nbsp; &nbsp; RecalcUOFunc(select);<br />&nbsp; &nbsp;&nbsp; &nbsp; vol_pending = true;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; break;</div><br /><br />If you're sure you have it right, I'll take your word for it, of course.<br /><br />&gt; I'm not sure, but I believe you reload the WF period only when bit 6 of $0804 is set to 1.<br /><br />0-&gt;1 transition or any 1 write?<br /><br />&gt; so they all add together (in binary) rather than being multiplied<br /><br />Wow ... I figured it just meant the volume scale wasn't linear, not that we moved to addition. That's very interesting.<br /><br />&gt; I would normally recommend real hardware for testing, but Mednafen is quite accurate for most sound emulation -- the LFO seems a bit off, perhaps due to sampling/emulation rate limits.<br /><br />The difficulty with Mednafen is that it's heavily optimized for speed, tries to do bulk processing (many cycles at once), and is a fair bit beyond my understanding. I was able to glean a couple new pieces of information though, that I'll try to apply to my codebase.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ccovell</b> [ Thu Feb 09, 2017 11:43 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: [PC Engine] PSG (sound) emulation</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">byuu wrote:</div><div class="quotecontent">&gt; Do not reload the WF period when changing frequencies -- that's an NES bug, not PCE<br /><br />Really? Mednafen reloads on both.<br /><br />If you're sure you have it right, I'll take your word for it, of course.</div><br />Oh, I thought you meant restart the waveform read index, as in:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">ch-&gt;waveform_index = 0;</div><br />which is done only with writes to $0804.<br /><br /><div class="quotetitle">byuu wrote:</div><div class="quotecontent">&gt; I'm not sure, but I believe you reload the WF period only when bit 6 of $0804 is set to 1.<br /><br />0-&gt;1 transition or any 1 write?</div><br />I do not know for certain, but it looks like any write to $0804 when bit 6 is set, according to Mednafen's code.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>byuu</b> [ Sat Feb 11, 2017 7:20 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: [PC Engine] PSG (sound) emulation</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />... oh wow.<br /><br />The sound emulation popping was because my FreeBSD audio latency settings were too aggressive.<br /><br />I'm not sure why it became a problem only for the PC Engine core. Even though the PCE has the highest sampling rate of any system I emulate, the resampler reduces it to the standard sound card rate internally.<br /><br />In that case, I have three issues left to solve:<br /><br />1. how do I perform volume adjustments? I know it's logarithmic, but the formulas I've seen in other emulators are just nuts.<br /><br />2. how do I perform frequency modulation? I'm not 100% sure how this is supposed to work, nor am I even aware of any good test games to compare my implementation against.<br /><br />3. how do I properly emulate noise? I see a LFSR design in Mednafen, so I can probably implement that. Not sure if it's hardware accurate or not, or if there's even a way to tell.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

@@ -1,0 +1,244 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - NES scrolling explained (Loopy's docs explained)</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">NES scrolling explained (Loopy's docs explained)</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=664">http://forums.nesdev.com/viewtopic.php?f=2&amp;t=664</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Mon Oct 17, 2005 8:23 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>NES scrolling explained (Loopy's docs explained)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Loopy's scroll docs, while great, are somewhat difficult to understand at first.  Since that post in the "What drove koitsu away from nesdev" thread where people showed confusion about the docs and wanted clarification, I figured I'd print this up to see if I could help.
+<br />
+<br />You gotta know a few things:
+<br />
+<br />1) The PPU address you set with $2006 is the same address the PPU uses to fetch tiles for rendering.  In effect, it holds the address of the next tile to draw... which is why changing $2006 during rendering will muck up the screen, even if you don't write anything to $2007.  This also means that the address is constantly changing during rendering (more details later).  This address will hereon be referred to as "LoopyV".
+<br />
+<br />2) In addition to that main address... there's also a temporary value which holds the desired scroll address which the PPU uses to refresh LoopyV with from time to time (like say, every scanline to reset the X Scroll).  This temporary value is another value entirely and may contain a completely different value than what's in LoopyV.  Hereon, this temporary address will be referred to as "LoopyT".
+<br />
+<br />3)  Both LoopyV and LoopyT have an effective range of $0000-7FFF... so they're 15-bits wide (they may actually be 16-bits wide, but it's impossible to set the high bit... and it doesn't do anything anyway so whatever).
+<br />
+<br />4)  LoopyT does NOTHING... aside from reload LoopyV at certain times.  If you want to actually affect where the PPU draws from (ie, change the scrolling)... or change the address so you can write to $2007... <strong>LoopyV</strong> is what you need to change.  LoopyV does it all.  This is why you can't use just $2005 to change the vertical scroll mid-frame (since $2005 never changes LoopyV) and why clever alternating $2006/$2005 writes are required...since the second $2006 write is the only way to set LoopyV aside from the scroll reset at frame start.
+<br />
+<br />
+<br />I won't get into first/second writes and the toggle used to keep track of which is which.  If someone is still confused about that you can ask in this thread and I'll explain, but right now I'll just assume you know.
+<br />
+<br />
+<br />In Loopy's docs:
+<br />
+<br />'v' represents LoopyV
+<br />'t' represents LoopyT
+<br />'x' represents the fine Horizontal scroll (0-7 pixels)
+<br />'d' represents the data being written to the register
+<br />
+<br />These letters are usually followed by a colon, then various 0's and 1's to indicate the bits involved in this operation.  0 bits are to be ignored.... and '1' bits are to be involved in the write.
+<br />
+<br />So now you might have looked at loopy's scroll doc to see the following and went "omgwtf":
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">2000 write:<br />&nbsp; &nbsp; &nbsp; &nbsp; t:0000110000000000=d:00000011<br /></div><br /><br />But it's really very simple...  He's just saying the low 2 bits of the data written to $2000 set bits 10 and 11 of LoopyT.  To put this in a more friendly layout:<br /><br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">t -&gt;&nbsp; &nbsp;....XX..........<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;^^<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;||<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;||<br />d -&gt; ......XX<br /></div><br /><br />The '.' or '0' bits in my and loopy's explainations are irrelevent to scrolling.  The unused LoopyT bits here remain unchanged from their previous state, and the other 'd' bits go on to do other things (see a $2000 register description for details on that)<br /><br />Hopefully that should clear up his system of write explainations.<br /><br />One thing that should be mentioned:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">t:0111000000000000=d:00000111<br /></div><br /><br />These bits (bits 12, 13, 14) in LoopyV determine the fine-vertical scroll (as I will try to explain below).<br /><br /><br />LoopyV and LoopyT during rendering:<br /><br />Note... <span style="text-decoration: underline">everything</span> I talk about here assumed the PPU is active (BG or Sprite rendering enabled... if both are disabled, the PPU is "off", and LoopyV is NEVER changed (except on the second $2006 write))<br /><br />As I briefly stated before, the PPU will constantly update LoopyV as it fetches tiles to render.  This is so it knows where to get the next tile to draw.  The logic for this may be a little hard to follow... but stick with me.<br /><br />At Frame Start:  On frame start, the PPU will do what I sometimes call "reset the scroll".  At the end of VBlank, LoopyT (which probably contains what you just wrote to $2005 for your desired scroll values) gets copied over to LoopyV.  This is the address where the PPU will start rendering tiles from.<br /><br />As tiles are rendered:  When 1 tile is fetched and rendered, LoopyV is incremented by 1 so that the next tile will be loaded next.  When it hits the right edge of the nametable, it wraps around to the start of the next nametable.  Example:<br />0000, 0001, 0002, 0003 .... 001E, 001F, 0400, 0401  .... 041E, 041F, 0000, 0001 ... etc<br /><br />At the end of the scanline:  Two things are done once a full scanline has been fetched/rendered.  The Y position needs to increment, and the X scroll needs to reset to its original position.  X scroll resetting is done by reloading the X-related bits from LoopyT back into LoopyV... as portrayed by Loopy's doc:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">scanline start &#40;if background and sprites are enabled&#41;:<br />&nbsp; &nbsp; &nbsp; &nbsp; v:0000010000011111=t:0000010000011111<br /></div>
+<br />
+<br />Y position is incremented.. this is a bit more complicated than X scrolling.  Fine Y scroll (previous mentioned as bits 12, 13, 14) in incremented first, and when it wraps at 8, THEN the coarse Y is incremented, changing the nametable byte to be fetched to the next row of tiles.  So somewhat put this in example form:
+<br />
+<br />0000, 1000, 2000  ....  6000, 7000, 0020, 1020 ... 7020, 0040 .. etc
+<br />
+<br />Since nametables aren't as tall as they are wide, coarse Y scrolling is cut off after 29 ($3A0), rather than 31 ($3E0):
+<br />
+<br />0380, 03A0, 0800, 0820 ... 0B80, 0BA0, 0000, 0020 ... etc
+<br />
+<br />If you manage to set the coarse Y scrolling manually so that it's above 29, it will still wrap at 31, however the nametable (bit 11) will not be changed:
+<br />
+<br />03C0, 03E0, 0000, 0020 ... 0380, 03A0, 0800 ... etc
+<br />
+<br />
+<br />That's about it!  I know it's pretty funky but it isn't all that hard once you get the idea.  Feel free to ask Qs and I'll answer as best I can.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>drk421</b> [ Mon Oct 17, 2005 9:54 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Thanks!
+<br />
+<br />You might want to add that to he wiki,
+<br />
+<br /><!-- m --><a class="postlink" href="http://nesdev.com/wiki/">http://nesdev.com/wiki/</a><!-- m -->
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Tue Oct 18, 2005 6:04 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Boy, if I had read this a couple of years ago...!
+<br />
+<br />It took me ages to understand the 1s (in d) meant bits that would end up where the other 1s are.
+<br />
+<br />At first I thought the doc was describing some sort of example, that I coudn't see where it was going...
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Guest</b> [ Thu Nov 10, 2005 1:11 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>0's + 1's</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Just a little point, but in assembler / hardware docs, it's traditional to 
+<br />represent "don't care" bits as x (lower case, yes).
+<br />
+<br />So, xxxx11xx would make more sense, I think, and be more readable
+<br />than using 0s. To me, a set of 1s and 0s is a binary value.
+<br />
+<br />Anyway, just a readability tip from a visitor.
+<br />
+<br />Sam.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

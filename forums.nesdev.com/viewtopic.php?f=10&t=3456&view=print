@@ -1,0 +1,315 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - CPU Address Decoding</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">CPU Address Decoding</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=10&amp;t=3456">http://forums.nesdev.com/viewtopic.php?f=10&amp;t=3456</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Great Hierophant</b> [ Wed Jun 27, 2007 5:40 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>CPU Address Decoding</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />As I tried to figure out the nitty-gritty of PPU Addressing in my last post, I thought I would try my hand with CPU Addressing in this post.  The external memory map areas are CPU RAM $0000-#1FFF, $4018-$5FFF, WRAM $6000-7FFF, and PRG ROM $8000-$FFFF.  Much of these addresses are decoded by the 74HC139.  Address lines A0-A14 go to the cartridge, allowing for 32KB of memory at first blush.  This would put the PRG ROM at $0000-$7FFF.  This would not do, so A15 is fed into one of the inputs of the '139, and M2 is fed into the other.  When both are high, then the output pin connected to the /CS of the PRG ROM inside the cartridge is low and the ROM is enabled, at least until M2 falls.  I don't understand the need for M2.  
+<br />
+<br />Now, to continue our digression.  The CPU RAM is connected fully and directly to the CPU's address bus.  Its /CS is tied to anohter pin of the '139.  When M2 is high and A15 is low, one of the pins becomes low and activates the other decoder.  The inputs of this decoder are attached to A13 and A14.  When both address lines are low, then an output pin activates the /CS and enables the CPU RAM.  This signifies a value in the $0000-$1FFF range.  (In this state A11 and A12 would be unattached, which causes the CPU RAM to be repeated.)  Interestingly, when A13 is high and A14 is low, another output pin goes to the PPU, which is in the $2000-$3FFF range.  
+<br />
+<br />Now, for WRAM inside the cartridge, things become a bit trickier.  In order for the WRAM to appear at the right place, A13 and A14 must be high while A15 low.  An 8KB chip only has A0-A12 connected, so its /CE must be enabled through inversion.  Fortunately, when A15 is low, the PRG ROM is disabled, which avoids bus conflicts.  A '139 would do the trick if the PRG CS line is inverted and used as the enable.  
+<br />
+<br />That just leaves $4018-$5FFF.  Obviously, the NES CPU could have mirrored the APU, Sprite and I/O registers across this space, but it did not.  This area seems to be just a big hole which the odd size made it too complex for your average mapper.  Apparently Namco didn't see it that way with its 106 mapper, nor did Kevtris in his CopyNES.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Wed Jun 27, 2007 8:07 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: CPU Address Decoding</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Great Hierophant wrote:</div><div class="quotecontent">That just leaves $4018-$5FFF.  Obviously, the NES CPU could have mirrored the APU, Sprite and I/O registers across this space, but it did not.</div><br />It would almost have been better to put the I/O in page $3F00, but Nintendo designs of the day weren't nearly as <a href="http://en.wikipedia.org/wiki/Orthogonal#Computer_science" class="postlink">orthogonal</a> as the GBA.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">This area seems to be just a big hole which the odd size made it too complex for your average mapper.  Apparently Namco didn't see it that way with its 106 mapper, nor did Kevtris in his CopyNES.</div>
+<br />Nor did Nintendo with MMC5 ($5000-$5FFF) or FDS ($41xx IIRC).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Thu Jun 28, 2007 1:11 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I don't know what is your goal here as you do more information than questions, but I just can tell M2 is here to tell if the adress bus is stable or not (and when it's not stable, all external memories are disabled).
+<br />Cartridge WRAM is very usually decoded in $6000-$7fff, but there is stricly no rule : The cartridge can make whathver use it want with the $4018-$ffff range, the only restriction is that $fffc-$fffd must be ROM at power-up for the programm to boot somewhere. A evil cartridge could even decode $fffc and $fffd, feed the data bus with a vector got from discrete logic when those place are read to simulate ROM and have the cart boot at the actual ROM wich could start at, say $6000.
+<br />
+<br />Now, most cart uses ROM at $8000-$ffff because this is already decoded to the /ROMSEL signal (or PRG /CE, but I don't like this appelation because it confuses with the output of some mappers). If you want to decode for WRAM at $6000-$7ffff, you have to AND all of A13, A14, M2 and /ROMSEL together (feeeding the positive CE of the SRAM), a simple 7408 or 7420 usually does the trick. If the WRAM is battery backed, then the 7408/7420 would go mad when the power fails, enabling the chip and corrupting it's data, so you'd want to add another circuit along with that.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>dvdmth</b> [ Thu Jun 28, 2007 8:09 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />All meemory accesses require M2 to be high (that's the way the CPU indicates a read/write request).  For WRAM at $6000-7FFF, you want to activate the chip when A13, A14, PRG /CE, and M2 are all high.  The NES memory map does not define anything from $4018-7FFF, so anything can be mapped there.  Though $8000-FFFF was intended for PRG-ROM, mapper hardware can override this mapping setup by doing its own address decoding.  You can reassign $8000-FFFF to something other than ROM, or you can add ROM to the $4018-7FFF range if desired.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Great Hierophant</b> [ Thu Jun 28, 2007 3:00 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Now, most cart uses ROM at $8000-$ffff because this is already decoded to the /ROMSEL signal (or PRG /CE, but I don't like this appelation because it confuses with the output of some mappers). If you want to decode for WRAM at $6000-$7ffff, you have to AND all of A13, A14, M2 and /ROMSEL together (feeeding the positive CE of the SRAM), a simple 7408 or 7420 usually does the trick. If the WRAM is battery backed, then the 7408/7420 would go mad when the power fails, enabling the chip and corrupting it's data, so you'd want to add another circuit along with that.</div>
+<br />
+<br />The SRAM Nintendo used has negative enable pins.  That would explain the what the '20 in the Family Basic cartridge does.  With an '08, you would need to feed the outputs of two AND gates into the input of a third and use SRAM with a positive enable.  I believe I read that SXROM carts have a 74 chip that is battery powered in addition to the W-RAM to allow for a smoother method of preserving the RAM contents.   
+<br />
+<br />M2 runs at the CPU clock speed, 1.79MHz (NTSC), so it would make sense that it would be used to sychronize memory accesses.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Fri Jun 29, 2007 12:31 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">I believe I read that SXROM carts have a 74 chip that is battery powered in addition to the W-RAM to allow for a smoother method of preserving the RAM contents.<br /></div>
+<br />I think you read that from what I wrote to the wiki, and unfortunately I don't have a cart with that myself, but I shown very detailed pictures of it somewhere where you could see the traces well.
+<br />In summary, the MMC1 chip only uses the positive chip enable (wich is internally tied to the AND logic of M2, /ROMSEL, A13, A14) and then is internally passed trough a powerfail protection circuit (I think the resent MMC1s have a better one that the olds), that will make the signal goes low (or just floating ?) if VCC is not established. An external pulldown resistor is used on all MMC1 boards with a battery I've seen, so that the signal is effectivly grounded when the MMC1 is NOT powered at all, and the SRAM is.
+<br />The particular MMC1 board with more SRAM (SXROM) has only SRAMs with a negative chip-enable input, and a low-power 74HCU04 has been added to invert the signal, the chip is itself battery-pwered, and comes after the pull-down resistor. So the singal is buffered one more time, and is probably more secure.
+<br />
+<br />Doing a discrete logic board with SRAM is easy, as does the family basic cart, a simple 74HC08 or 74HC20 can decode it (depending if you want positive or negative enable). Since family basic used 2 KB SRAM, there were only a negative chip enable (only 8 KB and 128 KB has both as far I know). If you want it battery backed, things becomes complicated, as you'd need a resistor and a second battery-backed chip to buffer the signal, or even better, a integreated SRAM protection circuit like the MM1026. On the other hand, connecting such circuits to the battery decrease the time it will take for the power of the battery to decay.
+<br />
+<br />The MMC3 seems to have full control over both enables of the SRAM, maybe the positive is for securiy only and the negative for decoding ?
+<br />
+<br />EDIT : I just remembered that I had a SNES board <em>SHVC-1J3B-01</em> (or something like this), that only had ROM, WRAM, 74HC139 and a battery. I don't know if the '139 is battery backed, but I doubt it is, so there should be a discrete battery back-up circuit made with resistors, diodes and transistor that is enough to not loose saves (on the SNES anyways). I don't know if a similar circuit could be done on the NES (instead of using MMC1/3/5 internal backup circuit).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Great Hierophant</b> [ Fri Jun 29, 2007 5:50 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Is this why the MMC1 games require you to press reset as you turn the power off?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>kyuusaku</b> [ Fri Jun 29, 2007 8:56 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Bregalad wrote:</div><div class="quotecontent">EDIT : I just remembered that I had a SNES board <em>SHVC-1J3B-01</em> (or something like this), that only had ROM, WRAM, 74HC139 and a battery. I don't know if the '139 is battery backed, but I doubt it is, so there should be a discrete battery back-up circuit made with resistors, diodes and transistor that is enough to not loose saves (on the SNES anyways). I don't know if a similar circuit could be done on the NES (instead of using MMC1/3/5 internal backup circuit).</div>
+<br />IIRC this circuit isn't for protection, it's to switch current from the battery to the console when it's turned on.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Sat Jun 30, 2007 10:45 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Yes, but the circuit seemed more complex than circuit on MMC1 and MMC3 games made with 2 diodes, 1 resostor and one capacity.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

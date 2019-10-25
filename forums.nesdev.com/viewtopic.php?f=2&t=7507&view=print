@@ -1,0 +1,530 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Is there anything that could alter an MMC1 reg3 write?</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Is there anything that could alter an MMC1 reg3 write?</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=7507">http://forums.nesdev.com/viewtopic.php?f=2&amp;t=7507</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>3</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>bigjt_2</b> [ Tue Feb 22, 2011 10:11 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Is there anything that could alter an MMC1 reg3 write?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />...besides the obvious of doing five more writes to register 3?
+<br />Or for that matter, is there anything that could cause the MMC1 to ignore a reg3 ($E000-$FFFF) write?  And hence ignore a PRG bank switch?
+<br />
+<br />I've got this weird crash happening now in my code, caused by the wrong PRG bank being loaded at the wrong time.
+<br />
+<br />I'm looking at my Nintendulator dump file that I captured leading up to the crash.  Specifically within that file, I'm looking at the previous two runs of a certain subroutine before the game crashes.  This sub backs up the current PRG bank number in a variable so that it can jump back to he current sub later, then loads 0 into the accumulator, then jumps to the PRG bank-switching sub.
+<br />
+<br />On the second-to-last run before the game crashes, the code executes perfectly fine.  I need it to load bank 0, so I load 0 into A and then jump to the switching sub to do my five writes to $E000/four LSRs.  Then scrolling down, I look at the next time a pointer is loading from somewhere in ROM and it's loading the correct data, indicating bank 0 is indeed loaded.
+<br />
+<br />Here's the odd part.  The next time this same subroutine runs (and again, the last time it runs before the game crashes) I'm again loading in bank 0, and the swapping subroutine also runs perfectly.  However, when I scroll down even further and look at the exact same address being read out of ROM via a pointer, I see two $FF values.  So I've checked this address in the debugger and found that $FF is the value when bank 1 is loaded.  Bank 1, coincidentally, was the previous PRG bank loaded both times before jumping to this sub.  It's like it changed the first time, but ignored the writes to $E000 on the second time.  About 1 1/2 scanlines later, the game crashes, of course.
+<br />
+<br />My first thought was that I must be screwing up an offset in a write, that's causing some random value to get written to $E000-$FFFF.  I've painstakingly looked at every store instruction after this bank swapping subroutine (the one that gets called right before the crash), and I can't find stores to anything besides RAM or non-MMC1 registers numbered $7FFF and lower.
+<br />
+<br />I'm re-reading this now and realizing it must be confusing as hell to anyone else.  Here's a snippet from my dump file that might explain it better, I've annotated with some labels and comments:
+<br />
+<br />bank_backup_se:
+<br />FF8D  LDA $004B = 01  ;;$004B = prg_bank  ;;the current PRG bank 
+<br />                                   ;;loaded
+<br />FF90  STA $004E = 01  ;;$004E = bank_bak_se  ;;the variable that holds 
+<br />                                  ;;the current PRG bank, as I will need to return
+<br />                                  ;;to it once this group of code is done
+<br />FF93  LDA #$00           ;;target bank = bank 0
+<br />FF95  STA $004B = 01
+<br />FF98   JSR $E82B
+<br />
+<br />swap_PRG_bank:
+<br />E82B  LDA $004B = 00
+<br />E82E  AND #$1F
+<br />E830  STA $E000 = 40
+<br />E833  LSR A
+<br />E834  STA $E000 = 40
+<br />E837  LSR A
+<br />E838  STA $E000 = 40
+<br />E83B  LSR A
+<br />E83C  STA $E000 = 40
+<br />E83F  LSR A
+<br />E840  STA $E000 = 40
+<br />E843  RTS
+<br />FF9B  RTS
+<br />
+<br />;;so pretty standard stuff.  now... scrolling down to the next immediate
+<br />;;instance when something is read out of the current PRG bank...
+<br />
+<br />FED6  LDA $A1AE,Y @ A1BA = B4
+<br />FED9  STA $0053 = 50
+<br />FEDC  LDA $A1AF,Y @ A1BB = A2
+<br />FEDF  STA $0054 = A3
+<br />
+<br />;;On the next frame, bank_backup_se and swap_PRG_bank run exactly
+<br />;;the same.  However, the next time I scroll down a couple dozen lines
+<br />;;to find the pointer mentioned above...
+<br />
+<br />FED6  LDA $A1AE,Y @ A1BA = FF
+<br />FED9  STA $0053 = 50
+<br />FEDC  LDA $A1AF,Y @ A1BB = FF
+<br />FEDF  STA $0054 = A3
+<br />
+<br />;;and it's now apparent that I've pissed off the nesdev/6502/MMC1 gods
+<br />;;and they are now giving me the big middle finger.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>clueless</b> [ Tue Feb 22, 2011 10:20 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Could an IRQ or NMI be firing when you don't expect it, and the handler switching banks out from under you (and not restoring them when the handler exits)?
+<br />
+<br />Are your IRQs and NMIs disabled when the MMC1 bank switch routine is actually running (or at least, timed to not occur then)?
+<br />
+<br />In my MMC1 experiment, I store the bank's number at $bfff.  My NMI handler saves that on the stack (lda, pha), and on NMI exit, it checks to see if the bank has changed, and if so, restores it.  But I don't have code to prevent an NMI during the MMC1 switcher (I was no where near close to running over my CPU budget, so it wasn't a problem yet).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>bigjt_2</b> [ Tue Feb 22, 2011 10:51 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Hey clueless, thanks for the suggestions.  Let's see...
+<br />
+<br /><div class="quotetitle">clueless wrote:</div><div class="quotecontent">Could an IRQ or NMI be firing when you don't expect it, and the handler switching banks out from under you (and not restoring them when the handler exits)?</div><br /><br />Actually, this code is part of the game's sound engine.  Specifically, you might say it's the "driver" part (is that the correct term?) that runs every frame and runs through all the sound data and writes to he necessary sound registers.  All this code is jumped to at the end of my NMI handler, after the xScroll writes to $2005 and right before I restore my Accumulator and X and Y registers.  <br /><br /><div class="quotetitle">clueless wrote:</div><div class="quotecontent">Are your IRQs and NMIs disabled when the MMC1 bank switch routine is actually running (or at least, timed to not occur then)?<br /></div><br /><br />NMI is definitely not off, as the block of code this runs in gets ran as the tail end of the NMI handler.  So the run_sound stuff is basically the first thing ran every frame.  No other IRQs are enabled.<br /><br /><div class="quotetitle">clueless wrote:</div><div class="quotecontent">In my MMC1 experiment, I store the bank's number at $bfff.  My NMI handler saves that on the stack (lda, pha), and on NMI exit, it checks to see if the bank has changed, and if so, restores it.  But I don't have code to prevent an NMI during the MMC1 switcher (I was no where near close to running over my CPU budget, so it wasn't a problem yet).</div>
+<br />
+<br />I actually switch banks a few times or more every frame.  I keep specific things in specific PRG banks.  So for example, all sound data is in bank 0, the first four level's data/boss data is in bank 1, (actually 2 in NESASM, because everything is split into 8K banks), then all enemy code is in another 16K bank, etc.  So what I do is, usually the level data is running, and then at a given time it may need to pull some enemy data.  So the basic structure looks like this:
+<br />
+<br />JSR level stuff
+<br />JSR more level stuff
+<br />JSR etc.
+<br />
+<br />JSR backup_PRG_bank
+<br />JSR swap_PRG_bank   ;usually this is included in the above sub, just separating it here for clarity.
+<br />
+<br />JSR enemy stuff            ;code in new bank is sandwitched between
+<br />JSR more enemy stuff   ;these backup/restore subs
+<br />JSR etc. etc. etc.
+<br />
+<br />JSR restore_PRG_bank
+<br />JSR swap_PRG_bank     ;again, usually included in the restore sub above
+<br />
+<br />JSR even more level stuff
+<br />JSR something else blah blah blah
+<br />
+<br />Is that kind of the same thing you're talking about?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Tue Feb 22, 2011 11:19 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />So this means that your sound engine, which is called at the end of your NMI handler, switches banks, right? Does it also back up the current bank number? Is it possible that it's overwriting the backup made in the game loop?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Dwedit</b> [ Tue Feb 22, 2011 11:24 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Don't feel too bad, even Capcom screwed up interrupted MMC1 bankswitching in the Mega Man games.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Tue Feb 22, 2011 11:34 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />This is the reason I absolutely hate the convoluted way MMC1 registers are written to... it's just too error-prone. I also hate how long it takes to complete one single lousy mapper write, because the overhead of bankswitching several times in the same frame becomes too significant.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>koitsu</b> [ Wed Feb 23, 2011 12:50 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tokumaru wrote:</div><div class="quotecontent">This is the reason I absolutely hate the convoluted way MMC1 registers are written to... it's just too error-prone. I also hate how long it takes to complete one single lousy mapper write, because the overhead of bankswitching several times in the same frame becomes too significant.</div>
+<br />
+<br />Yup, and is exactly why for years I've wanted an MMC3 devcart.  Zero interest in this MMC1 crap.  ;D
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>clueless</b> [ Wed Feb 23, 2011 7:04 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">bigjt_2 wrote:</div><div class="quotecontent">Is that kind of the same thing you're talking about?</div>
+<br />
+<br />Yes, I think.  My hypothesises were as follows:
+<br /><ol style="list-style-type: decimal"><li>Part way through changing the MMC1 bank via the 'lsr, sta' unrolled loop, your code gets interrupted, and the interrupt handler resets the latch, changes banks, does its work, then resets the bank back to what it found on entry.  Your "main" thread then resumes banging out the final bits tot he MMC1 bank register, which is no longer properly latched, so the MMC1 sees an incomplete switch request.</li><li>An interrupt handler swaps banks and simply never switches back, independent of the first bug proposal</li></ol>
+<br />
+<br />But in your post (I think) you ruled though out, and I'm out of ideas atm.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Wed Feb 23, 2011 8:02 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />For hypothesis 1, would it be worth it to try checking, from the NMI handler, whether the interrupted program counter on the stack is within $FF00-$FFFF? Then you could place all your low-level MMC1 handling code there.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>thefox</b> [ Wed Feb 23, 2011 8:40 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Is there anything that could alter an MMC1 reg3 write?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">bigjt_2 wrote:</div><div class="quotecontent">I'm looking at my Nintendulator dump file that I captured leading up to the crash.<br /></div>
+<br />Set a breakpoint at some point which leads to the crash and single step through the mapping code. The debugger shows you what PRG banks are currently mapped in. Unfortunately it doesn't display mapper state though.
+<br />
+<br />If the code gets interrupted that would also show up in the CPU logs.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Wed Feb 23, 2011 11:09 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Yup, and is exactly why for years I've wanted an MMC3 devcart. Zero interest in this MMC1 crap. ;D</div>
+<br />What about the crappy limitations of MMC3's line counter ?
+<br />And also to switch a 16k bank in MMC3 it needs no less than 4 writes, only one less than the 5 MMC1 writes... probably not a major save of time if you want my opinion.
+<br />
+<br />Of course the MMC5 fixes all these problems.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>MottZilla</b> [ Wed Feb 23, 2011 11:18 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">clueless wrote:</div><div class="quotecontent"><div class="quotetitle">bigjt_2 wrote:</div><div class="quotecontent">Is that kind of the same thing you're talking about?</div><br /><br />Yes, I think.  My hypothesises were as follows:<br /><ol style="list-style-type: decimal"><li>Part way through changing the MMC1 bank via the 'lsr, sta' unrolled loop, your code gets interrupted, and the interrupt handler resets the latch, changes banks, does its work, then resets the bank back to what it found on entry.  Your "main" thread then resumes banging out the final bits tot he MMC1 bank register, which is no longer properly latched, so the MMC1 sees an incomplete switch request.</li><li>An interrupt handler swaps banks and simply never switches back, independent of the first bug proposal</li></ol><br />But in your post (I think) you ruled though out, and I'm out of ideas atm.</div>
+<br />
+<br />The interrupted register write (cause it takes so damn long) seems like a possible cause. I agree that the slow nature of the MMC1 register writes is annoying enough to deter developers from using it and instead wanting to stick to discrete mappers like UxROM. It would be nice though to have something like a mix of UxROM, CNROM, and H/V mirroring control. That or as mentioned a MMC3 development board.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>clueless</b> [ Wed Feb 23, 2011 11:18 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Guys, he's using MMC1.  Hopefully his cart will get fabricated.  That is not going to happen with MMC3 or MMC5.
+<br />
+<br />bigjt, does this bug manifest itself fairly quickly from boot-up, or after the game has been playing for a while?
+<br />
+<br />Would a CPU instruction trace (w/ perl or python post-processing) help figure anything out?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Wed Feb 23, 2011 12:11 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">MottZilla wrote:</div><div class="quotecontent">I agree that the slow nature of the MMC1 register writes is annoying enough to deter developers from using it and instead wanting to stick to discrete mappers like UxROM.</div>
+<br />The big reason to switch from UxROM or AxROM to SNROM is PRG RAM support, especially if you want to be able to save more than 32 bits of state from one play session to the next. To do so on UxROM would involve <a href="http://wiki.nesdev.com/w/index.php/PRG_RAM_circuit" class="postlink">adding a 74HC20</a>, which decodes $6000-$7FFF and prevents bus conflicts on the ROM.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>3gengames</b> [ Wed Feb 23, 2011 1:23 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Maybe this would be a good time to replace your NMI like I had an idea to earlier, which I asked someone earlier if it was a good idea and this is maybe what could fix it.
+<br />
+<br />
+<br />Something like:
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">NMI:<br />PHA<br />LDA $2002<br />INC Frame<br />PLA<br />RTI<br /></div>
+<br />
+<br />That way nothing gets messed with in the code, but a bad thing about this is that it'd pretty much go to 30FPS when alot of stuff is happening. Maybe this idea will help you fix it, hope it does. Plus it allows for different NMI's depending on the games kernal instead of using RAM to point to one. Can't wait to see the progress, good luck.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>3</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

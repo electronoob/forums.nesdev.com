@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=3&amp;t=8243" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2011-10-25T19:56:16-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=3&amp;t=8243</id>
+<entry>
+<author><name><![CDATA[Elessar]]></name></author>
+<updated>2011-10-25T19:56:16-07:00</updated>
+<published>2011-10-25T19:56:16-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8243&amp;p=85604#p85604</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8243&amp;p=85604#p85604"/>
+<title type="html"><![CDATA[Cycle bug in CPU]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8243&amp;p=85604#p85604"><![CDATA[
+You hit the nail on the head!<br /><br />Like most small mistakes, it seems so obvious now. Thank you very much! <img src="http://forums.nesdev.com/images/smilies/icon_smile.gif" alt=":)" title="Smile" /><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4899">Elessar</a> — Tue Oct 25, 2011 7:56 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Dwedit]]></name></author>
+<updated>2011-10-24T22:25:41-07:00</updated>
+<published>2011-10-24T22:25:41-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8243&amp;p=85551#p85551</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8243&amp;p=85551#p85551"/>
+<title type="html"><![CDATA[Cycle bug in CPU]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8243&amp;p=85551#p85551"><![CDATA[
+You didn't cross a page.  It counts from the address AFTER the branch (same thing you add the relative offset to), not the first byte of the branch instruction.  <br /><br />In this case, you're at CFFE, so you add the second byte to D000, then check if the page changed, which it didn't.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=53">Dwedit</a> — Mon Oct 24, 2011 10:25 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Elessar]]></name></author>
+<updated>2011-10-24T21:37:16-07:00</updated>
+<published>2011-10-24T21:37:16-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8243&amp;p=85549#p85549</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8243&amp;p=85549#p85549"/>
+<title type="html"><![CDATA[Cycle bug in CPU]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8243&amp;p=85549#p85549"><![CDATA[
+In order to insure that all the opcodes execute correctly in my CPU, I have been using the <a href="http://nickmass.com/images/nestest.nes" class="postlink">nestest</a> ROM along with its corresponding <a href="http://nickmass.com/images/nestest.log" class="postlink">log</a>.<br /><br />Although the instructions execute properly, there is a problem that I have with the BEQ opcode, 0xF0.<br /><br />Here are the results according to nestest:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">CFFE  F0 05     BEQ $D005                       A:5A X:81 Y:69 P:27 SP:FB CYC:292 SL:1<br />D005  A9 AA     LDA #$AA                        A:5A X:81 Y:69 P:27 SP:FB CYC:301 SL:1     &lt;-- CYC increased by 9<br />.<br />.<br />.<br />F2FC  F0 02     BEQ $F300                       A:52 X:02 Y:E9 P:67 SP:FB CYC:339 SL:183<br />F300  C8        INY                             A:52 X:02 Y:E9 P:67 SP:FB CYC: 10 SL:184   &lt;-- CYC increased by 12 &#40;wrapped around at 341&#41;</div><br /><br />Here are the results from my CPU:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">CFFE  F0 05     BEQ $D005                       A:5A X:81 Y:69 P:27 SP:FB CYC:292 SL:1<br />D005  A9 AA     LDA #$AA                        A:5A X:81 Y:69 P:27 SP:FB CYC:304 SL:1     &lt;-- CYC increased by 12<br />.<br />.<br />.<br />F2FC  F0 02     BEQ $F300                       A:52 X:02 Y:E9 P:67 SP:FB CYC:  4 SL:184<br />F300  C8        INY                             A:52 X:02 Y:E9 P:67 SP:FB CYC: 16 SL:184   &lt;-- CYC increased by 12<br />&#40;I know that CYC 4 != CYC 339, but that is not relevant to my question.&#41;</div><br /><br />Here are the points at which the cycles are incremented:<br /><ul>If branch is successful, increment new cycles.<br />On successful branch, check if page boundary crossed, and if so, increment new cycles.<br />Add two to new cycles for being a relative opcode</ul>These "new cycles" are multiplied by 3 &amp; added to CYC.<br /><br /><br />I couldn't find any logical errors where I am adding the cycles, so I thought that the problem might have to do with how I am checking for page crossing. This is my current means of checking:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">public void PageCheck&#40;uint addr1, uint addr2&#41;<br />&#123;<br />    if &#40;&#40;&#40;addr1 ^ addr2&#41; &amp; 0xff00&#41; != 0x0000&#41;<br />    &#123;<br />        extraCycles++;<br />    &#125;<br />&#125;</div><br />However, I couldn't find anything wrong with this either, which has left me stumped.<br /><br /><br /><br />Could someone tell me what I am doing wrong that is causing my CPU to calculate the cycles incorrectly?<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4899">Elessar</a> — Mon Oct 24, 2011 9:37 pm</p><hr />
+]]></content>
+</entry>
+</feed>

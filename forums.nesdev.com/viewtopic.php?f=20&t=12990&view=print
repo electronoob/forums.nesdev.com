@@ -1,0 +1,249 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Game Boy display disable/enable and frame timing</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Game Boy display disable/enable and frame timing</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=20&amp;t=12990">http://forums.nesdev.com/viewtopic.php?f=20&amp;t=12990</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>bendm</b> [ Tue Jul 07, 2015 6:35 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Game Boy display disable/enable and frame timing</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I'm trying to work out how to sync between my nascent Game Boy emulator's CPU/video/audio processors, and there's a sticky edge case: when a write to 0xff40 disables the LCD display.<br /><br />Before implementing audio, I ran everything on a per-frame basis. When I hit the end of vblank, I would yield control to the renderer, wait until the next frame, and pick up.  If display was disabled, I'd keep running until it was re-enabled and the following rendering frame completed. As a result frames would have a variable number of CPU cycles (which I think did cause some subtle timing bugs) but mostly it worked fine.<br /><br />Now that I've added audio processing, I'm generating 735 audio samples (44100 / 60) per one frame's worth of CPU cycles (usually 456 * 154 = 70224 cycles.) This works until LCD is disabled and enabled again later, which results in too many audio samples being pushed to the audio buffer that frame, and the audio playback gets progressively more backed up. I've tried cutting the audio sample generation off after exactly 735 samples each frame, but this doesn't seem correct either and results in audible gaps in playback.<br /><br />Any advice on how to resolve this, and how many cycles to run each processor per frame?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Tue Jul 07, 2015 6:40 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Game Boy display disable/enable and frame timing</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />If LCD is disabled, generate an all-white frame (Game Boy) or repeat the previous frame (Super Game Boy).<br /><br />Licensed games aren't allowed to turn rendering on and off mid-frame because the output drivers don't get clocked to the next scanline. This results in visible artifacts and, over the long term, possible burn-in.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>bendm</b> [ Tue Jul 07, 2015 7:04 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Game Boy display disable/enable and frame timing</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Thanks for the tip. Can I rely on having it disabled for exact multiples of a frame or can the disabled period be an arbitrary number of cycles? If it's disabled for say 50 scanlines worth of CPU cycles and then re-enabled, and I treat the disabled period as a separate frame, I'll have an audio buffer underflow.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Shonumi</b> [ Tue Jul 07, 2015 7:21 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Game Boy display disable/enable and frame timing</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />The disabled period can be arbitrary. As far as I know, the LCD's internal clock gets reset to 0 (e.g. when it's re-enabled, your next VBlank is in 70224 cycles), but there's no restriction on when it can be re-enabled. It can be 20 cycles, or 20 minutes. It's up the the game, so don't bet on any consistency.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>zerowalker</b> [ Sun Sep 03, 2017 7:46 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Game Boy display disable/enable and frame timing</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />In that case it LY also reset, cause otherwise it would go out of sync with that clock right?<br /><br />And also, when it's disabled, is the clock stopped, or does it run and it just resets when re-enabled?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Shonumi</b> [ Sun Sep 03, 2017 1:10 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Game Boy display disable/enable and frame timing</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">zerowalker wrote:</div><div class="quotecontent">In that case it LY also reset, cause otherwise it would go out of sync with that clock right?</div><br /><br />Already mentioned it <a href="http://forums.nesdev.com/viewtopic.php?f=20&amp;t=16434#p203762" class="postlink">here</a> but yes, LY gets reset to 0 when the LCD is disabled. Otherwise weird things would happen.<br /><br /><div class="quotetitle">zerowalker wrote:</div><div class="quotecontent">And also, when it's disabled, is the clock stopped, or does it run and it just resets when re-enabled?</div><br /><br />The LCD's internal timing is frozen. That means nothing related to the LCD clocks. LY isn't incremented. No STAT or VBlank interrupts. <a href="http://forums.nesdev.com/viewtopic.php?f=20&amp;t=13727#p162444" class="postlink">We tried testing this a while ago</a> just to be sure.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>zerowalker</b> [ Sun Sep 03, 2017 11:40 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Game Boy display disable/enable and frame timing</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />My bad missed that part about LY being reset directly on Disabled.<br /><br />Will check the tests about the timing, thanks:)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

@@ -1,0 +1,417 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - DMA Transfer - 160 microseconds?</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">DMA Transfer - 160 microseconds?</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=20&amp;t=16428">http://forums.nesdev.com/viewtopic.php?f=20&amp;t=16428</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>zerowalker</b> [ Wed Aug 30, 2017 5:48 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>DMA Transfer - 160 microseconds?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Don't really understand why all documentations says that DMA takes 160 microseconds,<br />and that the default wait loop waits about that long.<br /><br />But if i am not mistaken, it's  doing 40*16 cycles, 4 for decrementing A and 12 for JR NZ.<br />And that's 640 cycles, which is not 160 microseconds, as that would be about 671 right?<br /><br />Am i missing something?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>adam_smasher</b> [ Wed Aug 30, 2017 8:56 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: DMA Transfer - 160 microseconds?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />In fact it's 39 * 16 + 36 = 660 cycles in HRAM, isn't it? Because the final JR isn't taken (- 4), but there's the LD A (+ 8) and a RET (+ 16). That still comes in under 160ms though.<br /><br />So what you're saying makes sense - the pandocs seem to miscount the cycles for the JR as justification, but the official docs use the same code and give the correct cycle count, eliding over the fact that the routine wouldn't take 160 micros.<br /><br />But at any rate, that code does seem to work, and it would fail hard if the delay wasn't long enough - the CPU would read garbage once you RET'd to ROM and the program would almost certainly crash. But I've used that code myself on real hardware and it's worked fine. Since it's the official Nintendo code, and since Pan &amp; co. probably got it by disassembling commercial ROMs, I assume real games use it too and they obviously work.<br /><br />So if I had to guess, the 160 micros number that Nintendo gave (and that Pan et al copied?) is imprecise - it probably takes 160 * 4 cycles rather than 160 micros.<br /><br />Maybe looking through gambatte's source code would reveal more? I tried to myself but it got a little thorny.<br /><br />Or if you want to be sure, you could write a test that lets you adjust the wait time and reduce it til the CPU crashes to find the correct cut-off.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>nitro2k01</b> [ Wed Aug 30, 2017 9:21 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: DMA Transfer - 160 microseconds?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />You are confusing clock cycles and instruction cycles. The master clock runs at ~4 MHz (Actually 4 MiHz, or 4*1024*1024 Hz to be precise, but that's not really important for the argument.) However, instructions always take a multiple of 4 clock cycles, so instruction timing is often counted in machine cycles, where one nop is said to take 1 machine cycle and so on. 1 machine cycle takes ~1 us, whereas 1 clock cycle obviously takes ~0.25 us. <br /><br />In short, you have to divide your 640 figure by 4, which indeed gives 160 us.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Wed Aug 30, 2017 9:26 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: DMA Transfer - 160 microseconds?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">nitro2k01 wrote:</div><div class="quotecontent"><div class="quotetitle">zerowalker wrote:</div><div class="quotecontent">And that's 640 cycles, which is not 160 microseconds, as that would be about 671 right?</div><br />The master clock runs at ~4 MHz (Actually 4 MiHz, or 4*1024*1024 Hz to be precise, but that's not really important for the argument.)</div><br />I saw that as exactly the argument, as 640 * 1.024 * 1.024 = 671. So I'm inclined to believe adam_smasher's explanation of imprecision between the 4 MHz nominal and 4.194 MHz actual clock rates, where a &quot;micro&quot; is 10^9/2^20 = 954 ns.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>nitro2k01</b> [ Wed Aug 30, 2017 9:27 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: DMA Transfer - 160 microseconds?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Yes, I misread the post. And yes, Martin seems to round 1 instruction cycle to 1 us.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>zerowalker</b> [ Wed Aug 30, 2017 9:33 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: DMA Transfer - 160 microseconds?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Wait this got a bit confusing hehe.<br /><br />I always count in cycles (not instruction cycles), so 4 being the minimum.<br /><br />So is 640 cycles is correct then?<br /><br />Cause that's how much mine takes until it's out of the wait loop.<br /><br />It's really hard when the documentation is so fluffy at times, i usually read all over the place and try to figure out which one is correct xd.<br />Not a fan of checking other ppls source code as i would like to learn to write the code myself and how the system works, though i do at times.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>gekkio</b> [ Wed Aug 30, 2017 10:06 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: DMA Transfer - 160 microseconds?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />It's even more confusing when you consider the fact that the total duration is actually 161 machine cycles if you count from the DMA register write <img src="./images/smilies/icon_wink.gif" alt=";)" title="Wink" /> (at least on DMG/SGB/MGB/SGB2).<br /><br />When OAM DMA is started, there is one machine cycle delay before the actual transfer starts. So, let's say you start OAM DMA with the LDH ($46), a instruction. These are the machine cycles that happen:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">------------------------------------------------------------------<br />&nbsp;-3: opcode read and decoding of LDH (n), a (= $E0 is read)<br />&nbsp;-2: memory read of the DMA register address (= $46 is read)<br />&nbsp;-1: memory write to the DMA register (= value of A is written)<br />------------------------------------------------------------------<br />&nbsp; 0: CPU continues to the next instruction. OAM DMA has not really started yet so the OAM area is still accessible during this one cycle.<br />&nbsp; 1: first cycle of OAM DMA. OAM area is inaccessible<br />&nbsp; 2: second cycle of OAM DMA. OAM area is inaccessible<br />...<br />...<br />160: 160th cycle of OAM DMA. OAM area is inaccessible<br />------------------------------------------------------------------<br />161: OAM DMA is no longer running so the OAM area is now accessible<br /></div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>zerowalker</b> [ Wed Aug 30, 2017 11:18 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: DMA Transfer - 160 microseconds?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />is -3 to 0 one instruction?<br /><br />isn't cycles bundled together in the entire instruction?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>adam_smasher</b> [ Wed Aug 30, 2017 11:31 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: DMA Transfer - 160 microseconds?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Not sure if this is what you're asking, but -3 to -1 inclusive are LDH [$46], A.<br /><br />They're not (usually) externally visible, but internal state changes happen during each constituent cycle of the instruction - the CPU isn't just sitting around waiting N cycles and then instantly executing the instruction.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>zerowalker</b> [ Wed Aug 30, 2017 11:53 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: DMA Transfer - 160 microseconds?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Yeah that's what i am asking.<br /><br />And that part i get, but was wondering about the Timer and Interruption.<br />Those are updated on a per instruction basis right?<br /><br />At least the effect they do?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>gekkio</b> [ Wed Aug 30, 2017 12:27 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: DMA Transfer - 160 microseconds?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I just chose the numbers to reflect the relative machine cycle position compared to the &quot;first OAM DMA cycle&quot;.<br />Here's a real hardware trace of a case almost identical to the one posted earlier:<br /><br /><img src="https://gekkio.fi/files/rubbish/oam_dma.png" alt="Image" /><br /><br />The CPU is running these instructions:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">$0150: LD A, $40<br />$0151: LDH ($46), A<br />$0154: NOP<br /></div><br /><br />You can see the OAM DMA accessing $4000 and $4001 in the end...note the one cycle delay during which the CPU executes a NOP in this example.<br /><br />(if you're curious about what the CPU executes after the NOP, the answer is that the last two machine cycles actually involve an OAM DMA conflict in this case, but that's a story for another day...)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>zerowalker</b> [ Wed Aug 30, 2017 12:43 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: DMA Transfer - 160 microseconds?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />So the first instruction, the CPU actually reads (FF) in 1 cycle, then it reads the remaning in the other 3 cycles.<br />After that it does the FF thing again, then do the load for 3 cycles?<br /><br />How does the TIMA and Interruption work in these cases, aren't those essentially pseudo-async to the CPU?<br />I mean the CPU must somehow check the data there, but if it does things internally like this, when does that check occur, every cycle, or after every complete instruction?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>gekkio</b> [ Wed Aug 30, 2017 12:44 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: DMA Transfer - 160 microseconds?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">And that part i get, but was wondering about the Timer and Interruption.<br />Those are updated on a per instruction basis right?<br /></div><br /><br />Timer (TIMA) works at M-cycle granularity (not at instruction granularity!).<br />The real interrupt sources in the system work at various granularities all the way down to half T-cycles. However, the CPU checks interrupts only at the start of instructions so the CPU never dispatches to an interrupt handler in the middle of an instruction.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>gekkio</b> [ Wed Aug 30, 2017 12:48 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: DMA Transfer - 160 microseconds?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">zerowalker wrote:</div><div class="quotecontent">So the first instruction, the CPU actually reads (FF) in 1 cycle, then it reads the remaning in the other 3 cycles.<br />After that it does the FF thing again, then do the load for 3 cycles?<br /></div><br /><br />I think you're mixing T-cycles and M-cycles. In this screenshot CLK = T-cycles, PHI = M-cycles. None of the instructions here contain the byte $FF.<br />During M-cycle labeled -5 the CPU reads $3E. During M-cycle -4 the CPU reads $40.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>zerowalker</b> [ Wed Aug 30, 2017 12:50 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: DMA Transfer - 160 microseconds?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Timer (TIMA) works at M-cycle granularity (not at instruction granularity!).</div><br /><br />With that you mean it has it's own clock right?<br /><br />So, if the say in the next 8 cycles the TIMA will overflow and trigger an interruption.<br /><br />The CPU's next Instruction happens to be 16 cycles.<br /><br />So it would first check the state before doing the instruction.<br />Then do it (+16 cycles).<br /><br />Then repeat, and this time an interruption occurs, it then call a jump to the RST (if enabled), which takes 20 cycles.<br />then does the stuff, then it get's back to to the instruction that was after those 16 cycles before?<br /><br />//EDIT:<br /><br />My bad i read the &quot;FF&quot; on the image, below 80/81.<br /><br />but wait, T-Cycles is the &quot;real cycles&quot; right?<br />and M-Cycles is 4 T-Cycles, cause everything is dividable by 4 right?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

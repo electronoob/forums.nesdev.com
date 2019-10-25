@@ -1,0 +1,252 @@
+; joypad buttons
+A		= %10000000
+B		= %01000000
+SELECT	= %00100000
+START	= %00010000
+UP		= %00001000
+DOWN	= %00000100
+LEFT	= %00000010
+RIGHT	= %00000001
+
+SPRITES = $0200
+
+; variables
+.enum $0000
+	sleep		.dsb 1
+	low_addr	.dsb 1
+	high_addr	.dsb 1
+	ship_x		.dsb 1
+	buttons		.dsb 1
+.ende
+
+; ines header
+.db "NES",$1a
+.db $01
+.db $01
+.db $00
+.dsb 9,$00
+
+.base $c000
+
+; reset vector
+reset:
+	sei
+	cld
+	ldx #$40
+	stx $4017
+	ldx #$FF
+	txs
+	inx
+	
+	stx $2000
+	stx $2001
+	stx $4010
+
+	; wait for first vblank
+  - bit $2002
+	bpl -
+	
+	; clear memory
+  - lda #$00
+	sta $0000,x
+	sta $0000,x
+	sta $0000,x
+	sta $0000,x
+	sta $0000,x
+	sta $0000,x
+	sta $0000,x
+	lda #$fe
+	sta $0200, x
+	inx
+	bne -
+
+	; wait for second vblank, ppu ready
+  - bit $2002
+	bpl -
+	
+	; load palettes
+	lda $2002
+	lda #$3f
+	sta $2006
+	ldx #$00
+	stx $2006
+	
+  - lda palette,x
+	sta $2007
+	inx
+	cpx #$20
+	bne -
+
+	; set up initial variables
+    lda #$75
+    sta ship_x
+	
+	jsr draw_background
+	jsr load_sprites
+	
+	lda #%10001000
+	sta $2000
+	lda #%00011110
+	sta $2001
+
+main_loop:
+	jsr read_joypad
+	jsr update_player
+	jsr draw_player
+	
+	jsr vblank_wait
+	jmp main_loop
+
+vblank_wait:
+	inc sleep
+  - lda sleep
+	bne -
+	rts
+	
+read_joypad:
+	lda #$00
+	sta buttons
+
+	lda #$01
+	sta $4016
+	lda #$00
+	sta $4016
+	ldx #$08
+
+  -	lda $4016
+	lsr a
+	rol buttons
+	dex
+	bne -
+
+	rts
+	
+update_player:
+	lda buttons
+	and #LEFT
+	beq check_right
+	
+	; bounds checking
+	lda ship_x
+	cmp #$08
+	beq end_update
+	
+	sec
+	sbc #$01
+	sta ship_x
+
+check_right:
+	lda buttons
+	and #RIGHT
+	beq end_update
+	
+	; bounds checking
+	lda ship_x
+	cmp #$e8
+	beq end_update
+	
+	clc
+	adc #$01
+	sta ship_x
+	
+end_update:
+	rts
+
+draw_player:
+	lda ship_x
+	sta $0203
+	clc
+	adc #$08
+	sta $0203 + 4
+	rts
+
+draw_background:
+	lda $2002
+	lda #$20
+	sta $2006
+	lda #$00
+	sta $2006
+	
+	lda #<background
+	sta low_addr
+	lda #>background
+	sta high_addr
+	
+	ldx #$04
+	ldy #$00
+  - lda (low_addr),y
+	sta $2007
+	iny
+	bne -
+	inc high_addr
+	dex
+	bne -
+	
+	rts
+	
+load_sprites:
+	ldx #$00
+  - lda sprites,x
+	sta SPRITES,x
+	inx
+	cpx #$08
+	bne -
+	rts
+	
+nmi:
+	pha
+    txa
+    pha
+    tya
+    pha
+
+	; oam transfer
+	lda #$00
+	sta $2003
+	lda #$02
+	sta $4014
+	
+	; turn screen on, set up ppu
+	lda #%10001000
+	sta $2000
+	lda #%00011110
+	sta $2001
+	
+	; no scrolling
+	lda #$00
+	sta $2005
+	sta $2005
+
+	lda #$00
+    sta sleep
+	
+	pla
+    tay
+    pla
+    tax
+    pla
+    rti
+
+	rti
+	
+irq:
+	rti
+	
+palette:
+	.db $0f,$00,$20,$16,$0f,$2a,$24,$3c,$0f,$27,$11,$16,$0f,$16,$26,$27
+	.db $0f,$00,$27,$3c,$0f,$2a,$24,$20,$0f,$27,$11,$16,$0f,$16,$26,$27
+
+sprites:
+	.db $d4,$00,$00,$80
+	.db $d4,$01,$00,$88
+	
+.include "nametable.asm"
+
+; interrupt vectors
+.org $fffa
+.dw nmi
+.dw reset
+.dw irq
+
+; chr-rom
+.incbin "tiles.chr"

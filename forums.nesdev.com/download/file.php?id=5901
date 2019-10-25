@@ -1,0 +1,505 @@
+;       ----------------------------------------------------
+
+;    VegaPlay - version 0.1
+;    Copyright 2010 Don Miller
+;    For more information, visit: http://www.no-carrier.com
+
+;    This program is free software: you can redistribute it and/or modify
+;    it under the terms of the GNU General Public License as published by
+;    the Free Software Foundation, either version 3 of the License, or
+;    (at your option) any later version.
+
+;    This program is distributed in the hope that it will be useful,
+;    but WITHOUT ANY WARRANTY; without even the implied warranty of
+;    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;    GNU General Public License for more details.
+
+;    You should have received a copy of the GNU General Public License
+;    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+;       ----------------------------------------------------
+
+NewButtons = $c1
+OldButtons = $c2
+JustPressed = $c3
+ScreenNumber = $44
+OldScreen = $45
+PaletteNumber = $46
+
+scroll_dir = $d0
+
+cc_toggle = $d1
+PalNumber = $d2
+PalCounter =$d3
+Color0 = $d4
+Color1 = $d5
+Color2 = $d6
+Color3 = $d7
+
+SongNumber = $c4
+OldSong = $c5
+
+LoadAddy = $8000
+InitAddy = $8008
+PlayAddy = $800B
+;       ----------------------------------------------------
+
+        .ORG $7ff0
+Header:                         ; 16 byte .NES header (iNES format)
+	.DB "NES", $1a
+	.DB $02                 ; size of PRG ROM in 16kb units
+	.DB $01			; size of CHR ROM in 8kb units
+	.DB #%00000000		; mapper 0
+	.DB #%00000000		; mapper 0
+        .DB $00
+        .DB $00
+        .DB $00
+        .DB $00
+        .DB $00
+        .DB $00
+        .DB $00
+        .DB $00
+
+        .ORG $8000
+
+;       ----------------------------------------------------
+
+        .org LoadAddy
+        .incbin "PolarLights.nsf"      ; NSF filename
+
+;       ----------------------------------------------------
+
+Reset:                          ; reset routine
+        SEI
+        CLD
+	LDX #$00
+	STX $2000
+	STX $2001
+	DEX
+	TXS
+  	LDX #0
+  	TXA
+ClearMemory:
+	STA 0, X
+	STA $100, X
+	STA $200, X
+	STA $300, X
+	STA $400, X
+	STA $500, X
+	STA $600, X
+	STA $700, X
+        STA $800, X
+        STA $900, X
+        INX
+	BNE ClearMemory
+
+;       ----------------------------------------------------
+
+        LDA #$00                ; setting up variables
+        STA ScreenNumber
+        STA PaletteNumber
+        sta cc_toggle
+
+        lda #3                  ; lower this number to increase
+        sta PalNumber           ; the speed of the color cycle
+        sta PalCounter
+
+        lda #$01                ; these are the 4 colors
+        sta Color0              ; that will cycle when you
+        lda #$11                ; hit the "start" button
+        sta Color1
+        lda #$21
+        sta Color2
+        lda #$31
+        sta Color3
+
+;       ----------------------------------------------------
+
+	LDX #$02                ; warm up
+WarmUp:
+	BIT $2002
+	BPL WarmUp
+	DEX
+	BNE WarmUp
+
+       	LDA #$3F
+	STA $2006
+	LDA #$00
+	STA $2006
+        TAX
+LoadPal:                        ; load palette
+        LDA palette, x
+        STA $2007
+        INX
+        CPX #$10
+        BNE LoadPal
+
+	LDA #$20
+	STA $2006
+	LDA #$00
+	STA $2006
+
+	LDY #$04                ; clear nametables
+ClearName:
+	LDX #$00
+	LDA #$00
+PPULoop:
+	STA $2007
+	DEX
+	BNE PPULoop
+
+	DEY
+	BNE ClearName
+	
+;       ----------------------------------------------------
+
+        LDA #$00                ; set up variables
+        STA SongNumber
+
+;       ----------------------------------------------------
+
+        JSR DrawScreen          ; draw initial nametable
+        JSR LoadScreen
+        JSR DrawScreen2          ; draw initial nametable
+        JSR InitSprites
+        JSR InitMusic
+        JSR Vblank              ; turn on screen
+
+;       ----------------------------------------------------
+
+InfLoop:                        ; loop forever, program now controlled by NMI routine
+
+        JMP InfLoop
+        
+;       ----------------------------------------------------
+
+InitMusic:
+
+	lda #$00
+	ldx #$00
+Clear_Sound:
+	sta $4000,x
+	inx
+	cpx #$0F
+	bne Clear_Sound
+
+	lda #$10
+	sta $4010
+	lda #$00
+	sta $4011
+	sta $4012
+	STA $4013
+
+	lda #%00001111
+	STA $4015
+
+	lda #$C0
+	STA $4017
+
+	LDA SongNumber		; song number
+	ldx #$00		; 00 for NTSC or $01 for PAL
+	jsr InitAddy		; init address
+        rts
+
+
+;       ----------------------------------------------------
+
+LoadNewPalette:
+       	LDX PaletteNumber       ; load palette lookup value
+        LDY #$00
+        LDA #$3F
+	STA $2006
+	LDA #$00
+	STA $2006
+LoadNewPal:                     ; load palette
+        LDA palette, x
+        STA $2007
+        INX
+        INY
+        CPY #$10
+        BNE LoadNewPal
+        RTS
+
+;       ----------------------------------------------------
+
+DrawScreen:
+
+        LDA #<pic              ; load low byte of first picture
+        STA $10
+        LDA #>pic              ; load high byte of first picture
+        STA $11
+
+   	LDA #$20                ; set to beginning of first nametable
+    	STA $2006
+    	LDA #$00
+    	STA $2006
+
+        LDY #$00
+        LDX #$04
+
+NameLoop:                       ; loop to draw entire nametable
+        LDA ($10),y
+        STA $2007
+        INY
+        BNE NameLoop
+        INC $11
+        DEX
+        BNE NameLoop
+
+        RTS
+
+;       ----------------------------------------------------
+
+DrawScreen2:
+
+   	LDA #$28                ; set to beginning of first nametable
+    	STA $2006
+    	LDA #$00
+    	STA $2006
+
+        LDY #$00
+        LDX #$04
+
+NameLoop2:                       ; loop to draw entire nametable
+        LDA ($10),y
+        STA $2007
+        INY
+        BNE NameLoop2
+        INC $11
+        DEX
+        BNE NameLoop2
+
+        RTS
+        
+;       ----------------------------------------------------
+
+InitSprites:
+      LDA #$ff
+      LDX #$00
+ClearSprites:
+      STA $500, x
+      INX
+      BNE ClearSprites
+
+      LDA #$00
+      STA $2003                 ; set the low byte (00) of the RAM address
+      LDA #$05
+      STA $4014                 ; set the high byte (05) of the RAM address
+
+LoadSprites:
+      LDX #$00
+LoadSpritesLoop:
+      LDA sprites, x            ; load data from address
+      STA $0500, x              ; store into RAM address
+      INX
+      CPX #4
+      BNE LoadSpritesLoop
+      RTS
+
+sprites:
+           ;vert tile attr horiz
+        .db $37, $2D, $00, $17  ; sprite
+
+;       ----------------------------------------------------
+
+UpdateSprites:
+        LDA #$00
+        STA $2003
+        LDA #$05
+        STA $4014
+        RTS
+
+;       ----------------------------------------------------
+
+ChangeSprite:
+        LDX SongNumber
+        LDA Line,x
+        STA $0500
+        RTS
+
+Line:
+        .db $37,$47,$57,$67,$77,$87,$97,$A7,$B7,$C7
+
+;       ----------------------------------------------------
+
+Vblank:                         ; turn on the screen and start the party
+	BIT $2002
+	BPL Vblank
+
+        LDX #$00
+        STX $2005
+        STX $2005
+
+	LDA #%10001000
+	STA $2000
+        LDA #%00011110
+	STA $2001
+
+        RTS
+
+;       ----------------------------------------------------
+
+LoadScreen:
+
+    	LDA #%00000000          ; disable NMI's and screen display
+ 	STA $2000
+   	LDA #%00000000
+   	STA $2001
+
+        LDA ScreenNumber
+
+Test0:
+        CMP #0                  ; compare ScreenNumber to find out which picture / palette to load
+        LDA #<pic              ; load low byte of picture
+        STA $10
+        LDA #>pic              ; load high byte of picture
+        STA $11
+        LDA #$00
+        STA PaletteNumber       ; set palette lookup location
+        RTS
+
+;       ----------------------------------------------------
+
+ControllerTest:
+
+        LDA NewButtons
+	STA OldButtons
+
+        LDX #$00
+	LDA #$01		; strobe joypad
+	STA $4016
+	LDA #$00
+	STA $4016
+ConLoop:
+	LDA $4016		; check the state of each button
+	LSR
+	ROR NewButtons
+        INX
+        CPX #$08
+        bne ConLoop
+
+	LDA OldButtons          ; invert bits
+	EOR #$FF
+	AND NewButtons
+	STA JustPressed
+
+	LDA ScreenNumber        ; save old screen number for later compare
+	STA OldScreen
+	LDA SongNumber          ; save old song number for later compare
+	STA OldSong
+
+
+        ;button ( 0 0 0 0 0  0  0 0 )
+        ;layout ( R L D U St Sl B A )
+
+CheckSelect:
+	LDA #%00000100
+	AND JustPressed
+	BEQ CheckDown
+
+        lda cc_toggle
+        eor #$01
+        sta cc_toggle           ; toggles color cycling
+
+CheckDown:
+	LDA #%00100000
+	AND JustPressed
+	BEQ CheckUp
+
+	INC SongNumber          ; increment song number here
+        LDA SongNumber
+	CMP #6	                ; equal to total # of songs +1, starting from 0
+	BNE CheckUp
+	LDA #0
+	STA SongNumber
+
+CheckUp:
+	LDA #%00010000
+	AND JustPressed
+	BEQ EndDrawChk
+
+        DEC SongNumber          ; decrement song number here
+        BPL EndDrawChk
+	LDA #5	                ; equal to total # of songs, starting from 0
+	STA SongNumber
+
+EndDrawChk:
+	LDA ScreenNumber        ; has screen number changed? if not, skip redraw
+	CMP OldScreen
+	BEQ CheckOver
+
+CheckOver:
+
+        RTS
+
+;       ----------------------------------------------------
+
+color_cycle:
+
+	DEC PalCounter	        ; decrement counter, skip if not 0
+        BNE NoCycling
+
+	LDA Color3             	; rotate the color values
+	LDX Color0
+	STA Color0
+        LDA Color1
+        STX Color1
+        LDX Color2
+        STA Color2
+	STX Color3
+
+	LDA #$3F    	        ; point to palette, the last three values of
+	STA $2006               ; the fourth background palette - does not
+	LDA #$0d                ; overwrite color zero (see readme.txt)
+	STA $2006
+
+	LDA Color1              ; write the rotated palette to the PPU
+	STA $2007
+	LDA Color2
+	STA $2007
+	LDA Color3
+	STA $2007
+
+	LDA PalNumber
+	STA PalCounter
+
+NoCycling:
+        jmp cc_over
+
+;       ----------------------------------------------------
+
+NMI:
+        JSR UpdateSprites
+        JSR ControllerTest      ; check for user input
+        jsr PlayAddy            ; play the music
+        lda cc_toggle
+        beq no_cc
+        jmp color_cycle
+no_cc:
+        JSR LoadNewPalette
+cc_over:
+        LDA scroll_dir
+
+        RTI
+IRQ:
+        RTI
+
+;       ----------------------------------------------------
+
+palette:                        ; palette data
+        .byte $0F,$1C,$2B,$30,$0F,$1C,$2B,$34,$0F,$1C,$2B,$34,$0F,$1C,$2B,$34 ; palette 0 - aligns with pic0.nam below
+        .byte $0F,$00,$10,$30,$0F,$05,$26,$30,$0F,$13,$23,$33,$0F,$1C,$2B,$39 ; palette 1 - alings with pic1.nam below
+
+;       ----------------------------------------------------
+
+                                ; include picture data
+
+pic:
+        .INCBIN "screen.nam"      ; logoNES 0.1 splash screen by enso, 2009 - http://enso.tumblr.com
+
+;       ----------------------------------------------------
+
+	.ORG $fffa              ; vectors
+	.DW NMI
+	.DW Reset
+	.DW IRQ

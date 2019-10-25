@@ -1,0 +1,270 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Castlevania 3 vertical scroll</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Castlevania 3 vertical scroll</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=3&amp;t=10498">http://forums.nesdev.com/viewtopic.php?f=3&amp;t=10498</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>fergus_maximus</b> [ Sun Sep 15, 2013 7:12 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Castlevania 3 vertical scroll</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />So I got MMC5 wrapped up enough to run Castlevania 3 with the exception of the vertical scrolling that crops up right in the beginning. I've seen this posted several times before and ran through all suggested fixes with no luck, so I'm wondering if my issue is different/deeper. Here's what I'm seeing:<br /><br /><img src="http://i.imgur.com/6icvYTz.png" alt="Image" /><br /><br />And here's the relevant code:<br /><br />MMC5<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">...<br />&nbsp; &nbsp;case 0x5203:<br />&nbsp; &nbsp;&nbsp; &nbsp;// IRQ Counter<br />&nbsp; &nbsp;&nbsp; &nbsp;m.IrqLatch = int(v)<br />&nbsp; &nbsp;&nbsp; &nbsp;m.IrqCounter = 0<br />&nbsp; &nbsp;case 0x5204:<br />&nbsp; &nbsp;&nbsp; &nbsp;if !m.IrqEnabled {<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;m.IrqEnabled = (v&amp;0x80 == 0x80)<br />&nbsp; &nbsp;&nbsp; &nbsp;}<br />...<br /><br />func (m *Mmc5) ReadIrqStatus() Word {<br />&nbsp; &nbsp;m.IrqStatus &amp;= 0x7F<br />&nbsp; &nbsp;return m.IrqStatus<br />}<br /><br />func (m *Mmc5) AcknowledgeIrq() {<br />&nbsp; &nbsp;m.IrqStatus &amp;= 0x7F<br />}<br /><br />func (m *Mmc5) NotifyScanline() {<br />&nbsp; &nbsp;if ppu.inScanline() {<br />&nbsp; &nbsp;&nbsp; &nbsp;if ppu.renderingEnabled() {<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if m.IrqStatus&amp;0x40 == 0x0 {<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;m.IrqStatus = 0x40<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;m.IrqCounter = 0<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;} else {<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;m.IrqCounter++<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if m.IrqCounter == m.IrqLatch {<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;cpu.RequestInterrupt(InterruptIrq)<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;m.IrqStatus |= 0x80<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />&nbsp; &nbsp;&nbsp; &nbsp;} else {<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; m.IrqStatus &amp;= 0xBF<br />&nbsp; &nbsp; &nbsp; &nbsp; }<br />&nbsp; &nbsp;}<br />}<br /></div><br /><br />PPU<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">...<br />&nbsp; &nbsp;// Last tick of a scanline<br />&nbsp; &nbsp;if p.Cycle == 341 {<br />&nbsp; &nbsp; &nbsp; &nbsp; if m, ok := rom.(*Mmc5); ok {<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; m.NotifyScanline()<br />&nbsp; &nbsp; &nbsp; &nbsp; }<br />&nbsp; &nbsp;&nbsp; &nbsp;p.Cycle = 0<br />&nbsp; &nbsp;&nbsp; &nbsp;p.Scanline++<br />&nbsp; &nbsp;}<br /><br />...<br /></div><br /><br />CPU<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp;case InterruptIrq:<br />&nbsp; &nbsp;&nbsp; &nbsp;if !c.getIrqDisable() {<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;c.PerformIrq()<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; c.InterruptRequested = InterruptNone<br />&nbsp; &nbsp;&nbsp; &nbsp;}<br /></div><br /><br />I note the CPU code up above because it was mentioned before in a similar post that the author wasn't handling maskable interrupts correctly.<br /><br />Edit: Also worth noting, the screenshot is immediately when the screen loads up, so it looks like the proper background gets rendered insanely late.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>MottZilla</b> [ Sun Sep 15, 2013 10:37 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Castlevania 3 vertical scroll</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />It might not be IRQ related. Maybe it's related to how you handle mid-frame scroll updates. Another thing to check is IRQ acknowledgements.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>fergus_maximus</b> [ Mon Sep 16, 2013 6:48 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Castlevania 3 vertical scroll</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />What in particular about acknowledgements? I think the bulk of my IRQ code is what I posted.<br /><br />Any other games that do mid-frame scrolling that I can test against? Seems like a possibility.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Zepper</b> [ Mon Sep 16, 2013 8:33 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Castlevania 3 vertical scroll</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Here my IRQ code for MMC5.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">static unsigned int mmc5_last_line = 261;<br />static void irq_mmc5_clock(const unsigned int PPU_line, const unsigned int PPU_addr)<br />{<br />&nbsp; &nbsp;if(PPU_line == mmc5_last_line)<br />&nbsp; &nbsp; &nbsp; return;<br />&nbsp; &nbsp;mmc5_last_line = PPU_line;<br /><br />//At any time when the MMC5 detects that the PPU is inactive,<br />//the In Frame signal is automatically cleared.<br />&nbsp; &nbsp;if( !ppu_is_rendering() )<br />&nbsp; &nbsp;{<br />&nbsp; &nbsp; &nbsp; map005.reads &amp;= 0x80;<br />&nbsp; &nbsp; &nbsp; return;<br />&nbsp; &nbsp;}<br /><br />/* - If In Frame Signal is clear...<br />&nbsp; &nbsp; a) Set In Frame signal<br />&nbsp; &nbsp; b) Reset IRQ counter to 0<br />&nbsp; &nbsp; c) Clear IRQ pending flag (automatically acknowledging IRQ)<br />&nbsp;- otherwise...<br />&nbsp; &nbsp; a) Increment IRQ counter<br />&nbsp; &nbsp; b) If IRQ counter now equals the trigger value, raise IRQ pending flag&nbsp; &nbsp;*/<br />&nbsp; &nbsp;if(map005.reads &amp; 0x40)<br />&nbsp; &nbsp;{<br />&nbsp; &nbsp; &nbsp; map005.irq_counter++;<br />&nbsp; &nbsp; &nbsp; if(map005.irq_counter == map005.irq_latch)<br />&nbsp; &nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;map005.reads |= 0x80;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;if(map005.irq_flag) {<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; cpu_irqtrigger(TIRQ_MPR);<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;}<br />&nbsp; &nbsp; &nbsp; }<br />&nbsp; &nbsp;}<br />&nbsp; &nbsp;else<br />&nbsp; &nbsp;{<br />&nbsp; &nbsp; &nbsp; map005.reads = 0x40;<br />&nbsp; &nbsp; &nbsp; map005.irq_counter = 0;<br />&nbsp; &nbsp; &nbsp; cpu_irqcancel(TIRQ_MPR);&nbsp; &nbsp; &nbsp; &nbsp;<br />&nbsp; &nbsp;}<br />}</div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>James</b> [ Mon Sep 16, 2013 8:37 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Castlevania 3 vertical scroll</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">fergus_maximus wrote:</div><div class="quotecontent">I note the CPU code up above because it was mentioned before in a similar post that the author wasn't handling maskable interrupts correctly.</div><br />I think you're referring to <a href="http://forums.nesdev.com/viewtopic.php?p=47976" class="postlink">my post</a>.<br /><br />If I remember correctly, it was broken because the IRQ was only being recognized when the IRQ flag was clear at the time that the mapper asserted an IRQ.  In the case of Castlevania 3, I think the IRQ flag is cleared after the IRQ is asserted.  So, basically, instead of just checking the irq_asserted &amp;&amp; !irq_flag condition once, it needs to be checked on every CPU instruction.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>fergus_maximus</b> [ Tue Sep 17, 2013 6:22 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Castlevania 3 vertical scroll</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Radically breaking the IRQ doesn't seem to affect the situation at all (except for the status bar getting whacky) so I'm thinking maybe it is the mid-frame scroll updates. My IRQ implementation looks just like what Zepper shared, with the IRQ clocking at the end of every scanline.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>MottZilla</b> [ Tue Sep 17, 2013 11:02 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Castlevania 3 vertical scroll</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />The only other thing besides how you handle mid-frame scroll changes I can think of, would be maybe how you handle MMC5 nametable mirroring.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>fergus_maximus</b> [ Tue Sep 17, 2013 11:03 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Castlevania 3 vertical scroll</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Scratch that, it does seem to be the IRQ. I forced the IRQ latch in the MMC5 mapper to always be 8 (since it appears to be rendering the background way too late, I made it trigger the IRQ way super early) and ended up with this:<br /><img src="http://i.imgur.com/X2sctkq.png" alt="Image" /><br />Currently I'm only clocking the mapper IRQ at the end of a scanline, and only if it's in scanline 0-239. Is there someplace else it should be getting clocked?<br /><br />Edit: Also triple verified that (per the Skinny docs) I'm handling mid-frame scroll changes just fine. This problem also happens before anything has scrolled, it's immediately when the screen comes up.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

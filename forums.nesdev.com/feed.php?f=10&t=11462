@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=10&amp;t=11462" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2014-07-26T20:07:09-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=10&amp;t=11462</id>
+<entry>
+<author><name><![CDATA[tokumaru]]></name></author>
+<updated>2014-07-26T20:07:09-07:00</updated>
+<published>2014-07-26T20:07:09-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11462&amp;p=131598#p131598</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11462&amp;p=131598#p131598"/>
+<title type="html"><![CDATA[Re: Changing attribute data in game -]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11462&amp;p=131598#p131598"><![CDATA[
+<div class="quotetitle">JoeGtake2 wrote:</div><div class="quotecontent"><br />But it's really the high and low write to $2006 that I didn't get...didn't know that had to be done to access the attributes.<br /></div><br />You have to go through $2006 for writing/reading anywhere in PPU RAM. Always keep in mind that the NES has 2 separate addressing spaces: CPU and PPU. LDA, STA and all other memory operations performed by the CPU can only directly affect the CPU addressing space. The PPU addressing space is where the pattern tables, name tables and attribute tables are. Those can only be accessed through $2006/$2007, which are ports mapped to the CPU address space that allow you to communicate with the PPU.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=95">tokumaru</a> — Sat Jul 26, 2014 8:07 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[JoeGtake2]]></name></author>
+<updated>2014-07-26T16:32:21-07:00</updated>
+<published>2014-07-26T16:32:21-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11462&amp;p=131591#p131591</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11462&amp;p=131591#p131591"/>
+<title type="html"><![CDATA[Re: Changing attribute data in game -]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11462&amp;p=131591#p131591"><![CDATA[
+Hey thanks so much.  It's the writing to $2006 first that I was missing, thanks for clarifying that!<br /><br />The convoluted math way I was attempting to do it was a last ditch effort...essentially, since the 'menu bar' is 128 tiles of data, I was trying to add to the end of that data to get to the attribute data (where the menu bar left off, which is 128, + 960 -128 to compensate for the 128 tiles already drawn...would give me the exact address that lidnariq pointed out was where these attributes start - $23c0...that was what the personal head smack was for.  The method was completely unneccesarry...I already had that address).<br /><br />But it's really the high and low write to $2006 that I didn't get...didn't know that had to be done to access the attributes.  So I'm going to play with that, and I think it should work just fine.<br /><br />Thanks!<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6590">JoeGtake2</a> — Sat Jul 26, 2014 4:32 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tokumaru]]></name></author>
+<updated>2014-07-26T15:54:48-07:00</updated>
+<published>2014-07-26T15:54:48-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11462&amp;p=131590#p131590</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11462&amp;p=131590#p131590"/>
+<title type="html"><![CDATA[Re: Changing attribute data in game -]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11462&amp;p=131590#p131590"><![CDATA[
+<div class="quotetitle">JoeGtake2 wrote:</div><div class="quotecontent"><br />Using my overwrite method, I have just been loading the designated tiles to $2007 in a loop until X has counted down from #$80 (128), which gives me the top two 'rows' as a status bar.  Then, essentially, I've tried to make changes to $2007 + (960-128) or essentially $2007+#$340, thinking that's where the attribute data would be.<br /></div><br />First, you shouldn't be doing math with the address $2007. This address is just a &quot;window&quot; through which you send data to the PPU. Say that you have a shelf with books in your house (that's the CPU RAM), and you want to send a book to your neighbor's shelf (that's the PPU RAM). You have no direct access to the destination shelf, you can only send stuff through a window that connects both houses. So you tell your neighbor &quot;hey, will you put this in the first position in tour book shelf?&quot; and then you hand him the book through the window.<br /><br />If you write to address $2007 + any value, that's like passing the book through a completely different window into some stranger's house. You don't want to do that. You have to use the same window, you just have to ask your neighbor to put the book in a different place in his shelf.<br /><br />So, you have to think in terms of PPU addressing, as $2006 and $2007 are just CPU addresses that are mapped to PPU ports, they're not actual memory. Writing to the PPU works by telling $2006 (your neighbor) WHERE you want to store the data, and then you feed the DATA ITSELF to $2007 (the window). If the name table in question starts at PPU $2000, you have to write $20 and $00 to CPU $2006 before sending the tile indexes through CPU $2007. If you want to write to the respective attribute table, that would be at PPU $23C0, meaning you have to write $23 and then $C0 to CPU $2006, and then send the attribute bytes through CPU $2007.<br /><br />BTW,that -128 in your math doesn't make any sense. Since the name table data is 960 bytes long, if you subtract 128 from that you'll be back into the name table area, not in the attribute table. Is your status bar at the top or at the bottom of the screen? How tall is it?<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=95">tokumaru</a> — Sat Jul 26, 2014 3:54 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[JoeGtake2]]></name></author>
+<updated>2014-07-26T13:50:32-07:00</updated>
+<published>2014-07-26T13:50:32-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11462&amp;p=131582#p131582</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11462&amp;p=131582#p131582"/>
+<title type="html"><![CDATA[Re: Changing attribute data in game -]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11462&amp;p=131582#p131582"><![CDATA[
+Hey thanks for the quick reply!  No, I know its not $03c0, but it should be $#3c0 more than the start of the nametable data (I think this is a case of me overcomplicating it).  Rather than base it on the address of the nametable, let me just try directly changing the attribute data...*smacks head*<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6590">JoeGtake2</a> — Sat Jul 26, 2014 1:50 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[lidnariq]]></name></author>
+<updated>2014-07-26T13:31:42-07:00</updated>
+<published>2014-07-26T13:31:42-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11462&amp;p=131581#p131581</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11462&amp;p=131581#p131581"/>
+<title type="html"><![CDATA[Re: Changing attribute data in game -]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11462&amp;p=131581#p131581"><![CDATA[
+I <em>think</em> you're confusing the CPU's and PPU's address space.<br /><br />The NES actually has three different entirely disjoint address spaces: one for the CPU, one for tile and background data, and one for sprite descriptors.<br /><br />The CPU updates the other two busses by writing values to $2006 and $2007 (tile and background), or by writing values to $2003, $2004, and $4014 (sprite descriptors).<br /><br /><br />Additionally, the four attribute tables start at $23C0, $27C0, $2BC0, and $2FC0, not $03C0.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3512">lidnariq</a> — Sat Jul 26, 2014 1:31 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[JoeGtake2]]></name></author>
+<updated>2014-07-26T13:07:47-07:00</updated>
+<published>2014-07-26T13:07:47-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11462&amp;p=131580#p131580</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11462&amp;p=131580#p131580"/>
+<title type="html"><![CDATA[Changing attribute data in game -]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11462&amp;p=131580#p131580"><![CDATA[
+I'm actually pretty proud that I've devised a hideable quasi-status bar system that works for me (thought probably less than efficient, it still feels good to wrap my head around it!) by turning off rendering and doing a quick overwrite to the 'status bar' area's tiles, then turning rednering back on (and will use this same method to update values in status bar and whatnot).  <br /><br />However, I can't quite change the attribute data correctly.  Am I correct that the attribute data is stored starting at 3c0 (960) beyond $2007?  I'm pretty sure that is correct.  And I'd like to change the attributes for the first 16 blocks to the last set of colors in the palette.<br /><br />Using my overwrite method, I have just been loading the designated tiles to $2007 in a loop until X has counted down from #$80 (128), which gives me the top two 'rows' as a status bar.  Then, essentially, I've tried to make changes to $2007 + (960-128) or essentially $2007+#$340, thinking that's where the attribute data would be.  I knew it was a stretch when I tried it, but I figured I'd make a few attempts before asking.<br /><br />What would be the correct way for me to update attribute data in this subroutine to change the pallete of the first 16 attribute data blocks?  <br /><br />Also, I know this may not be an efficient method, and I'm open to hearing others (no scrolling, btw), but I still think this would be good info to have for other things as well, so I'd still love to hear a solution.  I'd imagine it's not too difficult, just can't wrap my head around it.  Thanks!<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6590">JoeGtake2</a> — Sat Jul 26, 2014 1:07 pm</p><hr />
+]]></content>
+</entry>
+</feed>

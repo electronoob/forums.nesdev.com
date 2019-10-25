@@ -1,0 +1,165 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Cycle-accurate PPU sprite questions</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Cycle-accurate PPU sprite questions</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=3&amp;t=11069">http://forums.nesdev.com/viewtopic.php?f=3&amp;t=11069</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>sronsse</b> [ Mon Mar 03, 2014 7:09 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Cycle-accurate PPU sprite questions</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Hi everyone,<br /><br />I am in the process of adding sprite support after implementing cycle-accurate PPU rendering for backgrounds - I have a few questions regarding sprites and I'm sure some of you may be able to help.<br /><br />1) First of all, I saw in the wiki that during sprite evaluation, sprites *in the next scanline* are copied from primary to secondary OAM if they are &quot;in range&quot;. I assume this means if (ppu_v + 1 &gt;= sprite_y) &amp;&amp; (ppu_v + 1 &lt; sprite_y + sprite_height). I am unsure about the &quot;ppu_v + 1&quot; instead of &quot;ppu_v&quot;, could you please confirm?<br /><br />2) My second question is in regards to the sprite fetching phase. As the circuitry probably does not keep track of how many sprites were actually copied to secondary OAM, I assume it parses all the 8 possible visible sprites no matter what. I saw on the wiki that if the tile number is detected as 0xFF, it fills the high and low registers with transparent data. What about the attributes and the X counter? Does it also fill them as if it was a visible sprite? That would mean both attribute and X counter latches would contain 0xFF. Is that correct?<br /><br />3) Another issue I noticed is that my sprites are all shifted by 16 pixels to the left. After some debugging, I realized what caused this issue but I'm not sure on how to fix this in a clear fashion. Here's the problem: during sprite fetching, the sprite X counters are reloaded. The wiki mentions that every cycle, a bit is fetched from the 4 BG shift registers. Down below, it also mentions that every cycle, the 8 x-positions counters for the sprites are decremented by one. The obvious issue that I encountered is that the X counters start decrementing on the same scanline as the sprite fetching phase, because I included the decrementing logic &quot;as part&quot; of the background shifting logic (the BG shifters also shift between cycles 322 and 337, which is why I have a sprite offset). If I add a check for only decrementing the X counters between cycles 2 and 257 (included), then the problem disappears. If this is the right way to implement this, then this means that what the wiki considers &quot;every cycle&quot; is actually different for background and sprites. Can you please confirm this?<br /><br />4) I would also like to understand if the X counter decrementing logic happens *after* checking if the X counter is 0 (and becoming active) or before. Basically, that would mean that if a sprite X counter is 0 after the sprite fetching phase and the decrementing happens before check its value, the X counter would be 0xFF resulting  in the sprite never being drawn. Is that correct?<br /><br />5) Lastly, I would like to make sure that the X counter decrementing logic starts indeed at cycle 2 or if it should start at 0.<br /><br />That's all I have for now! Looking forward to your responses.<br /><br />Regards,<br />Sebastien
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Quietust</b> [ Tue Mar 04, 2014 10:53 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Cycle-accurate PPU sprite questions</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">sronsse wrote:</div><div class="quotecontent">1) First of all, I saw in the wiki that during sprite evaluation, sprites *in the next scanline* are copied from primary to secondary OAM if they are &quot;in range&quot;. I assume this means if (ppu_v + 1 &gt;= sprite_y) &amp;&amp; (ppu_v + 1 &lt; sprite_y + sprite_height). I am unsure about the &quot;ppu_v + 1&quot; instead of &quot;ppu_v&quot;, could you please confirm?</div><br />Logically, it would compare to ppu_v directly, which is why sprites with y=0 appear on the second scanline rather than the first one.<br /><br /><div class="quotetitle">sronsse wrote:</div><div class="quotecontent">2) My second question is in regards to the sprite fetching phase. As the circuitry probably does not keep track of how many sprites were actually copied to secondary OAM, I assume it parses all the 8 possible visible sprites no matter what. I saw on the wiki that if the tile number is detected as 0xFF, it fills the high and low registers with transparent data. What about the attributes and the X counter? Does it also fill them as if it was a visible sprite? That would mean both attribute and X counter latches would contain 0xFF. Is that correct?</div><br />There's nothing special about tile 0xFF; rather, it would likely be &quot;sprite_y == 0xFF&quot; that prevents the sprite from being rendered.<br /><br /><div class="quotetitle">sronsse wrote:</div><div class="quotecontent">3) Another issue I noticed is that my sprites are all shifted by 16 pixels to the left. After some debugging, I realized what caused this issue but I'm not sure on how to fix this in a clear fashion. Here's the problem: during sprite fetching, the sprite X counters are reloaded. The wiki mentions that every cycle, a bit is fetched from the 4 BG shift registers. Down below, it also mentions that every cycle, the 8 x-positions counters for the sprites are decremented by one. The obvious issue that I encountered is that the X counters start decrementing on the same scanline as the sprite fetching phase, because I included the decrementing logic &quot;as part&quot; of the background shifting logic (the BG shifters also shift between cycles 322 and 337, which is why I have a sprite offset). If I add a check for only decrementing the X counters between cycles 2 and 257 (included), then the problem disappears. If this is the right way to implement this, then this means that what the wiki considers &quot;every cycle&quot; is actually different for background and sprites. Can you please confirm this?</div><br />It wouldn't make any sense to clock the sprite X counters during anything other than cycles 1-256 (i.e. the ones during which actual rendering is happening); however, due to pipelining within the PPU, the actual sprite pixels don't make it to the screen until a few cycles later.<br /><br /><div class="quotetitle">sronsse wrote:</div><div class="quotecontent">4) I would also like to understand if the X counter decrementing logic happens *after* checking if the X counter is 0 (and becoming active) or before. Basically, that would mean that if a sprite X counter is 0 after the sprite fetching phase and the decrementing happens before check its value, the X counter would be 0xFF resulting  in the sprite never being drawn. Is that correct?</div><br />The sprite X counters do not decrement if they are already zero - they simply stay at zero and cause the sprite pixels themselves to start shifting out to the renderer (and after 8 pixels, they just continue to output &quot;transparent&quot;).<br /><br /><div class="quotetitle">sronsse wrote:</div><div class="quotecontent">5) Lastly, I would like to make sure that the X counter decrementing logic starts indeed at cycle 2 or if it should start at 0.</div><br />See response to #3 - it actually starts at cycle 1.<br /><br />If you want your implementation to be 100% correct, you should probably be comparing it directly to <a href="http://www.qmtpro.com/~nes/chipimages/visual2c02/" class="postlink">Visual 2C02</a> (though you'd also need to be careful of any bugs in the simulator - if you see any, please let me know).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>sronsse</b> [ Tue Mar 04, 2014 1:23 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Cycle-accurate PPU sprite questions</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Hi Quietust,<br /><br />Thank you for the answers!<br /><br />A few comments/questions:<br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">There's nothing special about tile 0xFF; rather, it would likely be &quot;sprite_y == 0xFF&quot; that prevents the sprite from being rendered.<br /></div><br />This makes sense - I was confused by this on the wiki: &quot;If there are less than 8 sprites on the next scanline, then dummy fetches to tile $FF occur for the left-over sprites, because of the dummy sprite data in the secondary OAM (see sprite evaluation). This data is then discarded, and the sprites are loaded with a transparent bitmap instead&quot;. I then assume it is discarded not because of tile 0xFF but because of the first byte (sprite_y) which was 0xFF.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">It wouldn't make any sense to clock the sprite X counters during anything other than cycles 1-256 (i.e. the ones during which actual rendering is happening); however, due to pipelining within the PPU, the actual sprite pixels don't make it to the screen until a few cycles later.<br /></div><br />Makes sense as well, thank you.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">The sprite X counters do not decrement if they are already zero - they simply stay at zero and cause the sprite pixels themselves to start shifting out to the renderer (and after 8 pixels, they just continue to output &quot;transparent&quot;).<br /></div><br />Thanks for the clarification.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">See response to #3 - it actually starts at cycle 1.<br /></div><br />This is what I am unclear about. To make it easy, I'm going to take the example of background rendering. I was under the impression that the pixel is actually generates when data &quot;comes out&quot; of the background shifters, which happens at cycle 2 (the wiki mentions the shifters start shifting at cycle 2). Due to the PPU pipeline, the pixels get rendered some cycles later (cycle 4 I believe). Are you saying that the pixel is actually generated at cycle 1, and the shifters shift at cycle 2 *after* it is already on its way out? I am not sure this would impact anything really, but I'd love to double-check this part.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">If you want your implementation to be 100% correct, you should probably be comparing it directly to Visual 2C02 (though you'd also need to be careful of any bugs in the simulator - if you see any, please let me know).<br /></div><br />I should definitely spend the time to verify this, you're right. I started checking Visual 2C02 before starting my work on the PPU and found it pretty cryptic <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" /> It should now be an easier ride.<br /><br />Thank you for taking the time to help!<br /><br />Regards,<br />Sebastien
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

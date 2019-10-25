@@ -1,0 +1,439 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - FDS modulator formula revision</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">FDS modulator formula revision</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=3&amp;t=10233">http://forums.nesdev.com/viewtopic.php?f=3&amp;t=10233</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Tue Jul 02, 2013 12:09 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>FDS modulator formula revision</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I've been making audio tests of my FDS over the last few days, and I've spent a lot of time trying to verify the currently used formula for modulation strength outlined in disch's old document (and currently on <a href="http://wiki.nesdev.com/w/index.php/FDS_audio#Modulation_unit_2" class="postlink">the wiki FDS audio page</a>), which always struck me as a very odd formula, especially since disch himself had a disclaimer that he'd never peresonally tested the real hardware. I found it to be mostly correct, but requiring a few tweaks to get it to match the empirical data I gathered from my test recordings.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">// pitch = $4082/4083 (12-bit unsigned pitch value)<br />// bias = $4085 (7-bit signed bias)<br />// gain = $4084 (6-bit unsigned gain)<br /><br />// 1. multiply bias by gain, lose lowest 4 bits of result but &quot;round&quot; in a strange way<br />temp = bias * gain;<br />remainder = temp &amp; 0xF;<br />temp &gt;&gt;= 4;<br />if ((remainder &gt; 0) &amp;&amp; ((temp &amp; 0x80) == 0))<br />{<br />&nbsp; &nbsp; if (bias &lt; 0) temp -= 1;<br />&nbsp; &nbsp; else temp += 2;<br />}<br /><br />// 2. wrap if a certain range is exceeded<br />if (temp &gt;= 192) temp -= 256;<br />else if (temp &lt; -64) temp += 256;<br /><br />// 3. multiply result by pitch, then round to nearest while dropping 6 bits<br />temp = pitch * temp;<br />remainder = temp &amp; 0x3F;<br />temp &gt;&gt;= 6;<br />if (remainder &gt;= 32) temp += 1;<br /><br />// final mod result is in temp</div><br /><br />The notable changes to disch's formula are:<br /><ul><li>the weird early &quot;rounding&quot; step is <em>only</em> applied if bit 7 of the result is clear</li><li>the wrapping step no longer uneven, the fix to the rounding makes this wrap really just an 8-bit result biased by -64</li><li>the final result appears to be rounded to nearest, rather than simply truncating</li></ul><br />So... at least the wrapping step got simpler (and common-sensified), even though there are two new rounding complications. I have no idea why it only adjusts if bit 7 is clear. The -1/+2 thing is also strange to me, but that was already there. I can't explain why it's this way, but it definitely matches my tests now.<br /><br />I will add this to the wiki in a few days, as I am still doing another round of tests at the moment. In the meantime, is there anybody here who can independently verify this? I can detail the methods I used to determine this if anyone's interested, but I would appreciate verification by a different experiment if possible.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Mon Jul 08, 2013 11:08 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: FDS modulator formula revision</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Okay, I think I've tested everything I can, and I'm pretty confident in the current state of my emulator. (Beta available here: <s>https://dl.dropboxusercontent.com/u/883356/nsfplay23b3.zip</s>)<br /><br />Other than the mod formula revision, there are a couple of things I've noticed in my tests:<br /><br />1. There is no simple way to reset the phase of the mod table. $4085 only sets the &quot;bias&quot; accumulator, nothing more. When appending to the mod table (which can only be done when the mod table is halted via $4087), new entries will be written at its current playback position (there is no separate write position). Thus, the only way to reset the phase of the table is to halt it (via $4087) and write all 32 entries; when it is unhalted, the playback position will be at the current waveform (since it's gone a full once around). A lot of FDS NSFs seem to write $4085 immediately before writing the mod-table, so maybe it was presumed this could reset the phase.<br /><br />2. Halting the unit via $4083 resets the wave phase to 0. It does not disable its output, so if the sample at $4040 is a value of 63, for example, it will be outputting that 63 constantly. You can affect this output with the volume and master volume. (Volume envelopes seem to be disabled when $4083 bit 7 is set, however, so you can only change the volume with a direct set.)<br /><br />3. There appears to be a simple 1-pole lowpass on the output. In trying to match it the cutoff appears to be ~2000Hz.<br /><br />4. The $4089 wave write bit will hold the waveform output at its current level, though the waveform will continue to play underneath if not halted via $4083, so when the write bit is cleared, the waveform output will simply jump to wherever it would have been, as if it had never been stopped (because it hadn't).<br /><br />There are some other little details probably, but I'm going to do a full pass on the wiki page and explain.<br /><br /><br /><strong>I have a request:</strong> if anyone with a PowerPak and an FDS would like to do a hotswap test, I want to make sure that the lack of $4085 phase reset isn't just a peculiar revision of my FDS only. The test is attached (fds_test_7.nes), run it, after the first buzz you have 5 seconds to hotswap to the FDS before the second buzz. After the second buzz it tries 12 times to reset the phase via $4085 and it should fail each time (you'll hear the characteristic mod loop continue unscathed).<br /><br />Here is what the test sounded like through my Famicom+FDS: <s>https://dl.dropboxusercontent.com/u/883356/fds_test_7.flac</s><br /><br />The only reason I'm unsure about this is that the Bio Miracle Bokutte Upa NSF track 2 sounds broken because of $4085 writes while the mod table is playing (which other emulators presume should reset phase). At this point it seems either my FDS is special, or the NSF is broken, but I'd like to hear some other recordings of this test to verify that it's not just my FDS.
+
+		
+			<br clear="all" /><br />
+
+			<table class="tablebg" width="100%" cellspacing="1">
+			<tr>
+				<td><b class="genmed">Attachments: </b></td>
+			</tr>
+			
+				<tr>
+					<td>
+			<span class="genmed">
+				<img src="./styles/subsilver2/imageset/icon_topic_attach.gif" width="14" height="18" alt="" title="" /> 
+				<a href="./download/file.php?id=674&amp;sid=640f63d34151f2af9720301d3140cd93">fds_test_7.zip</a> [4.88 KiB]
+			</span><br />
+			<span class="gensmall">Downloaded 66 times</span>
+		
+
+		<br />
+	</td>
+				</tr>
+			
+			</table>
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ccovell</b> [ Mon Jul 08, 2013 5:34 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: FDS modulator formula revision</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Here is a recording from my Twin Famicom: <!-- m --><a class="postlink" href="http://www.chrismcovell.com/data/FDS_Chan_Test.rar">http://www.chrismcovell.com/data/FDS_Chan_Test.rar</a><!-- m --><br /><br />The Twin Fami apparently has quite the lowpass filter as well, but anyway, clicks and whatnot are quite audible.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Mon Jul 08, 2013 5:52 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: FDS modulator formula revision</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">rainwarrior wrote:</div><div class="quotecontent">3. There appears to be a simple 1-pole lowpass on the output. In trying to match it the cutoff appears to be ~2000Hz.</div><br />Are there pictures of both sides of the FDS PCB somewhere? It would be nice to see if I can find the components that cause the lowpass.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Mon Jul 08, 2013 5:54 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: FDS modulator formula revision</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Thank very much!<br /><br />Yeah, it's pretty clear from that that there's no phase reset at all going on there.<br /><br />After doing some more investigating, I believe what the problem I have with Bio Miracle is it's extra write of $4085 just after it re-enables the mod unit. On some notes, the mod frequency is set very high, so there's a chance it could tick before $4085 resets the mod accumulator, throwing the pitch off. I think the reason I couldn't eliminate it entirely is it's a very precise number of cycles, and it's right on the cusp of where it would tick before the $4085. The other thing I believe I missed is that I think $4088 resets the accumulator that ticks the mod table, so it actually makes that timing consistent if you've got a cycle-accurate emulator.<br /><br />Unfortunately, NSFPlay alternates between clocking the CPU and clocking the audio units, so it's not cycle-precise in that way. It's far too slow if I do it all cycle by cycle.<br /><br />I think I'll probably put in an option (disabled by default) to let $4085 reset the phase, and document that it's really just there to work around this problem.<br /><br />Also in the future I'll probably add a full-clock-samplerate WAV export for people who want to make cycle-precise renders.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Mon Jul 08, 2013 6:05 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: FDS modulator formula revision</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Cycle accurate operation can be made efficient. Run the CPU ahead of the audio units, generating a list of writes represented as (cycle, address, data) tuples. Then catch up the audio units by feeding in each write at the appropriate cycle. CPU reads of readable registers complicate things though, I'll admit, but you can just catch up on each $4015 or expansion synthesizer read. I imagine that NSFs seldom spin on a readable register for long enough to make this slow it down.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Mon Jul 08, 2013 6:14 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: FDS modulator formula revision</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />The problem isn't that cycle accurate CPU/audio <em>can't</em> be made efficient, it's that cycle accurate isn't efficient enough with the current code, and I'm not going to do the necessary rewrite for this version. The solution is earmarked for a future revision.<br /><br />For what it's worth, the current implementation is generally very accurate (CPU and audio are synced at least once per sample, and independently they are cycle accurate to themselves), it's just the efficiency really breaks down quickly when I take it to single clocks. This is the first and only problem I've found relating to their very slight desynch.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Mon Jul 08, 2013 6:21 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: FDS modulator formula revision</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />lidnariq, see what you can do with this:<br /><br /><img src="http://rainwarrior.ca/projects/nes/fds0.jpg" alt="Image" /><br /><img src="http://rainwarrior.ca/projects/nes/fds1.jpg" alt="Image" /><br /><img src="http://rainwarrior.ca/projects/nes/fds2.jpg" alt="Image" /><br /><img src="http://rainwarrior.ca/projects/nes/fds3.jpg" alt="Image" /><br /><img src="http://rainwarrior.ca/projects/nes/fds4.jpg" alt="Image" /><br /><br />The electrolytic caps are 47µF 16V (big) and 1µF 50V (small x2). All the ceramics say 104Z 25V.<br /><br />The board markings for resistors:<br />R1: 47<br />R2: 1.2M<br />R3: 56K<br />R4: 2M<br />R5: 56K<br />R6: 3.3K<br />R7: 100<br />R8: 100K<br /><br />If there's anything else you need read, let me know.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Mon Jul 08, 2013 11:34 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: FDS modulator formula revision</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I should have figured that it was just a matter of figuring out what to search for.<br />This fellow has a reverse engineered schematic: <!-- m --><a class="postlink" href="http://green.ap.teacup.com/junker/119.html">http://green.ap.teacup.com/junker/119.html</a><!-- m --><br /><br />The two highpasses are obvious in the schematic: one at 0.796 Hz (2MΩ R4 and 1µF C3), and one at 5.68Hz (56 kiloohms from each audio source (R3, R5) and a 1 microfarad capacitor (C5)). <br />But none of the lowpass filters are obvious.<br /><br />So I threw it into LTspice to see if I could coax it out. (Schematic: <!-- m --><a class="postlink" href="http://eamp.org/li/bss145-schem.png">http://eamp.org/li/bss145-schem.png</a><!-- m --> (883×552px; 13kB) )<br /> I faked the BU4069 using nMOSFET-pMOSFET pairs, and ended up with this transfer function: <!-- m --><a class="postlink" href="http://eamp.org/li/bss145-xfer.png">http://eamp.org/li/bss145-xfer.png</a><!-- m --> (1914×951px; 20kB)<br />Finding the exact corner frequencies in that complicated of a transfer function is difficult, so here's the numbers using a bunch of different heuristics:<br />* using phase=45°+k·90°: highpasses at .0774Hz and 5.78Hz and lowpasses at 1.36kHz, 10.5kHz, and 51.7kHz<br />* using intersection of tangent lines: highpasses at .0796Hz, 5.74Hz, and lowpasses at 1.57kHz, 11.5kHz, and 39.8kHz<br />Both of those methods underestimate the frequency of the 1.4kHz and 11kHz lowpasses (because they all stacked on top of each other)<br />* by -6dB points: highest highpass at 3.27Hz; lowest lowpass at 2.86kHz. (This is probably what you found)<br /><br />The top two lowpasses seem to be relatively sensitive to the specifics of the inverter: replacing the nMOSFET (from a BSS145 to a 2N7002) moved from 11.5kHz to 18.2kHz and from 51.7kHZ to 193kHz. The other three corner frequencies are comparatively fixed.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Tue Jul 09, 2013 8:58 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: FDS modulator formula revision</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />That's pretty neat. A bit more complex than I was expecting! I remember someone suggested that the volume on the FDS is controlled via PWM, are these additional high-frequency lowpass filters intended to smooth the effects of PWM?<br /><br />From your transfer function and description, I'm wondering what the best way to approximate this is. The highpass probably isn't worth bothering with since the emulator already has a simple one, and the differences between one or the other probably aren't very audible. That curve in the region between 1kHz - 20kHz is important, and I assume beyond there we needn't bother. Is a 1-pole filter good enough to match in this range? Do we need 2? More?<br /><br />I don't have much background in circuit analysis; my approximation of a 2kHz lowpass was just based on comparing against a recording with a couple of square waves at different frequencies until I found something that seemed to match reasonably well. At 1.6kHz it looked too weak, at 2.4kHz too strong, and that's about as far as I went. I kinda wish I could just make it produce white noise so I could compare a spectral analysis.<br /><br />The other funny thing I forgot to mention, probably not worth emulating, but also the DAC in my FDS is clearly less than ideal. Check out this 0-63 saw wave:<br /><img src="http://rainwarrior.ca/projects/nes/fds_saw.png" alt="Image" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Tue Jul 09, 2013 12:54 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: FDS modulator formula revision</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">rainwarrior wrote:</div><div class="quotecontent">I remember someone suggested that the volume on the FDS is controlled via PWM, are these additional high-frequency lowpass filters intended to smooth the effects of PWM?<br /></div> The lowpass caused by the 0.1µF capacitor in the middle of the schematic is clearly intentional. But the rest? I can't tell if they're intentional, just artifacts of the amplifiers used, or serendipitous. Regardless, they'd help with PWM noise.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">That curve in the region between 1kHz - 20kHz is important, and I assume beyond there we needn't bother. Is a 1-pole filter good enough to match in this range? Do we need 2? More?<br /></div>Over the range of 10Hz to 7kHz, a 1-pole lowpass with a corner frequency of 1750 Hz looks like the best fit in simulation.<br />After that, I get an exceptionally good fit for everything above 10Hz by adding two poles at 20.5kHz. (BSS145 nMOSFET)<br />Switching to the 2N7002 moves the first pole down to 1670Hz and splits the other two poles to 19.1kHz and 160kHz.<br />Instead removing the 0.1µF capacitor produces two poles at 1.80kHz and 21.3kHz<br />Then again, 5% tolerance resistors with 20% tolerance capacitors means that many of these numbers vary from unit to unit. I think these are gaussian distributions, so they shouldn't ever hit the full ±25% worst-case range, but...<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">I don't have much background in circuit analysis; my approximation of a 2kHz lowpass was just based on comparing against a recording with a couple of square waves at different frequencies until I found something that seemed to match reasonably well.<br /></div> Other versions of SPICE provide automatic pole-zero analysis. (not LTSpice, but, hey, it's free)<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">I kinda wish I could just make it produce white noise so I could compare a spectral analysis.<br /></div> Impulse trains and frequency sweeps are good, and probably more attainable.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">The other funny thing I forgot to mention, probably not worth emulating, but also the DAC in my FDS is clearly less than ideal. Check out this 0-63 saw wave<br /></div> O_o<br />I can't remember whether that shape is more congruous with R2R or weighted binary DACs. And the down-only RC decay is just weird to me.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Tue Jul 09, 2013 3:24 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: FDS modulator formula revision</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">lidnariq wrote:</div><div class="quotecontent">I can't remember whether that shape is more congruous with R2R or weighted binary DACs. And the down-only RC decay is just weird to me.</div><br />The discontinuities do look like they're kind of at binary locations in the waveform, with decreasing intensity along the binary tree (i.e. strongest at 32, next strongest at 48/16, etc...). I dunno what that suggests for a DAC circuit though.<br /><br />What do you mean by down-only RC decay? The discontinuity in the saw wave only goes down, the up part is smooth so you don't really see the decay. (I could show you a square wave if you want to see it going both ways.)<br /><br /><div class="quotetitle">lidnariq wrote:</div><div class="quotecontent">Impulse trains and frequency sweeps are good, and probably more attainable.</div><br />Ah, yeah a frequency sweep would be easy to do. I will probably try that later.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Tue Jul 09, 2013 5:01 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: FDS modulator formula revision</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">rainwarrior wrote:</div><div class="quotecontent">The discontinuities do look like they're kind of at binary locations in the waveform, with decreasing intensity along the binary tree (i.e. strongest at 32, next strongest at 48/16, etc...). I dunno what that suggests for a DAC circuit though.<br /></div> It's kinda ... cauliflowery? Consistent with each next-most-significant bit being overrepresented in the binary weights. By a comparable amount for each bit? I see something very similar using an binary-weighted DAC where each next-most-significant bit is 55% of the previous (e.g. 10k, 5.5k, 3k, 1.7k, 920, 500). But getting it consistent across multiple scales probably implies R2R DAC; I can't see how else it'd be consistently the similar amount of error at the 31-32 edge and the 47-48 edge and the 55-56 edge. <br /><br />With an R2R dac, I get something fairly similar to your graph using a &quot;2R&quot; of 3R. It'd be nice to make sure that your DAC is exceptional; the distortion there is kinda significant.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">What do you mean by down-only RC decay? The discontinuity in the saw wave only goes down, the up part is smooth so you don't really see the decay. (I could show you a square wave if you want to see it going both ways.)<br /></div>Well, I thought there'd be signficant smoothing on the top peak as well as the bottom peak of the sawtooth if this were simply a lowpass... but when I actually put a capacitor in my sim it turns out what you show is just an ordinary lowpass.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ccovell</b> [ Tue Jul 09, 2013 5:13 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: FDS modulator formula revision</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Keep this going, guys.  Very neat analysis.<br /><br />I remember way back in like 1997-8 or so, poking around the FDS' chips and finding the spot from the main chip where the <em>unfiltered</em> audio first comes out -- it was really harsh, so I'm glad there's some kind of filter in there somewhere.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>jsr</b> [ Wed Jul 10, 2013 5:21 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: FDS modulator formula revision</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">rainwarrior wrote:</div><div class="quotecontent">The other funny thing I forgot to mention, probably not worth emulating, but also the DAC in my FDS is clearly less than ideal. Check out this 0-63 saw wave:</div><br />This is actually one thing I wanted to investigate, because the DAC is a lot less linear in my unit:<br /><br /><img src="http://79.138.112.171/tmp/wave.png" alt="Image" /><br /><br />And this is very audible, especially when playing a sine wave. But then I assume the quality varies a lot among different units.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

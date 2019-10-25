@@ -1,0 +1,180 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=10&amp;t=4708" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2009-01-08T22:03:52-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=10&amp;t=4708</id>
+<entry>
+<author><name><![CDATA[bbbirddd]]></name></author>
+<updated>2009-01-08T22:03:52-07:00</updated>
+<published>2009-01-08T22:03:52-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=4708&amp;p=41596#p41596</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=4708&amp;p=41596#p41596"/>
+<title type="html"><![CDATA[Background and Sprite problems]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=4708&amp;p=41596#p41596"><![CDATA[
+This helped a lot with my problems. Thanks   <img src="http://forums.nesdev.com/images/smilies/icon_biggrin.gif" alt=":D" title="Very Happy" /><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3786">bbbirddd</a> — Thu Jan 08, 2009 10:03 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Celius]]></name></author>
+<updated>2009-01-08T15:11:27-07:00</updated>
+<published>2009-01-08T15:11:27-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=4708&amp;p=41542#p41542</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=4708&amp;p=41542#p41542"/>
+<title type="html"><![CDATA[Background and Sprite problems]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=4708&amp;p=41542#p41542"><![CDATA[
+A couple things that will cause catastrophe; change:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">.org $0300 ; OAM copy location<br /><br />Sprite1_Y: .db 0 ; sprite #1's Y value<br />Sprite1_T: .db 0 ; sprite #1's tile number<br />Sprite1_S: .db 0 ; sprite #1's special byte<br />Sprite1_X: .db 0 ; sprite #1's X value<br />UnusedSprites: .db 0<br /><br />lda #0<br />sta Sprite1_Y<br />sta Sprite1_T<br />sta Sprite1_S<br />sta Sprite1_X<br />sta VBlankOrNo<br />sta BKGset<br />sta UnusedSprites<br /><br />lda #$FF<br />ldx #0<br />ClearSprites:<br />sta UnusedSprites, x<br />inx<br />cpx #252<br />bne ClearSprites<br /><br />.org $8000 ; program code location<br /></div><br /><br />To<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">.org $0300 ; OAM copy location<br /><br />Sprite1_Y: .db 0 ; sprite #1's Y value<br />Sprite1_T: .db 0 ; sprite #1's tile number<br />Sprite1_S: .db 0 ; sprite #1's special byte<br />Sprite1_X: .db 0 ; sprite #1's X value<br />UnusedSprites: .db 0<br /><br /><br />.org $8000 ; program code location<br />Start:<br />sei ;Just some stuff that's standard to do at reset.<br />cld<br />ldx #$FF<br />txs<br /><br />lda #0<br />sta Sprite1_Y<br />sta Sprite1_T<br />sta Sprite1_S<br />sta Sprite1_X<br />sta VBlankOrNo<br />sta BKGset<br />sta UnusedSprites<br /><br />lda #$FF<br />ldx #0<br />ClearSprites:<br />sta UnusedSprites, x<br />inx<br />cpx #252<br />bne ClearSprites<br /><br /></div><br /><br />Also, this:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">wait1:<br />lda $2002<br />bpl wait1<br /><br />wait2:<br />lda $2002<br />bpl wait2<br /><br />VBlank_Routine: ; /////VBlank Routine/////<br />inc VBlankOrNo ; add 1 to VBlankOrNo &#40;1 if VBlank, 0 if not&#41;<br />rti ; return from interrupt <br /></div><br /><br />CRASH. In your Reset routine, you'll execute an RTI, which is not good. At all. Move "Vblank_Routine" to a place where it will never be executed unless there is an NMI executed. So like right here:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">NOTHINGdown:<br />jmp infinite <br /><br /><br />VBlank_Routine: ; /////VBlank Routine/////<br />inc VBlankOrNo ; add 1 to VBlankOrNo &#40;1 if VBlank, 0 if not&#41;<br />rti ; return from interrupt<br /></div><br /><br />would be just fine. Oh, and change this:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">infinite:<br /><br />lda #%10001000 ; screen pattern table = $0000, sprite pattern table = $1000, name table = $2000<br />sta $2000<br />lda #%00011110 ; BG = black, show sprites, screen on, don't clip anything, color display<br />sta $2001 <br /></div><br /><br />To<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent"><br />lda #%10001000 ; screen pattern table = $0000, sprite pattern table = $1000, name table = $2000<br />sta $2000<br />lda #%00011110 ; BG = black, show sprites, screen on, don't clip anything, color display<br />sta $2001<br /><br />infinite:<br /></div><br /><br />I don't think there's any need to do write to $2000/$2001 constantly because the value never changes.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=138">Celius</a> — Thu Jan 08, 2009 3:11 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Bregalad]]></name></author>
+<updated>2009-01-08T15:05:55-07:00</updated>
+<published>2009-01-08T15:05:55-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=4708&amp;p=41539#p41539</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=4708&amp;p=41539#p41539"/>
+<title type="html"><![CDATA[Background and Sprite problems]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=4708&amp;p=41539#p41539"><![CDATA[
+I can tell the problem right away, you should fit the OAM page with $f0 value to disable all sprites, and then write the sprite you want to show.<br />The best/more verstatile habbit is to empty that page each frame and have a routine that fills it as you want to (as we just mentionned stuff like that in another thread). At first it will seem crazy, but it's better not relying on any value inside the OAM for your calculations.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=38">Bregalad</a> — Thu Jan 08, 2009 3:05 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[bbbirddd]]></name></author>
+<updated>2009-01-08T15:01:33-07:00</updated>
+<published>2009-01-08T15:01:33-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=4708&amp;p=41538#p41538</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=4708&amp;p=41538#p41538"/>
+<title type="html"><![CDATA[Background and Sprite problems]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=4708&amp;p=41538#p41538"><![CDATA[
+My Dad suggested that I move the code I've been messing with after "Start:" so i did that and now the unwanted sprite doesn't appear. I still don't get the effect I'm looking for though (moving background tiles instead of disappearing background tiles).<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3786">bbbirddd</a> — Thu Jan 08, 2009 3:01 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tokumaru]]></name></author>
+<updated>2009-01-08T14:59:13-07:00</updated>
+<published>2009-01-08T14:59:13-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=4708&amp;p=41536#p41536</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=4708&amp;p=41536#p41536"/>
+<title type="html"><![CDATA[Background and Sprite problems]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=4708&amp;p=41536#p41536"><![CDATA[
+Unwanted sprites at the top left corner are often the result of not clearing OAM (clearing the sprite page, like Disch said). Emulators usually set memory to 0, meaning that all sprites you do not touch will use tile 0 and be placed at coordinates (0, 0), which is the top left corner of the screen.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=95">tokumaru</a> — Thu Jan 08, 2009 2:59 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[bbbirddd]]></name></author>
+<updated>2009-01-08T14:50:48-07:00</updated>
+<published>2009-01-08T14:50:48-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=4708&amp;p=41533#p41533</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=4708&amp;p=41533#p41533"/>
+<title type="html"><![CDATA[Background and Sprite problems]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=4708&amp;p=41533#p41533"><![CDATA[
+This is a screenshot off my rom just as it loads. You can see the red eyes that are on top of the two background tiles at the top. This is where a sprite is being drawn that I don't want (it's just a white and red version of the blue sprite):<br /><br /><img src="http://i708.photobucket.com/albums/ww85/bbbirddd/bgsprproblem1.jpg" alt="Image" /><br /><br />This shows that I can move the sprite around with the directional keys, which is what I want. <br /><br /><img src="http://i708.photobucket.com/albums/ww85/bbbirddd/bgsprproblem2.jpg" alt="Image" /><br /><br />This shows what happens when I press A. I wanted it to redraw the same two background tiles a few rows down (I made another background map for this, bkg21.map. bkg12.map is the map for the initial tile placement). Instead of moving the tiles, it erases them and as you can see,  just the unwanted sprite remains when I press A.<br /><br /><img src="http://i708.photobucket.com/albums/ww85/bbbirddd/bgsprproblem3.jpg" alt="Image" /><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3786">bbbirddd</a> — Thu Jan 08, 2009 2:50 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[bbbirddd]]></name></author>
+<updated>2009-01-08T14:44:25-07:00</updated>
+<published>2009-01-08T14:44:25-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=4708&amp;p=41532#p41532</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=4708&amp;p=41532#p41532"/>
+<title type="html"><![CDATA[Background and Sprite problems]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=4708&amp;p=41532#p41532"><![CDATA[
+Ok. I tried to fix the problems you pointed out, but I only think I understand how to deal with the 1, 1.5, and 2. I'm not sure how to alter my code to reflect your suggestions for 3 and 4. My problem is the same. I will include some pics in another post. Here is my updated code:<br /><br /><br />.inesprg 1; /////INES Header/////<br />.ineschr 1<br />.inesmap 0<br />.inesmir 1<br /><br />; ////////////////////////Bank 1: Interrupt Table/////////////////////////////<br /><br />.bank 1<br />.org $FFFA<br />.dw VBlank_Routine; address to execute on VBlank<br />.dw Start<br />.dw 0<br /><br />; ////////////////////////Bank 0: Program Code////////////////////////////////<br /><br />.bank 0<br />.org $0000<br /><br />VBlankOrNo:.db 0<br />BKGset:.db 0<br />; /////Sprite DMA and other Variables/////<br /><br />.org $0300 ; OAM copy location<br /><br />Sprite1_Y:.db0; sprite #1's Y value<br />Sprite1_T:.db0 ; sprite #1's tile number<br />Sprite1_S:.db0  ; sprite #1's special byte<br />Sprite1_X:.db0; sprite #1's X value<br />UnusedSprites: .db 0<br /><br />lda #0<br />sta Sprite1_Y<br />sta Sprite1_T<br />sta Sprite1_S<br />sta Sprite1_X<br />sta VBlankOrNo<br />sta BKGset<br />sta UnusedSprites<br /><br />lda #$FF<br />ldx #0<br />ClearSprites:<br />sta UnusedSprites, x<br />inx<br />cpx #252<br />bne ClearSprites<br /><br />.org $8000; program code location<br /><br />lda #0<br />sta $2000<br />sta $2001; turn the PPU off<br /><br />wait1:<br />lda $2002<br />bpl wait1<br /><br />wait2:<br />lda $2002<br />bpl wait2<br /><br />VBlank_Routine:; /////VBlank Routine/////<br />inc VBlankOrNo; add 1 to VBlankOrNo (1 if VBlank, 0 if not)<br />rti; return from interrupt<br /><br />Start:; /////Screen Setup/////<br /><br />lda #50<br />sta Sprite1_Y<br />sta Sprite1_X<br />lda #2<br />sta Sprite1_S<br /><br />; /////Palette/////<br /><br />lda #$3F; store the value $3F00 in location $2006 so that whatever<br />sta $2006; we load into $2007 will start at location $3F00<br />lda #$00<br />sta $2006<br /><br />ldx #$00; reset X to zero<br />loadpal:; load 32-color pallete<br />lda tilepal, x<br />sta $2007<br />inx<br />cpx #32<br />bne loadpal<br /><br />; /////Background/////<br /><br />lda #$20<br />sta $2006 ; give $2006 both parts of address $2020.<br />sta $2006 <br /><br />ldx #$00; reset X to zero<br />loadNames:; load name table<br />lda ourMap, x ; load A with a byte from address (ourMap + X)<br />inx; increase X by 1<br />sta $2007; store map byte from A into $2007<br />cpx #64 ; check if last byte = 64th<br />bne loadNames ; if not all 64 done, loop<br /><br />; ------------------------Controller Loop Begin-------------------------------<br /><br />infinite:<br /><br />lda #%10001000; screen pattern table = $0000, sprite pattern table = $1000, name table = $2000<br />sta $2000<br />lda #%00011110; BG = black, show sprites, screen on, don't clip anything, color display<br />sta $2001<br /><br />WaitForVBlank:; /////VBlank/////<br />lda VBlankOrNo<br />cmp #1; check if A = 1 (VBlank)<br />bne WaitForVBlank; if A = 0 loop<br />dec VBlankOrNo; decrease VBlankOrNo by 1 (A = 0)<br /><br /><br /><br /><br />lda #3; /////Sprite Info Load/////<br />sta $4014<br /><br />; /////Controller Setup/////<br /><br />lda #$01; reset pad<br />sta $4016<br />lda #$00<br />sta $4016<br /><br />; /////Test Button Status/////<br /><br />lda $4016; read A status<br />and #1<br />bne AKEYdown<br />lda $4016; read B status<br />lda $4016; read SELECT status<br />lda $4016; read START status<br />lda $4016; read UP status<br />and #1; check if UP is pressed<br />bne UPKEYdown; branch to UPKEYdown if pressed<br /><br />lda $4016; read DOWN status<br />and #1; check if DOWN is pressed<br />bne DOWNKEYdown; branch to DOWNKEYdown if pressed<br /><br />lda $4016; read LEFT status<br />and #1; check if LEFT is pressed<br />bne LEFTKEYdown; branch to LEFTKEYdown if pressed<br /><br />lda $4016; read RIGHT status<br />and #1; check if RIGHT is pressed<br />bne RIGHTKEYdown; branch to RIGHTKEYdown if pressed<br />jmp NOTHINGdown<br /><br />; /////Button Press Actions/////<br /><br />AKEYdown:<br />lda BKGset<br />cmp #0<br />bne BG1<br />lda #$20<br />sta $2006 ; give $2006 both parts of address $2020.<br />sta $2006 <br /><br />ldx #$00; reset X to zero<br />loadNames2:; load name table<br />lda ourMap2, x ; load A with a byte from address (ourMap + X)<br />inx; increase X by 1<br />sta $2007; store map byte from A into $2007<br />cpx #64 ; check if last byte = 64th<br />bne loadNames2 ; if not all 64 done, loop<br />lda #1<br />sta BKGset<br />jmp NOTHINGdown<br />BG1:<br />lda #$20<br />sta $2006 ; give $2006 both parts of address $2020.<br />sta $2006 <br /><br />ldx #$00; reset X to zero<br />loadNames3:; load name table<br />lda ourMap, x ; load A with a byte from address (ourMap + X)<br />inx; increase X by 1<br />sta $2007; store map byte from A into $2007<br />cpx #64 ; check if last byte = 64th<br />bne loadNames3 ; if not all 64 done, loop<br />lda #0<br />sta BKGset<br />jmp NOTHINGdown<br /><br />UPKEYdown:; code executed when UP is pressed<br />lda Sprite1_Y<br />clc<br />sbc #1  ; subtract 1 from Sprite1_Y<br />sta Sprite1_Y<br />jmp NOTHINGdown<br /><br />DOWNKEYdown:; code executed when DOWN is pressed<br />lda Sprite1_Y <br />clc<br />adc #1  ; add 1 to Sprite1_Y<br />sta Sprite1_Y<br />jmp NOTHINGdown<br /><br />LEFTKEYdown:; code executed when LEFT is pressed<br /><br />lda Sprite1_S<br />and #%10111111<br />sta Sprite1_S<br />lda Sprite1_X<br />clc<br />sbc #1  ; subtract 1 from Sprite1_X<br />sta Sprite1_X<br />jmp NOTHINGdown<br /><br />RIGHTKEYdown:; code executed when RIGHT is pressed<br /><br />lda Sprite1_S<br />ora #%01000000<br />sta Sprite1_S<br />lda Sprite1_X<br />clc<br />adc #1; add 1 to Sprite1_X<br />sta Sprite1_X<br /><br />NOTHINGdown:<br />jmp infinite<br /><br />; ------------------------Controller Loop End---------------------------------<br /><br />; /////Include Binary Files/////<br /><br />tilepal: .incbin "our.pal"; include pallete and label its location "tilepal"<br />ourMap:.incbin "bkg12.map" ; include map files and label its location "ourMap"<br />ourMap2: .incbin "bkg21.map"<br /><br />; ////////////////////////Bank 2: Sprite/Background Data//////////////////////<br /><br />.bank 2<br />.org $0000<br />.incbin "our.bkg"<br /><br />.org $1000<br />.incbin "our.spr"<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3786">bbbirddd</a> — Thu Jan 08, 2009 2:44 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Celius]]></name></author>
+<updated>2009-01-08T14:40:44-07:00</updated>
+<published>2009-01-08T14:40:44-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=4708&amp;p=41531#p41531</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=4708&amp;p=41531#p41531"/>
+<title type="html"><![CDATA[Background and Sprite problems]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=4708&amp;p=41531#p41531"><![CDATA[
+Don't put<br /><br />lda #%10001000<br />sta $2000<br />lda #%00011110<br />sta $2001<br /><br />right <em>after</em> "infinite", put it <em>before</em>. If it's after infinite, it'll infinitely write to $2000/$2001, which might be bad (I'm not exactly sure, but I would avoid infinitely writing to $2000/$2001).<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=138">Celius</a> — Thu Jan 08, 2009 2:40 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Disch]]></name></author>
+<updated>2009-01-08T13:53:24-07:00</updated>
+<published>2009-01-08T13:53:24-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=4708&amp;p=41527#p41527</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=4708&amp;p=41527#p41527"/>
+<title type="html"><![CDATA[Background and Sprite problems]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=4708&amp;p=41527#p41527"><![CDATA[
+Still don't really understand the problem you're having -- clarification and/or screenshots please.<br /><br />In the meantime here are some other misc problems with your code.  Some of them might be the cause of your problem -- but like I say I'm still not sure I understand your problem so I don't know:<br /><br />1) You need to zero your variables.  ".db 0" may reserve a space for them in memory but it does not set them to zero initially.  Sprite1_T and VBlankOrNo might not be zero when you run your program which could be problematic.<br /><br />1.5)  In the same vein as #1, you're not clearing the sprite page ($03xx).  So you'll have garbage sprites appearing onscreen.  Fill the sprite page with $FF -- this will give unused sprites a Y coord which puts them offscreen, making it so they won't be rendered.<br /><br />2) You're not waiting for the PPU to warm up.  Do this when the program starts:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">LDA #0<br />STA $2000<br />STA $2001  ; turn off PPU<br /><br />wait1:<br />  LDA $2002   ; these following two loops ensure that at least 1 full<br />  BPL wait1    ; frame passes -- enough time for the PPU to warm up<br /><br />wait2:<br />  LDA $2002<br />  BPL wait2<br /></div><br /><br />3)  You should leave the PPU off (write 0 to both $2000 and $2001) until you finish drawing the palettes and background.  Don't enable NMIs until you're ready for them to happen, and don't turn on the PPU until you're ready for it to be on (everything you want drawn is drawn).  Personally I would leave the PPU off until after your first NMI so that you enable it during VBlank.  Enabling it during the middle of a frame could result in the frame looking fugly.<br /><br />4)  You're not resetting the scroll.  Write to $2000 once (to set the low two bits) and to $2005 twice in VBlank, after you finish your drawing (but since you're not doing any drawing in VBlank -- you're fine to do it just after the sprite DMA (the $4014 write) -- just before the controller stuff)<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=33">Disch</a> — Thu Jan 08, 2009 1:53 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[bbbirddd]]></name></author>
+<updated>2009-01-08T13:47:47-07:00</updated>
+<published>2009-01-08T13:47:47-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=4708&amp;p=41525#p41525</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=4708&amp;p=41525#p41525"/>
+<title type="html"><![CDATA[Background and Sprite problems]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=4708&amp;p=41525#p41525"><![CDATA[
+I replaced the code you suggested with <br /><br />lda #$00<br />sta $2000<br />sta $2001<br /><br />and I pasted the other code just after "infinite":<br /><br />lda #%10001000<br />sta $2000<br />lda #%00011110<br />sta $2001<br /><br />next comes the WaitForVBlank bit<br /><br />The rom still runs, but this didn't change anything about my problem. Any further help would be greatly appreciated.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3786">bbbirddd</a> — Thu Jan 08, 2009 1:47 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Celius]]></name></author>
+<updated>2009-01-08T13:38:39-07:00</updated>
+<published>2009-01-08T13:38:39-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=4708&amp;p=41520#p41520</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=4708&amp;p=41520#p41520"/>
+<title type="html"><![CDATA[Background and Sprite problems]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=4708&amp;p=41520#p41520"><![CDATA[
+I can tell you one problem right away. You're writing to PPU data with the screen turned on. Cut and paste the first writes to $2000 and $2001 before "Infinite" and where the writes previously were, put lda #$00 sta $2000 sta $2001.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=138">Celius</a> — Thu Jan 08, 2009 1:38 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[bbbirddd]]></name></author>
+<updated>2009-01-08T13:20:32-07:00</updated>
+<published>2009-01-08T13:20:32-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=4708&amp;p=41517#p41517</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=4708&amp;p=41517#p41517"/>
+<title type="html"><![CDATA[Background and Sprite problems]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=4708&amp;p=41517#p41517"><![CDATA[
+.inesprg 1; /////INES Header/////<br />.ineschr 1<br />.inesmap 0<br />.inesmir 1<br /><br />; ////////////////////////Bank 1: Interrupt Table/////////////////////////////<br /><br />.bank 1<br />.org $FFFA<br />.dw VBlank_Routine; address to execute on VBlank<br />.dw Start<br />.dw 0<br /><br />; ////////////////////////Bank 0: Program Code////////////////////////////////<br /><br />.bank 0<br />; /////Sprite DMA and other Variables/////<br /><br />.org $0300 ; OAM copy location<br /><br />Sprite1_Y:.db0; sprite #1's Y value<br />Sprite1_T:.db0 ; sprite #1's tile number<br />Sprite1_S:.db0  ; sprite #1's special byte<br />Sprite1_X:.db0; sprite #1's X value<br />VBlankOrNo:.db 0<br />BKGset:.db 0<br /><br />.org $8000; program code location<br /><br />VBlank_Routine:; /////VBlank Routine/////<br />inc VBlankOrNo; add 1 to VBlankOrNo (1 if VBlank, 0 if not)<br />rti; return from interrupt<br /><br />Start:; /////Screen Setup/////<br /><br />lda #50<br />sta Sprite1_Y<br />sta Sprite1_X<br />lda #2<br />sta Sprite1_S<br /><br />lda #%10001000; screen pattern table = $0000, sprite pattern table = $1000, name table = $2000<br />sta $2000<br />lda #%00011110; BG = black, show sprites, screen on, don't clip anything, color display<br />sta $2001<br /><br />; /////Palette/////<br /><br />lda #$3F; store the value $3F00 in location $2006 so that whatever<br />sta $2006; we load into $2007 will start at location $3F00<br />lda #$00<br />sta $2006<br /><br />ldx #$00; reset X to zero<br />loadpal:; load 32-color pallete<br />lda tilepal, x<br />sta $2007<br />inx<br />cpx #32<br />bne loadpal<br /><br />; /////Background/////<br /><br />lda #$20<br />sta $2006 ; give $2006 both parts of address $2020.<br />sta $2006 <br /><br />ldx #$00; reset X to zero<br />loadNames:; load name table<br />lda ourMap, x ; load A with a byte from address (ourMap + X)<br />inx; increase X by 1<br />sta $2007; store map byte from A into $2007<br />cpx #64 ; check if last byte = 64th<br />bne loadNames ; if not all 64 done, loop<br /><br />; ------------------------Controller Loop Begin-------------------------------<br /><br />infinite:<br /><br />WaitForVBlank:; /////VBlank/////<br />lda VBlankOrNo<br />cmp #1; check if A = 1 (VBlank)<br />bne WaitForVBlank; if A = 0 loop<br />dec VBlankOrNo; decrease VBlankOrNo by 1 (A = 0)<br /><br />lda #3; /////Sprite Info Load/////<br />sta $4014<br /><br />; /////Controller Setup/////<br /><br />lda #$01; reset pad<br />sta $4016<br />lda #$00<br />sta $4016<br /><br />; /////Test Button Status/////<br /><br />lda $4016; read A status<br />and #1<br />bne AKEYdown<br />lda $4016; read B status<br />lda $4016; read SELECT status<br />lda $4016; read START status<br />lda $4016; read UP status<br />and #1; check if UP is pressed<br />bne UPKEYdown; branch to UPKEYdown if pressed<br /><br />lda $4016; read DOWN status<br />and #1; check if DOWN is pressed<br />bne DOWNKEYdown; branch to DOWNKEYdown if pressed<br /><br />lda $4016; read LEFT status<br />and #1; check if LEFT is pressed<br />bne LEFTKEYdown; branch to LEFTKEYdown if pressed<br /><br />lda $4016; read RIGHT status<br />and #1; check if RIGHT is pressed<br />bne RIGHTKEYdown; branch to RIGHTKEYdown if pressed<br />jmp NOTHINGdown<br /><br />; /////Button Press Actions/////<br /><br />AKEYdown:<br />lda BKGset<br />cmp #0<br />bne BG1<br />lda #$20<br />sta $2006 ; give $2006 both parts of address $2020.<br />sta $2006 <br /><br />ldx #$00; reset X to zero<br />loadNames2:; load name table<br />lda ourMap2, x ; load A with a byte from address (ourMap + X)<br />inx; increase X by 1<br />sta $2007; store map byte from A into $2007<br />cpx #64 ; check if last byte = 64th<br />bne loadNames2 ; if not all 64 done, loop<br />lda #1<br />sta BKGset<br />jmp NOTHINGdown<br />BG1:<br />lda #$20<br />sta $2006 ; give $2006 both parts of address $2020.<br />sta $2006 <br /><br />ldx #$00; reset X to zero<br />loadNames3:; load name table<br />lda ourMap, x ; load A with a byte from address (ourMap + X)<br />inx; increase X by 1<br />sta $2007; store map byte from A into $2007<br />cpx #64 ; check if last byte = 64th<br />bne loadNames3 ; if not all 64 done, loop<br />lda #0<br />sta BKGset<br />jmp NOTHINGdown<br /><br />UPKEYdown:; code executed when UP is pressed<br />lda Sprite1_Y<br />clc<br />sbc #1  ; subtract 1 from Sprite1_Y<br />sta Sprite1_Y<br />jmp NOTHINGdown<br /><br />DOWNKEYdown:; code executed when DOWN is pressed<br />lda Sprite1_Y <br />clc<br />adc #1  ; add 1 to Sprite1_Y<br />sta Sprite1_Y<br />jmp NOTHINGdown<br /><br />LEFTKEYdown:; code executed when LEFT is pressed<br /><br />lda Sprite1_S<br />and #%10111111<br />sta Sprite1_S<br />lda Sprite1_X<br />clc<br />sbc #1  ; subtract 1 from Sprite1_X<br />sta Sprite1_X<br />jmp NOTHINGdown<br /><br />RIGHTKEYdown:; code executed when RIGHT is pressed<br /><br />lda Sprite1_S<br />ora #%01000000<br />sta Sprite1_S<br />lda Sprite1_X<br />clc<br />adc #1; add 1 to Sprite1_X<br />sta Sprite1_X<br /><br />NOTHINGdown:<br />jmp infinite<br /><br />; ------------------------Controller Loop End---------------------------------<br /><br />; /////Include Binary Files/////<br /><br />tilepal: .incbin "our.pal"; include pallete and label its location "tilepal"<br />ourMap:.incbin "bkg12.map" ; include map files and label its location "ourMap"<br />ourMap2: .incbin "bkg21.map"<br /><br />; ////////////////////////Bank 2: Sprite/Background Data//////////////////////<br /><br />.bank 2<br />.org $0000<br />.incbin "our.bkg"<br /><br />.org $1000<br />.incbin "our.spr"<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3786">bbbirddd</a> — Thu Jan 08, 2009 1:20 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Disch]]></name></author>
+<updated>2009-01-08T13:06:23-07:00</updated>
+<published>2009-01-08T13:06:23-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=4708&amp;p=41514#p41514</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=4708&amp;p=41514#p41514"/>
+<title type="html"><![CDATA[Re: Background and Sprite problems]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=4708&amp;p=41514#p41514"><![CDATA[
+I'm not sure I understand the problem you're having from your description.  Could you post screenshots or something?  Or maybe upload the ROM so we can see for ourselves?<br /><br />My first thought was to check the pattern table assignment (set BG to use $0xxx and sprites to use $1xxx), but since you say you're doing that, I don't have any other ideas as to what could be wrong.<br /><br />Source code would help.  If you don't want to upload the full source code (which would be easiest for me/us), you can paste here smaller sections -- specifically stuff related to $2000/$2001 register writes.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=33">Disch</a> — Thu Jan 08, 2009 1:06 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[bbbirddd]]></name></author>
+<updated>2009-01-08T12:17:16-07:00</updated>
+<published>2009-01-08T12:17:16-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=4708&amp;p=41513#p41513</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=4708&amp;p=41513#p41513"/>
+<title type="html"><![CDATA[Background and Sprite problems]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=4708&amp;p=41513#p41513"><![CDATA[
+I just started trying to write code in NES assembly, and I have run into a problem. My problem is that instead of just drawing the background image, the rom also draws a sprite as part of the background. And when I try to switch to a different background map, it just erases the background tiles and redraws this mysterious sprite in a different color. So what I when I'm changing the background map, it is really changing something about the sprites. My actual sprite that I want to move around the screen still looks and works fine no matter what the background looks like, but I can't seem to get the background right. I used a program called map2bin.exe to create the background map file from a text file. I used Tile Layer Pro to create the sprite .spr file. I believe I correctly set the Sprite Pattern Table to $1000 and the Background Pattern Table to $0000, but they seem to be interfering with each other somehow. Any help would be greatly appeciated. I'd be glad to offer my code if anyone thinks it might help.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3786">bbbirddd</a> — Thu Jan 08, 2009 12:17 pm</p><hr />
+]]></content>
+</entry>
+</feed>

@@ -1,0 +1,245 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Timing?</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Timing?</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=10&amp;t=3720">http://forums.nesdev.com/viewtopic.php?f=10&amp;t=3720</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>johnnie</b> [ Tue Nov 20, 2007 6:05 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Timing?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Hello,
+<br />
+<br />I am writing a NES emulator, but am doing the 6502 CPU first. Now I was wondering: how do you make sure the timing of the CPU is correct? Do you give the CPU a tick every (1/frequency) seconds? If so, how do you make such a high-resolution timer?
+<br />
+<br />In shortL how do you implement proper timing for your CPU?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Tue Nov 20, 2007 6:33 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I operate on a fictional time system I call "master cycles"
+<br />
+<br />every 1 CPU cycle takes 15 master cycles (on NTSC) or 16 (on PAL).
+<br />
+<br />Every 1 dot (aka PPU cycle) takes 5 master cycles.
+<br />
+<br />Therefore... since an instruction like LDA #$00 takes 2 cycles, it would take 30 master cycles (NTSC).
+<br />
+<br />I keep a timestamp for each subsystem (CPU, PPU, APU, and any external system like a mapper).  I run the CPU ahead of everything else, and keep adjusting its timestamp as cycles are emulated.  When the CPU does something to interact with another system (usually in the form of a register read or write), I emulate the subsystem until its timestamp reaches or exceeds the CPU's timestamp.  This is probably more well known as the "catch up" approach.
+<br />
+<br />Basic Example:
+<br />
+<br />Let's say CPU and PPU timestamps are both 0.  My CPU emulator then emulates the following code:
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">LDA #$00&nbsp; &nbsp; ; after this, CPU timestamp is 30<br />STA $FE&nbsp; &nbsp; &nbsp;; CPU time = 75<br />STA $FF&nbsp; &nbsp; &nbsp;; 120<br />STA $2001&nbsp; &nbsp;; 180<br /></div>
+<br />
+<br />Since the value written to $2001 will affect how the PPU operates (it is a PPU register), I would jump to my PPU emu and "catch it up" -- that is... run it until its timestamp is &gt;= 180, <em>then</em> I would apply the value written to $2001 and continue with CPU emulation as normal.
+<br />
+<br />
+<br />I can run my emu for chunks at a time that split cleanly into frames using this method.  IE:  I would run the CPU for X master cycles, then catch up all subsystems, then output the generated video/audio to the user, then rinse and repeat as needed.
+<br />
+<br />Since frames (practically) are a fixed length (341 dots * 262 scanlines * 5 master cycles per dot = 446710 master cycles per frame)* this system not only indicates how long I need to run each system, but also where in the frame the system is.  That is.. .I can perform math on any given timestamp and know which scanline the system is currently on and whatnot.
+<br />
+<br />** another technical note:  Odd frames on NTSC are sometimes 5 master cycles shorter (446705 instead of 446710) due to a PPU cycle being skipped under some circumstances.  Rather than reconstruct my entire timebase system, I simply have non-ppu related systems skip this cycle by adding an additional 5 to their timestamps where appropriate **
+<br />
+<br />
+<br />Anyway that's about the jist of it.  Just tally up cycles as you go until you reach a target timestamp.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>johnnie</b> [ Tue Nov 20, 2007 6:55 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Thanks for your elaborate explanation on relative internal timing, but what I really meant was: how do you do timing relative to the host system? How do you make sure your emulated CPU does not run at 3GHz but at ~1.7 MHz?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>kyuusaku</b> [ Tue Nov 20, 2007 7:23 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />You can't, the best accuracy you can hope for is the necessary ~60Hz timing for video and sync everything to that.
+<br />
+<br />I found this page helpful when I was working on my timing: <!-- m --><a class="postlink" href="http://www.geisswerks.com/ryan/FAQS/timing.html">http://www.geisswerks.com/ryan/FAQS/timing.html</a><!-- m -->
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Tue Nov 20, 2007 7:35 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">johnnie wrote:</div><div class="quotecontent">Thanks for your elaborate explanation on relative internal timing, but what I really meant was: how do you do timing relative to the host system? How do you make sure your emulated CPU does not run at 3GHz but at ~1.7 MHz?</div>
+<br />
+<br />so many master cycles is 1 frame
+<br />
+<br />and I output 60 frames a second.
+<br />
+<br />If you draw 1 frame every 16.6667 or whatever milliseconds, you'll be running your emulator at 60 FPS, and thusly running the appropriate amount of master cycles (and therefore the appropriate amount of CPU cycles)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

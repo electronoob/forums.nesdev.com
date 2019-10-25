@@ -1,0 +1,165 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - MediaWiki can't see IPs past the reverse proxy</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">MediaWiki can't see IPs past the reverse proxy</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=16&amp;t=15097">http://forums.nesdev.com/viewtopic.php?f=16&amp;t=15097</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Thu Nov 10, 2016 5:39 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>MediaWiki can't see IPs past the reverse proxy</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I edited talk pages on wiki.nesdev.com four times, from three different subscribers to a cable ISP and one cellular ISP, and MediaWiki said the edits came from the same IP address all four times. And this IP is in the same /30 as the result of <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">nslookup wiki.nesdev.com</tt>. (Reverse proxy much?) This means my wiki spam control must rely on ABUSE filtering instead of my usual practice of blocking an IP for a few months.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>koitsu</b> [ Thu Nov 10, 2016 6:28 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: MediaWiki can't see IPs past the reverse proxy</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />This is certainly the result of WhoaMan sticking things &quot;behind nginx&quot;.  The real/true Internet IP address of the client has to be passed in to the back end via the <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">X-Real-IP</tt> HTTP header, and/or <a href="https://en.wikipedia.org/wiki/X-Forwarded-For" class="postlink">X-Forwarded-For</a>.<br /><br />The situation becomes complicated if PHP is being used on the back end (via FastCGI) or similar, especially under nginx.  The software being run (PHP, etc.) has to parse/honour the new headers in software through CGI variables/params.  For FastCGI, you need to use the <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">fastcgi_param REMOTE_ADDR $http_x_real_ip;</tt> directive to get it to set $REMOTE_ADDR to the actual Internet client's IP address.<br /><br />There is also the <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;"><a href="http://nginx.org/en/docs/http/ngx_http_realip_module.html" class="postlink">ngx_http_realip_module</a></tt> extension (for the back end) which comes in extremely handy.  However, configuring this correctly so that end-users can't override things (thus spoofing the IP that shows up on the back end) is important.  It's very easy to screw this up.  Actually, I just realised there's a website that kind of talks about most of this (not all of it though, particularly the security aspect -- instead refer to the nginx module doc I linked for that): <!-- m --><a class="postlink" href="https://easyengine.io/tutorials/nginx/forwarding-visitors-real-ip/">https://easyengine.io/tutorials/nginx/f ... s-real-ip/</a><!-- m --><br /><br />If Apache is being used on the back end, then the admin gets to figure out equivalents there.  I believe there's an Apache 2.x module called mod_rpaf that is the Apache equivalent of ngx_http_realip_module.<br /><br />Again a reminder: <strong>when implementing this, please be sure to test the security aspect</strong>.  Try doing things from an Internet host like <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">curl -H &quot;X-Real-IP: 69.69.69.69&quot; <!-- m --><a class="postlink" href="http://wiki.nesdev.com/info.php">http://wiki.nesdev.com/info.php</a><!-- m --></tt> (where info.php is a PHP script containing <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">&lt;?php phpinfo&#40;&#41;; ?&gt;</tt> and see what the &quot;client IP&quot; shows up as (if it shows up as 69.69.69.69, then that's bad/people can bypass it.  Look into <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">set_real_ip_from</tt>).  Same goes for testing <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">X-Forwarded-For</tt>.  Check your HTTP access logs too -- make sure the right IP shows up there (if multiple servers on the front end are around, then you might consider extending the access logs to print both the IP of the front end server *and* the <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">$http_x_real_ip</tt> address).  Finally, the <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">real_ip_recursive</tt> value (on or off) matters TREMENDOUSLY and is actually hard to get right (the documentation describes it in such a way that makes it difficult to understand) -- you may need to try both values, and try the security tests in both cases.  You might be surprised what you see (<tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">X-Forwarded-For</tt> is a clusterfuck).<br /><br />And now folks hopefully understand why we never used reverse proxying on Parodius -- it's a nightmare for web hosting.  The negatives of it, IMO, outweigh the positives; it drives the users insane.  (Please do not discuss scaling etc. in this thread -- that's a separate sysadmin subject that can be discussed privately some other time).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Quietust</b> [ Thu Nov 10, 2016 8:51 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: MediaWiki can't see IPs past the reverse proxy</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />If I recall correctly, MediaWiki itself has a special setting to recognize reverse proxies (generally of the Squid variety) by IP address and thus trust whatever's indicated in the X-Forwarded-For (or whatever) header as being the actual client's IP address.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

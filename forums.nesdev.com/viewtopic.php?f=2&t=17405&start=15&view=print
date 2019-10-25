@@ -1,0 +1,417 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Efficient way to reuse variables</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Efficient way to reuse variables</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=17405">http://forums.nesdev.com/viewtopic.php?f=2&amp;t=17405</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>2</strong> of <strong>4</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Oziphantom</b> [ Fri Jun 01, 2018 12:20 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Efficient way to reuse variables</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I just make <br />ZPTemp1<br />ZPTemp2<br />...<br />IZPTemp1<br />IZPTemp2<br />and when needed<br />NZPTemp1<br />....<br /><br />I could use unions to map them to sane names but that is where the problems arise, so I comment it instead. Although on a NES you would make NZPTemp1 a lot more often than IZPTemp1.<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">NLL_deleteNodeX<br />&nbsp; &nbsp;ldy NLLCurrentList<br />&nbsp; &nbsp;lda EntityX.head,y<br />&nbsp; &nbsp;sta ZPTemp3&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;; the current head's value<br />&nbsp; &nbsp;lda EntityX.next,x<br />&nbsp; &nbsp;sta ZPTemp1 &nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; ; new next<br />&nbsp; &nbsp;dec EntityX.alloc_head<br />&nbsp; &nbsp;ldy EntityX.alloc_head<br />&nbsp; &nbsp;txa<br />&nbsp; &nbsp;sta EntityX.alloc,y &nbsp; &nbsp;; mark this node as free<br />&nbsp; &nbsp;stx ZPTemp2 &nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; ; one to remove<br />&nbsp; &nbsp;cpx ZPTemp3&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;; are we removing the head<br />&nbsp; &nbsp;beq _removeHead<br />&nbsp; &nbsp;&nbsp; &nbsp;ldy ZPTemp3&nbsp; &nbsp; &nbsp; &nbsp;&nbsp; ; start at the head<br />&nbsp; &nbsp;-&nbsp; lda EntityX.next,y<br />&nbsp; &nbsp;&nbsp; &nbsp;cmp ZPTemp2<br />&nbsp; &nbsp;&nbsp; &nbsp;beq _foundPrev<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;tay<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;jmp -<br />_removeHead<br />&nbsp; &nbsp;lda ZPTemp1&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;; new next <br />&nbsp; &nbsp;ldy NLLCurrentList<br />&nbsp; &nbsp;sta EntityX.head,y<br />&nbsp; &nbsp;rts<br />_foundPrev<br />&nbsp; &nbsp;lda ZPtemp1&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;; new next <br />&nbsp; &nbsp;sta EntityX.next,y<br />&nbsp; &nbsp;rts&nbsp; &nbsp;</div><br />this means I can look at the code and see what it actually hits easily. I would be easier to do a union or defines up the top, but I trust the code more than my documentation up the top. <br />I did make a Static Analyzer for 6502 to solve the case for when I &quot;trash&quot; something, but I got too fancy with my coding style and broke it. I've not been bothered enough to fix it yet, as the maintenance on it was too high. Once I make my new Dev Environment I will look at bringing it back, or merging it into MLA. <br />I also (although not shown above) have BDD6502 &quot;illegal ops&quot; that allow me to check that A,X,Y,ZP Location remains unchanged across calls. So when I get to a case that I think I'm in danger or breaking the rules, I add in the BDD ops and then let it test if I trash something when I shouldn't.<br />But it is rarely an issue, every now and then I will see a strange bug, for some new code I wrote and then I will check to make sure the ZPTemps are not being trashed, if so I add another and carry on.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Rahsennor</b> [ Fri Jun 01, 2018 2:27 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Efficient way to reuse variables</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />This issue seems to pop up a lot, and there are known algorithmic solutions. For example, I wrote a compiler that statically allocates all locals in zero page using a virtual stack, overlapping frames that are never live at the same time. An even better option would be interprocedural graph coloring, but that's veering into overkill territory.<br /><br />My compiler's frontend is nowhere near releaseworthy, but I've been thinking of hooking the backend up to an assembler in the meantime. Would anyone here be interested in such an &quot;optimizing&quot; assembler? I probably shouldn't offer to write one, given my current circumstances, but it might give me the kick I need to finish this stupid thing.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Sumez</b> [ Fri Jun 01, 2018 3:44 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Efficient way to reuse variables</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">never-obsolete wrote:</div><div class="quotecontent"><div class="quotetitle">rainwarrior wrote:</div><div class="quotecontent">a 256 OAM buffer in RAM might be rebuilt every frame, which is quite a bit of temporary space available for anything that happens before you build your sprite list</div><br /><br />I never considered this possibility. I'll have to keep this in mind if I find myself short on temporary storage.</div><br /><br />Me neither, however 256 bytes is quite a lot of temporary storage. I'm guessing it's mostly useful for some kind of unpacking function, but even then that seems wasteful if it's going to be gone by the next frame. Hell, a 256 Zero page is already big as it is, and I always set most of that aside for temporary data.<br />But if your sprite &quot;rendering&quot; routine isn't using any ZP variables, and always takes place at the tail end of your frame logic, I guess you might as well use the zeropage for your OAM buffer though?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>DRW</b> [ Sat Jun 02, 2018 7:38 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Efficient way to reuse variables</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tokumaru wrote:</div><div class="quotecontent">I don't know about C, but in assembly I have a chunk of ZP dedicated to local variables and function parameters, and I use a macro to allocate the space needed for each function. The macro can start allocating space from the very first byte of the ZP chunk, or you can optionally specify an offset into the chunk. These offsets can be specified using what I call &quot;memory counters&quot;, which are symbols that are incremented automatically when you allocate memory using them, so if I have a bunch of nested functions, I just have to use the same memory counter for all of them and their locals will never overlap.</div><br />So, am I understanding this correctly? You're basically using a stack.<br /><br />That's actually what I wanted to avoid, so that the usage of the temporary variables uses the least possible ROM space and CPU time.<br />Using counters before and after every function and accessing the temporary variables in the <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">LDA Temp, X</tt> manner takes away from the performance.<br />In this case, I think, I would be better off by simply using non-zeropage global variables.<br />Using a non-zeropage global variable should be faster and smaller than setting X every time and then accessing the variable with the offset.<br />And, at least in my case, the non-zeropage variables should be more than enough to give each function in the whole program its own distinct variables for local usage, so that reusing isn't even necessary.<br /><br /><div class="quotetitle">calima wrote:</div><div class="quotecontent">I'd probably make a program that calculates every possible execution tree, then passes that to a register allocation algorithm.</div><br />This would be the optimal solution, but this would require to write your own source code parser, wouldn't it?<br /><br /><div class="quotetitle">rainwarrior wrote:</div><div class="quotecontent">Your code will naturally have some structured relationship between functions, and you can group your temporary usage correspondingly as well as you can fit it to the existing relationships. i.e. this group of functions will mostly use temporaries i,j,k,l and this other one will mostly use m,n,o,p...</div><br />I think this is a sub-optimal solution because of the following reason:<br /><br />Within the same group, you need to make sure that variables aren't reused between functions since they call each other.<br />However, if two functions belong to different groups, they can share the same variable.<br /><br />So, to me it doesn't make sense that the functions to process the game's characters belong to the group that use i, j, k, l while the screen buildup functions use m, n, o, p.<br /><br />Because MoveCharacter and CheckCollision should not both use i since MoveCharacter calls CheckCollision.<br />But there's no reason why MoveCharacter and DrawBackgroundTiles should not both use the variable i since those functions never overlap each other.<br /><br />So, the grouping of functions and assigning variables to each group is a little backwards because reusability comes into play specifically when two functions are <em>not</em> related.<br /><br />Use variable i for screen buildup, character processing and hardware sprite calculation since they are unrelated to each other.<br />But never share variable i between the functions MoveCharacter, CheckCollision and StartMercyInvincibility because these functions call each other.<br /><br />(Unless you're talking about variables that need to be consistent between function calls like the mercy invincibility counter after the player was hit. But that's something completely different anyway since we're talking about variables that are used in a purely local way, not about variables that are intended as actual global variables.)<br /><br /><div class="quotetitle">Rahsennor wrote:</div><div class="quotecontent">Would anyone here be interested in such an &quot;optimizing&quot; assembler?</div><br />I would rather be interested in something that can turn local variables into shared global variables on the source code level, so that I can keep using the same compiler and assembler for my projects as before (cc65) and so that I can easily see every instance of the optimization process myself.<br />However, this would require that this is also done on C code, with each local variable and function parameter.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Sat Jun 02, 2018 9:46 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Efficient way to reuse variables</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">DRW wrote:</div><div class="quotecontent">So, am I understanding this correctly? You're basically using a stack.</div><br />It's sort of like a stack, but it's processed at assembly-time by macros, so as far as the final program is concerned, it's using static memory positions like it always has.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Sat Jun 02, 2018 9:48 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Efficient way to reuse variables</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />And the advantage of this over a traditional stack is that 8-bit ISAs of that era (6502, 8080) provide more efficient addressing modes for a statically allocated stack than for a dynamically allocated stack. The disadvantage is lack of support for (non-tail) recursion, but 8-bit games on the whole use very little if any recursion.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>DRW</b> [ Sat Jun 02, 2018 9:57 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Efficient way to reuse variables</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tokumaru wrote:</div><div class="quotecontent">It's sort of like a stack, but it's processed at assembly-time by macros, so as far as the final program is concerned, it's using static memory positions like it always has.</div><br />A compile/assembly time stack implemented with macro tricks would be perfect. But how does that work?<br />How do you determine the counter/index/offset of the current variable at compile/assembly time if you don't know when this function will be called?<br /><br />I.e. if the main function uses three zeropage variables as locals and calls the function ABC, how does the Assembler know that the first used variable in function ABC should be mapped to $0004? After all, ABC could be called at any point in the program, for example by a function who uses six variables and who itself is called by another function who uses two variables, so this time the local variable in ABC would have to be at least at address $0009.<br /><br />Can you please post an example?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Sat Jun 02, 2018 10:28 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Efficient way to reuse variables</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">DRW wrote:</div><div class="quotecontent"><div class="quotetitle">rainwarrior wrote:</div><div class="quotecontent">Your code will naturally have some structured relationship between functions, and you can group your temporary usage correspondingly as well as you can fit it to the existing relationships. i.e. this group of functions will mostly use temporaries i,j,k,l and this other one will mostly use m,n,o,p...</div><br />I think this is a sub-optimal solution because of the following reason:<br /><br />Within the same group, you need to make sure that variables aren't reused between functions since they call each other.<br />However, if two functions belong to different groups, they can share the same variable.<br /><br />So, to me it doesn't make sense that the functions to process the game's characters belong to the group that use i, j, k, l while the screen buildup functions use m, n, o, p.<br /><br />Because MoveCharacter and CheckCollision should not both use i since MoveCharacter calls CheckCollision.<br />But there's no reason why MoveCharacter and DrawBackgroundTiles should not both use the variable i since those functions never overlap each other.<br /><br />So, the grouping of functions and assigning variables to each group is a little backwards because reusability comes into play specifically when two functions are <em>not</em> related.<br /><br />Use variable i for screen buildup, character processing and hardware sprite calculation since they are unrelated to each other.<br />But never share variable i between the functions MoveCharacter, CheckCollision and StartMercyInvincibility because these functions call each other.</div><br />I don't think you understand my suggestion. I was suggesting that you use groupings by <em>temp variable needs</em> to manage the temp variables. You will already have other groupings for other purposes (player code, collision code, sprite code, etc.) but that's a different and separate grouping, though it will undoubtedly be strongly related. You would probably be able to divide this management problem into independent sub-problems by that kind of type if they don't share the stack, but the groupings by variable would be in this sub-problem domain, right? There's not really a lot I can say here in the abstract while we're not talking about a specific code base with a specific set of problems to solve.<br /><br />Like your suggestion was to fragment your variable groups sort of by stack depth, or some other global grouping. My feeling is that this kind of pre-fabricated structure will become an imposition; whatever size you make the layer bucket, most functions will underuse the bucket, and others will overflow it causing you to have to manage it in some other way. Doing this adds a global structure that will cross cut right through your code and have a big impact on it. There's a give and take there. This structure will provide some benefit, and some detriment, but...<br /><br />On a large scale project, you can only predict some things ahead of time; a lot of stuff will eventually have to move and change. Having to maintain a pre-determined structure like that can make it harder. Agility is useful. One suggestion that was made above that I would strongly affirm is to use local aliases for the temporary variables in each function that uses them. If you declare them all at the start of the function, this has two strong effects: 1. all temporary usage is documented by that declaration, 2. the temporaries are very easy to reassign later. (ca65's .proc scoping is great for this.)<br /><br />That's the main thing I was saying: structure is not really well known before you start, so I recommend trying to write in a way that is pliable and optimizable, and accept inefficiency in service to that goal, as least at first. Find out roughly what you need and how it hangs together, and then cut it back to its essential form once you know more about it. Predicting this stuff is <em>hard</em>, so I wouldn't want to impose some global code layering scheme before I knew a lot more about the actual shape of my problems. If I can I'd rather implement something like that <em>after</em> things start to look like they have those layers, a later optimization step.<br /><br /><br />Having automated tools for it would give you tons of agility with temporary usage (in the form of not having to manage it at all), but probably only if the tool itself doesn't become a surrogate maintenance problem. <img src="./images/smilies/icon_razz.gif" alt=":P" title="Razz" /> That's sort of an advantage of high level languages in general, though.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>DRW</b> [ Sat Jun 02, 2018 12:10 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Efficient way to reuse variables</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">rainwarrior wrote:</div><div class="quotecontent">I don't think you understand my suggestion. I was suggesting that you use groupings by <em>temp variable needs</em> to manage the temp variables.</div><br />I'm not sure if I already understand you.<br />You mean I should put CheckCharacterCollision and UpdateBackgroundPalette into the same group because they can share their variables?<br /><br /><div class="quotetitle">rainwarrior wrote:</div><div class="quotecontent">On a large scale project, you can only predict some things ahead of time; a lot of stuff will eventually have to move and change. Having to maintain a pre-determined structure like that can make it harder. Agility is useful.</div><br />I agree with agility, that's why I'm checking if there's a better way than my layer attempt.<br />Some compile-time way of finding out how many of the temporary variables can be in use during the call of any given function, so that each temporary variables of every function always start at the highest necessary value would be the best.<br /><br />By the way, of course I only use my system when the general structure stands.<br />Which is basically the case in the moment since the current status of my game has screen buildup, cutscenes, dialogs and almost all action gameplay stuff. It's not that I'm just starting.<br /><br />Until now, I still used plain local variables. But once optimization kicks in, I want to replace all of them with those temporary variables section by section. Starting with the ProcessCharacter functions because they're the action functions and I need to see how many opponents I can have on screen before the game starts to lag.<br /><br />In fact, the ProcessCharacter functions are the <em>only</em> ones that are really time-critical. Menu functions will never lag. And screen buildup in a screen-by-screen scrolling game takes a few frames anyway, so a lag doesn't matter here.<br />So, actually, I could use plain local (or static local non-zeropage) variables in every place except for one file.<br />But unfortunately, it's not only the CPU time, but also the ROM space that gets wasted with local and non-zeropage variables.<br /><br /><div class="quotetitle">rainwarrior wrote:</div><div class="quotecontent">One suggestion that was made above that I would strongly affirm is to use local aliases for the temporary variables in each function that uses them.</div><br />Well, this is of course <em>always</em> a given. I will not work with the temporary names itself, I'm not crazy. Of course they will be renamed via #define.<br /><br /><div class="quotetitle">rainwarrior wrote:</div><div class="quotecontent">Having automated tools for it would give you tons of agility with temporary usage (in the form of not having to manage it at all), but probably only if the tool itself doesn't become a surrogate maintenance problem. <img src="./images/smilies/icon_razz.gif" alt=":P" title="Razz" /> That's sort of an advantage of high level languages in general, though.</div><br />Yeah, I would need a tool that can parse the whole C source code and that then decided at which inner stack level a function gets called from other functions, so that the tool can output a C file where the local variables are replaced with the highest necessary temp variable.<br /><br />Since I don't know such a tool and I don't want to manage this by hand, I invented the layering structure: Now, you don't have to restructure the variable usage whenever a function gets a new variable. But you only need to change it when a function A needs to call function B, and only if function B is on a higher or equal temp layer than function A.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>thefox</b> [ Sat Jun 02, 2018 12:23 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Efficient way to reuse variables</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Rahsennor wrote:</div><div class="quotecontent">Would anyone here be interested in such an &quot;optimizing&quot; assembler? I probably shouldn't offer to write one, given my current circumstances, but it might give me the kick I need to finish this stupid thing.</div><br />I'm interested out of curiosity, i.e., I'd like to see how you'd approach it (I've been meaning to make something similar for a long time), but I think it's hard to get people to adopt things like this in practice.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Sat Jun 02, 2018 12:51 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Efficient way to reuse variables</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">DRW wrote:</div><div class="quotecontent">You mean I should put CheckCharacterCollision and UpdateBackgroundPalette into the same group because they can share their variables?</div><br />Possibly, if that seems like a good fit,  but it's hard to talk in the abstract like this. If you're saying these are unrelated functions that never share a stack, then you might have even have a separate set of &quot;layers&quot; for one stack group and another. All I'm really saying I would normally try to make the organization follow the productive goals of the code, rather than the other way around.<br /><br /><div class="quotetitle">DRW wrote:</div><div class="quotecontent"><div class="quotetitle">rainwarrior wrote:</div><div class="quotecontent">One suggestion that was made above that I would strongly affirm is to use local aliases for the temporary variables in each function that uses them.</div><br />Well, this is of course <em>always</em> a given. I will not work with the temporary names itself, I'm not crazy. Of course they will be renamed via #define.</div><br />Well, perhaps I'm crazy, but I just did a whole game without <em>any</em> local temporary aliases. However, sort of what I said earlier on in this thread, I didn't actually find managing temporaries to be a significant problem, partly because I see using them efficiently as an only occasionally needed optimization. I did use ZP temps constantly, but in most cases didn't have to spend much thought on allocating them. Reallocating/managing them was an infrequent small nuisance <em>at worst</em>, for me. I'm already doing it with aliases in my next project though, and it feels more sensibly organized (without having added any additional work). I guess I had pretty good habits about documenting temp usage in the code as I worked, but the aliases make it almost impossible to forget.<br /><br /><br />I forgot to mention in my list of inefficient but easier to manage ways to do local variables: instead of using variables directly on the stack, you could just to push some existing temporaries to the stack to make room, and then use those temporaries. Gotta remember to pop them too, though. May or may not be more efficient than using the stack directly, given the situation, but not having to maintain the stack pointer in X usually felt like a big advantage because aside from the push/pop at the start and end, the code was otherwise freely written using temporaries like the rest of the code, and trying to optimize/reallocate later on is much lower impact. I.e. if you replace a stack access with a ZP temp, the extra usage of X you just freed up might require rewriting a lot more of the code around it to take advantage of. It just felt like an easier &quot;default&quot; way to do it, and stack addressing was a more special purpose tool.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Sat Jun 02, 2018 12:52 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Efficient way to reuse variables</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">DRW wrote:</div><div class="quotecontent">A compile/assembly time stack implemented with macro tricks would be perfect. But how does that work?<br />How do you determine the counter/index/offset of the current variable at compile/assembly time if you don't know when this function will be called?</div><br />My current approach is to use a macro to start the local declarations, and if this macro is given the name of a memory counter, it adds that memory counter to the base address so that variables start at that offset (if the counter doesn't exist yet, it's initialized with a value of 0). Another macro ends the declarations, and updates the counter, so that the next function to use the same counter will then use memory that comes after the chunk that this one used.<br /><br />This means that the call order isn't important, the memory will be allocated in the order in which the functions are assembled, but the end result is effectively the same, functions that run concurrently won't have overlapping local variables, add long as you use the same memory counter for each group of concurrent functions.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Can you please post an example?</div><br />My macros are a bit dependent on a whole system of macros I've built for myself, so I'd have to post a whole bunch of unrelated stuff in order to show a cohesive example, so I'd rather not. The basic idea is pretty simple though, just specify which group of concurrent functions each function belongs to (if any) when declaring their local variables, so that the memory offset for each group is used and updated correctly for each function.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>DRW</b> [ Sat Jun 02, 2018 1:09 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Efficient way to reuse variables</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tokumaru wrote:</div><div class="quotecontent">My current approach is to use a macro to start the local declarations, and if this macro is given the name of a memory counter, it adds that memory counter to the base address so that variables start at that offset (if the counter doesn't exist yet, it's initialized with a value of 0). Another macro ends the declarations, and updates the counter, so that the next function to use the same counter will then use memory that comes after the chunk that this one used.</div><br />O.k., I guess I see what you mean:<br /><br />It's like having overlapping segments in a cc65 cfg file, right? And you simply ensure that all the functions that might call each other use the same segment while unrelated functions use another segment that occupies the same memory location.<br /><br /><br />Would it actually be possible in a cfg file to declare two RAM segments that occupy the same memory location?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Rahsennor</b> [ Sat Jun 02, 2018 11:24 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Efficient way to reuse variables</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">thefox wrote:</div><div class="quotecontent">I'm interested out of curiosity, i.e., I'd like to see how you'd approach it (I've been meaning to make something similar for a long time), but I think it's hard to get people to adopt things like this in practice.</div><br />Well, the only hard requirements are that the call graph not contain recursion and the allocator be able to completely trace it. Wrap every function in <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">proc</tt>/<tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">endproc</tt>, all inter-procedural control flow must target a <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">proc</tt>, no recursion. Boom, lexically-scoped locals.<br /><br />Jump tables and indirection are a pain though. I haven't bothered dealing with them yet because my compiler doesn't generate them, but that's not going to fly in an assembler. I came up with some high-level 'macroinstructions' to sweep the fiddly bits under the rug, but they're not really appropriate for assembler either.<br /><br />And you're right that nobody's likely to use it. A HLL with the same features would be more popular, since there isn't one yet, but we've got too many assemblers already. We don't need another one.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>DRW</b> [ Sun Jun 03, 2018 5:49 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Efficient way to reuse variables</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Rahsennor wrote:</div><div class="quotecontent">A HLL with the same features would be more popular, since there isn't one yet, but we've got too many assemblers already. We don't need another one.</div><br />In fact, we don't need another high level language either. For me, I can say that I wouldn't switch to another programming language just for one singular feature.<br /><br />To me, the best solution would be a tool that can convert source code into the same source code, but with the features.<br /><br />Switching local variables into temporary global variables:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">void Function1(byte a, byte b)<br />{<br />&nbsp; &nbsp; byte c;<br /><br />&nbsp; &nbsp; c = a + b;<br /><br />&nbsp; &nbsp; ...<br />}<br /><br />void Function2(void)<br />{<br />&nbsp; &nbsp; byte x = 25;<br /><br />&nbsp; &nbsp; Function1(x, 87);<br />}</div><br />This becomes:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">void Function1(void)<br />{<br />&nbsp; &nbsp; Temp3 = Temp1 + Temp2;<br /><br />&nbsp; &nbsp; ...<br />}<br /><br />void Function2(void)<br />{<br />&nbsp; &nbsp; Temp4 = 25;<br /><br />&nbsp; &nbsp; Temp1 = Temp4<br />&nbsp; &nbsp; Temp2 = 87;<br />&nbsp; &nbsp; Function1();<br />}</div><br />The only thing I'm asking myself: How should this work in pure Assembly code?<br /><br />In C, it should be clear that if the programmer declares a local variable as static, that this one does <em>not</em> get turned into a temp variable.<br />But how do you distinguish in Assembly whether a <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">.res</tt> is supposed to represent a local variable or whether it's a global variable or a local static variable where the value needs to be kept between two function calls?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>2</strong> of <strong>4</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

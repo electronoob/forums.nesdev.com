@@ -1,0 +1,186 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - PPU rendering question</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">PPU rendering question</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=9651">http://forums.nesdev.com/viewtopic.php?f=2&amp;t=9651</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>proxy</b> [ Sun Dec 30, 2012 6:05 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>PPU rendering question</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />When trying to understand how exactly the PPU works while reading things like <!-- m --><a class="postlink" href="http://wiki.nesdev.com/w/index.php/PPU_rendering">http://wiki.nesdev.com/w/index.php/PPU_rendering</a><!-- m -->, I've come across something which I don't quite understand<br /><br />The rendering is described with the following:<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">2 16-bit shift registers - These contain the bitmap data for two tiles. Every 8 cycles, the bitmap data for the next tile is loaded into the upper 8 bits of this shift register. Meanwhile, the pixel to render is fetched from one of the lower 8 bits.</div><br /><br />And also:<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Every cycle, a bit is fetched from the 4 background shift registers in order to create a pixel on screen. Exactly which bit is fetched depends on the fine X scroll, set by $2005 (this is how fine X scrolling is possible). Afterwards, the shift registers are shifted once, to the data for the next pixel.</div><br /><br />OK, at first glance I get the idea. A bit is selected from the bottom half of the shift registers depending on the fine scroll offset. The whole shift register is shifted afterwards to &quot;move to the next pixel&quot;. But there's a catch which doesn't at face value make sense to me.<br /><br />The bits in the pattern buffer as far as I have always understood represent pixels from &quot;left to right&quot; that is, bit 7 = pixel 0, bit 6 = pixel 1, etc.<br /><br />So,  let's suppose the shift register contains the following bits: (I'll use ':' to separate high/low for clarity).<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">ABCDEFGH:IJKLMNOP</div><br /><br />When rendering, since we use the lower half (IJKLMNOP) to represent the current tile and the upper half (ABCDEFGH) for the next tile. The first pixel to be rendered if fine x scroll is 0 would be based on bit &quot;I&quot;. OK, fair enough, but when we &quot;shift right&quot; we result in this:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">.ABCDEFG:HIJKLMNO</div><br /><br />Well this is no good, instead of rendering the correct pixel, we are getting some data from the next tile AND we've lost the bit for the last pixel of this tile!<br /><br />So there's two solutions I can think of both of which would be equally effective as far as I can tell:<br /><br />a) The bit patterns are reversed when loaded, so even though memory holds &quot;ABCDEFGH&quot; and &quot;IJKLMNOP&quot; for the two tiles, what gets loaded is:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">HGFEDCBA:PONMLKJI</div><br /><br />This would allow the rendering pipeline to select pixel 0 from the right most bit, then shift right and everything is all well and good.<br /><br />b) the registers actually load into the low half and shift left. Similar effect, but simpler to write equivalent code. We'd end up with:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">IJKLMNOP:ABCDEFGH</div><br /><br />then when rendering, we select bit  'I' for the current tile, and shifting left gives us:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">JKLMNOPA:BCDEFGH.</div><br /><br />Which all works out well.<br /><br />Are either of these the case? Or am I missing something obvious?<br /><br />Thanks!<br />proxy
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Drag</b> [ Sun Dec 30, 2012 8:52 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: PPU rendering question</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Haha, sorry about how confusing that diagram is. <img src="./images/smilies/icon_razz.gif" alt=":P" title="Razz" /> Both your A and B options are correct; when I was drawing that diagram, I accidentally drew the shift registers backwards, but then I figured it works out when you horizontally flip the graphics data before it goes into the shift register (and in hardware, this is extremely trivial to do; you just connect the pins in the reverse order).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Sun Dec 30, 2012 9:29 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: PPU rendering question</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I went ahead and fixed the diagram. While I was at it, I broke each shift register into two, corresponding to the PISO and SIPO that would be used in a 7400 or 4000 series implementation.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>proxy</b> [ Sun Dec 30, 2012 10:18 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: PPU rendering question</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Cool, that's what i figured, just wanted to make sure I wasn't missing anything obvious <img src="./images/smilies/icon_smile.gif" alt=":-)" title="Smile" /><br /><br />Thanks
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

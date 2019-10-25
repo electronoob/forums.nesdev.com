@@ -1,0 +1,417 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Reimplementing 6502 syntax in ca65</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Reimplementing 6502 syntax in ca65</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=10701">http://forums.nesdev.com/viewtopic.php?f=2&amp;t=10701</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>2</strong> of <strong>4</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>thefox</b> [ Mon Nov 18, 2013 10:25 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Reimplementing 6502 syntax in ca65</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp; .if (arg) &lt; $100<br />;&nbsp; &nbsp; &nbsp; .out .sprintf(&quot;ZP %x&quot;, argvalue)<br />&nbsp; &nbsp; &nbsp; .byte $04 | (inst), argvalue<br /></div><br />These kind of checks won't work if <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">arg</tt> is a forward reference or if it is imported from another module. This is the reason why ca65 has separate <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">.import</tt> and <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">.importzp</tt> control commands (it always needs to know the address size of the symbols as it's generating the code). I guess in theory it could solve the <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">.if foo &lt; $100</tt> as a special case if the symbol has been imported as zero page, but I don't think it's smart enough to do that (yet?). And I don't think there's any way to check from code if a symbol has been defined as being on zeropage or not.<br /><br />If ca65 doesn't know the address size of a symbol (i.e. it's a forward reference), it uses absolute addressing for it, and if it later realizes the address would've fit in 8 bits, it spits out a warning:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">lda foo<br />foo = 123<br /><br />&gt;cl65 -t none forward-ref.s<br />forward-ref.s(1): Warning: Didn't use zeropage addressing for `foo'<br /></div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Movax12</b> [ Tue Nov 19, 2013 10:32 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Reimplementing 6502 syntax in ca65</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />To solve zeropage you need one of these: <br /><ul>Identifier must be constant at assemble. (.res doesn't get you this)<br />Explicit zeropage syntax specified in code and evaluated by the macro</ul><br />You could declare your zeropage identifiers as:<br /><br />foo = $00<br /><br />And so on and there would be no issue.<br /><br />You could also take advantage of .struct<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">.struct<br />&nbsp; &nbsp; foo&nbsp; &nbsp; .byte<br />&nbsp; &nbsp; bar&nbsp; &nbsp; .byte<br />.endstruct<br /></div><br /><br />This would work well for single module projects, but won't work for multiple modules.<br /><br />For syntax:<br /><br />ca65 supports (by default) a <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">z:</tt> prefix to force zeropage, or the lowbyte operator will work as well <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">&lt;</tt><br />Maybe copy that idea?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Tue Nov 19, 2013 10:43 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Reimplementing 6502 syntax in ca65</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />So is there a way to fix up the macros, or would one have to give up and implement other assembly languages directly in the C source code of ca65?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Movax12</b> [ Tue Nov 19, 2013 10:50 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Reimplementing 6502 syntax in ca65</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />What else needs to be fixed up? I think this zeropage issue is the only thing that is an issue and I think it can be worked around. I suppose you lose compatibility with regular ca65 source files.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Tue Nov 19, 2013 12:37 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Reimplementing 6502 syntax in ca65</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />GB-Z80 has as I remember a special syntax for its direct page ($FFxx). And SPC-700 ! before absolute addresses.<br /><br />In my code I always use &lt; where timing is important, since you can never trust the assembler to use zero-page anyway. So it's an only optimization issue in my eyes. Compared to the other assemblers I'm using, I'd take this to have ca65's goodness (like great macros that don't cower at a task like this) any day.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Tue Nov 19, 2013 1:29 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Reimplementing 6502 syntax in ca65</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I see what you mean: ca65's .if statement isn't smart enough to determine that a label explicitly imported as zero page is less than $100.<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">; Import tests<br />.importzp boo<br />lda boo</div><br />produces<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">ca65none.s(835): Error: Constant expression expected<br />ca65none.s(304): Note: Macro was defined here<br />ca65none.s(247): Note: Macro was defined here</div><br />So how should I change the macros to incorporate useful workarounds?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>thefox</b> [ Tue Nov 19, 2013 2:19 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Reimplementing 6502 syntax in ca65</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tepples wrote:</div><div class="quotecontent">So how should I change the macros to incorporate useful workarounds?</div><br />If you don't mind losing ca65 compatibility, you could make it work similar to NESASM, where &lt; in the beginning would use zero page addressing, and otherwise it would always use absolute addressing. When you use absolute addressing, you could of course also set up asserts (maybe user configurable?) so that the user gets a warning if absolute addressing is used when it's not needed. Naturally assert could also be useful if user specifies zero page addressing but the address ends up being &gt;= $100.<br /><br />Or you could coerce somebody to add a new pseudo function to ca65 that returns the address size of a symbol. <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" /> That might be reasonable if this is indeed the only problematic part of the implementation.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>qbradq</b> [ Tue Nov 19, 2013 2:32 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Reimplementing 6502 syntax in ca65</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />This may not be of interest to you, but from a HLL language implementer's perspective having to explicitly specify that a reference is in zero-page is a bummer. That said I already have to do that for my language that targets ca65 due to how imports and exports work.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Movax12</b> [ Tue Nov 19, 2013 3:10 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Reimplementing 6502 syntax in ca65</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">thefox wrote:</div><div class="quotecontent">..you could coerce somebody to add a new pseudo function to ca65 that returns the address size of a symbol.</div><br /><br />This is the best idea, I don't know how open the new maintainer is to ideas like this though.<br /><br />Another idea (workaround with nice syntax):<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent"><br />; define macros<br />.macro setZP ident<br />&nbsp; &nbsp; .scope ident<br />&nbsp; &nbsp; &nbsp; &nbsp; isZP = 1<br />&nbsp; &nbsp; .endscope<br />.endmacro<br /><br />.macro myImportZP ident<br />&nbsp; &nbsp; .importzp ident<br />&nbsp; &nbsp; setZP ident<br />.endmacro&nbsp; &nbsp; <br /><br />; ... somewhere else in source:<br /><br />.zeropage<br />&nbsp; &nbsp; foo: .res 1<br />&nbsp; &nbsp; bar: .res 2<br /><br />setZP foo<br />setZP bar<br /><br />; inside tepples' macro code:<br /><br />.ifdef arg::isZP<br />&nbsp; &nbsp; ; implement ZP addressing<br />.else<br />&nbsp; &nbsp; ; implement other<br />.end<br /></div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Tue Nov 19, 2013 3:50 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Reimplementing 6502 syntax in ca65</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Movax12 wrote:</div><div class="quotecontent"><div class="quotetitle">thefox wrote:</div><div class="quotecontent">..you could coerce somebody to add a new pseudo function to ca65 that returns the address size of a symbol.<br /></div>This is the best idea, I don't know how open the new maintainer is to ideas like this though.<br /></div>He's been accepting quite a number of pull requests on github: <!-- m --><a class="postlink" href="https://github.com/oliverschmidt/cc65/pulls?state=closed">https://github.com/oliverschmidt/cc65/p ... ate=closed</a><!-- m -->
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Tue Nov 19, 2013 5:13 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Reimplementing 6502 syntax in ca65</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />On the one hand, having an operator that allows implementing the instruction set entirely with macros seems like a worthwhile thing, just because it means that its facilities are &quot;complete&quot; in some way (assuming there aren't other problems as well). On the other hand, this is only needed to implement the 65xx instruction set, which the assembler already implements.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Tue Nov 19, 2013 6:48 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Reimplementing 6502 syntax in ca65</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">blargg wrote:</div><div class="quotecontent">On the other hand, this is only needed to implement the 65xx instruction set, which the assembler already implements.</div><br />It's also needed for SPC700, which the assembler does not already implement.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>thefox</b> [ Wed Nov 20, 2013 11:19 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Reimplementing 6502 syntax in ca65</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />If you fork ca65, implement the feature, then demonstrate the 6502 reimplementation can work with the fork, I think there's a good chance it will be accepted into the main branch. I don't think it's a good idea to bring it to the main branch before it has been demonstrated to be useful.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Sun Nov 24, 2013 9:32 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Reimplementing 6502 syntax in ca65</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />The missing feature is a function to get a label's address size. I think the place to start is to use .referenced(label) or something as a model to make .addrsize(label), which queries SymEntry::AddrSize defined in symentry.h. A quick <a href="https://github.com/oliverschmidt/cc65/search?q=referenced&amp;ref=cmdform" class="postlink">search of the source code</a> reveals that changes would be needed in expr.c (translate TOK_REFERENCED into calls to FuncReferenced), scanner.c (translate &quot;.REF&quot; and &quot;.REFERENCED&quot; into TOK_REFERENCED), and pseudo.c (handle unexpected occurrences of &quot;.REFERENCED&quot;). Who has more experience hacking ca65?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Movax12</b> [ Mon Nov 25, 2013 1:41 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Reimplementing 6502 syntax in ca65</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I decided to try and add this. I added <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">.addrsize&#40;ident&#41;</tt>, and it works..for an identifier, but it doesn't solve the problem, since there is often code with an offset added, such as:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">lda foo + 3<br /></div><br />To decide what addressing mode that example is would take a lot more macro code and searching for identifiers etc. You could assume a simple case like that, and get away with it most of the time, but using scopes and more complex expressions won't work. I'm not sure how ca65 decides by default what to do actually.<br /><br />To really do this right I think it should be implemented in the ca65 source. <br />BTW files changed:<br />expr.c<br />pseudo.c<br />scanner.c<br />token.h
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>2</strong> of <strong>4</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

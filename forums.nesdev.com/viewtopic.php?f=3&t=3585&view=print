@@ -1,0 +1,908 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - What is WRONG with my PPU???</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">What is WRONG with my PPU???</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=3&amp;t=3585">http://forums.nesdev.com/viewtopic.php?f=3&amp;t=3585</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>3</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>NerveGas</b> [ Sun Sep 16, 2007 10:49 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>What is WRONG with my PPU???</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I'm the guy working on NES.app, a Nintendo emulator for iPhone.  I've recently adopted the old InfoNES core, which I've spent considerable time fixing up and have forked into a new project called NESCore, which I hope will eventually become a viable multi-platform NES core.
+<br />
+<br />Anyway, I've gotten a lot working so far, but am struggling to figure out the PPU. I must say I'm confused, even after reading all the docs I could find on the subject. Rad Racer is still mangled, and mid-frame scrolling appears to be completely hosed. I've posted the code here:
+<br />
+<br /><!-- m --><a class="postlink" href="http://svn.natetrue.com/nesapp/">http://svn.natetrue.com/nesapp/</a><!-- m -->
+<br />
+<br />If anyone would like to have a look at it, I would be glad to share some of the cash that my users have donated toward working on the project. I'll gladly send $250 to anyone who can help me get the PPU working the way it's supposed to. I've included relevant portions of my code below, but feel free to look in NESCore/M6502_rw.h for read/write functions and NESCore/NESCore.c for rendering (NESCore_DrawScanline).
+<br />
+<br />Any help you guys can offer would be appreciated. I've been taking a crash course in emulation to try and make this useful for my users, would love to be able to fix this.
+<br />
+<br />NG
+<br />
+<br />Read Functions:
+<br />    case 0x2000:  /* PPU */
+<br />        switch( wAddr )
+<br />        {
+<br />            case (0x2007): /* VRAM Read */
+<br />                if (S.vAddr &lt;0x3F00) {
+<br />                    wScratch = S.vAddr;
+<br />                    wScratch &amp;= 0x3FFF;
+<br />                    bScratch = S.PPU_R7;
+<br />                    S.PPU_R7 = W.PPUBANK[ wScratch &gt;&gt; 10 ][ wScratch &amp; 0x3FF ];
+<br />                } else {
+<br />                    bScratch = W.PPUBANK[ wScratch &gt;&gt; 10 ] [ wScratch &amp; 0x3FF ];
+<br />                }
+<br />
+<br />                S.vAddr += (S.PPU_R0 &amp; R0_INC_ADDR) ? 0x20 : 0x01;
+<br />                S.vAddr &amp;= 0x3FFF;
+<br />
+<br />
+<br />                /* Mid-HBlank Update. If an address is written into $2006
+<br />                   followed by reads of $2007 during refresh, then the
+<br />                   address is loaded into the PPU and used as the start address
+<br />                   of the next scanline. This is used to scroll the background
+<br />                   vertically on a portion of the screen. This code converts
+<br />                   the scanline address into X/Y offsets. */
+<br />
+<br />               if (!(S.PPU_R2 &amp; 0x80) &amp;&amp; (S.PPU_R1 &amp; 0x08)!=0) {
+<br />                    S.PPU_SCROLL_X = (S.PPU_SCROLL_X &amp; 0xFF)
+<br />                                   | ((S.vAddr &amp; 0x400) &gt;&gt; 2);
+<br />                    S.PPU_SCROLL_Y = ( 480 + 480
+<br />                        + (((S.vAddr &amp; 0x800) &gt;&gt; 11) * 240)
+<br />                        + ((S.vAddr &amp; 0x3e0) &gt;&gt; 2)
+<br />                        - (S.PPU_Scanline + 1) ) % 480;
+<br />
+<br />                    if (S.PPU_SCROLL_Y &gt; 240)
+<br />                        S.PPU_SCROLL_Y -= 240;
+<br />                    NESCore_Develop_Scroll_Values();
+<br />                }
+<br />
+<br />                return bScratch;
+<br />                break;
+<br />
+<br />            case (0x2004): /* SPR-RAM Read */
+<br />                return S.SPRRAM[ S.PPU_R3 ];
+<br />                break;
+<br />
+<br />            case (0x2002):
+<br />                S.PPU_Latch_Flag = 0;
+<br />
+<br />                if ((S.PPU_R0 &amp; 0x80) &amp;&amp; (S.PPU_R2 &amp; 0x80)) {
+<br />                    S.PPU_R0 &amp;= 0xFE;
+<br />                    S.PPU_SCROLL_X = S.PPU_SCROLL_X &amp; 255;
+<br />                }
+<br />
+<br />                return S.PPU_R2;
+<br />                break;
+<br />
+<br />            default: /* $2000, $2001, $2003, $2005, $2006 */
+<br />                return S.PPU_R7;
+<br />                break;
+<br />        }
+<br />        break;
+<br />
+<br />
+<br />Write Functions:
+<br />    case 0x2000:  /* PPU */
+<br />      switch ( wAddr )
+<br />      {
+<br />        case 0x2000: /* PPU Control Register 1 */
+<br />          S.PPU_R0 = byData;
+<br />          S.PPU_SP_Height     = (S.PPU_R0 &amp; R0_SP_SIZE) ? 0x10 : 0x08;
+<br />          W.PPU_BG = (S.PPU_R0 &amp; R0_BG_ADDR) ? S.ChrBuf + 0x4000 : S.ChrBuf;
+<br />          W.PPU_SP = (S.PPU_R0 &amp; R0_SP_ADDR) ? S.ChrBuf + 0x4000 : S.ChrBuf;
+<br />          break;
+<br />
+<br />        case 0x2001: /* PPU Control Register 2 */
+<br />          S.PPU_R1 = byData;
+<br />          break;
+<br />
+<br />        case 0x2002: /* PPU Status - NOT WRITABLE */
+<br />          break;
+<br />
+<br />        case 0x2003: /* Sprite RAM ADDR */
+<br />          S.PPU_R3 = byData;
+<br />          break;
+<br />
+<br />        case 0x2004: /* Sprite RAM DATA */
+<br />          S.SPRRAM[ S.PPU_R3++ ] = byData;
+<br />          break;
+<br />
+<br />        case 0x2005: /* Scroll Register */
+<br />          if (S.PPU_Latch_Flag ^= 1) {
+<br />            S.PPU_R5A = byData;
+<br />            S.PPU_SCROLL_X = S.PPU_R5A;
+<br />          } else {
+<br />            S.PPU_R5B = byData;
+<br />            S.PPU_SCROLL_Y = S.PPU_R5B;
+<br />            if (S.PPU_SCROLL_Y &gt; 240)
+<br />                S.PPU_SCROLL_Y -= 240;
+<br />          }
+<br />          break;
+<br />
+<br />        case 0x2006: /* VRAM Address Register */
+<br />          if (S.PPU_Latch_Flag ^= 1) {
+<br />             S.PPU_R6A = byData;
+<br />
+<br />             if ( S.PPU_Scanline &lt; 240 &amp;&amp; (S.PPU_R1 &amp; R1_SHOW_SCR) )
+<br />
+<br />             {
+<br />                 BITCOPY(S.PPU_R6RA, 0x01, S.PPU_R5B, 0x40)
+<br />                 BITCOPY(S.PPU_R6RA, 0x02, S.PPU_R5B, 0x80)
+<br />                 BITCOPY(S.PPU_R6RA, 0x08, S.PPU_R0,  0x01)
+<br />                 BITCOPY(S.PPU_R6RA, 0x10, S.PPU_R5B, 0x01)
+<br />                 BITCOPY(S.PPU_R6RA, 0x20, S.PPU_R5B, 0x02)
+<br />                 BITCOPY(S.PPU_R6RA, 0x40, S.PPU_R5B, 0x04)
+<br />                 BITCOPY(S.PPU_R6RB, 0x20, S.PPU_R5B, 0x08)
+<br />                 BITCOPY(S.PPU_R6RB, 0x40, S.PPU_R5B, 0x10)
+<br />                 BITCOPY(S.PPU_R6RB, 0x80, S.PPU_R5B, 0x20)
+<br />                 S.PPU_SCROLL_Y = S.PPU_R5B;
+<br />                 if (S.PPU_SCROLL_Y &gt; 240)
+<br />                     S.PPU_SCROLL_Y -= 240;
+<br />             }
+<br />
+<br />             S.vAddr_Latch = (S.vAddr_Latch &amp; 0xFF)
+<br />                           | ((word) (byData &amp; 0xFF) &lt;&lt; <img src="./images/smilies/icon_cool.gif" alt="8)" title="Cool" />;
+<br />          }
+<br />          else {
+<br />             S.PPU_R6B = byData;
+<br />
+<br />             if ( S.PPU_Scanline &lt; 240 &amp;&amp; (S.PPU_R1 &amp; R1_SHOW_SCR) )
+<br />             {
+<br />                 BITCOPY(S.PPU_R6RA, 0x01, S.PPU_R5B, 0x40)
+<br />                 BITCOPY(S.PPU_R6RA, 0x02, S.PPU_R5B, 0x80)
+<br />                 BITCOPY(S.PPU_R6RA, 0x08, S.PPU_R0,  0x01)
+<br />                 BITCOPY(S.PPU_R6RA, 0x10, S.PPU_R5B, 0x01)
+<br />                 BITCOPY(S.PPU_R6RA, 0x20, S.PPU_R5B, 0x02)
+<br />                 BITCOPY(S.PPU_R6RA, 0x40, S.PPU_R5B, 0x04)
+<br />                 BITCOPY(S.PPU_R6RB, 0x20, S.PPU_R5B, 0x08)
+<br />                 BITCOPY(S.PPU_R6RB, 0x40, S.PPU_R5B, 0x10)
+<br />                 BITCOPY(S.PPU_R6RB, 0x80, S.PPU_R5B, 0x20)
+<br />                 S.PPU_SCROLL_X = S.PPU_R5A;
+<br />             }
+<br />
+<br />             S.vAddr_Latch = (S.vAddr_Latch &amp; 0xFF00)
+<br />                           | ((word) byData &amp; 0xFF);
+<br />          }
+<br />          S.vAddr = S.vAddr_Latch &amp; 0x3FFF;
+<br />          break;
+<br />
+<br />
+<br />        case 0x2007: /* VRAM Data */
+<br />        {
+<br />            wScratch = S.vAddr;
+<br />            wScratch &amp;= 0x3FFF;
+<br />
+<br />            S.vAddr += (S.PPU_R0 &amp; R0_INC_ADDR) ? 0x20 : 0x01;
+<br />            if (S.vAddr &gt; 0x3FFF)
+<br />                S.vAddr &amp;= 0x3FFF;
+<br />
+<br />            if (wScratch &lt; 0x2000 &amp;&amp; S.VRAMWriteEnable)
+<br />            {
+<br />              /* Pattern Data */
+<br />              S.ChrBufUpdate |= ( 1 &lt;&lt; ( wScratch &gt;&gt; 10 ) );
+<br />              W.PPUBANK[ wScratch &gt;&gt; 10 ][ wScratch &amp; 0x3FF ] = byData;
+<br />            }
+<br />            else if (wScratch &lt; 0x3F00 )  /* 0x2000 - 0x3EFF */
+<br />            {
+<br />              /* Name Table and Mirror */
+<br />              W.PPUBANK[ (wScratch) &gt;&gt; 10 ][ wScratch &amp; 0x3ff ] = byData;
+<br />              W.PPUBANK[ (wScratch ^ 0x1000) &gt;&gt; 10][ wScratch &amp; 0x3FF ] = byData;
+<br />            }
+<br />            else if (!(wScratch &amp; 0xF))  /* 0x3F00 or 0x3F10 */
+<br />            {
+<br />                /* Palette Mirror */
+<br />                S.PPURAM[ 0x3f10 ] = S.PPURAM[ 0x3f14 ] = S.PPURAM[ 0x3f18 ]
+<br />              = S.PPURAM[ 0x3f1c ] = S.PPURAM[ 0x3f00 ] = S.PPURAM[ 0x3f04 ]
+<br />              = S.PPURAM[ 0x3f08 ] = S.PPURAM[ 0x3f0c ] = byData;
+<br />
+<br />                S.PalTable[ 0x00 ] = S.PalTable[ 0x04 ] = S.PalTable[ 0x08 ]
+<br />              = S.PalTable[ 0x0c ] = S.PalTable[ 0x10 ] = S.PalTable[ 0x14 ]
+<br />              = S.PalTable[ 0x18 ] = S.PalTable[ 0x1c ]
+<br />              = NesPalette[ byData ] | 0x8000;
+<br />            }
+<br />            else if (wScratch &amp; 0x03)
+<br />            {
+<br />              /* Palette */
+<br />              S.PPURAM[ wScratch ] = byData;
+<br />              S.PalTable[ wScratch &amp; 0x1f ] = NesPalette[ byData ];
+<br />            }
+<br />        }
+<br />        break;
+<br />    }
+<br />    break;
+<br />
+<br />Relevant portions of DrawScanline:
+<br />
+<br />  Exec6502(&amp;S.m6502_state, STEP_PER_HBLANK);
+<br />
+<br />  /* Reload horizontal scroll bits at beginning of each scanline */
+<br />
+<br />  if ( S.PPU_Scanline &lt; 240 )
+<br />  {
+<br />      BITCOPY_BACK(S.PPU_R6RA, 0x04, S.PPU_R0,  0x01)
+<br />      BITCOPY_BACK(S.PPU_R6RB, 0x01, S.PPU_R5A, 0x08)
+<br />      BITCOPY_BACK(S.PPU_R6RB, 0x02, S.PPU_R5A, 0x10)
+<br />      BITCOPY_BACK(S.PPU_R6RB, 0x04, S.PPU_R5A, 0x20)
+<br />      BITCOPY_BACK(S.PPU_R6RB, 0x08, S.PPU_R5A, 0x40)
+<br />      BITCOPY_BACK(S.PPU_R6RB, 0x10, S.PPU_R5A, 0x80)
+<br />  }
+<br />
+<br />  /* Reload vertical scroll bits at end of VBLANK */
+<br />
+<br />  if ( S.PPU_Scanline == 0 )
+<br />  {
+<br />      BITCOPY_BACK(S.PPU_R6RA, 0x01, S.PPU_R5B, 0x40)
+<br />      BITCOPY_BACK(S.PPU_R6RA, 0x02, S.PPU_R5B, 0x80)
+<br />      BITCOPY_BACK(S.PPU_R6RA, 0x08, S.PPU_R0,  0x01)
+<br />      BITCOPY_BACK(S.PPU_R6RA, 0x10, S.PPU_R5B, 0x01)
+<br />      BITCOPY_BACK(S.PPU_R6RA, 0x20, S.PPU_R5B, 0x02)
+<br />      BITCOPY_BACK(S.PPU_R6RA, 0x40, S.PPU_R5B, 0x04)
+<br />      BITCOPY_BACK(S.PPU_R6RB, 0x20, S.PPU_R5B, 0x08)
+<br />      BITCOPY_BACK(S.PPU_R6RB, 0x40, S.PPU_R5B, 0x10)
+<br />      BITCOPY_BACK(S.PPU_R6RB, 0x80, S.PPU_R5B, 0x20)
+<br />  }
+<br />
+<br />  NESCore_Develop_Scroll_Values();
+<br />
+<br />  /* Render Background */
+<br />  /* ================= */
+<br />
+<br />  /* MMC5 VROM Switch */
+<br />  MapperRenderScreen(1);
+<br />
+<br />  pPoint = &amp;S.WorkFrame[ S.PPU_Scanline * NES_DISP_WIDTH ];
+<br />
+<br />  if (!( S.PPU_R1 &amp; R1_SHOW_SCR ))
+<br />  {
+<br />    /* Clear scanline if display is off */
+<br />    memset( pPoint, 0, NES_DISP_WIDTH &lt;&lt; 1 ); /* Assumes 16-Bit buffer! */
+<br />  }
+<br />  else
+<br />  {
+<br />    nY =  S.PPU_SCROLL_Y_BYTE + (S.PPU_Scanline &gt;&gt; 3);
+<br />    nYBit = S.PPU_SCROLL_Y_BIT + (S.PPU_Scanline &amp; 7);
+<br />
+<br />    if ( nYBit &gt; 7 )
+<br />    {
+<br />      nYBit &amp;= 7;
+<br />      nY++;
+<br />    }
+<br />    nYBit &lt;&lt;= 3;
+<br />
+<br />    nNameTable = NAME_TABLE0 + (S.PPU_R0 &amp; 0x03);
+<br />
+<br />    /* Determine which Vertical Name Table we're in */
+<br />    if (nY &gt; 29)
+<br />    {
+<br />        nY -= 30;
+<br />        nNameTable ^= NAME_TABLE_V_MASK;
+<br />    }
+<br />
+<br />    nX = S.PPU_SCROLL_X_BYTE;
+<br />    nY4 = ( ( nY &amp; 0x02 ) &lt;&lt; 1 );
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Josh</b> [ Sun Sep 16, 2007 4:34 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: What is WRONG with my PPU???</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />You shouldn't be keeping "Scroll X" and "Scroll Y" registers. All rendering should be done using the VRAM address, and the VRAM address should be updated from the latch as described in Loopy's document at the appropriate times. The only pure "scroll" value in the actual NES is the 3-bit fine X scroll offset.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Josh</b> [ Sun Sep 16, 2007 4:35 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: What is WRONG with my PPU???</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Do you have a version of this software that compiles on Win32 (2k/XP) with free software? If so, I can probably fix it for you. That's the only platform I have access to, however.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>NerveGas</b> [ Sun Sep 16, 2007 5:02 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Hey Josh
+<br />
+<br />You could change up the InfoNES win32 code pretty easily to work with it - that's all I can think of.... if you wanted to have a whack at fixing it  blindly, I'll gladly test it and send appropriate notes. I'll look into loopy's notes again, but I didn't get a whole lot out of that. I'm pretty new to NES emulation, I'm more interested in just making the iphone parts of it work well (e.g. the multitouch, directional sensor, etc) But please, feel free to send some patches and I'll give 'em a try. The complete code for the core can be downloaded from here:
+<br />
+<br />svn co <!-- m --><a class="postlink" href="http://svn.natetrue.com/nesapp/src/NESCore">http://svn.natetrue.com/nesapp/src/NESCore</a><!-- m -->
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>NerveGas</b> [ Sun Sep 16, 2007 5:09 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I've seen several different formulas for computing X/Y from the vAddr - have you got a definitive one?
+<br />
+<br />This is the one i'm using now (after putting loopy's stuff in)
+<br />   SX = ((S.vAddr &amp; 0x001F) &lt;&lt; 3 )
+<br />      | ((S.vAddr &amp; 0x0400) &gt;&gt; 2 )
+<br />      | (S.PPU_R5A &amp; 0x7);
+<br />   SY = ((S.vAddr &amp; 0x03E0) &gt;&gt; 2 )
+<br />      | ((S.vAddr &amp; 0x0800) &gt;&gt; 3 )
+<br />      | ((S.vAddr &amp; 0x7000) &gt;&gt; 12 );
+<br />
+<br />Not quite there yet, however
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Sun Sep 16, 2007 5:24 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />(addr &gt;&gt; 12) &amp; 7    &lt;---  fine Y scroll
+<br />(addr &gt;&gt; 5) &amp; 0x1F   &lt;---  coarse Y
+<br />addr &amp; 0x1F   &lt;--- coarse X
+<br />(addr &gt;&gt; 10) &amp; 1  &lt;---  NT X
+<br />(addr &gt;&gt; 11) &amp; 1  &lt;---  NT Y
+<br />
+<br />or imagine the PPU address as a 15-bit value:
+<br />
+<br />[.yyy VHYY YYYX XXXX]
+<br />y = fine Y
+<br />V = NT Y
+<br />H = NT X
+<br />Y = coarse Y
+<br />X = coarse X
+<br />
+<br />
+<br />fine X scroll is stored seperately and is never changed or updated except on the first $2005 write.
+<br />
+<br />EDIT - really though, you shouldn't need this except for converting $2005 writes.
+<br />
+<br />If you keep the PPU address updated properly (increment by 1 every 8 cycles, etc), then all you have to do to fetch the proper tile is:
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">tile = NameTableRead&#40; 0x2000 | &#40; ppu_addr &amp; 0x0FFF&#41; &#41;;<br />chraddr = pattern_page | &#40;tile &lt;&lt; 4&#41; | &#40;&#40;ppu_addr &gt;&gt; 12&#41; &amp; 7&#41;;<br /><br />lo_chrbitplane = CHRRead&#40; chraddr &#41;;<br />hi_chrbitplane = CHRRead&#40; chraddr | 8 &#41;;<br /></div>
+<br />
+<br />where 'pattern_page' is either 0x0000 or 0x1000 depending on which pattern table you're reading from.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>NerveGas</b> [ Sun Sep 16, 2007 5:35 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I think that's part of his problem - he seems to cycle all scanline cycles before drawing the scanline. I don't see an increment of vAddr here either, although I could add it. He's doing a lot of this in the code it looks like. Here's what he had with loopy's stuff:
+<br />READ:
+<br />
+<br />            case (0x2007): /* VRAM Read */
+<br />                if (S.vAddr &lt;0x3F00) {
+<br />                    wScratch = S.vAddr;
+<br />                    wScratch &amp;= 0x3FFF;
+<br />                    bScratch = S.PPU_R7;
+<br />                    S.PPU_R7 = W.PPUBANK[ wScratch &gt;&gt; 10 ][ wScratch &amp; 0x3FF ];
+<br />                } else {
+<br />                    bScratch = W.PPUBANK[ wScratch &gt;&gt; 10 ] [ wScratch &amp; 0x3FF ];
+<br />                }
+<br />
+<br />                S.vAddr += (S.PPU_R0 &amp; R0_INC_ADDR) ? 0x20 : 0x01;
+<br />                S.vAddr &amp;= 0x3FFF;
+<br />
+<br />                return bScratch;
+<br />                break;
+<br />
+<br />            case (0x2004): /* SPR-RAM Read */
+<br />                return S.SPRRAM[ S.PPU_R3 ];
+<br />                break;
+<br />
+<br />            case (0x2002):
+<br />                S.PPU_Latch_Flag = 0;
+<br />
+<br />                if (S.PPU_Scanline &gt;= SCAN_VBLANK_START
+<br />                  &amp;&amp; (!(S.PPU_R0 &amp; R0_NMI_VB)))
+<br />                {
+<br />                    S.PPU_R0 &amp;= ~R0_NAME_ADDR;
+<br />                    S.PPU_NameTable = NAME_TABLE0;
+<br />                }
+<br />
+<br />                return S.PPU_R2;
+<br />                break;
+<br />
+<br />            default: /* $2000, $2001, $2003, $2005, $2006 */
+<br />                return S.PPU_R7;
+<br />                break;
+<br />        }
+<br />
+<br />
+<br />WRITE:
+<br />
+<br />        case 0x2000: /* PPU Control Register 1 */
+<br />          S.PPU_R0 = byData;
+<br />          S.PPU_SP_Height     = (S.PPU_R0 &amp; R0_SP_SIZE) ? 0x10 : 0x08;
+<br />          S.PPU_NameTable = NAME_TABLE0 + (S.PPU_R0 &amp; R0_NAME_ADDR);
+<br />          W.PPU_BG = (S.PPU_R0 &amp; R0_BG_ADDR) ? S.ChrBuf + 0x4000 : S.ChrBuf;
+<br />          W.PPU_SP = (S.PPU_R0 &amp; R0_SP_ADDR) ? S.ChrBuf + 0x4000 : S.ChrBuf;
+<br />
+<br />          S.vAddr_Latch = (S.vAddr_Latch &amp; 0xF3FF )
+<br />                        | (( ((word) byData) &amp; 0x0003 ) &lt;&lt; 10);
+<br />
+<br />          break;
+<br />
+<br />        case 0x2001: /* PPU Control Register 2 */
+<br />          S.PPU_R1 = byData;
+<br />          break;
+<br />
+<br />        case 0x2002: /* PPU Status - NOT WRITABLE */
+<br />          break;
+<br />
+<br />        case 0x2003: /* Sprite RAM ADDR */
+<br />          S.PPU_R3 = byData;
+<br />          break;
+<br />
+<br />        case 0x2004: /* Sprite RAM DATA */
+<br />          S.SPRRAM[ S.PPU_R3++ ] = byData;
+<br />          break;
+<br />
+<br />        case 0x2005: /* Scroll Register */
+<br />          if (S.PPU_Latch_Flag ^= 1) {
+<br />            S.PPU_R5A = byData;
+<br />
+<br />            S.vAddr_Latch = ( S.vAddr_Latch &amp; 0xFFE0 )
+<br />                          | ((( (word) byData ) &amp; 0xF8) &gt;&gt; 3);
+<br />
+<br />          } else {
+<br />            S.PPU_R5B = byData;
+<br />            if (S.PPU_R5B &gt; 239)
+<br />                S.PPU_NameTable ^= NAME_TABLE_V_MASK;
+<br />
+<br />            S.vAddr_Latch = (S.vAddr_Latch &amp; 0xFC1F)
+<br />                        | ( ( ((word) byData ) &amp; 0xF8 ) &lt;&lt; 2);
+<br />            S.vAddr_Latch = (S.vAddr_Latch &amp; 0x8FFF)
+<br />                        | ( ( ((word) byData ) &amp; 0x07 ) &lt;&lt; 12);
+<br />          }
+<br />          break;
+<br />
+<br />        case 0x2006: /* VRAM Address Register */
+<br />          if (S.PPU_Latch_Flag ^= 1) {
+<br />             S.PPU_R6A = byData;
+<br />
+<br />          S.vAddr_Latch = (S.vAddr_Latch &amp; 0x00FF )
+<br />                           | (( ((word) byData) &amp; 0x003F) &lt;&lt; <img src="./images/smilies/icon_cool.gif" alt="8)" title="Cool" />;
+<br />          }
+<br />          else {
+<br />             S.PPU_R6B = byData;
+<br />        }
+<br />
+<br />          S.vAddr_Latch = (S.vAddr_Latch  &amp; 0xFF00)
+<br />                        | ( ((word) byData) &amp; 0x00FF);
+<br />          S.vAddr = S.vAddr_Latch;
+<br />
+<br />          if (!( S.PPU_R2 &amp; R2_IN_VBLANK))
+<br />              NESCore_Develop_Character_Data();
+<br />          break;
+<br />
+<br />
+<br />So based on that, I've no idea what the X/Y values are... it looks like he also computes nY and nX from inside the drawing routine, based on X/Y... I'm wondering if that's right.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Josh</b> [ Sun Sep 16, 2007 6:25 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: What is WRONG with my PPU???</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />When I have some free time this week, I'll take a closer look at the code. It doesn't look all that complicated, so I can probably get it working on Windows with SDL (not the best platform, but very simple to get something up and running without writing too much extra wrapper code).
+<br />
+<br />By the way, you really should replace Marat's 6502 core, as it's not compatible with the GPL. Besides, there are much better cores out there. I think blargg has one written in C that works well (and is probably faster).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>NerveGas</b> [ Sun Sep 16, 2007 6:28 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Hmm Marat said taht the LGPL would be compatible (which is what I've got the core licensed as) but I'm all up for replacing it with something faster - send me a link if you've got one.
+<br />
+<br />The latest is committed to SVN - any help you can offer would be appreciated, and I'm serious about throwing a few hundred bucks at someone who can fix this mess (I've got other things to worry about).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>NerveGas</b> [ Mon Sep 17, 2007 2:56 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Disch wrote:</div><div class="quotecontent">(addr &gt;&gt; 12) &amp; 7    &lt;---  fine Y scroll<br />(addr &gt;&gt; 5) &amp; 0x1F   &lt;---  coarse Y<br />addr &amp; 0x1F   &lt;--- coarse X<br />(addr &gt;&gt; 10) &amp; 1  &lt;---  NT X<br />(addr &gt;&gt; 11) &amp; 1  &lt;---  NT Y<br /><br />or imagine the PPU address as a 15-bit value:<br /><br />[.yyy VHYY YYYX XXXX]<br />y = fine Y<br />V = NT Y<br />H = NT X<br />Y = coarse Y<br />X = coarse X<br /><br /><br />fine X scroll is stored seperately and is never changed or updated except on the first $2005 write.<br /><br />EDIT - really though, you shouldn't need this except for converting $2005 writes.<br /><br />If you keep the PPU address updated properly (increment by 1 every 8 cycles, etc), then all you have to do to fetch the proper tile is:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">tile = NameTableRead&#40; 0x2000 | &#40; ppu_addr &amp; 0x0FFF&#41; &#41;;<br />chraddr = pattern_page | &#40;tile &lt;&lt; 4&#41; | &#40;&#40;ppu_addr &gt;&gt; 12&#41; &amp; 7&#41;;<br /><br />lo_chrbitplane = CHRRead&#40; chraddr &#41;;<br />hi_chrbitplane = CHRRead&#40; chraddr | 8 &#41;;<br /></div><br /><br />where 'pattern_page' is either 0x0000 or 0x1000 depending on which pattern table you're reading from.</div>
+<br />
+<br />OK Put this in engrish for someone who doesn't speak much NES-geek. I understand from this how to calculate the scroll values, but it sounds like i'm not supposed to calculate them every scanline... so where do I do it? Just in $2005 writes? What's the difference between fine/coarse X/Y? I have an X/Y _BYTE and _BIT in my code which get calculated - is this what you're referring to? Right now it's calculating the bit off the byte.
+<br />
+<br />And where does this fine x come from?
+<br />
+<br />I'm doing my best to make sense of the PPU - I'm just not getting it apparently. I had no problem fixing all the broken stuff in the pAPU.
+<br />
+<br />Finally, where should i be loading the name table? At the beginning of each scanline, and then flipping it? I tried grabbing it every clock cycle but that seemed to cause more problems. I 'm not clocking within the PPU rendering, so 84/85 clocks per scanline + 29 for hblank. That's around 1 clock every 3 pixels.
+<br />
+<br />Making progress at least. I think my biggest issue is figuring out how to do the scroll values.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Mon Sep 17, 2007 3:23 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />This link may help:
+<br />
+<br /><!-- m --><a class="postlink" href="http://nesdev.com/bbs/viewtopic.php?p=5578">http://nesdev.com/bbs/viewtopic.php?p=5578</a><!-- m -->
+<br />
+<br />There are no scroll registers in the NES.  Instead, the PPU automatically adjust the PPU address as tiles are rendered (increments it by 1 after every tile fetch... wraps around nametable boundaries -- that kind of thing).  From the sound of it, your problem isn't that you doing something at the wrong time, it's that you're doing the wrong thing overall (though the way you're doing it may be unavoidable due to you targetting lower performance systems -- in which case I doubt I'll be of any help)
+<br />
+<br />Each scanline is 341 'dots' (or PPU cycles).  On NTSC, there are 3 dots to every CPU cycle.  Dots 0-255 each render 1 pixel.  Every set of 8 dots (0-7, 8-15, etc) perform a tile fetch and during BG tile fetches, the PPU address is adjusted so that it points to the next tile.
+<br />
+<br />I could probably do a better job explaining if I really examined the code you pasted -- but admittedly I didn't  =x
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Dwedit</b> [ Mon Sep 17, 2007 3:31 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Rad Racer is a little tricky because it writes new values to the 'scroll registers' while the screen is rendering, before pixel clock 256.  So the 'Y scroll value' will increase at pixel clock 256 and that applies to the next scanline.
+<br />
+<br />(Is it pixel clock 256 when the 'Y-value' increments?  Someone clarify this for me)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Dwedit</b> [ Mon Sep 17, 2007 4:20 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />All scrolling related values should be updated at the same time as the PPU address and ppu temp address.
+<br />
+<br />If I make any mistakes in the explanation, please correct me.  I'm pretty sure there are some mistakes in this.  This is basically the result of looking at Loopy's scrolling document.
+<br />
+<br />So we got these variables (my names)
+<br />Xscroll - this is what you see on the screen
+<br />Next_Xscroll - writes to 2000, 2005, 2006 affect this.  The top 5 bits get copied to Xscroll's top 5 bits at the end of the scanline*.
+<br />Yscroll - This counts up after the end of a scanline*, and is set by the second write to 2006, and set at the first scanline.
+<br />Reset_Yscroll - At scanline 0, write this to yscroll*.  Writes to 2000, Second write to 2005, Second write to 2006 affects this.
+<br />
+<br />Writes to 2000 affect PPU temp address, Next_Xscroll and Reset_Yscroll
+<br />First write to 2005 affects the PPU temp address, Next_Xscroll, and the three lowest bits of Xscroll (Fine X Scroll)
+<br />Second write to 2005 affects the PPU temp address, and Reset_Yscroll
+<br />First write to 2006 affects the PPU temp address and Reset_Yscroll
+<br />Second write to 2006 affects the PPU temp address, PPU Address, Next_Xscroll, Xscroll, Yscroll, and Reset_Yscroll.
+<br />
+<br />At pixel clock 256 (?), if the PPU is rendering (scanline is in visible range, and sprites or BG is enabled), Yscroll increments by 1.  Top 5 bits of Next_Xscroll get copied to Xscroll.
+<br />At the start of the first scanline, if screen rendering is enabled, set PPU address to PPU temp address, write 5 the bits from next_xscroll, and set yscroll to reset_yscroll.
+<br />
+<br />So yeah, this is basically sticking a different label on the exact same thing.
+<br />
+<br />*Changes to the visible scrolling values only happen if the screen is rendering, or it's the second write to 2006.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>NerveGas</b> [ Mon Sep 17, 2007 4:35 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Lets do this the right way - forget I've got scroll variables... let me trash everything pertaining to scroll readers/writers... what's the best way to design this overall? I'm updating vAddr like this:
+<br />
+<br />$2006(A)
+<br />             S.vAddr_Latch = (S.vAddr_Latch &amp; 0xFF)
+<br />                           | ((word) (byData &amp; 0xFF) &lt;&lt; <img src="./images/smilies/icon_cool.gif" alt="8)" title="Cool" />;
+<br />
+<br />$2006(B)
+<br />             S.vAddr_Latch = (S.vAddr_Latch &amp; 0xFF00)
+<br />                           | ((word) byData &amp; 0xFF);
+<br />             S.vAddr = S.vAddr_Latch &amp; 0x3FFF;
+<br />
+<br />So first off, have I got the correct vAddr setup? Also, it is incrementing it by 1 or 32 on a $2007 read or write.
+<br />
+<br />Is this all correct? Am I missing any vAddr updates? 
+<br />
+<br />Once this is correct, moving onto the scrolling, lets say I'm writing $2005 writes directly to PPU_R5A and PPU_R5B registers, as well as 2006 writes (for posterity). When and how should I be calculating X/Y offsets based off this? The current DrawScanline routine uses a X_BYTE, X_BIT, Y_BYTE, and Y_BIT. I am assuming that's the course/fine settings - does that sound reasonable? It also calculated nY and nX based off of these values. I presume these are the tile numbers, as nY &gt; 30 triggers a name table flip and -= 30. I can change any of this, just let me know what.
+<br />
+<br />If all the above is correct, what values should I be computing, when, and how?
+<br />
+<br />As for clocking, I am clocking 84/85 cycles + an additional 29 at HBLANK. This is being done at the time of rendering about every 3 pixels or so, so it should be timed correctly. Let me know if this is wrong... also which frames should be 84 and 85? even and odd? and is that based off of a zero-indexed scanline #?
+<br />
+<br />Thanks so much for the help - I really want to do this right. Off to read more docs. I have a feeling it's just a matter of "doing the right thing" but I need to understand what the right thing is. Sorry to sound like such a dumb-ass. I'm normally a very proficient coder, but I'm failing to understand wtf is going on here.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Dwedit</b> [ Mon Sep 17, 2007 4:47 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />S.vAddr gets updated at pixel clock 256 (?) of a scanline if rendering is enabled, copies lowest 5 bits and bit 11.
+<br />S.vAddr = S.vAddr &amp; 0x41F | (S.vAddr_Latch &amp; 0x41F);
+<br />
+<br />S.vAddr also gets completely updated at the start of line 0 if rendering is enabled (first visible scanline)  (not completely sure of the timing!)
+<br />S.vAddr = S.vAddr_Latch &amp; 0x3FFF;
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>3</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=2&amp;t=3924" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2008-02-22T13:14:33-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=2&amp;t=3924</id>
+<entry>
+<author><name><![CDATA[blargg]]></name></author>
+<updated>2008-02-22T13:14:33-07:00</updated>
+<published>2008-02-22T13:14:33-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=3924&amp;p=31137#p31137</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=3924&amp;p=31137#p31137"/>
+<title type="html"><![CDATA[Ideal MMC1/3 mapper writes code]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=3924&amp;p=31137#p31137"><![CDATA[
+<div class="quotetitle">Bregalad wrote:</div><div class="quotecontent"><br />wouldn't write a value with bit 7 clear to $2000 and write it's normal value back after the write is done have the EXACT same effect as the code you posted ? The NMI will be delayed, but still will happen.<br /></div><br />I just tested this carefully and it works. Nice!<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">nmi:    bit $2002               ; clear VBL flag<br />        ; print low byte of PC from stack<br />        ; ...<br />        rti<br /><br />.align 256 ; force low byte of PC to 0<br />mmc_write:<br />        lda #0                  ; 00 Disable NMI<br />        sta PPUCTRL             ; 02<br />        nop                     ; 05 Do uninterruptable code<br />        nop                     ; 06<br />        nop                     ; 07<br />        nop                     ; 08<br />        lda #PPUCTRL_NMI        ; 09 Re-enable NMI<br />        sta PPUCTRL             ; 0B<br />        nop                     ; 0E These are just to see where NMI occurs<br />        nop                     ; 0F<br />        rts                     ; 10</div><br />When run on NES with NMI occurring one clock later on each line, these are the low bytes of the PC on entry to NMI handler. The NMI never interrupts the critical sequence of four NOPs, and is never suppressed (that would generate a blank line in the test).<br /><br /><span style="font-size: 75%; line-height: normal">00<br />00<br />02<br />02<br />05<br />05<br />05<br />05<br />0F<br />0F<br />0F<br />0F<br />0F<br />0F<br />0F<br />0F<br />0F<br />0F<br />0F<br />0F<br />0F<br />0F<br />0F<br />0F<br />10</span><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=17">blargg</a> — Fri Feb 22, 2008 1:14 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Bregalad]]></name></author>
+<updated>2008-02-22T11:35:39-07:00</updated>
+<published>2008-02-22T11:35:39-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=3924&amp;p=31134#p31134</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=3924&amp;p=31134#p31134"/>
+<title type="html"><![CDATA[Ideal MMC1/3 mapper writes code]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=3924&amp;p=31134#p31134"><![CDATA[
+Oh, god you both of you are right. Thanks for correcting me (I fixed it). Should be all right now, exept for those doing unusual PRG bankswitching on MMC1 (in this case delaying the interrupt is the only solution).<br /><br />Also, I've trought about a programm who counts the writes and restore them exactly as they were, but it's impossible since an interrupt can always be caused between the write and the count change, regardless where you place it.<br /><br />dvdmth, I knew about this method, but when you think about it, wouldn't write a value with bit 7 clear to $2000 and write it's normal value back after the write is done have the EXACT same effect as the code you posted ? The NMI will be delayed, but still will happen.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=38">Bregalad</a> — Fri Feb 22, 2008 11:35 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[dvdmth]]></name></author>
+<updated>2008-02-22T11:23:28-07:00</updated>
+<published>2008-02-22T11:23:28-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=3924&amp;p=31132#p31132</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=3924&amp;p=31132#p31132"/>
+<title type="html"><![CDATA[Ideal MMC1/3 mapper writes code]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=3924&amp;p=31132#p31132"><![CDATA[
+MMC1:<br /><br />One game I looked at had an interesting method for handling register writes.  The idea was to delay, but not inhibit, the NMI code from running until the register access was done.  Something like:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">SafeBankSwitch:<br />        inc MMC1Lock<br />        sta $E000<br />        lsr a<br />        sta $E000<br />        lsr a<br />        sta $E000<br />        lsr a<br />        sta $E000<br />        lsr a<br />        sta $E000<br />        dec MMC1Lock<br />        beq +<br />        dec MMC1Lock<br />        jmp SubNMI<br />+       rts<br /><br />NMI:    asl MMC1Lock<br />        bne +<br />        jsr SubNMI<br />+       rti<br /><br />SubNMI: pha<br />        txa<br />        pha<br />        tya<br />        pha<br />        ...<br />        pla<br />        tay<br />        pla<br />        tax<br />        pla<br />        rts</div><br />This method does add some latency, however, so it might not be ideal if you do a lot of PPU stuff in your NMI code.  However, the worse case for latency will only occur if the main program bankswitches at the time of NMI, which will usually mean the code has not finished a frame of animation, which in turn would mean the NMI would not have anything to send to the PPU.  Even in the best case, however, you still lose several CPU cycles at the start of NMI.<br /><br />MMC3:<br /><br />Your code is fine, except you must write to MMC3AddressLatch BEFORE you write to $8000 in the bankswitch code.  If you go the other way, and an interrupt occurs after the $8000 write but before the latch write, the register won't be properly configured when the interrupt returns.  (Always think about what happens if your code is interrupted after each instruction.  A number of bugs I've seen in commercial games could've been avoided if the developers followed this rule.)<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=360">dvdmth</a> — Fri Feb 22, 2008 11:23 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2008-02-22T08:09:00-07:00</updated>
+<published>2008-02-22T08:09:00-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=3924&amp;p=31126#p31126</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=3924&amp;p=31126#p31126"/>
+<title type="html"><![CDATA[Ideal MMC1/3 mapper writes code]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=3924&amp;p=31126#p31126"><![CDATA[
+Caution: Resetting the MMC1, such as through "inc Dummy", changes the PRG bankswitching mode to fixed-$C000. If a program uses fixed-$8000 or 32 KiB bankswitching, it won't be able to use this technique as easily.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Fri Feb 22, 2008 8:09 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Bregalad]]></name></author>
+<updated>2008-02-22T11:32:04-07:00</updated>
+<published>2008-02-22T06:36:44-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=3924&amp;p=31124#p31124</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=3924&amp;p=31124#p31124"/>
+<title type="html"><![CDATA[Ideal MMC1/3 mapper writes code]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=3924&amp;p=31124#p31124"><![CDATA[
+As the problem of writing to mappers can be somewhat a pain for some people arround, as an interrupts can cause a mapper write procedure to be interupted, and then the interrupt would want to write to the mapper on its own, making the write of the main programm fail.<br />Disabling interupt can be a solution, but this will delay the interupt and in some case you want to avoid this. I guess I'll post some code that will allow solutions to fix this. Those allow all interupt and main code to do any mapper write all the time, if used proprely. Of course any personal variant of those will work.<br /><br />MMC1 writes needs only 2 zero-page variables, while MMC3 needs only one zero-page variable.<br /><br /><strong>MMC1 : Main programm MMC1 write routine.</strong> Enter with A=Data to write and Y=High byte to adress you'd want to write to ($80-$9f for reg0, $a0-$bf for reg1, etc...). X is unnafected.<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">MMC1Write_Main<br />   sta MMC1WriteData<br />   sty MMC1WriteAdress<br />   ldy #$05<br />   inc MMC1WriteFlag<br />-  sta &#91;MMC1WriteAdress-1&#93;,Y   ;Note that low byte doesn't matter. Last write always write to the good page since Y is zero<br />   lsr A<br />   dey<br />   bne -                                ;Those who want faster performence can unroll this loop<br />   dec MMC1WriteFlag<br />   rts<br /></div><br /><br /><strong>MMC1 : Code to write to the MMC1 in Reset, IRQ and/or NMI code</strong> (enter with A=Data to write). I use a fixed adress for faster performance, but it's also possible to implement it the fashion as it's above. You'd typically make as many copies of it as many MMC1 registers you actually write to during interups that should be treated fastly.<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">MMC1Write_Int<br />   inc Dummy  ;Make a PRG write with bit 7 set, to reset write counter<br />   sta $f000<br />   lsr A<br />   sta $f000<br />   lsr A<br />   sta $f000<br />   lsr A<br />   sta $f000<br />   lsr A<br />   sta $f000<br />   rts<br />Dummy<br />   .db $80<br /></div><br /><br /><strong>Code to be always called before returning (IRQ and NMIs)</strong>. Also NMI shouldn't enable IRQs back if used.<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">   lda MMC1WriteFlag<br />   beq +<br />   dec MMC1WriteFlag        ;Reset the flag<br />   lda MMC1WriteData<br />   jsr MMC1Write_Main+4    ;Don't store adress and data, but load them instead<br />   pla   ;Restore Y &#40;useless&#41;<br />   pla<br />   tax   ;Restore X<br />   pla   ;Restore A &#40;useless&#41;<br />   plp   ;Restore P &#40;exept Z and N flags which are affected, but who cares&#41;<br />   pla   ;Discard return adress of MMC1Writa_Main &#40;as the write is done&#41;<br />   pla<br />   rts<br />+  pla<br />   tay<br />   pla<br />   tax<br />   pla<br />   rti</div><br />If anyone ever wants to enable back IRQs during NMI routine, and allow up to 3 layer of writes, but I'm pretty sure nobody will really wants to do this since NMI is supposed to execute fastly.<br /><br /><strong>MMC3 write main programm routine</strong>, enter with A=Data and X=Adress :<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">MMC3Write_Main<br />   stx MMC3AdressLatch<br />   stx $8000<br />   sta $8001<br />   rts</div><br /><strong>MMC3 Routine to write to MMC3 during an interupt (NMI, IRQ)</strong> :<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">MMC3Write_Int<br />   stx $8000<br />   sta $8001<br />   lda MMC3AdressLatch<br />   sta $8000<br />   rts</div><br />Again, it only alows 2 layers as it, but it would be possible to use the same concept to make 3 layers.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=38">Bregalad</a> — Fri Feb 22, 2008 6:36 am</p><hr />
+]]></content>
+</entry>
+</feed>

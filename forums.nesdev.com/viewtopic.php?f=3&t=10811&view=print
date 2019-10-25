@@ -1,0 +1,417 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Fractional Bilinear Interpolation</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="https://forums.nesdev.com/">https://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Fractional Bilinear Interpolation</span><br /><span class="gensmall"><a href="https://forums.nesdev.com/viewtopic.php?f=3&amp;t=10811">https://forums.nesdev.com/viewtopic.php?f=3&amp;t=10811</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>James</b> [ Sat Dec 21, 2013 9:55 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Fractional Bilinear Interpolation</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I've been playing around with some image scaling stuff tonight and came up with the following.  I'm interested in your opinions.<br /><br />In <a href="http://forums.nesdev.com/viewtopic.php?p=95667#p95667" class="postlink">this post</a>, tepples talks about doubling the image size with nearest-neighbor interpolation before performing any additional resizing with bilinear interpolation.  The method I came up with is essentially an extension of this idea, except that it's done in one step and the amount of bilinear interpolation is adjustable (hence the 'fractional' in fractional bilinear filtering).<br /><br />The implementation is pretty simple.  Here's the shader code.<br /><br />fbi.fx:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">/*<br />Copyright (c) 2013 James Slepicka<br /><br />Permission is hereby granted, free of charge, to any person obtaining a copy<br />of this software and associated documentation files (the &quot;Software&quot;), to deal<br />in the Software without restriction, including without limitation the rights<br />to use, copy, modify, merge, publish, distribute, sublicense, and/or sell<br />copies of the Software, and to permit persons to whom the Software is<br />furnished to do so, subject to the following conditions:<br /><br />The above copyright notice and this permission notice shall be included in<br />all copies or substantial portions of the Software.<br /><br />THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR<br />IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,<br />FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE<br />AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER<br />LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,<br />OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN<br />THE SOFTWARE.<br />*/<br /><br />Texture2D tex;<br /><br />SamplerState sam_linear<br />{<br />&nbsp;Filter = MIN_MAG_MIP_LINEAR;<br />&nbsp;AddressU = Clamp;<br />&nbsp;AddressV = Clamp;<br />};<br /><br />matrix world;<br />matrix view;<br />matrix proj;<br /><br />float2 tex_size;<br />float2 input_size;<br />float2 output_size;<br />float sharpness = 1.0;<br /><br />struct VS_INPUT<br />{<br />&nbsp;float4 pos : POSITION;<br />&nbsp;float2 tex : TEXCOORD0;<br />};<br /><br />struct PS_INPUT<br />{<br />&nbsp;float4 pos : SV_POSITION;<br />&nbsp;float2 tex : TEXCOORD0;<br />};<br /><br />PS_INPUT VS (VS_INPUT input)<br />{<br />&nbsp;PS_INPUT output = (PS_INPUT)0;<br />&nbsp;output.pos = mul (input.pos, world);<br />&nbsp;output.pos = mul (output.pos, view);<br />&nbsp;output.pos = mul (output.pos, proj);<br />&nbsp;output.tex = input.tex;&nbsp; &nbsp;<br />&nbsp;return output;<br />}<br /><br />float4 PS (PS_INPUT input) : SV_Target<br />{<br />&nbsp;float2 scale = output_size / input_size;<br />&nbsp;float2 interp = saturate((scale - lerp(scale, 1.0, sharpness))/(scale * 2.0));<br />&nbsp;float2 p = input.tex.xy * tex_size + .5;<br />&nbsp;float2 i = floor(p);<br />&nbsp;float2 f = p - i;<br />&nbsp;f = saturate((f - interp) / (1.0 - interp * 2.0));<br />&nbsp;p = ((i + f) - .5) / tex_size;<br />&nbsp;float4 r = tex.Sample(sam_linear, p);<br />&nbsp;r.a = 1.0;<br />&nbsp;return r;<br />}<br /><br />technique10 render<br />{<br />&nbsp;pass P0<br />&nbsp;{<br />&nbsp; SetVertexShader(CompileShader(vs_4_0, VS()));<br />&nbsp; SetGeometryShader(NULL);<br />&nbsp; SetPixelShader(CompileShader(ps_4_0, PS()));<br />&nbsp;}<br />}<br /></div><br /><br />Some sample images to help illustrate the concept:<br /><br />Nearest-neighbor:<br /><img src="http://nemulator.com/images/fbi500.png" alt="Image" /><br /><br />Bilinear interpolation:<br /><img src="http://nemulator.com/images/fbi000.png" alt="Image" /><br /><br />And somewhere in-between:<br /><img src="http://nemulator.com/images/fbi300.png" alt="Image" /><br /><br />If you'd like to play around with it, I put together a <a href="http://nemulator.com/files/fbi.zip" class="postlink">demo app</a>.  Use the up and down arrows (or page up/down) to adjust the amount of interpolation.  DX10 (Win Vista+) is required and you may need to download some libraries from Microsoft if you get messages about missing dlls: <a href="http://download.microsoft.com/download/1/6/B/16B06F60-3B20-4FF2-B699-5E9B7962F9AE/VSU_4/vcredist_x64.exe" class="postlink">MSVC++ redistributable</a> and the <a href="http://www.microsoft.com/en-us/download/details.aspx?id=35" class="postlink">DirectX runtime</a>.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Sat Dec 21, 2013 11:40 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Fractional Bilinear Interpolation</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />In that post tepples describes I believe a practical way to achieve the following (and additionally how to achieve it with other filters like Scale2x, without rewriting any of the filter code).<br /><br />Overlay the output display pixel grid over the NES pixel image. Wherever an output pixel covers part of only a single NES pixel, output that color. Where an output pixel covers more than one NES pixel, mix the colors in ratios equal to the relative areas of the overlap.<br /><br />This results in sharp-edged blocky pixels with minimal inconsistencies in appearance, even when the NES image is being expanded into rectangular pixels on an output display only slightly larger than the original NES image, e.g. 256x240 to 584x480. Vertically there will be no mixing. Horizontally there will only be at most one pixel of intermediate mixed color between two pixels.<br /><br />Examining more closely, consider the case of expanding a 4x1 image (in) into 10x1. The output pixels will consist of in[0], in[0], in[0]*0.5+in[1]*0.5, in[1], in[1], in[2], in[2], in[2]*0.5+in[3]*0.5, in[3], in[3]. If the output were 100 pixels wide, the output pixels would be each input pixel repeated 25 times, without any mixing. With linear rescaling there would be massive mixing of most pixels, making it a big blur.<br /><br />Can your shader do the above? I notice that the 0.30 example showed vertical mixing. An easy way to test it is to do a large integer expansion on both axes and be sure there is no pixel mixing at all. Then do a non-integer expansion on only the X axis and ensure that there is no pixel mixing between horizontal edges (vertically), only horizontally, and that the mixing is no more than one pixel wide.  [maybe yours passes this test and you're expanding a non-integer amount vertically in your example]<br /><br />Thinking more about this, it gets at the core of the basic meaning of a pixel image. Is it a set of infinitely-small samples at the center of each grid rectangle, or is it a representation of the color across the <em>entire</em> grid rectangle? The former is the interpretation that leads to linear (or similar) interpolation, while the latter is what leads to the rescaling described here. In a way, this is what nearest-neighbor scaling is a poor approximation of.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>James</b> [ Sun Dec 22, 2013 7:08 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Fractional Bilinear Interpolation</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">blargg wrote:</div><div class="quotecontent">Can your shader do the above?</div><br />Yes; at sufficiently high levels of interp_adjust (this is at .3), there is no mixing between edges on axes scaled by an integer ratio.  On axes scaled by non-integer ratios, mixing is limited to one pixel.<br /><br /><img src="http://nemulator.com/images/fbi2.png" alt="Image" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Sun Dec 22, 2013 11:11 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Fractional Bilinear Interpolation</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Nice. Apologies for one more request, but I lack Windows. What happens when you use interp_adjust of 0.3 with an X scaling of say 4.9? Still only one-pixel-wide mixing between pixels?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>James</b> [ Sun Dec 22, 2013 12:03 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Fractional Bilinear Interpolation</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">blargg wrote:</div><div class="quotecontent">Nice. Apologies for one more request</div><br />No worries -- I'm happy to discuss and try out stuff.<br /><br /><div class="quotetitle">blargg wrote:</div><div class="quotecontent">What happens when you use interp_adjust of 0.3 with an X scaling of say 4.9? Still only one-pixel-wide mixing between pixels?</div><br />interp_adjust needs to be increased with higher scaling factors.  8x scaling needs about .425, for example.  It should be easy to programmatically determine the optimal value.  I'll work on that.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Sun Dec 22, 2013 12:29 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Fractional Bilinear Interpolation</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />So interp_adjust appears to set the flat area of each texel in units of the width of 2 texels. In that case, the optimal value would be (scalefactor - 1) / (2 * scalefactor). This works fine as long as the horizontal and vertical scale factors are within 1 pixel/texel of each other, such as most uses on NES. But what happens in SNES pseudo-hires mode, where the horizontal and vertical scale operations need separate interp_adjust values due to the decidedly rectangular (4:7) pixel aspect ratio?<br /><br />In any case, TVs themselves introduce blurring, and interp_adjust = 0.25 might produce a more accurate simulation of a PlayChoice, RGB SNES, or component Wii.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>James</b> [ Sun Dec 22, 2013 1:20 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Fractional Bilinear Interpolation</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tepples wrote:</div><div class="quotecontent">(scalefactor - 1) / (2 * scalefactor)</div><br />Yep -- this works well.  Thanks.<br /><br /><div class="quotetitle">tepples wrote:</div><div class="quotecontent">But what happens in SNES pseudo-hires mode, where the horizontal and vertical scale operations need separate interp_adjust values due to the decidedly rectangular (4:7) pixel aspect ratio?</div><br />If you need separate interp_adjust values, you can do this:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp;f.x = (f.x-interp_adjust_x)/(1.0-interp_adjust_x*2.0);<br />&nbsp;f.x = saturate(f.x);<br />&nbsp;<br />&nbsp;f.y = (f.y-interp_adjust_y)/(1.0-interp_adjust_y*2.0);<br />&nbsp;f.y = saturate(f.y);<br /></div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Grapeshot</b> [ Sun Dec 22, 2013 1:42 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Fractional Bilinear Interpolation</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I knew I'd seen something like this mentioned somewhere before, and i guess ImageWorsener's documentation calls it<a href="http://entropymine.com/imageworsener/pixelmixing/" class="postlink">pixel mixing</a>.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>James</b> [ Mon Dec 23, 2013 1:45 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Fractional Bilinear Interpolation</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Yeah, I guess it is the same thing.  So much for fame and fortune.<br /><br />In any event, I've incorporated it into the latest release of my emulator.<br /><br /><div class="quotetitle">tepples wrote:</div><div class="quotecontent">TVs themselves introduce blurring, and interp_adjust = 0.25 might produce a more accurate simulation</div><br />Can't really comment on accuracy, but just a bit of blurring looks better, I think.  I've included a sharpness adjustment to allow for this.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Mon Dec 23, 2013 2:36 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Fractional Bilinear Interpolation</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />It's great that you added a blur adjustment, to go from no mixing at all, one-pixel-wide mixing, or full bilinear. And it's a shader, so less CPU load. As far as I can tell, it's still rare for an emulator to support this kind of rescaling, so you can preserve the aspect ratio and still get sharp pixels.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>byuu</b> [ Mon Dec 23, 2013 3:55 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Fractional Bilinear Interpolation</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />A trick I used to use a long time ago, prior to having pixel shaders ...<br /><br />Blit the image to the screen using nearest-neighbor (eg GL_NEAREST), and then blit the image again using bilinear filtering (eg GL_LINEAR) with a source alpha. This alpha value is effectively a blur factor (0.0 = sharp, 0.5 = middle-of-the-road, 1.0 = blurry)<br /><br />This works with any hardware accelerated API that supports alpha blending (Direct3D, OpenGL, etc) and does not require any pixel shaders.<br /><br />Of course if you have shaders, there are much better techniques. Fes' pixellate shader is particularly impressive, for instance. It's effectively the absolute minimum blurring needed to make non-even-multiple scaling look perfect in pixellated form.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>James</b> [ Mon Dec 23, 2013 7:42 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Fractional Bilinear Interpolation</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">byuu wrote:</div><div class="quotecontent"> Fes' pixellate shader is particularly impressive, for instance. It's effectively the absolute minimum blurring needed to make non-even-multiple scaling look perfect in pixellated form.</div><br />Assuming that you're talking about the pixellate shader distributed with higan, <s>this method produces identical output.</s> edit: identical output in center mode, but mine looks better in scale and stretch modes.<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&lt;?xml version=&quot;1.0&quot; encoding=&quot;UTF-8&quot;?&gt;<br />&lt;shader language=&quot;HLSL&quot;&gt;<br />&nbsp; &lt;source&gt;&lt;!&#91;CDATA&#91;<br />&nbsp; &nbsp; texture rubyTexture;<br />&nbsp; &nbsp; float4 rubyInputSize;<br />&nbsp; &nbsp; float4 rubyOutputSize;<br />&nbsp; &nbsp; float4 rubyTextureSize;<br />&nbsp; &nbsp; sampler s0 = sampler_state { texture = &lt;rubyTexture&gt;; };<br /><br />&nbsp; &nbsp; float4 PS (in float2 Tex : TEXCOORD0) : COLOR0<br />&nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp;float2 scale = rubyOutputSize / rubyInputSize;<br />&nbsp; &nbsp; &nbsp;float2 interp = (scale - 1.0) / (scale * 2.0);<br />&nbsp; &nbsp; &nbsp;saturate(interp);<br /><br />&nbsp; &nbsp; &nbsp;float2 p = Tex.xy;<br />&nbsp; &nbsp; &nbsp;p = p * rubyTextureSize + .5;<br />&nbsp; &nbsp; &nbsp;float2 i = floor(p);<br />&nbsp; &nbsp; &nbsp;float2 f = p - i;<br /><br />&nbsp; &nbsp; &nbsp;f = (f-interp) / (1.0-interp*2.0);<br />&nbsp; &nbsp; &nbsp;f = saturate(f);<br /><br />&nbsp; &nbsp; &nbsp;p = i + f;<br />&nbsp; &nbsp; &nbsp;p = (p - .5) / rubyTextureSize;<br />&nbsp; &nbsp; &nbsp;float4 r = tex2D(s0, p);<br />&nbsp; &nbsp; &nbsp;r.w = 1.0;<br />&nbsp; &nbsp; &nbsp;return r;<br />&nbsp; &nbsp; }<br /><br />&nbsp; &nbsp; Technique T0<br />&nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; pass p0 { PixelShader = compile ps_2_0 PS(); }<br />&nbsp; &nbsp; }<br />&nbsp; &#93;&#93;&gt;&lt;/source&gt;<br />&lt;/shader&gt;<br /></div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>byuu</b> [ Mon Dec 23, 2013 10:39 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Fractional Bilinear Interpolation</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I can't compare GLSL to HLSL to verify that claim, but it sounds very impressive!<br /><br />Would you consider writing your shader in GLSL? None of my primary PCs support Direct3D, and even on my Windows build box, I've removed HLSL support in an effort to promote portability.<br /><br />I've changed the uniform names and use GLSL 1.5 (no fixed functions), however. I can ask on my forum for a port and post if back here if that's okay with you, too.<br /><br />EDIT: aliaspider ported it.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">#version 150<br /><br />uniform sampler2D&nbsp; &nbsp;source&#91;&#93;;<br />uniform vec4&nbsp; &nbsp; &nbsp; sourceSize&#91;&#93;;<br />uniform vec4&nbsp; &nbsp; &nbsp; targetSize;<br /><br />in Vertex {<br />&nbsp; &nbsp;vec2 texCoord;<br />};<br />out vec4 fragColor;<br /><br />void main() {<br />&nbsp; &nbsp;vec2 scale = targetSize.xy*sourceSize&#91;0&#93;.zw;<br />&nbsp; &nbsp;vec2 interp = (scale - vec2(1.0,1.0)) / (scale * 2.0);<br />&nbsp; &nbsp;clamp(interp,0.0,1.0);<br />&nbsp; &nbsp;vec2 p = texCoord.xy;<br />&nbsp; &nbsp; p = p * sourceSize&#91;0&#93;.xy + 0.5;<br />&nbsp; &nbsp; vec2 i = floor(p);<br />&nbsp; &nbsp; vec2 f = p - i;<br /><br />&nbsp; &nbsp; f = (f-interp) / (1.0-interp*2.0);<br />&nbsp; &nbsp; f = clamp(f,0.0,1.0);<br /><br />&nbsp; &nbsp; p = i + f;<br />&nbsp; &nbsp; p = (p - 0.5) * sourceSize&#91;0&#93;.zw;<br />&nbsp; &nbsp; vec4 r = texture(source&#91;0&#93;, p);<br />&nbsp; &nbsp; r.w = 1.0;<br />&nbsp; &nbsp; fragColor=r;<br />}</div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Tue Dec 24, 2013 6:40 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Fractional Bilinear Interpolation</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Does OpenGL work on Windows RT and Xbox One? I was under the impression that these were supposed to be &quot;legacy-free&quot; platforms, and OpenGL was legacy. Perhaps someone is aiming for a publisher to use this to port old software to new consoles, just as Atlus, Jaleco, and Konami used PocketNES.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>James</b> [ Tue Dec 24, 2013 7:24 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Fractional Bilinear Interpolation</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">byuu wrote:</div><div class="quotecontent">EDIT: aliaspider ported it.<br /></div><br />There's something wrong with it; it looks blurry.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

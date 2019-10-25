@@ -1,0 +1,186 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - interpolation_index in apudsp.txt</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">interpolation_index in apudsp.txt</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=12&amp;t=10940">http://forums.nesdev.com/viewtopic.php?f=12&amp;t=10940</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>jwdonal</b> [ Sun Jan 26, 2014 11:06 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>interpolation_index in apudsp.txt</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />In the &quot;PITCH ADJUSTMENTS&quot; section of apudsp.txt it shows how to calculate the pitch adjustment, then it shows the following:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; if(voice&#91;x&#93;.interpolation_index&gt;=0x4000){<br />&nbsp; &nbsp; &nbsp; NextBRRGroup(x);<br />&nbsp; &nbsp; &nbsp; voice&#91;x&#93;.interpolation_index -= 0x4000;<br />&nbsp; }</div><br />After that it states:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">The samples in the BRR buffer are then interpolated using a 4-point gaussian interpolation.</div><br />And then it shows how to perform the gauss interpolation based on the current value of interpolation_index like so:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">i = voice&#91;x&#93;.interpolation_index &gt;&gt; 12;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; // 0 &lt;= i &lt;= 4</div><br />However, in the first code block it says that whenever interpolation_index&gt;=0x4000 then you should interpolation_index -= 0x4000. If that is the case then it is impossible for interpolation_index &gt;&gt; 12 to produce an 'i' with the value 4. It would only be possible for 'i' to be 0-3 (since whenever the upper nibble &gt;= 4 you immediately subtract 4).<br /><br />What am I missing? I'm sure it's something obvious as usual...<br /><br />UPDATE: I took a look through the bsnes source code and I can't find anywhere (unless I missed it) where byuu performs interpolation_index -= 0x4000.  He does check for interpolation_index&gt;=0x4000 but he never subtracts 0x4000 from interpolation_index.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Sun Jan 26, 2014 1:33 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: interpolation_index in apudsp.txt</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp;V4. Load and apply VxVOLL.<br />&nbsp; &nbsp; &nbsp;If a new group of BRR samples is required, load the second BRR byte and<br />&nbsp; &nbsp; &nbsp; decode the group of 4 BRR samples. This is definately not done when not<br />&nbsp; &nbsp; &nbsp; necessary. If necessary, adjust the BRR pointer to the next block, or<br />&nbsp; &nbsp; &nbsp; flag the loop address for loading next step V2 and set ENDX in step V7.<br />&nbsp; &nbsp; &nbsp; Note that this setting of ENDX will not override the clearing due to KON<br />&nbsp; &nbsp; &nbsp; in step V3c, if both occur during the same sample.<br />&nbsp; &nbsp; &nbsp;Increment interpolation sample position as specified by pitch values.<br />&nbsp; &nbsp; &nbsp;At any point from now until we next get to V3c, the next sample may be<br />&nbsp; &nbsp; &nbsp; calculated using the interpolation position and BRR buffer contents.<br /><br /><br />// from snes_spc's Spc_Dsp.cpp<br />VOICE_CLOCK( V4 )<br />{<br />&nbsp; &nbsp; // Decode BRR<br />&nbsp; &nbsp; m.t_looped = 0;<br />&nbsp; &nbsp; if ( v-&gt;interp_pos &gt;= 0x4000 )<br />&nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; decode_brr( v );<br />&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; if ( (v-&gt;brr_offset += 2) &gt;= brr_block_size )<br />&nbsp; &nbsp; &nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; // Start decoding next BRR block<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; assert( v-&gt;brr_offset == brr_block_size );<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; v-&gt;brr_addr = (v-&gt;brr_addr + brr_block_size) &amp; 0xFFFF;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if ( m.t_brr_header &amp; 1 )<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; v-&gt;brr_addr = m.t_brr_next_addr;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; m.t_looped = v-&gt;vbit;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; v-&gt;brr_offset = 1;<br />&nbsp; &nbsp; &nbsp; &nbsp; }<br />&nbsp; &nbsp; }<br />&nbsp; &nbsp; <br />&nbsp; &nbsp; // Apply pitch<br />&nbsp; &nbsp; v-&gt;interp_pos = (v-&gt;interp_pos &amp; 0x3FFF) + m.t_pitch;<br />&nbsp; &nbsp; <br />&nbsp; &nbsp; // Keep from getting too far ahead (when using pitch modulation)<br />&nbsp; &nbsp; if ( v-&gt;interp_pos &gt; 0x7FFF )<br />&nbsp; &nbsp; &nbsp; &nbsp; v-&gt;interp_pos = 0x7FFF;<br />&nbsp; &nbsp; <br />&nbsp; &nbsp; // Output left<br />&nbsp; &nbsp; voice_output( v, 0 );<br />}<br /></div><br /><br />interpolation_index is masked with 0x3fff, which is equivalent to subtracting 0x4000 when it's &gt;= 0x4000, as it's only 15 bits wide.<br /><br />It also seems that the 0&lt;=i&lt;=4 for the upper 3 bits of interpolation_index is incorrect, as it seems able to go to 7. I don't see any limiting in my DSP code, and it's been tested in extreme cases like this.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>jwdonal</b> [ Sun Jan 26, 2014 1:54 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: interpolation_index in apudsp.txt</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Okay, so let's go with what you said and interp_index is 15 bits and the upper 3 bits can have any value from 0&lt;=i&lt;=7.  If that is the case then the code directly below the interp_index &gt;&gt; 12 is confusing for how it indexes BRRdata[]...<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp; outx&nbsp; = ((gauss&#91;255-d&#93; * voice&#91;x&#93;.BRRdata&#91;i+0&#93;) &gt;&gt; 11);<br />&nbsp; &nbsp; outx += ((gauss&#91;511-d&#93; * voice&#91;x&#93;.BRRdata&#91;i+1&#93;) &gt;&gt; 11);<br />&nbsp; &nbsp; outx += ((gauss&#91;256+d&#93; * voice&#91;x&#93;.BRRdata&#91;i+2&#93;) &gt;&gt; 11);<br />&nbsp; &nbsp; // The above 3 wrap at 15 bits signed. The last is added to that, and is<br />&nbsp; &nbsp; // clamped rather than wrapped.<br />&nbsp; &nbsp; outx = ((outx &amp; 0x7FFF) ^ 0x4000) - 0x4000;<br />&nbsp; &nbsp; outx += ((gauss&#91;&nbsp; 0+d&#93; * voice&#91;x&#93;.BRRdata&#91;i+3&#93;) &gt;&gt; 11);</div><br />In that block it uses 'i' to index any one of BRRdata[i+0] through BRRdata[i+3]. In that case the highest index achievable would only be BRRdata[10]. Which is confusing since the ring buffer holds 12 samples at any time. So indexes 11 and 12 are never used?<br /><br />Oddly, it actually made more sense when 'i' ranged from 0&lt;=i&lt;=4 since that would allow indexing BRRdata with any index from BRRdata[0] through BRRdata[7]. I was thinking that kind of made more sense since Anomie describes the ring buffer as having only 2 &quot;active&quot; groups (of 4 samples each). So 0&lt;=i&lt;=4 would allow you to reference any of the 8 &quot;active&quot; samples.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Sun Jan 26, 2014 10:03 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: interpolation_index in apudsp.txt</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Okay, so let's go with what you said and interp_index is 15 bits and the upper 3 bits can have any value from 0&lt;=i&lt;=7.</div><br />An assertion added to Spc_Dsp::interpolate() shows that it does go greater than 4. It fails when run through my DSP test suite:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">inline int Spc_Dsp::interpolate( voice_t const* v )<br />{<br />&nbsp; &nbsp;...<br />&nbsp; &nbsp;assert( (v-&gt;interp_pos &gt;&gt; 12) &lt;= 4 ); // this fails<br />&nbsp; &nbsp;int const* in = &amp;v-&gt;buf &#91;(v-&gt;interp_pos &gt;&gt; 12) + v-&gt;buf_pos&#93;;<br /></div><br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent"><div class="codetitle"><b>Code:</b></div><div class="codecontent">outx += ((gauss&#91;&nbsp; 0+d&#93; * voice&#91;x&#93;.BRRdata&#91;i+3&#93;) &gt;&gt; 11);</div><br />In that block it uses 'i' to index any one of BRRdata[i+0] through BRRdata[i+3]. In that case the highest index achievable would only be BRRdata[10]. Which is confusing since the ring buffer holds 12 samples at any time. So indexes 11 and 12 are never used?</div><br />The indicies are 0-11, and the above can only touch 0-10, so it can't touch the last entry. But it's a ring buffer, so that's just on this round; once it's shifted forward four samples, it will be able to reach the former 12th entry.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Oddly, it actually made more sense when 'i' ranged from 0&lt;=i&lt;=4 since that would allow indexing BRRdata with any index from BRRdata[0] through BRRdata[7]. I was thinking that kind of made more sense since Anomie describes the ring buffer as having only 2 &quot;active&quot; groups (of 4 samples each). So 0&lt;=i&lt;=4 would allow you to reference any of the 8 &quot;active&quot; samples.</div><br />I don't think that was written when it was known that the interpolation position could move so far ahead of normal.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

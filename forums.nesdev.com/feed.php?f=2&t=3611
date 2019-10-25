@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=2&amp;t=3611" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2007-10-01T07:01:29-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=2&amp;t=3611</id>
+<entry>
+<author><name><![CDATA[albailey]]></name></author>
+<updated>2007-10-01T07:01:29-07:00</updated>
+<published>2007-10-01T07:01:29-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=3611&amp;p=27314#p27314</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=3611&amp;p=27314#p27314"/>
+<title type="html"><![CDATA[PPU address, temp address, updates etc..]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=3611&amp;p=27314#p27314"><![CDATA[
+That clears things up a lot for me.  And it really helps me better understand loopy's document.  When I read (and re-read) it before, I had no clue what that temp address was all about.<br /><br />I'll admit, I've been using direct writes to $2006 to reset PPU  because I thought it was the preferred way, so now I know better. <br /><br />Thanks guys.<br /><br />Al<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=772">albailey</a> — Mon Oct 01, 2007 7:01 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Bregalad]]></name></author>
+<updated>2007-09-30T02:36:39-07:00</updated>
+<published>2007-09-30T02:36:39-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=3611&amp;p=27283#p27283</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=3611&amp;p=27283#p27283"/>
+<title type="html"><![CDATA[PPU address, temp address, updates etc..]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=3611&amp;p=27283#p27283"><![CDATA[
+Use only $2006 will work as long as the fine H scroll has been set up at least one time. $2006 can not change the fine H scroll, and reset the fine V scroll, but the main scrolling is fully acessible. It's just not the standard way to acess it, but it can be used as well as $2005 if the programmer knowns what he does.<br />Now that I think about it games that scrolls only full tiles might as well set up $2005 once at start to $00, $00 and then write the tile adress to $2006 instead of doing it the standard way near the end of the frame, this *could* be more pratical for math reasons behind the programm (however I'm not sure it is).<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=38">Bregalad</a> — Sun Sep 30, 2007 2:36 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tokumaru]]></name></author>
+<updated>2007-09-29T21:01:27-07:00</updated>
+<published>2007-09-29T21:01:27-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=3611&amp;p=27280#p27280</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=3611&amp;p=27280#p27280"/>
+<title type="html"><![CDATA[PPU address, temp address, updates etc..]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=3611&amp;p=27280#p27280"><![CDATA[
+Hi, Al. Here's the idea behind it all:<br /><br />There's a register that points to vram, and this is used for 2 purposes. We, programmers, use it to point to bytes in vram when we want to read/write data from/to vram, while the NES uses it during rendering to fetch data from vram in order to render the screen.<br /><br />Since the register is used for these 2 purposes, obviously the 2 can't happen at the same time, and this is why we can only write/read to/from the PPU when the PPU is not rendering. Anyway, so that scrolling the screen is possible, we are able to modify this register before rendering starts so that rendering can start at any point in tha name tables.<br /><br />Nintendo provided programmers with a set of registers to set up what this starting point should be. They included a temporary vram address register, that's written to through the lower 2 bits of $2000 and writes to $2005. With those, you can fully point to any pixel in tha neme tables: The lower bits of $2000 indicate inside which name table is the first pixel to render, while the 8-bit values written to $2005 indicate the exact pixel coordinates within the specified name table.<br /><br />So, it's clear that Nintendo provided 2 ways of accessing the vram address register: one is through $2006, that should be used when one wants to read or write bytes to vram, and the other is though $2000 and $2005, that should be used to point to a specific pixel that should be the first one rendered.<br /><br />The catch is, writing to $2000 and to $2005 only changes the temporary vram address, so you can only use that method to indicate the pixel where rendering should start from if you do it before VBlank ends, at which time the temporary register is copied into the actual one.<br /><br />However, that doesn't mean it's impossible to point to any pixel in case one needs to enable rendering after the frame has already started. As loopy documented, with a specific combination of $2000, $2005 and $2006 writes you can still point to any pixel within the name tables.<br /><br />The problem is that many people fix scrolling problems (usually in demos that only use the first name table) by writing two 0's to $2006. But $2006 was not created for setting the scroll, it was created to make manipulating vram bytes possible. It can be used, when necessary, in conjuction with other addresses ($2000 and $2005) to set up scrolling. <strong>The writes to $2006 alone do not reliably set the scroll.</strong> For one thing, just notice that writes to $2006 do nothing to what's known as the "fine X scroll".<br /><br />I guess I can sum up this with the following:<br /><ol style="list-style-type: decimal"><li>Nintendo created $2000 and $2005 to properly set up the scroll while still in Vblank.</li><li>They created $2006 so that programmers could manipulate bytes in vram.</li><li>If you need to set up the scroll while not in Vblank, <strong>you can use $2006, but not just it</strong>. You need the full set of $2000/$2005/$2006 writes to properly point the PPU to an exact pixel.</li></ol><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=95">tokumaru</a> — Sat Sep 29, 2007 9:01 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Disch]]></name></author>
+<updated>2007-09-29T17:56:11-07:00</updated>
+<published>2007-09-29T17:56:11-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=3611&amp;p=27278#p27278</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=3611&amp;p=27278#p27278"/>
+<title type="html"><![CDATA[PPU address, temp address, updates etc..]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=3611&amp;p=27278#p27278"><![CDATA[
+Old but relevent thread:<br /><br /><!-- m --><a class="postlink" href="http://nesdev.com/bbs/viewtopic.php?t=664">http://nesdev.com/bbs/viewtopic.php?t=664</a><!-- m --><br /><br /><br />bits 12-14 contain the fine Y scroll after dual $2005 writes (low 3 bits of the second value writte).  In the case of dual writes of 0, those bits would be 0.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=33">Disch</a> — Sat Sep 29, 2007 5:56 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[albailey]]></name></author>
+<updated>2007-09-29T15:55:20-07:00</updated>
+<published>2007-09-29T15:55:20-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=3611&amp;p=27277#p27277</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=3611&amp;p=27277#p27277"/>
+<title type="html"><![CDATA[PPU address, temp address, updates etc..]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=3611&amp;p=27277#p27277"><![CDATA[
+I put this in a separate thread rather than hijack the other onewith my questions.<br /><br /><div class="quotetitle">Disch wrote:</div><div class="quotecontent"><br /><div class="quotetitle">albailey wrote:</div><div class="quotecontent">I wish I knew where the PPU addr pointed to after a write to $2000 (I assume its the start of that particular nametable)<br /></div><br /><br />$2000 does not [directly] change the address at all -- it would still point tot he same place it did before the write.<br /><br />$2000 does, however, change the nametable bits in the <em>temporary</em> address (which gets copied to the <em>actual</em> PPU address at frame start).<br /><br />$2000 sets only bits 10 and 11... other bits in the temp address remain unchanged.  Therefore if the temp address is $2416 and you write 0 to $2000, the new temp address will be $2016</div><br /><br />OK, so the writes to $2005 mentioned by Tokumaru are required.<br /><br />Based on loopy's scrolling/skinny document:<br /><br />$2000  updated bits 10 &amp; 11<br />first write to $2005 clears bits 0,1,2,3,4 <br />second write to $2005 clears bits 5,6,7,8,9 and also updates  12,13,14 (what happens o those?)<br />and at frame start the temp address becomes the PPU address.<br /><br />Edit- I guess my question is, what value ends up in bits 12-14 when you write #$00 to $2005 (twice)<br /><br /><br />Al<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=772">albailey</a> — Sat Sep 29, 2007 3:55 pm</p><hr />
+]]></content>
+</entry>
+</feed>

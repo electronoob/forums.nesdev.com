@@ -1,0 +1,249 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - New efficient metasprite format</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">New efficient metasprite format</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=9724">http://forums.nesdev.com/viewtopic.php?f=2&amp;t=9724</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>2</strong> of <strong>2</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Tue Feb 26, 2013 6:23 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: New efficient metasprite format</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Sik wrote:</div><div class="quotecontent">Flipping is not as trivial since you also need to modify the coordinates of the sprites. It's a good starting point for that goal, though.</div><br />Yes, but in my case at least, besides being used to flip the bits in the attribute bytes, the modifier byte is checked at the beginning of the metasprite function and used to adjust the sprite coordinates and increments.<br /><br />EDIT: I also should point out that EORing palette bits wouldn't work so well if you use more than one palette in the same metasprite... for example, say that an enemy is green and wears a white shirt, so it uses different palettes for the green and white parts. If you want to recolor that enemy so that it's blue but still wears a white shirt, that wouldn't work, since the palette of the shirt would be changed as well. One solution would be to use OR or AND instead of XOR, so that you can use palette 0 (%00) or 3 (%11) for the one you don't want to change. That would require more careful planning of the palettes.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Tue Feb 26, 2013 1:55 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: New efficient metasprite format</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I think I got a better idea, that optimises the usage of all 4 unused bits (counting the priority bit as unused).<br />I forgot the idea to predict the attribute byte, as it would be very easy to screw up and end in an infinite loop.<br /><br />Just remember, as I said in my 1st post :<br />- Attribute byte is always present<br />- X, Y and tile # bytes are either predicted from the previous sprite, or present<br />- Prediction data for sprite N+1 is stored in the data of sprite N<br />- The first sprite is never compressed (always 4 bytes)<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">Code:<br />yyyyyyyy --- Sprite Y coordinate (if required)<br /><br />vhtyxxpp --- Attribute byte (always)<br />||||||||<br />||||||++---- Sprite Colour<br />||||++------ X position of next sprite (00 : required, 01 : X pos of this sprite + 8,<br />||||&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; 10 : X pos of the fist sprite, 11 : Escape code for last sprite)<br />|||+-------- Y position of next sprite (0 : required, 1 : Y pos of this sprite + 8)<br />||+--------- Tile number of next sprite (0: required, 1 : Tile number of this sprite + 1)<br />|+---------- Horizontal flipping<br />+----------- Vertical flipping<br /><br />tttttttt --- Tile number (if required)<br /><br />xxxxxxxx --- Sprite X coordinate (if required)<br /></div><br /><br />The enthropy of the 4 unused bits are not fully used, as 4 of the 16 possible shemes have the same effect (finishing the meta sprite), but there is still 12 predictions available.<br />As opposed to my first idea for the codec, it makes it possible for tiles which are gird aligned in a direction but not the other to be still compressed efficiently. Those are pretty common, every time an enemy has a tail I use this, so the tail is in the middle of the sprite but still takes only 1 tile of width/height, so I move it 4 pixels apart the &quot;gird&quot;.<br /><br />Again, this is fully compatible with uncompressed sprites, except that you have to OR the attributes of the last sprite with $0c for it to work.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">I also should point out that EORing palette bits wouldn't work so well if you use more than one palette in the same metasprite... for example, say that an enemy is green and wears a white shirt, so it uses different palettes for the green and white parts. If you want to recolor that enemy so that it's blue but still wears a white shirt, that wouldn't work, since the palette of the shirt would be changed as well. One solution would be to use OR or AND instead of XOR, so that you can use palette 0 (%00) or 3 (%11) for the one you don't want to change. That would require more careful planning of the palettes.</div><br />Mmh, you got a point !<br />The problem with the AND/OR approach is that it's then impossible to access all 4 palettes by the means of palette swapping unless you use palette 3/0 (respectively). However it will fix the problem you issused, which is a good thing.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Flipping is not as trivial since you also need to modify the coordinates of the sprites. It's a good starting point for that goal, though.</div><br />Yes, usually you also need to negate (XOR with $ff) the X coordinate.<br />You could also do that vertically, but unless you have a level like Gravity Man's, I doubt it will be very useful.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Drag</b> [ Tue Feb 26, 2013 3:14 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: New efficient metasprite format</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Bregalad wrote:</div><div class="quotecontent"><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Flipping is not as trivial since you also need to modify the coordinates of the sprites. It's a good starting point for that goal, though.</div><br />Yes, usually you also need to negate (XOR with $ff) the X coordinate.</div><br />XOR $FF and then add 1 to it. (two's complement)<br /><br />You can easily add the 1 to it by setting carry before you ADC the metasprite's x coordinate to the tile's x coordinate.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Tom</b> [ Tue Feb 26, 2013 5:08 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: New efficient metasprite format</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tokumaru wrote:</div><div class="quotecontent">Reusing parts of other metasprites is trickier... Maybe you could have a special code that acts like a JSR of sorts for metasprites, so you can &quot;call&quot; parts that are shared between metasprites. Or maybe you can allow animation frames to have more than 1 metasprite, so you can combine smaller metasprites as necessary. I don't think this is worth it though.</div><br />I do something like this, and the savings I get are pretty decent, with the compressed size being about 70% of uncompressed size.  Also I find specifying the metasprites is a lot easier being able to reuse subparts.  This probably depends on the game though.<br /><br />That said, I'm beginning to question if metasprite compression is really worth it.  They don't take up a lot of space compared to other things, and a significant amount of time per frame is spent drawing metasprites.  Having them uncompressed would speed that up, and I could probably get a lot more objects on screen before lagging.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>3gengames</b> [ Tue Feb 26, 2013 5:19 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: New efficient metasprite format</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />To really flip sprites, you need to do a lot more than modify the X coord by 2's complement. You need to add (tilewidth-1)*8 to it, and then store a variable in RAM that's either 8 or -8, and then just use a CLC+ADC with it each time you move either a X or Y coord. Not that hard, but still, it's something to know before hand.<br /><br />(I'm writing a metasprite engine at this very moment....or at least am deep in to planning and am about to start writing the code very soon, so whatever I do I'll probably input here for ideas on how to make it better.)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>sdwave</b> [ Thu Feb 28, 2013 12:27 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: New efficient metasprite format</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />@Bregalad: Just curious, how many metasprite frames do you have and how much data is there?   Are you finding trading time for space savings to be a win?   It almost seems to be worth encoding the mirrored versions of the metasprites rather than doing the mirroring in code?<br /><br />What I ended up doing was having a separate page for static data like metasprites.  Each sprite in the metasprite takes up 4 bytes that match the OAM layout  (delta y, palette mask, index, delta x) in order to trade size for speed.<br />Mirrors are encoded instead of computed.  Each frame of body animation has socket locations for arms and head so the character can aim in any directions for any frame of animation.  I need to take a second pass over the main character to get a smoother run sequence so I'm revisiting my scheme.  I think I'll need to make a tool for metasprite layout (so far I've been doing it by hand.)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Celius</b> [ Fri Mar 01, 2013 10:55 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: New efficient metasprite format</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">3gengames wrote:</div><div class="quotecontent">To really flip sprites, you need to do a lot more than modify the X coord by 2's complement. You need to add (tilewidth-1)*8 to it, and then store a variable in RAM that's either 8 or -8, and then just use a CLC+ADC with it each time you move either a X or Y coord. Not that hard, but still, it's something to know before hand.<br /><br />(I'm writing a metasprite engine at this very moment....or at least am deep in to planning and am about to start writing the code very soon, so whatever I do I'll probably input here for ideas on how to make it better.)</div><br /><br />I actually made a separate sprite drawing routine that does SBC instead of ADC for flipping entire metasprites. It seems like a tacky solution, but it actually saves a lot of cycles in the end. This way you don't have to include another variable into the calculation of every sprite position in a metasprite.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>2</strong> of <strong>2</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

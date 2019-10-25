@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=2&amp;t=620" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2005-10-09T01:10:18-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=2&amp;t=620</id>
+<entry>
+<author><name><![CDATA[Bregalad]]></name></author>
+<updated>2005-10-09T01:10:18-07:00</updated>
+<published>2005-10-09T01:10:18-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=620&amp;p=5299#p5299</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=620&amp;p=5299#p5299"/>
+<title type="html"><![CDATA[Obtaining 11-bit pitch period only by calculation]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=620&amp;p=5299#p5299"><![CDATA[
+Here you are, the exact formla is :<br />freq = CPUFreq/Period+1<br />freq(note)=2^(LowestCFreq*(FineTune+128*MainPitch)/128*12)*2^Octave<br />so :<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">Period=CPUFreq/&#40;2^LowestCFreq*&#40;FineTune+128*MainPitch&#41;/128*12&#41;&#41;-1<br /></div><br />Where FineTune is between 0 and 127, Main Pitch is 0 for C, 1 for C#, etc... up to 11 for B<br />I think that this can be done with a Table, but man, it would be large, even for one single octave. Is there any way this enormous calculation could be simplificated accurately ?<br />Also, the minus 1 at the end is pretty confusing. Usually I just shifted the period to change octave, but the 1 additional cycle seems to make it not 100% accurate.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=38">Bregalad</a> — Sun Oct 09, 2005 1:10 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Bregalad]]></name></author>
+<updated>2005-10-02T10:05:29-07:00</updated>
+<published>2005-10-02T10:05:29-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=620&amp;p=5128#p5128</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=620&amp;p=5128#p5128"/>
+<title type="html"><![CDATA[Obtaining 11-bit pitch period only by calculation]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=620&amp;p=5128#p5128"><![CDATA[
+Here you are the crazy code I found in Just Breed.<br />I understant pretty much the begining, but the end becomes very crazy. It uses the MMC5 multiplier once, but scince it multiplies by $40, it would be pretty simple to write a similar code for a normal mapper. I just didn't understand the actual algorithm behind that.<br />Note that you enter with $4e=octave, and output with $4a = low 8 bits of period, $4b = high 3 bits of period. You enter with note in A, that is between $0 and $b (between C and B of the upper octave, for each semitune respectively).<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">GetPitch   tay         ;Y=Note; X=Channel<br />      lda SndFineTuneBufferL,x<br />      clc<br />      adc SndPitchSlideBufferL,x<br />      sta $4a<br />      lda SndFineTuneBufferH,x<br />      adc SndPitchSlideBuffer,x<br />      sta $4b         ;Setup fine tune &#40;detune+pitch slide index&#41;<br />      lda VibratoPitchValue,x<br />      sec<br />      sbc #$80<br />      bmi _vibNeg<br />      clc<br />      adc $4a<br />      sta $4a      ;Add vibrato index to fine tune<br />      lda #$0<br />      adc $4b<br />      jmp _vibPos<br />;--------------------<br />_vibNeg      clc<br />      adc $4a<br />      sta $4a      ;Same as above, but decrease MSB if overflow instead of increase it<br />      lda $4b<br />      sbc #$0<br />_vibPos      sta $4b<br />      bmi $a8c8   ;Main detune calculated. Is that thing negative ?<br />      lda $4a<br />      asl a<br />      rol $4b<br />      asl a<br />      rol $4b      ;Bit 6 and 7 of LSB goes in LSB &#40;?&#41;<br />      lsr a<br />      lsr a<br />      sta $4a<br />      jmp lbl_c8e5<br />;--------------------<br />lbl_a8c8:   lda $4a<br />      asl a<br />      rol $4b      ;Same as above<br />      asl a<br />      rol $4b<br />      lda $4a<br />      and #$3f   ;Check if the LSB is zero &#40;apart of bit 6 and 7&#41;<br />      beq lbl_a8da<br />      inc $4b      ;If not, set the bits 6 and 7, and increase MSB<br />      ora #$c0<br />lbl_a8da:   sta $4a<br />      bpl lbl_a8e5   ;The N flag is set by the lda $4a above or the inc $4b above, cant say much here<br />      clc<br />      adc #$40   ;Would that clear bit 6 and 7 ??<br />      sta $4a   <br />      dec $4b      ;$4b equals main detune &#40;note&#41; and $4a fine detune<br /><br />lbl_a8e5:   tya<br />      clc      ;Y = Note<br />      adc $4b      ;Check if the detune could go one octave below<br />      bpl lbl_a8fa<br />      dec $4e      ;If so decrease octave<br />      clc<br />      adc #$c      ;And correct the note in A<br />      bpl lbl_a90c   ;Check if the detune is strong enough to get below a second octave<br />      dec $4e<br />      clc<br />      adc #$c      ;If so correct it<br />      jmp lbl_c90c<br />;--------------------<br />lbl_a8fa:   cmp #$c<br />      bcc lbl_a90c   ;Check if the detune could go one octave above<br />      inc $4e<br />      sec<br />      sbc #$c<br />      cmp #$c<br />      bcc lbl_a90c   ;Check for a second octave up<br />      inc $4e<br />      sec<br />      sbc #$c      ;Now A equals the correct note with the correct octave<br />lbl_a90c:   sta $5206<br />      sta $4f<br />      lda #$40   ;Multiply note by $40<br />      sta $5205<br />      lda $4a<br />      bmi $a92a   ;Check for the note before it's octave correction &#40;?&#41;<br />      clc<br />      adc $5205<br />lbl_a91e:   sta $4a      ;Result is detune in bits 0-5 and note in bits 6-7<br />      lda $5206<br />      adc #$0<br />      sta $4b      ;High bits of the note are here<br />      jmp lbl_c937<br />;--------------------<br />lbl_a92a:   clc<br />      adc $5205   ;??<br />      sta $4a<br />      lda $5206<br />      sbc #$0      ;??<br />lbl_a935:   sta $4b<br /><br />      lda $4a<br />      clc<br />      adc #$ab<br />      sta $4a<br />      lda $4b      ;Add main pitch to the pointer $c9ab<br />      adc #$c9<br />      sta $4b      ;$c9ab+$23a=<br />      ldy #$0<br />      ldy &#40;$4a&#41;,y   ;Load low tune<br />      sta $4a<br />      ldy $4f<br />      lda $c99f,y   ;Load high tune in function of the note<br />lbl_a94f:   sta $4b<br />lbl_a951:   lda $c993,y<br />      beq lbl_a95c   ;?<br />      lda $4a<br />      bpl lbl_a95c<br />      dec $4b      ;Decrease low pitch if high pitch is negative<br />lbl_a95c:   lda $4b<br />      ldy $4e<br />      beq lbl_a989   ;If octave is zero, the thing is completed<br />      bmi $a98a<br />      cpy #$5<br />      bcs lbl_a973   ;Go elsewhere if octave above 5 &#40;for very high notes&#41;<br />lbl_a968:   lsr a<br />      ror $4a      ;Divide the period by 2 for each octave<br />      dey<br />      bne lbl_a968<br />      sta $4b<br />      jmp lbl_c989   ;Done !!<br />;--------------------<br />lbl_a973:   sty $50      ;Octave higher than 5 &#40;probably used for sound effects&#41;<br />      lda #$8<br />      sec<br />      sbc $50      ;8-Octave = a number between 1 and 3<br />      tay<br />      lda $4a<br />lbl_a97d:   asl a<br />      rol $4b      ;This will multiply the period by 2 for each octave<br />      dey      ;In other word, the highest notes become the lowest &#40;?&#41;<br />      bne lbl_a97d<br />      lda $4b<br />      sty $4b      ;0 overrides the high pitch<br />      sta $4a      ;And the low pitch overrides the high pitch<br />lbl_a989:   rts<br />;--------------------<br />lbl_a98a:   asl $4a      ;If octave is negative, multiply period by 2<br />      rol $4b<br />      lda #$0      ;And re-set octave to zero<br />      sta $4e<br />      rts</div><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=38">Bregalad</a> — Sun Oct 02, 2005 10:05 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Bregalad]]></name></author>
+<updated>2005-10-02T00:46:14-07:00</updated>
+<published>2005-10-02T00:46:14-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=620&amp;p=5115#p5115</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=620&amp;p=5115#p5115"/>
+<title type="html"><![CDATA[Obtaining 11-bit pitch period only by calculation]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=620&amp;p=5115#p5115"><![CDATA[
+Yeah, so that the add/substract amount is relative to the period itself.<br />However, this isn't very pratical to use, scince you have to read the older period. I mean have a main pitch value, then several add/substract relative value to the pitch, regardless of the pitch itself. This value would be composition of the bend pitch and vibratoes, and possibly detune value, etc....<br />So that would be pratical to use from the main sound code, even if it may need some complicated calculation.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=38">Bregalad</a> — Sun Oct 02, 2005 12:46 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Disch]]></name></author>
+<updated>2005-10-01T15:30:10-07:00</updated>
+<published>2005-10-01T15:30:10-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=620&amp;p=5106#p5106</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=620&amp;p=5106#p5106"/>
+<title type="html"><![CDATA[Obtaining 11-bit pitch period only by calculation]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=620&amp;p=5106#p5106"><![CDATA[
+No practical way really.  Converting from period to tone involves hefty division... and even after you get the tone you'd still have to scale it and convert it back to a period value.<br /><br />As for doing pitch bends/vibrattos, a simple yet effective way would be to add/subtract the period right shift a bunch to itself.  Something like:<br /><br />period += period &gt;&gt; 3;  // to bend downwards<br />period -= period &gt;&gt; 4;  //to bend upwards<br /><br />It might take some tinkering but the concept should work.  This way as the periods get smaller... so does the value you add/subtract.  Which does a decent job of evening out the rate of the bends.<br /><br />In my example there I subtract a smaller number than I add... which you'll probably need to do in practice... since:<br /><br />period -= period &gt;&gt; 1; // will go 1 full octave up<br />period += period &gt;&gt; 1; // will only go about 2/5th an octave down<br /><br />so like I said, it'll take some tinkering<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=33">Disch</a> — Sat Oct 01, 2005 3:30 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Bregalad]]></name></author>
+<updated>2005-10-01T13:44:44-07:00</updated>
+<published>2005-10-01T13:44:44-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=620&amp;p=5102#p5102</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=620&amp;p=5102#p5102"/>
+<title type="html"><![CDATA[Obtaining 11-bit pitch period only by calculation]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=620&amp;p=5102#p5102"><![CDATA[
+Is it possible to calculate the 11-bit period only by calculation, I mean not use a table to found a period for a not, then add a constant to do vibrato/slide effects, because this isn't techically correct. I mean I should add/substract a value in function of the period itself. For example, if we remove a constant value to a period, the tune won't rise lineary, but it will rise slow, then faster. I wan't to be able to do it only by calculation, so it would rise lineary. Any ideas ? I think Just Breed does that, I dissasembled it's code once. I'll try to re-found it.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=38">Bregalad</a> — Sat Oct 01, 2005 1:44 pm</p><hr />
+]]></content>
+</entry>
+</feed>

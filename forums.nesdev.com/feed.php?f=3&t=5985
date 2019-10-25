@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=3&amp;t=5985" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2012-05-18T23:11:04-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=3&amp;t=5985</id>
+<entry>
+<author><name><![CDATA[infiniteneslives]]></name></author>
+<updated>2012-05-18T23:11:04-07:00</updated>
+<published>2012-05-18T23:11:04-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=5985&amp;p=94080#p94080</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=5985&amp;p=94080#p94080"/>
+<title type="html"><![CDATA[Rad Racer 2 [MMC3]]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=5985&amp;p=94080#p94080"><![CDATA[
+I'll look at em Zepper if you'd like, although my level of understanding your code is going to be heavily dependent on the depth of you comments within the code I'm guessing.  email: <!-- e --><a href="mailto:paul@InfiniteNesLives.com">paul@InfiniteNesLives.com</a><!-- e --><br /><br /><br /><div class="quotetitle">byuu wrote:</div><div class="quotecontent"><br />Oh? I've been trying to get information on this for a while, it seems to be an undocumented area of the NES.<br /></div><br /><br />Kinda, I don't know if blargg understood this exactly or not.  But my hardware MMC3 failed when I made this error as did Zepper's emu.  We were discussing it and the '5-6 ticks' <a href="http://nesdev.com/bbs/viewtopic.php?t=8807&amp;postdays=0&amp;postorder=asc&amp;start=15" class="postlink">here</a>  That's about the extent of the current documentation to my knowledge.<br /><br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent"><br />Also, I'm not even sure I understand the concept of a mid-PPU-cycle. A cycle is usually a point between discrete operations, and in this case we're only doing a single CHR read between each cycle. So you can only really have the return value be at the start or end of the cycle. Having the MMC3 do something in the middle of a PPU read seems like nonsense.<br /></div><br /><br />Depending on how your emu works it might be nonsense.  But on hardware like you've pointed out signals take time.  For instance I think it's safe to say addresses change in the middle of the PPU cycle just like any processor.  Clock edge to start cycle then the address becomes valid a few nsec later.  The MMC3 doesn't get that valid address (CHR A12 rise) until the PPU is in the midst of it's cycle.  It then takes some time for the MMC3 to generate the /IRQ and the CPU to sense that interupt, this is going to be a large delay relatively since it's a pull-up open collector signal.  If the time offset between the CPU and PPU clocks is smaller than this entire delay it might be easy to assume that the IRQ arrives at the CPU in the current cycle and will be executed in the next cycle.  When in reality this long sequence of events causes the IRQ to delayed to the point where it doesn't arrive at the CPU until the NEXT cycle and will get executed one cycle later.  However when the CPU and PPU are aligned I wouldn't expect the delay to be long enough to push the /IRQ into the next CPU cycle. <br /><br />In any event these delays are present in the hardware and they may be relied upon by certain games.  If Zepper gets blargg's tests to pass with no delay and RR2 to work with X delay, then perhaps the sweet spot is between zero and X amount of delay.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4832">infiniteneslives</a> — Fri May 18, 2012 11:11 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[byuu]]></name></author>
+<updated>2012-05-18T21:55:23-07:00</updated>
+<published>2012-05-18T21:55:23-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=5985&amp;p=94078#p94078</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=5985&amp;p=94078#p94078"/>
+<title type="html"><![CDATA[Rad Racer 2 [MMC3]]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=5985&amp;p=94078#p94078"><![CDATA[
+&gt; I'm guessing you're talking about number of CPU cycles that CHR A12 must be low before the counter is allowed to be clocked by a subsequent CHR A12 rising edge?<br /><br />I believe so, yes. Been a few months, emulated a few more systems since then. Basically I am talking about this:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">//this is a thread, tick&#40;&#41; adds 12 cycles against a 21MHz clock<br />void MMC3::main&#40;&#41; &#123;<br />  while&#40;true&#41; &#123;<br />    if&#40;irq_delay&#41; irq_delay--;<br />    cpu.set_irq_line&#40;irq_line&#41;;<br />    tick&#40;&#41;;<br />  &#125;<br />&#125;<br /><br />//called on CHR read and CHR writes<br />void MMC3::irq_test&#40;unsigned addr&#41; &#123;<br />  if&#40;!&#40;chr_abus &amp; 0x1000&#41; &amp;&amp; &#40;addr &amp; 0x1000&#41;&#41; &#123;<br />    if&#40;irq_delay == 0&#41; &#123;<br />      if&#40;irq_counter == 0&#41; &#123;<br />        irq_counter = irq_latch;<br />      &#125; else if&#40;--irq_counter == 0&#41; &#123;<br />        if&#40;irq_enable&#41; irq_line = 1;<br />      &#125;<br />    &#125;<br />    irq_delay = 6;  //Ryphecha uses 5 here, which breaks SMB3 for me<br />  &#125;<br />  chr_abus = addr;<br />&#125;</div><br /><br />&gt; which is what Zepper is having issues with.<br /><br />Sorry, I may have misunderstood. At this point I'm not having an issue, just noting an observation I had when dealing with this chip that I was hoping might be helpful.<br /><br />&gt; The CPU must receive the IRQ the exact moment (within logic delays) of the CHR A12 rising edge. This MUST be *mid-cycle* for the CPU (and probably PPU as well), not at the beginning or end of the CPU's current cycle.<br /><br />Oh? I've been trying to get information on this for a while, it seems to be an undocumented area of the NES.<br /><br />But it's something I needed in SNES emulation very early on: the idea I call bus hold delays. When you read, it puts the address on the bus and waits a set number of clocks. The other chip will see the read and put its data on the bus, at which point it has to be there a bit to stabilize. But the thing is, it's up to the other chip how quickly it will put the data there. The same thing goes for a write, you can put it there on the bus, but it's going to take you some time for the value to stabilize. So the other chip will wait a while there first.<br /><br />The problem is, how in the world do you know exactly what values to use here? If we assume 12 cycles against the 21MHz clock, do we just wait 6 cycles before doing the read, and 12 cycles for the write? Even then, it likely varies on a per-chip basis, and possibly even on a per-register-per-chip basis.<br /><br />Also, I'm not even sure I understand the concept of a mid-PPU-cycle. A cycle is usually a point between discrete operations, and in this case we're only doing a single CHR read between each cycle. So you can only really have the return value be at the start or end of the cycle. Having the MMC3 do something in the middle of a PPU read seems like nonsense.<br /><br />In the middle of a CPU read, sure, that makes more sense because the CPU is doing lots of things in unison: polling IRQ flags, reading from the bus, performing asynchronous DMA (on some systems), etc.<br /><br />Meh, anyway, we can start a new topic if you'd like to get in depth and feel it'd be off-topic to this discussion. Up to you. FWIW, I already have the means to simulate mid-cycle CPU actions, and I can discuss how I do that if you'd like.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=375">byuu</a> — Fri May 18, 2012 9:55 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Zepper]]></name></author>
+<updated>2012-05-18T20:09:26-07:00</updated>
+<published>2012-05-18T20:09:26-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=5985&amp;p=94072#p94072</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=5985&amp;p=94072#p94072"/>
+<title type="html"><![CDATA[Rad Racer 2 [MMC3]]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=5985&amp;p=94072#p94072"><![CDATA[
+@infiniteneslives, let me know if you want to give a look into my sources.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=39">Zepper</a> — Fri May 18, 2012 8:09 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[infiniteneslives]]></name></author>
+<updated>2012-05-18T19:42:01-07:00</updated>
+<published>2012-05-18T19:42:01-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=5985&amp;p=94071#p94071</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=5985&amp;p=94071#p94071"/>
+<title type="html"><![CDATA[Rad Racer 2 [MMC3]]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=5985&amp;p=94071#p94071"><![CDATA[
+<div class="quotetitle">byuu wrote:</div><div class="quotecontent"><br />I kept hitting issues where the exact delay value needed to run MM3 Gemini Stage and Super Mario Bros 3 didn't match what Ryphecha had (5 vs 6 ticks, IIRC), and I'd be surprised if my CPU core still had bad cycle timings. So it certainly makes you feel that there's some incredibly timing-sensitive stuff going on around there.<br /></div><br /><br />Not sure if follow, are you saying something like MM3 and SMB3 required different IRQ timings in your emu than someone elses?  What are you referring to as ticks?  I'm guessing you're talking about number of CPU cycles that CHR A12 must be low before the counter is allowed to be clocked by a subsequent CHR A12 rising edge?  If so I'm confused because that would affect which scanline the IRQ would be fired (because you improperly counted scanlines), not what time a IRQ should be fired during a given scanline (specifically what CPU cycle) which is what Zepper is having issues with.<br /><br />While I agree there are some time sensitive issues with the IRQ, the time that an IRQ should be fired within a given scanline is simple in regards to how the NES works:  The CPU must receive the IRQ the exact moment (within logic delays) of the CHR A12 rising edge.  This MUST be *mid-cycle* for the CPU (and probably PPU as well), not at the beginning or end of the CPU's current cycle.  Now I'm not the guy to ask when it comes to how to do this in an emu, but I have a pretty solid grasp of what's actually happening in the hardware.  I would think this means you have to account for what time CHR A12 goes high within the PPU cycle (I'm guessing it's not in the beginning, but sometime mid-PPU cycle I haven't looked at this on my scope but could if desired).  Since the PPU and CPU's clocks aren't usually aligned this means that an emulator would have to somehow have keep track of timing and syncronize numerous times within a single PPU/CPU cycle.  <br /><br />I imagine that rounding the time that CHR A12 rises to the beginning of the PPU's cycle could cause issues like Zepper is seeing.  If he rounds up to that start of the PPU cycle he passes blargg's tests, and if he delays to the end of the PPU cycle or so, RR2 and MM3 operater properly.  My guess is he needs to fire the IRQ in the middle of the PPU cycle to get them both to work.  Now I'm making some assumptions on how RockNES might work and might be way off base.  But if what I'm saying doesn't make sense let me know, I'll draw a timing diagram to illustrate my point.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4832">infiniteneslives</a> — Fri May 18, 2012 7:42 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Zepper]]></name></author>
+<updated>2012-05-18T16:11:48-07:00</updated>
+<published>2012-05-18T16:11:48-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=5985&amp;p=94066#p94066</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=5985&amp;p=94066#p94066"/>
+<title type="html"><![CDATA[Rad Racer 2 [MMC3]]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=5985&amp;p=94066#p94066"><![CDATA[
+I'm reviewing my VBlank/NMI timing, as a possible reason for such glitches. Regarding blargg's vbl_timing test (VBlank timing), it says "Reading 1 PPU clock before VBL should suppress setting". Well, should it be done "manually"? In short words, should I put a flag to avoid such thing?<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=39">Zepper</a> — Fri May 18, 2012 4:11 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[byuu]]></name></author>
+<updated>2012-05-18T01:56:07-07:00</updated>
+<published>2012-05-18T01:56:07-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=5985&amp;p=94019#p94019</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=5985&amp;p=94019#p94019"/>
+<title type="html"><![CDATA[Rad Racer 2 [MMC3]]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=5985&amp;p=94019#p94019"><![CDATA[
+<div class="quotetitle">infiniteneslives wrote:</div><div class="quotecontent"><br />So if you delay /IRQ's you fix the radracer2 and MM3 issues but then subsequently fail blargg's tests?  Interesting...<br /></div><br /><br />I kept hitting issues where the exact delay value needed to run MM3 Gemini Stage and Super Mario Bros 3 didn't match what Ryphecha had (5 vs 6 ticks, IIRC), and I'd be surprised if my CPU core still had bad cycle timings. So it certainly makes you feel that there's some incredibly timing-sensitive stuff going on around there.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=375">byuu</a> — Fri May 18, 2012 1:56 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[infiniteneslives]]></name></author>
+<updated>2012-05-17T22:02:28-07:00</updated>
+<published>2012-05-17T22:02:28-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=5985&amp;p=94009#p94009</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=5985&amp;p=94009#p94009"/>
+<title type="html"><![CDATA[Rad Racer 2 [MMC3]]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=5985&amp;p=94009#p94009"><![CDATA[
+Oh my bad, I thought I had the latest release.<br /><br />So if you delay /IRQ's you fix the radracer2 and MM3 issues but then subsequently fail blargg's tests?  Interesting...<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4832">infiniteneslives</a> — Thu May 17, 2012 10:02 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Zepper]]></name></author>
+<updated>2012-05-17T20:54:44-07:00</updated>
+<published>2012-05-17T20:54:44-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=5985&amp;p=94000#p94000</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=5985&amp;p=94000#p94000"/>
+<title type="html"><![CDATA[Rad Racer 2 [MMC3]]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=5985&amp;p=94000#p94000"><![CDATA[
+My emu pass in all MMC3 IRQ tests, including CPU tests.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=39">Zepper</a> — Thu May 17, 2012 8:54 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[infiniteneslives]]></name></author>
+<updated>2012-05-15T11:39:39-07:00</updated>
+<published>2012-05-15T11:39:39-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=5985&amp;p=93856#p93856</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=5985&amp;p=93856#p93856"/>
+<title type="html"><![CDATA[Rad Racer 2 [MMC3]]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=5985&amp;p=93856#p93856"><![CDATA[
+Ahh I see.  I though you fixed the issue and were able to pass blargg's tests.  Looks like your timing is still off and failing scanline timing test.  We went further into the details on that other thread of yours.  Solve those issues ensuring your PPU and CPU are properly in sync.  I'm guessing once you get that you'll fix ALL of these IRQ problems.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4832">infiniteneslives</a> — Tue May 15, 2012 11:39 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Zepper]]></name></author>
+<updated>2012-05-15T06:16:23-07:00</updated>
+<published>2012-05-15T06:16:23-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=5985&amp;p=93844#p93844</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=5985&amp;p=93844#p93844"/>
+<title type="html"><![CDATA[Rad Racer 2 [MMC3]]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=5985&amp;p=93844#p93844"><![CDATA[
+Screenshots:<br /><img src="http://rocknes.net/megaman3.png" alt="Image" /> <img src="http://rocknes.net/radracer2.png" alt="Image" /> <img src="http://rocknes.net/gauntlet2.png" alt="Image" /><br /><br />- Mega Man 3: glitch should be on Shadow Man box, and not on Magnet Man.<br />- Rad Racer 2: right side is glitched.<br />- Gauntlet 2: glitched at right side, 3 segments of +-20 pixels.<br /><br />All these games use IRQ. If I adjust the IRQ to trigger later (much like mapper 64), the glitches are gone... but I disagree.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=39">Zepper</a> — Tue May 15, 2012 6:16 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[infiniteneslives]]></name></author>
+<updated>2012-05-14T21:54:10-07:00</updated>
+<published>2012-05-14T21:54:10-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=5985&amp;p=93824#p93824</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=5985&amp;p=93824#p93824"/>
+<title type="html"><![CDATA[Rad Racer 2 [MMC3]]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=5985&amp;p=93824#p93824"><![CDATA[
+Are you sure the two are related?  MM3 is a single line issue where RR2 is multiline.<br /><br />For what it's worth I don't see how the MMC3 could cause the RR2 issues, my guess is your comment about it being your gfx engine is correct.  I can see how the MMC3 could cause the difference in MM3 but if it was you wouldn't be able to pass blargg's tests like you now do.  I guess it's possible you've got MMC3 mirroring issues but not IRQ.  You probably knew that though...<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4832">infiniteneslives</a> — Mon May 14, 2012 9:54 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Zepper]]></name></author>
+<updated>2012-05-14T19:03:46-07:00</updated>
+<published>2012-05-14T19:03:46-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=5985&amp;p=93815#p93815</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=5985&amp;p=93815#p93815"/>
+<title type="html"><![CDATA[Rad Racer 2 [MMC3]]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=5985&amp;p=93815#p93815"><![CDATA[
+Sorry for bumping it, but such problems are still pending. Any help? This glitch occurs in Mega Man 3 (glitched scanline on Magnet Man, instead of Shadow Man), Rad Racer 2 and Gauntlet 2 (glitches at right).<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=39">Zepper</a> — Mon May 14, 2012 7:03 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Zepper]]></name></author>
+<updated>2010-02-02T08:37:35-07:00</updated>
+<published>2010-02-02T08:37:35-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=5985&amp;p=56085#p56085</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=5985&amp;p=56085#p56085"/>
+<title type="html"><![CDATA[Rad Racer 2 [MMC3]]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=5985&amp;p=56085#p56085"><![CDATA[
+- I didn't fix it. It's probably my gfx engine.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=39">Zepper</a> — Tue Feb 02, 2010 8:37 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[James]]></name></author>
+<updated>2010-02-02T07:45:23-07:00</updated>
+<published>2010-02-02T07:45:23-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=5985&amp;p=56084#p56084</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=5985&amp;p=56084#p56084"/>
+<title type="html"><![CDATA[Rad Racer 2 [MMC3]]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=5985&amp;p=56084#p56084"><![CDATA[
+Zepper -- saw that you released a new version of RockNES.  Did you fix this issue?  If so, what was the problem?<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=88">James</a> — Tue Feb 02, 2010 7:45 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Zepper]]></name></author>
+<updated>2010-01-28T08:20:04-07:00</updated>
+<published>2010-01-28T08:20:04-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=5985&amp;p=55826#p55826</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=5985&amp;p=55826#p55826"/>
+<title type="html"><![CDATA[Rad Racer 2 [MMC3]]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=5985&amp;p=55826#p55826"><![CDATA[
+- Ah, ok. ^_^;;<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=39">Zepper</a> — Thu Jan 28, 2010 8:20 am</p><hr />
+]]></content>
+</entry>
+</feed>

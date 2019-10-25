@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=3&amp;t=8712" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2012-03-19T07:46:32-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=3&amp;t=8712</id>
+<entry>
+<author><name><![CDATA[Bisqwit]]></name></author>
+<updated>2012-03-19T07:46:32-07:00</updated>
+<published>2012-03-19T07:46:32-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8712&amp;p=91528#p91528</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8712&amp;p=91528#p91528"/>
+<title type="html"><![CDATA[FDS emulation attempt and questions]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8712&amp;p=91528#p91528"><![CDATA[
+Here is my refined algorithm on low-level FDS DISK I/O emulation in pseudocode.  I have tested both the reading and writing for functional correctness (games I have tried so far do not complain, and the disk contents read/written match their apparent intention perfectly). It does not mean it is proven correct, though. There may be another game that does not like it.<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">Register bits:<br />$4025 bit 0: DontStopMotor<br />$4025 bit 1: DontScanMedia<br />$4025 bit 2: DontWrite<br />$4025 bit 4: TransmitCRC<br />$4025 bit 6: InData<br />$4025 bit 7: DiskIRQ_enable<br />$4030 bit 0: TIMER_IRQ<br />$4030 bit 1: DataReady<br />$4030 bit 4: CRC&#91;0..15&#93; != 0x0000<br />$4030 bit 6: EndOfDisk<br />$4032 bit 0: DiskNotInserted<br />$4032 bit 1: DiskNotInserted || !Scanning<br />$4032 bit 2: DiskNotInserted<br />$4031 8 bits: ReadData<br />$4024 8 bits: WriteData<br />Writing or reading any of these registers does no immediate action aside from reading/storing the relevant bits in memory, and possibly reprogramming nametable mirroring and/or acknowledging an IRQ.<br /><br />Internal bits:<br />..... bit .: DiskNotInserted   &#40;0 if disk is inserted, 1 otherwise&#41;<br />..... bit .: Scanning          &#40;used internally, indicates whether the motor has awakened&#41;<br />..... bit .: GapCovered        &#40;used internally, indicates whether the end of gap was found&#41;<br />..... bit .: PreviousCRCflag   &#40;used internally, stores last value of TransmitCRC&#41;<br />..... bit .: DoIRQ             &#40;used internally as temporary&#41;<br />..... 8 bits  : ShiftRegister  &#40;used internally to store current disk-transfer byte&#41;<br />..... 16 bits : CRCaccumulator &#40;used internally for CRC calculation&#41;<br />..... integer : DiskPosition   &#40;indicates current byte-position in the raw disk data&#41;<br />..... integer : DELAY          &#40;indicates amount of remaining wait in CPU cycles&#41;<br /><br />FDS algorithm &#40;invoked on every CPU cycle&#41;:<br />   -- Do nothing if motor is stopped, or if disk is not inserted.<br />   IF DontStopMotor = 0 OR DiskNotInserted = 1,<br />      Scanning  := 0<br />      EndOfDisk := 1<br />      END CYCLE<br />   -- At this point, DontStopMotor=1, and DiskNotInserted=0.<br />   -- Do nothing if scanning is not started and has not been started.<br />   IF DontScanMedia = 1 AND Scanning = 0,<br />      END CYCLE<br />   -- At this point, DontStopMotor=1, and DiskNotInserted=0, and &#40;DontScanMedia=0 OR Scanning=1&#41;.<br />   -- So motor and scanning are permitted. Are they not started yet?<br />   IF EndOfDisk = 1,<br />      -- Start with delay.<br />      DELAY        := 50000   &#40;arbitrary number&#41;<br />      EndOfDisk    := 0<br />      -- Set internal variables for starting from the beginning of disk.<br />      DiskPosition := 0<br />      GapCovered   := 0<br />   -- Elapse any pending delay &#40;read-delay, motor spin-up delay&#41;<br />   IF DELAY &gt; 0,<br />      DECREMENT DELAY<br />      END CYCLE<br /><br />   -- Motor is now running and disk is being scanned. Set the flag thus indicating,<br />   -- so that we don't get knocked back into halt, when the game sets DontScanMedia=1.<br />   -- Also this reports in $4032 bit 1.<br />   -- TODO: Figure out what happens on real hardware, if you set DontScanMedia=1<br />   --       a few cycles after setting DontScanMedia=0, but before $4032 bit 1 indicates Scanning=1.<br />   --       In this emulator, such action resets the disk drive without starting scanning,<br />   --       but there is a possibility that the real hardware would ignore the flag setting.<br />   Scanning := 1<br /><br />   -- At this point, DontStopMotor=1, and DiskNotInserted=0, and Scanning=1, and DontScanMedia=irrelevant.<br />   -- READING?<br />   IF DontWrite = 1,<br />      -- Begin read-cycle:<br />      READ DISK  --&gt; ShiftReg<br />      IF PreviousCRCflag = 0,<br />         UPDATE CRCaccumulator WITH ShiftReg<br />      -- End read-cycle:<br />      DoIRQ        := DiskIRQ_enable<br />      -- If InData = 0, we are to think we are in a gap.<br />      IF InData = 0,<br />         GapCovered     := 0<br />         CRCaccumulator := 0<br />      ELSE, IF ShiftReg != 0x00,<br />         -- InData = 1. If we found a nonzero byte, we're no longer in the gap.<br />         GapCovered     := 1<br />         DoIRQ          := 0  -- Don't signal IRQ for data-begin byte<br />      -- If we are not in gap, signal the read data.<br />      IF GapCovered = 1,<br />         DataReady      := 1<br />         ReadData       := ShiftReg<br />         If DoIRQ, SIGNAL IRQ<br /><br />   -- WRITING?<br />   IF DontWrite = 0,<br />      IF TransmitCRC = 0,<br />         -- If we are not writing CRC, signal the readiness for data.<br />         -- TODO: Figure out whether DataReady should also be signalled<br />         --       when InData=0. In this emulator, it will.<br />         --       The FDS BIOS never polls $4030 when InData=0, nor<br />         --       never has DiskIRQ_enable=1 when InData=0, but a game<br />         --       may do direct disk access differently.<br />         DataReady      := 1<br />         ShiftReg       := WriteData<br />         DoIRQ          := DiskIRQ_enable<br />         If DoIRQ, SIGNAL IRQ<br /><br />      -- ShiftReg now contains the value of $4025 that was<br />      -- given to us in the beginning of the write cycle.<br />      IF InData = 0,<br />         -- If InData = 0, we are to produce a gap.<br />         ShiftReg       := 0x00<br />      IF TransmitCRC = 0,<br />         UPDATE CRCaccumulator WITH ShiftReg<br />         -- TODO: Figure out what happens on real hardware if you have<br />         --       InData=0 and TransmitCRC=1 simultaneously.<br />         --       Will the CRC &#40;first two bytes thereof anyway&#41; be written?<br />         --       In this emulator, they will.<br />      ELSE,<br />         IF PreviousCRCflag = 0,<br />            -- If CRC was RAISED, finish the CRC calculation with TWO zero-bytes.<br />            UPDATE CRCaccumulator WITH 0x00<br />            UPDATE CRCaccumulator WITH 0x00<br />         ShiftReg       := CRCaccumulator low 8 bits<br />         DOWNSHIFT CRCaccumulator by 8 bits<br />      WRITE DISK &lt;-- ShiftReg<br />      -- These flags may be useless at the moment:<br />      GapCovered   := 0<br />      <br />   -- After processing this byte, go to next byte.<br />   PreviousCRCflag := TransmitCRC<br />   INCREMENT DiskPosition<br />   IF DiskPosition &gt;= DISK_SIZE,<br />      -- End of disk reached. Stop motor.<br />      -- I don't know if this is correct, or if the motor should rewind automatically, or something.<br />      -- In any case, this will also set the EndOfDisk flag at next cycle.<br />      DontStopMotor := 0<br />   ELSE,<br />      DELAY := 149<br />   END CYCLE</div><br /><br />Updating the 16-bit CRC:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">for&#40;unsigned n = 0x01; n &lt;= 0x80; n = n &lt;&lt; 1&#41;<br />&#123;<br />  #if 0<br />    /* OPTION 1: CRC is stored in an at least 17-bit variable */<br />    if&#40;databyte &amp; n&#41; CRC = CRC | 0x10000;<br />    if&#40;CRC &amp; 1&#41;      CRC = CRC ^ 0x10810;<br />    CRC = CRC &gt;&gt; 1;<br />  #else<br />    /* OPTION 2: CRC is exactly 16 bit, requires temporary status flag */<br />    bool c = &#40;CRC &amp; 1&#41;;<br />    CRC = CRC &gt;&gt; 1;<br />    if&#40;c&#41;            CRC = CRC ^ 0x8408;<br />    if&#40;databyte &amp; n&#41; CRC = CRC ^ 0x8000;<br />  #endif<br />    /*<br />          6502 Assembler equivalent without tables, for reference only:<br />             lda databyte<br />             ldx #8<br />           - lsr a<br />             ror crc_hi<br />             ror crc_lo<br />             bcc +<br />              tay<br />               lda crc_lo : eor #$08 : sta crc_lo<br />               lda crc_hi : eor #$84 : sta crc_hi<br />              tya<br />           + dex<br />             bne -<br />          Assuming zeropage-addressing, costs 164..323 cycles.<br />    */<br />&#125;</div><br />Note that when the CRC is 0 and the databyte is 0, the outcome CRC is also 0. Also, CRC(  string + CRC(string + "\x00\x00") ) = 0. This trait happens even if the 0x8408 is changed to some other arbitrary 16-bit integer.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=5043">Bisqwit</a> — Mon Mar 19, 2012 7:46 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Zepper]]></name></author>
+<updated>2012-03-18T11:16:49-07:00</updated>
+<published>2012-03-18T11:16:49-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8712&amp;p=91491#p91491</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8712&amp;p=91491#p91491"/>
+<title type="html"><![CDATA[FDS emulation attempt and questions]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8712&amp;p=91491#p91491"><![CDATA[
+<div class="quotetitle">Bisqwit wrote:</div><div class="quotecontent"><br />EDIT: Except the number has to be 65500, not 65550.<br /></div><br /><br />Yup, my bad. <img src="http://forums.nesdev.com/images/smilies/icon_smile.gif" alt=":)" title="Smile" /> Thanks.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=39">Zepper</a> — Sun Mar 18, 2012 11:16 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Bisqwit]]></name></author>
+<updated>2012-03-18T09:25:20-07:00</updated>
+<published>2012-03-18T09:25:20-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8712&amp;p=91483#p91483</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8712&amp;p=91483#p91483"/>
+<title type="html"><![CDATA[FDS emulation attempt and questions]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8712&amp;p=91483#p91483"><![CDATA[
+<div class="quotetitle">Zepper wrote:</div><div class="quotecontent"><br />To switch a disk side, is the "formula" <em>disk_data[active_side*65550]</em> valid ?<br /></div><br />When the disk_data contains the data read from FDS file (excluding "FDS\x1A" header) without any conversion (such as adding gaps &amp; start marks &amp; crc necessary for a low-level emulation), yes.<br />EDIT: Except the number has to be 65500, not 65550.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=5043">Bisqwit</a> — Sun Mar 18, 2012 9:25 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Zepper]]></name></author>
+<updated>2012-03-18T09:04:05-07:00</updated>
+<published>2012-03-18T09:04:05-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8712&amp;p=91482#p91482</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8712&amp;p=91482#p91482"/>
+<title type="html"><![CDATA[FDS emulation attempt and questions]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8712&amp;p=91482#p91482"><![CDATA[
+To switch a disk side, is the "formula" <em>disk_data[active_side*65550]</em> valid ?<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=39">Zepper</a> — Sun Mar 18, 2012 9:04 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Bisqwit]]></name></author>
+<updated>2012-03-16T06:35:59-07:00</updated>
+<published>2012-03-16T06:35:59-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8712&amp;p=91390#p91390</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8712&amp;p=91390#p91390"/>
+<title type="html"><![CDATA[FDS emulation attempt and questions]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8712&amp;p=91390#p91390"><![CDATA[
+<div class="quotetitle">tepples wrote:</div><div class="quotecontent"><br />Apparently the mathematical structure of CRC is such that appending the correct CRC value to a bitstream will cause the running CRC value to return to the starting value (e.g. $0000 or $FFFF).<br /></div><br />At least the algorithm described at <!-- m --><a class="postlink" href="http://nesdev.com/FDS%20technical%20reference.txt">http://nesdev.com/FDS%20techni ... erence.txt</a><!-- m --> does not possess such property, in either endianess.<br /><br />EDIT: Oh, wait, it does, when you append two dummy zero-bytes to the stream before the CRC when encoding, and encode in little-endian. Then the reading algorithm becomes slightly simpler, though the writing algorithm becomes difficult:<br /><ul><li><strong>after receiving 8 bits in READ MODE:</strong><br /><br />             Fetch the current disk byte into ShiftReg<br />     <span style="color: #8080B0">Accumulate CRC with the contents of ShiftReg<br />     (Note that $4032 bit 4 (CRC check result) is a bit-wise OR of all bits of the CRC at all times. If the CRC accumulator is zero, the bit is 0. Otherwise, it is 1.)</span><br />             <span style="color: #90B890">If $4025 bit 6 is 0, then clear internal flag: GapCovered=0<br />     If GapCovered=1, then </span>Set $4032 bit 1 (to indicate $4031 is filled with data), and signal the IRQ if allowed; Then put contents of ShiftReg into $4031<br />     <span style="color: #90B890">If the current disk byte was nonzero AND $4025 bit 6 is 1, then set internal flag: GapCovered=1</span><br />     Move to next byte on disk<br />             Wait ～149 cycles, and repeat<br /></li><li><strong>when writing 8 bits in WRITE MODE:</strong><br />     <br />     <span style="color: #8080B0">if CRC-verify flag was PREVIOUSLY UNSET, Accumulate CRC with the contents of ShiftReg<br />     If CRC-verify flag is SET, but was PREVIOUSLY UNSET, suddenly accumulate CRC twice with value 0x00.<br />     If CRC-verify flag is SET, put the CRC low bits into ShiftReg and shift the CRC right by 8 bits, filling the top with zerobits.</span><br />     Store the value from ShiftReg into the disk<br />     Put value 0x00 into ShiftReg<br />             <span style="color: #90B890">If $4025 bit 6 is 0, then clear internal flag: GapCovered=0<br />     If GapCovered=1, then </span>Set $4032 bit 1 (to indicate $4024 is ready for next byte), and signal the IRQ if allowed. Then, <span style="color: #8080B0">if CRC-verify flag is unset,</span> put contents of $4024 into ShiftReg.<br />     <span style="color: #90B890">If the current disk byte was nonzero AND $4025 bit 6 is 1, then set internal flag: GapCovered=1</span><br />     Wait ～149 cycles, and repeat<br /></li><li>Or merged:<br /><br />             If READING, fetch the current disk byte into ShiftReg<br />     <span style="color: #8080B0">if CRC-verify flag was PREVIOUSLY UNSET, Accumulate CRC with the contents of ShiftReg<br />     If WRITING, and CRC-verify flag is SET, but was PREVIOUSLY UNSET, suddenly accumulate CRC twice with value 0x00.<br />     If WRITING, and CRC-verify flag is SET, put the CRC low bits into ShiftReg and shift the CRC right by 8 bits, filling the top with zerobits.</span><br />     if WRITING, Store the value from ShiftReg into the disk<br />     If WRITING, Put value 0x00 into ShiftReg<br />             <span style="color: #90B890">If $4025 bit 6 is 0, then clear internal flag: GapCovered=0<br />     If GapCovered=1, then </span>Set $4032 bit 1 (to indicate that next CPU-adapter data transfer can happen), and signal the IRQ if allowed. Then put contents of ShiftReg into $4031, and <span style="color: #8080B0">if CRC-verify flag is unset,</span> put contents of $4024 into ShiftReg.<br />     <span style="color: #90B890">If the current disk byte was nonzero AND $4025 bit 6 is 1, then set internal flag: GapCovered=1</span><br />     Wait ～149 cycles, and repeat</li></ul><br /><br />(The write algorithm needs reviewing)<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=5043">Bisqwit</a> — Fri Mar 16, 2012 6:35 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2012-03-16T06:15:31-07:00</updated>
+<published>2012-03-16T06:15:31-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8712&amp;p=91388#p91388</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8712&amp;p=91388#p91388"/>
+<title type="html"><![CDATA[FDS emulation attempt and questions]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8712&amp;p=91388#p91388"><![CDATA[
+<div class="quotetitle"><b>Quote:</b></div><div class="quotecontent"><br />_after_ the first CRC byte has already been read (and presumably, accumulated into the CRC sum, rather than verified). How does that work?<br /></div><br />Apparently the mathematical structure of CRC is such that appending the correct CRC value to a bitstream will cause the running CRC value to return to the starting value (e.g. $0000 or $FFFF).<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Fri Mar 16, 2012 6:15 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Bisqwit]]></name></author>
+<updated>2012-03-16T07:42:05-07:00</updated>
+<published>2012-03-16T02:43:06-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8712&amp;p=91386#p91386</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8712&amp;p=91386#p91386"/>
+<title type="html"><![CDATA[FDS emulation attempt and questions]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8712&amp;p=91386#p91386"><![CDATA[
+One thing I wonder about the CRC calculation.<br /><br />The BIOS sets the "check CRC" bit _after_ the first CRC byte has already been read (and presumably, accumulated into the CRC sum, rather than verified). How does that work?<br /><br />;checks the CRCOK bit at the end of a block<br />EndOfBlkRead:JSR XferByte;first CRC byte<br />$E709LDX #$28;premature file end error #<br />$E70BLDA $4030<br />$E70EAND #$40;check "end of disk" status<br />$E710BNE XferFail<br />$E712LDA $FA<br />$E714ORA #$10;set while processing block end mark (CRC)<br />$E716STA $FA<br />$E718STA $4025<br />$E71BJSR XferByte;second CRC byte<br />$E71ELDX #$27;CRC fail error #<br />$E720LDA $4030<br />$E723AND #$10;test CRC bit<br />$E725BNE XferFail<br />$E727BEQ ChkDiskSet<br /><br />Basically, it looks like the flowchart is like this.<br />Assumptions:<br />– our emulation model handles 8 bits at time instead of bit per bit.<br />– the device has motor running and scanning, and the reaching of disk beginning has been confirmed.<br /><br />[EDIT: See posts on next page for corrected algorithm]<br /><br /><ul><li><strong>after receiving 8 bits in READ MODE:</strong><br /><br />     <span style="color: #8080B0">If CRC-verify flag was not set, accumulate CRC with the contents of ShiftReg<br />     If CRC-verify flag was set, XOR the ShiftReg into the CRC low 8 bits</span><br />             Fetch the current disk byte into ShiftReg<br />             <span style="color: #8080B0">If CRC-verify flag was set, XOR the ShiftReg into the CRC high 8 bits<br />     (Note that $4032 bit 4 (CRC check result) is a bit-wise OR of all bits of the CRC at all times. If the CRC accumulator is zero, the bit is 0. Otherwise, it is 1.)</span><br />             Reload $4031 with the contents of ShiftReg<br />             <span style="color: #90B890">If $4025 bit 6 is 0, then clear internal flag: GapCovered=0<br />     If GapCovered=1, then </span>Set $4032 bit 1 (to indicate $4031 is filled with data), and signal the IRQ if allowed<br />     Move to next byte on disk<br />     <span style="color: #90B890">If ShiftReg ≠ 0 AND $4025 bit 6 is 1, then set internal flag: GapCovered=1</span><br />             Wait ～149 cycles, and repeat<br /></li><li><strong>when writing 8 bits in WRITE MODE:</strong><br />     <br />     <span style="color: #8080B0">If CRC-verify flag was SET, put the CRC low bits into ShiftReg and shift the CRC right by 8 bits, filling the top with zerobits.</span><br />     Store the value from ShiftReg into the disk<br />     Reload ShiftReg from $4024<br />             <span style="color: #90B890">If $4025 bit 6 is 0, then clear internal flag: GapCovered=0<br />     If GapCovered=1, then </span>Set $4032 bit 1 (to indicate $4024 is ready to accept data), and signal the IRQ if allowed<br />     Move to next byte on disk<br />     <span style="color: #90B890">If ShiftReg ≠ 0 AND $4025 bit 6 is 1, then set internal flag: GapCovered=1</span><br />     Wait ～149 cycles, and repeat</li></ul><br /><br />The moss-colored parts in this listing do the gap-end detection.<br />The blue parts do CRC.<br /><br />Disclaimer: This is my analysis based on how the BIOS seems to expect the disk drive to work, and which implementation makes it work fine. It is not verified on actual console.<br />It is worth noting in READING, that the interval between BIOS setting the CRC-check flag and checking the result of the check is just one disk-byte long. This implies that the adapter is supposed to perform the CRC check of 16 bits during the time of 8 disk bits.<br />It is also worth noting in WRITING, that the CRC flag is set some time AFTER the IRQ for the first CRC byte is served. This means that you cannot write data into the disk immediately when $4024 is written into (or when IRQ is served), because at that point you do not yet know whether the actual data to be written into the disk is going to be a CRC.<br />I think, the CRC shifting in writing also clears the CRC register rather than just rotating it. It will continue to write zero-bytes (gap) as long as writing is enabled and the motor is turned on.<br /><br />Questions: When game  / BIOS does not do any I/O writes, does the drive automatically return to the beginning of the disk (and continue running from there) upon reaching the end, or does it shut down? It seems like the BIOS is leaving the drive running after loading all files necessary for launching the game, and this screws up Zelda 2 in my emulator currently: When Zelda 2 begins accessing the disk at the title screen, the disk head is not in the beginning, but somewhere in the middle.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=5043">Bisqwit</a> — Fri Mar 16, 2012 2:43 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Bregalad]]></name></author>
+<updated>2012-03-16T02:14:40-07:00</updated>
+<published>2012-03-16T02:14:40-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8712&amp;p=91385#p91385</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8712&amp;p=91385#p91385"/>
+<title type="html"><![CDATA[FDS emulation attempt and questions]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8712&amp;p=91385#p91385"><![CDATA[
+The motor is definitely disabled when you press the eject button, as nothing prevents you to do that during a load for example.<br /><br />This is probably one of the only ways to have the reading head rest "in the middle of nowhere" instead of being at it's rest position at the end of the disc.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=38">Bregalad</a> — Fri Mar 16, 2012 2:14 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Bisqwit]]></name></author>
+<updated>2012-03-16T01:37:21-07:00</updated>
+<published>2012-03-16T01:37:21-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8712&amp;p=91384#p91384</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8712&amp;p=91384#p91384"/>
+<title type="html"><![CDATA[FDS emulation attempt and questions]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8712&amp;p=91384#p91384"><![CDATA[
+<div class="quotetitle">MottZilla wrote:</div><div class="quotecontent"><br />There is a switch that is engaged when the disk is set. If it's ejected then you just unset the disk and the BIOS will throw an error.<br /></div><br />That much was clear -- thanks for the reply anyway --, but I am wondering about the physical function of the drive. Does the motor still spin if signalled to do so, when the disk is out? What if the motor is already running (or instructed to be running) while the disk is inserted? How does it interact with finding the disk data beginning?<br />And other questions I asked.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=5043">Bisqwit</a> — Fri Mar 16, 2012 1:37 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2012-03-15T21:35:42-07:00</updated>
+<published>2012-03-15T21:35:42-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8712&amp;p=91380#p91380</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8712&amp;p=91380#p91380"/>
+<title type="html"><![CDATA[FDS emulation attempt and questions]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8712&amp;p=91380#p91380"><![CDATA[
+<div class="quotetitle">Bregalad wrote:</div><div class="quotecontent"><br />It's weird I don't understand why Nintendo choose to put so many electronics in it when this could have been done with the 6502 instead<br /></div><br />Three reasons: <ul><li>They didn't have Mr. Wozniak or other Apple engineers on their team who were skilled in doing with software what other manufacturers felt the need to do in hardware. </li><li>CRC16 costs 66 cycles per byte. I use <a href="http://6502.org/source/integers/crc-more.html" class="postlink">this byte-at-a-time CRC</a> (with the alternative ending so I can use (d),Y addressing) as a PRNG in some of my newer projects, and it's a lot faster than the bit-at-a-time CRC32 that I had used in LJ65, Concentration Room, and Thwaite, but I still don't call it once per byte. </li><li>At some scale, the biggest cost of an ASIC is the pins, especially if you're already reserving the bulk of your die size for RAM. The circuit to calculate a CRC in hardware is tiny by comparison: just one more gate than the polynomial counter in the noise channels or in the CIC's program counter. </li></ul><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Thu Mar 15, 2012 9:35 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Zepper]]></name></author>
+<updated>2012-03-15T19:11:35-07:00</updated>
+<published>2012-03-15T19:11:35-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8712&amp;p=91372#p91372</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8712&amp;p=91372#p91372"/>
+<title type="html"><![CDATA[FDS emulation attempt and questions]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8712&amp;p=91372#p91372"><![CDATA[
+Every emulator I know (with FDS driver) uses a couple of hacks for specific games. I don't know even if such stuff is useful for writing or improving my FDS driver.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=39">Zepper</a> — Thu Mar 15, 2012 7:11 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[MottZilla]]></name></author>
+<updated>2012-03-15T18:56:00-07:00</updated>
+<published>2012-03-15T18:56:00-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8712&amp;p=91371#p91371</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8712&amp;p=91371#p91371"/>
+<title type="html"><![CDATA[FDS emulation attempt and questions]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8712&amp;p=91371#p91371"><![CDATA[
+<div class="quotetitle">Bregalad wrote:</div><div class="quotecontent"><br />Another think that makes me wondering is the varying gap sizes. Since the gap size can be so random, and there is 2 gaps for each files (one before block 3 and one before block 4), the disc capacity is probably not that fixed number (65k or whatever it was) but will decrease as there is more files, as the gaps will have to be stored on the disc as well. In that regard the .fds format is pretty unpractical (unless I missed something) since the disk may be full before the disk side on the image is full.<br /></div><br /><br />That is a good point, but if you look at FDS images, there is always a fairly good amount of "free space". The amount of bits used in gaps easily fits into this ofcourse.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=1726">MottZilla</a> — Thu Mar 15, 2012 6:56 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Bisqwit]]></name></author>
+<updated>2012-03-15T05:40:32-07:00</updated>
+<published>2012-03-15T05:40:32-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8712&amp;p=91353#p91353</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8712&amp;p=91353#p91353"/>
+<title type="html"><![CDATA[FDS emulation attempt and questions]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8712&amp;p=91353#p91353"><![CDATA[
+Here is the source code of my newer version. It also includes the audio synthesizer and the disk image parser. Because of some internal changes in the emulator it is no longer so self-contained unfortunately.<br /><br /><!-- m --><a class="postlink" href="http://pastebin.ca/2128362">http://pastebin.ca/2128362</a><!-- m --><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=5043">Bisqwit</a> — Thu Mar 15, 2012 5:40 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Bregalad]]></name></author>
+<updated>2012-03-15T05:26:43-07:00</updated>
+<published>2012-03-15T05:26:43-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8712&amp;p=91352#p91352</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8712&amp;p=91352#p91352"/>
+<title type="html"><![CDATA[FDS emulation attempt and questions]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8712&amp;p=91352#p91352"><![CDATA[
+Oh thanks !<br />So in fact it's some chip in the RAM adapter who handles serialisation of bytes as well as CRC calculations.<br /><br />It's weird I don't understand why Nintendo choose to put so many electronics in it when this could have been done with the 6502 instead but oh well.... that's how it is.<br /><br />I think what's so messy with current FDS documentation is that it's never clear what is in the BIOS, what is done electronically in the RAM adapter and what is done electrically/electronically in the disk drive. This should be clarified and wiki-fied.<br /><br />Another think that makes me wondering is the varying gap sizes. Since the gap size can be so random, and there is 2 gaps for each files (one before block 3 and one before block 4), the disc capacity is probably not that fixed number (65k or whatever it was) but will decrease as there is more files, as the gaps will have to be stored on the disc as well. In that regard the .fds format is pretty unpractical (unless I missed something) since the disk may be full before the disk side on the image is full.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=38">Bregalad</a> — Thu Mar 15, 2012 5:26 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Bisqwit]]></name></author>
+<updated>2012-03-15T01:39:13-07:00</updated>
+<published>2012-03-15T01:39:13-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8712&amp;p=91351#p91351</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8712&amp;p=91351#p91351"/>
+<title type="html"><![CDATA[FDS emulation attempt and questions]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8712&amp;p=91351#p91351"><![CDATA[
+<div class="quotetitle">Bregalad wrote:</div><div class="quotecontent"><br />But since the 6502 ingores the CRC, what's the point to even have the CRC stored on the disc ? Just having it stored on the disc (and ignored by the CPU) won't detect transmission errors. Or is there something I missed ?<br /></div><br />The RAM adapter will calculate and verify the CRC. (If $4025 bit 4 is set at the end of file.) The CPU can check whether the RAM adapter detected a CRC error by reading $4032 bit 4 after the CRC has been read.<br />It will detect errors in stored content on the disk, and errors in retrieval of the file data from the disk.<br />Checking the CRC error is of course voluntary, but the CPU does not need to calculate it, because the hardware does.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=5043">Bisqwit</a> — Thu Mar 15, 2012 1:39 am</p><hr />
+]]></content>
+</entry>
+</feed>

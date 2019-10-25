@@ -1,0 +1,291 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Timing for all Z80 opcodes incl. undocumented (attn: byuu)</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Timing for all Z80 opcodes incl. undocumented (attn: byuu)</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=23&amp;t=14723">http://forums.nesdev.com/viewtopic.php?f=23&amp;t=14723</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>AWJ</b> [ Sun Aug 21, 2016 11:45 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Timing for all Z80 opcodes incl. undocumented (attn: byuu)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I figure you might be interested in this, given what you're currently working on:<br /><br /><!-- m --><a class="postlink" href="http://www.devic.us/hacks/zilog-z80-undocumented-behavior/">http://www.devic.us/hacks/zilog-z80-und ... -behavior/</a><!-- m --><br /><br />ETA: There's a slightly confusing thing about those tables: the timing for conditional instructions doesn't indicate whether the condition was met or not. Hence <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">JR Z</tt> is shown as taking fewer cycles than the other <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">JR cc</tt> instructions, but that's because it's showing an untaken branch whereas the others are showing taken branches. It gets especially confusing with <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">RET</tt> because unconditional <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">RET</tt> is 1 t-state faster than (taken) <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">RET cc</tt>.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>AWJ</b> [ Mon Aug 22, 2016 4:24 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Timing for all Z80 opcodes incl. undocumented (attn: byu</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />If you look at the Zilog manual and the bus traces, you can see that Z80 cycles break down into just a few categories:<br /><br />Opcode fetch cycles aka M1 cycles. 2 clocks to read memory + 2 clocks to decode the opcode while refreshing DRAM.<br /><br />Read/write cycles, 3 clocks. Operand fetches (including the displacements of IX/IY indexed instructions) are normal read cycles, but the second byte of a prefixed instruction is an opcode fetch.<br /><br />Port in/out cycles, 4 clocks.<br /><br />Internal operations, which can come after any other cycle type, up to 5 in a row depending on the operation. Technically 1- or 2-clock internal operations are part of the memory cycle they come after, and 5-clock internal operations comprise an entire machine cycle in their own right, but I don't think the difference is visible externally or matters for emulation.<br /><br />Here's something very weird: Normally, the second byte of a $CB or $ED prefixed instruction is an opcode fetch (i.e. it takes 4 clocks, asserts M1, and refreshes DRAM) However, in an instruction with both a $DD/$FD prefix and a $CB prefix (i.e. an indexed bitwise instruction) the instruction encoding is $DD/$FD, $CB, displacement, subop, and the subop fetch turns into a normal read with 2 internal operation clocks after it. I assume the instructions are encoded that way so that the effective address calculation can be overlapped with the sub-opcode fetch, and the mutation of the sub-opcode fetch into a non-M1 cycle is a side effect of the out-of-order encoding. One case where this quirk is important is arcade machines with encrypted opcodes.<br /><br />Since opcode fetches require the memory to respond faster than normal read/write cycles do, some machines (like the MSX) have an externally-inserted wait state only on M1 cycles. I don't think that applies to any of the Sega consoles though.<br /><br />Examples:<br /><br /><strong>PUSH rr</strong>:<br />Fetch opcode<br />1 internal operation (decrementing SP)<br />Write high register byte<br />Write low register byte<br />Total: 11 clocks<br /><br /><strong>POP rr</strong>:<br />Fetch opcode<br />Read low register byte<br />Read high register byte<br />Total: 10 clocks<br /><br /><strong>ADD A,(HL)</strong>:<br />Fetch opcode<br />Read memory<br />Total: 7 clocks<br /><br /><strong>ADD A,(IX+d)</strong>:<br />Fetch $DD prefix<br />Fetch opcode<br />Read displacement<br />5 internal operations (calculating IX+d)<br />Read memory<br />Total: 19 clocks (remember when I said Z80 indexed instructions were slow?)<br /><br /><strong>RES/SET/BIT/RLC/etc (HL)</strong>:<br />Fetch $CB prefix<br />Fetch sub-opcode<br />Read memory<br />1 internal operation<br />Write memory (except for BIT)<br />Total: 15 clocks (12 for BIT)<br /><br /><strong>RES/SET/BIT/RLC/etc (IX+d)</strong>:<br />Fetch $DD prefix<br />Fetch $CB prefix<br />Read displacement<br />Read (not fetch!) sub-opcode<br />2 internal operations (calculating IX+d; partly overlapped with sub-opcode read)<br />Read memory<br />1 internal operation<br />Write memory (except for BIT)<br />Total: 23 clocks (20 for BIT)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>byuu</b> [ Sat Sep 03, 2016 2:35 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Timing for all Z80 opcodes incl. undocumented (attn: byu</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Sorry, didn't notice this sooner. Don't usually frequent this subforum.<br />(That and I lost a week learning about X509 certificates. Those things are horrifically complex.)<br /><br />Greatly appreciate the info!! Glad to have gotten it now before I went too far into writing the core.<br /><br />I scrapped what I had and started over to support the T-cycles properly (including the extra clock for opcode fetches), as well as to handle the way you can stack DD/FD opcode prefix flags; and to roll them into the regular tables, so that there's only three now (main, CB, ED.)<br /><br />This CPU is certainly a lot less awful to emulate than the 68K, but it's still not very fun &gt;_&gt;<br /><br />Just out of curiosity, does anyone know the bus hold delays for the various read/write/in/out operations on the Z80?<br /><br />Eg is it:<br />* wait 4 clocks<br />* read from in<br />* return in value<br /><br />Or more like:<br />* wait 2 clocks<br />* read from in<br />* wait 2 clocks<br />* retur in value<br /><br />If we have no idea, then I'll just guess something for the time being.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>AWJ</b> [ Tue Sep 06, 2016 9:17 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Timing for all Z80 opcodes incl. undocumented (attn: byu</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">byuu wrote:</div><div class="quotecontent">Sorry, didn't notice this sooner. Don't usually frequent this subforum.<br />(That and I lost a week learning about X509 certificates. Those things are horrifically complex.)<br /><br />Greatly appreciate the info!! Glad to have gotten it now before I went too far into writing the core.<br /><br />I scrapped what I had and started over to support the T-cycles properly (including the extra clock for opcode fetches), as well as to handle the way you can stack DD/FD opcode prefix flags; and to roll them into the regular tables, so that there's only three now (main, CB, ED.)<br /><br />This CPU is certainly a lot less awful to emulate than the 68K, but it's still not very fun &gt;_&gt;<br /><br />Just out of curiosity, does anyone know the bus hold delays for the various read/write/in/out operations on the Z80?<br /><br />Eg is it:<br />* wait 4 clocks<br />* read from in<br />* return in value<br /><br />Or more like:<br />* wait 2 clocks<br />* read from in<br />* wait 2 clocks<br />* retur in value<br /><br />If we have no idea, then I'll just guess something for the time being.</div><br /><br />You know that memory accesses aren't instantaneous but consist of a sequence of operations, right? The timing for every signal for every type of cycle (fetch, read, write, in, out) is shown starting on page 13 of the Zilog manual (page 33 of the PDF).<br /><br />The important takeaway is that opcode fetches are compressed into just 2 clocks; the second 2 clocks of an M1 cycle are DRAM refresh, in which the Z80 puts the contents of the R register on the address bus and then increments the lower 7 bits of R (you probably don't have to emulate the refresh itself, but you do need to emulate the R register because software can read it; it's sometimes used by games as a PRNG seed)<br /><br />I think what you really want to know is &quot;if the Z80 does a read/write that triggers an interrupt from some device, does the device respond fast enough to interrupt the Z80 before it starts the next instruction?&quot; And that depends on the hardware responding to the write (e.g. the VDP), so you'll have to consult Sega-specific documentation.<br /><br /><div class="quotetitle">byuu, on twitter wrote:</div><div class="quotecontent">Why does [inc (hl)] take 11 cycles?</div><br /><br />Memory RMW operations on the Z80 have one internal operation between the read and the write for the same reason they do on the 6502: it takes time to actually do the inc/dec/shift/whatever. Like I said, the Z80 manual shows most IOs as part of the preceding memory cycle (which they are from the perspective of the chip's microcode, I guess). The exact breakdown of that instruction for bus timing purposes is:<br /><br />fetch/decode opcode (2+2 clocks)<br />read memory (3 clocks)<br />internal operation (1 clock)<br />write memory (3 clocks)<br /><br />Every place the manual shows a memory read taking more than 3 clocks, or an opcode fetch/decode taking more than 4 clocks, it should be interpreted as &quot;standard read or fetch cycle with (n - 3) or (n - 4) internal operations after&quot;.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>byuu</b> [ Tue Sep 06, 2016 12:48 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Timing for all Z80 opcodes incl. undocumented (attn: byu</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />&gt; You know that memory accesses aren't instantaneous but consist of a sequence of operations, right?<br /><br />Considering I emulate that on the SNES and am asking about it now, I'd go with yes ;)<br /><br />The problem is that I can't really determine how best to simulate these things even on platforms where I <em>can</em> run my own code on.<br /><br />It's not really practical to emulate the entire bus propagation delay, especially when we don't even know when other things are supposed to respond.<br /><br />&gt; And that depends on the hardware responding to the write (e.g. the VDP), so you'll have to consult Sega-specific documentation.<br /><br />They never document things at that fine a granularity :/<br /><br />I only got where I did on the SNES because there were two ways to latch H/V counters. One for read, one for write.<br /><br />&gt; the Z80 manual shows most IOs as part of the preceding memory cycle<br /><br />Ah, cool. Then my guess was correct. Thank you for confirming!
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>AWJ</b> [ Tue Sep 06, 2016 3:40 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Timing for all Z80 opcodes incl. undocumented (attn: byu</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">there's no reason for the bitwise and logical operators to be different precedent levels</div><br /><br />No, just no. There's a very good reason why AND has higher precedence than OR or XOR in literally every programming language in the world. AND is the Boolean analogue of multiplication and OR is the Boolean analogue of addition (XOR is addition modulus 2). Fighting against the fundamentals of algebra is... not a good start for your programming language.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>byuu</b> [ Tue Sep 06, 2016 7:44 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Timing for all Z80 opcodes incl. undocumented (attn: byu</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />It's impressive that I've been programming for 20 years and have never heard AND referred to as boolean multiplication, and OR as boolean addition. I've further never come across code that relied on the precedence of AND to be higher than OR. Why does XOR get precedence between AND and OR, then? And just out of curiosity, what about the rest of the operations? NOT, NAND, NOR, XNOR, etc? Is one of them divide, subtract, regular modulus, etc?<br /><br />Ah well, at any rate, thanks for helping me dodge a bullet prior to any kind of formalization. A shame you weren't around when the PHP devs started out to explain to them why ternary should have right-to-left associativity, heh.<br /><br />But ... <!-- m --><a class="postlink" href="https://en.wikipedia.org/wiki/Logical_connective#Order_of_precedence">https://en.wikipedia.org/wiki/Logical_c ... precedence</a><!-- m --><br /><br />Why isn't XOR (exclusive disjunction) listed in that table? Is there a more thorough table that includes it?<br /><br />&gt; not a good start for your programming language.<br /><br />I didn't expect to knock it out of the park with only a month's worth of practice writing programming languages. Still, I hope to do the best I can, and take input from others that know more than I do here.<br /><br />I'm pretty lost right now with a billion possibilities and trying to find the best compromises for my values.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>thefox</b> [ Tue Sep 06, 2016 9:00 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Timing for all Z80 opcodes incl. undocumented (attn: byu</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">AWJ wrote:</div><div class="quotecontent"><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">there's no reason for the bitwise and logical operators to be different precedent levels</div><br />No, just no. There's a very good reason why AND has higher precedence than OR or XOR in literally every programming language in the world. AND is the Boolean analogue of multiplication and OR is the Boolean analogue of addition (XOR is addition modulus 2). Fighting against the fundamentals of algebra is... not a good start for your programming language.</div><br />Ada (and VHDL) take a different approach: and/or/xor have equal precedence, and it's an error to mix them without disambiguating. For example, <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">true and false or true</tt> is an error, <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">true and &#40;false or true&#41;</tt> and <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">&#40;true and false&#41; or true</tt> are OK.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>AWJ</b> [ Wed Sep 07, 2016 4:14 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Timing for all Z80 opcodes incl. undocumented (attn: byu</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">byuu wrote:</div><div class="quotecontent">It's impressive that I've been programming for 20 years and have never heard AND referred to as boolean multiplication, and OR as boolean addition. I've further never come across code that relied on the precedence of AND to be higher than OR. Why does XOR get precedence between AND and OR, then?</div><br /><br />One of the important ways conjunction and disjunction are analogous to multiplication and addition is that the same distributive law applies: A &amp; (B | C) equals A &amp; B | A &amp; C, just like A(B + C) equals AB + AC. Older types of programmable logic hardware such as PALs consisted of planes of AND gates linked by OR gates, and therefore implemented logic expressed in <a href="https://en.wikipedia.org/wiki/Disjunctive_normal_form" class="postlink">disjunctive normal form</a> (<a href="https://github.com/mamedev/mame/blob/master/src/mame/video/twin16.cpp#L476" class="postlink">example</a>). Reverse engineering PAL dumps is one-half figuring out what the inputs and outputs mean and one-half algebraic factoring.<br /><br />XOR isn't a fundamental operation in <a href="https://en.wikipedia.org/wiki/Boolean_algebra" class="postlink">Boolean algebra</a> because it can be expressed in terms of AND and OR. I'm actually not sure why XOR has higher precedence than OR in C-derived languages. It doesn't in Ruby, but it does in Python. Both of those languages, incidentally, fix the C brain damage of bitwise operators having lower precedence than comparison operators.<br /><br />A practical programming benefit to the algebraic AND/OR precedence rules is that bit-mixing operations like &quot;a &amp; amask | b &amp; bmask | c &amp; cmask&quot; don't need parentheses.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

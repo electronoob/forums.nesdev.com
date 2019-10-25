@@ -1,0 +1,123 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - sd2snes save state palette corruption</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">sd2snes save state palette corruption</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=12&amp;t=16183">http://forums.nesdev.com/viewtopic.php?f=12&amp;t=16183</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>redguy</b> [ Thu Jul 06, 2017 8:02 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>sd2snes save state palette corruption</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I have a modified version of the sd2snes FW that allows file upload/download over USB along with some other functions.  It also has some changes for real-time IPS patching of a running game.  As a test of the IPS patching feature I pieced together some save-state code that uses FW changes to support reading of the last write for write-only PPU and other registers.  The patch runs at the beginning of every NMI and checks button state to decide whether to load or save the current context.  I'm still working through some race conditions and am stuck on one where a few random palette entries get corrupted on a context save.  This is odd considering the context save makes minimal changes to register state.  Both the PPU and HMDA are disabled at the beginning of the save and it never writes $2122.  The games with the problem seem to be updating CGRAM using STA and not DMA during this time.  They are updating unrelated entries so the corruption persists after the save is complete.  The dual-write PPU registers seem problematic so I added a status bit to check if the NMI occurred in the middle of two writes to $2122 to disable load/save.  That didn't solve the problem.<br /><br />I have an entry-level 32 port logic analyzer that's monitoring the cart bus control, PA, and DATA signals, but don't see any offending writes to $2122.  The palette data is already corrupted when the code DMAs to SRAM for the save.  Removing the DMAs of WRAM, VRAM, CGRAM, and the OAM doesn't seem to fix the problem so I think it has to do with reading the write-only register state from $2BXX (where it's mirrored).  For a particular game, a similar piece of code that is inserted into the main loop (which is outside the NMI) doesn't have this problem.  This game only increments a counter in the NMI handler.  I think there's a similar issue with the OAM, but that gets rewritten every frame so the bug is masked.<br /><br />Is there something that could cause the PPU to update CGRAM on something other than a write to $2122?  Could it be related to the code being at the beginning of the NMI?<br /><br />EDIT: I must be corrupting some state which is in turn corrupting the dynamic palette stored in WRAM.  The logic analyzer output shows that the palette isn't modified during the first context save.  I previously thought it was during the save because I wasn't looking at the first one.<br /><br />EDIT2: For those interested, the problem was mostly due to nested NMIs caused by the long latency of save/restore context.  Some games worked fine.  Some saw minor (sometimes transient) corruption.  Some locked.  I fixed it by enabling NMI at the end of the save/restore, WAI, and then throwing away the associated stack state and calling RTI in order to align more closely with the beginning of the interrupt.  Most non-coprocessor related issues disappeared.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

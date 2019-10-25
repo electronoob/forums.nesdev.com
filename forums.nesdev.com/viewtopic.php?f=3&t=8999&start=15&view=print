@@ -1,0 +1,577 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Multithreaded emu designs</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Multithreaded emu designs</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=3&amp;t=8999">http://forums.nesdev.com/viewtopic.php?f=3&amp;t=8999</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>2</strong> of <strong>4</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>byuu</b> [ Tue Jun 12, 2012 1:43 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Well, technically yes, it appears to save and load SP.
+<br />
+<br />If you want a more in-depth explanation than I can give:
+<br /><!-- m --><a class="postlink" href="http://en.wikipedia.org/wiki/Setjmp.h#Caveats_and_limitations">http://en.wikipedia.org/wiki/Setjmp.h#C ... imitations</a><!-- m -->
+<br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">If the function in which setjmp was called returns, it is no longer possible to safely use longjmp with the corresponding jmp_buf object. This is because the stack frame is invalidated when the function returns.</div>
+<br />
+<br />To be honest, the setjmp/longjmp version in libco was written by Nach. I'm not a true expert on that.
+<br />
+<br />But ultimately, there's a reason why there are dozens, if not hundreds, of cooperative threading implementations, rather than people just using a simple alloca() + longjmp() pair.
+<br />
+<br />These are true threads. You don't have setjmp+longjmp, you just have switch_to(target); and you can easily have any number of them, switching in any order from any source to any target, and they don't have conditions where they become 'invalidated.'
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Tue Jun 12, 2012 7:14 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Okay, I think I finally get it @ byuu.  I'm starting to agree with you that cooperative threading would be better for an NES emu.  This is very interesting.
+<br />
+<br />I might still try it both ways and see which I like better.  I'm not entirely ready to rule out preemptive because I still think it might get better performance on multicore machines.
+<br />
+<br />Detecting multicore machines (in theory) is simple with C++11 (std::thread::hardware_concurrency), but I don't think that has been widely implemented yet.  I suppose I could fall back to boost for it.
+<br />
+<br />Allowing for both in the same emu wouldn't be complicated at all.  You'd just have to abstract the switching mechanism.
+<br />
+<br />I'll have to play around with it.  But this is definitely sounding like a very fun project.
+<br />
+<br />
+<br />@ tepples:  The problem about rending being enabled/disabled that I was trying to illustrate before is that you have to wrap <strong>each cycle</strong> in an if statement:
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">tick&#40;&#41;;<br />if&#40; rendering_on &#41;<br />&#123;<br />&nbsp; // fetch tiles, render pixel normally, adjust scroll, etc<br />&#125;<br />else<br />&#123;<br />&nbsp; // render bg pixel, don't fetch anything, no scroll updates<br />&#125;<br /></div>
+<br />
+<br />Might not seem like a big deal, but if you have to do this for every cycle it will get ugly very fast.
+<br />
+<br />Interestingly, it doesn't look like byuu is doing this in the source he posted.  How are you handling mid-scanline rendering disables/enables @ byuu?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Tue Jun 12, 2012 8:10 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Disch wrote:</div><div class="quotecontent">The problem about rending being enabled/disabled that I was trying to illustrate before is that you have to wrap <strong>each cycle</strong> in an if statement:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">tick&#40;&#41;;<br />if&#40; rendering_on &#41;<br />&#123;<br />&nbsp; // fetch tiles, render pixel normally, adjust scroll, etc<br />&#125;<br />else<br />&#123;<br />&nbsp; // render bg pixel, don't fetch anything, no scroll updates<br />&#125;<br /></div></div>
+<br />The PPU can be split into a chain of several stages. One generates indices into $3F00-$3F1F; the operation of this phase varies greatly based on whether or not rendering is turned on. The rest of the stages are fairly self-contained: palette lookup, the monochrome bit, the tint bits, NTSC filtering and/or other scaling, and Zapper light detection. None of these stages depends at all on whether rendering is turned on for a particular dot, and thus they're prime candidates to run in another preemptive thread.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Tue Jun 12, 2012 8:55 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I don't really see the benefit to moving everything after pallet lookup/tint to yet another thread (other than *maybe* whole image filtering, but that's probably better left to a pixel shader anyway).
+<br />
+<br />Besides that doesn't solve the issue of one thread (the one actually determining which pixel the PPU is outputting, before pallet/tint/etc) having to run two very different flows of logic.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Tue Jun 12, 2012 9:04 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Disch wrote:</div><div class="quotecontent">I don't really see the benefit to moving everything after pallet lookup/tint to yet another thread (other than *maybe* whole image filtering, but that's probably better left to a pixel shader anyway).</div><br />Which illustrates my point. A pixel shader itself is another thread, albeit one that runs on the GPU if your GPU is sufficiently powerful.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Besides that doesn't solve the issue of one thread (the one actually determining which pixel the PPU is outputting, before pallet/tint/etc) having to run two very different flows of logic.</div>
+<br />That's the same problem whether you use threads or not. The idea is that you run one flow of logic in a loop until the timestamped event that causes the switch from rendering logic to not-rendering logic or vice versa. If anything, this will be the switch to not-rendering logic at the start of line 240, the post-render scanline.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Tue Jun 12, 2012 9:28 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">That's the same problem whether you use threads or not.</div>
+<br />
+<br />The difference is, with a state machine you can write two entirely different functions, and only call the one which is appropriate.
+<br />
+<br />With a separate thread, you can't make a "rendering disabled" thread and a "rendering enabled" thread, because the whole point is that you want to be able to write the code without having to enter/exit at any cycle.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>byuu</b> [ Tue Jun 12, 2012 11:28 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />&gt; I might still try it both ways and see which I like better. I'm not entirely ready to rule out preemptive because I still think it might get better performance on multicore machines.
+<br />
+<br />My preference for cooperative threading is based on dozens of hours of testing each model.
+<br />
+<br />But I'm far from perfect, and I've never actually implemented a preemptive threaded emulator. So I say go for it! Perhaps you'll end up convincing me to implement a preemptive model, too :D
+<br />
+<br />I'd love to see a model that allows cooperative and preemptive as a compile-time switch. It's definitely something I've thought about. Keep in mind again that although the underlying code can likely be identical, there will have to be some differences.
+<br />
+<br />Preemptive means "threads can start and stop on their own", and may not exist on their own cores. Make sure when you use preemptive that you have a -real core- for each thread. Otherwise fallback on cooperative, which will be faster. You may also want to wrap your atomic accesses. Your preemptive code will have dead locks and race conditions that the cooperative code won't. But once preemptive works like a cooperative model with appropriate locks to maintain synchronization, making it preemptive should be easier.
+<br />
+<br />[In a sense: preemptive was really made for the era where most people had one core and didn't want a hung cooperative program to crash their OS. We really need a new name for the model of one true core per thread. We really don't -want- preemption in this case. Although there's no way to 100% own a core yet, that I know of.]
+<br />
+<br />Just be sure to test context switching heavily with a skeleton emulator first. Understand the speed of each approach before you write a full emulator, so that you know how much overhead is spent there.
+<br />
+<br />&gt; How are you handling mid-scanline rendering disables/enables @ byuu?
+<br />
+<br />raster_pixel(), raster_sprite(), scroll(xy)_increment(), etc bail out early or blank the pixel when raster_enable() [bg+sprites on] is false.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Tue Jun 12, 2012 2:11 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">I'd love to see a model that allows cooperative and preemptive as a compile-time switch</div>
+<br />
+<br />I was even thinking as a runtime option, rather than a compile-time switch.  If you abstract the thread switching behind a common interface, the only thing you'd have to change is which implementation you're going to use.  That can be easily accomplished at runtime.
+<br />
+<br />But of course you'd have to write the code under the assumption that it will be running as preemptive, which might hinder coop performance.
+<br />
+<br />But this is all stuff I want to try out.  This is kind of exciting.
+<br />
+<br />
+<br />Thanks for all the ideas and feedback everyone!
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Thu Jun 14, 2012 9:49 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Okay I have a basic plan outlined, but haven't actually tried it out yet.
+<br />
+<br />Context switching is abstracted behind a ContextManager class, with 2 implementations:  PreemptiveContext and CooperativeContext.
+<br />
+<br />Since I haven't really looked at byuu's coop lib yet, I kind of made some assumptions about how it worked.  Maybe that will bite me in the ass, but I think I should be alright:
+<br />
+<br />(note of course the classes are incomplete (missing ctors), but hopefully the idea is illustrated)
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent"><br />#ifndef SCHPUNE_CONTEXTMANAGER_H_INCLUDED<br />#define SCHPUNE_CONTEXTMANAGER_H_INCLUDED<br /><br />namespace schpune<br />&#123;<br /><br />class ContextManager<br />&#123;<br />public:<br />&nbsp; &nbsp; virtual ~ContextManager&#40;&#41;&nbsp; &nbsp; &nbsp; &nbsp;&#123; &#125;<br /><br />&nbsp; &nbsp; virtual void Wait&#40;&#41; = 0;<br />&nbsp; &nbsp; virtual void WaitUntil&#40;ContextManager* switchto, function&lt;bool&#40;&#41;&gt; pred&#41; = 0;<br />&nbsp; &nbsp; virtual void Suspend&#40;&#41; = 0;<br />&nbsp; &nbsp; virtual void Resume&#40;&#41; = 0;<br />&nbsp; &nbsp; // virtual void Join&#40;&#41; = 0;<br /><br />private:<br />&nbsp; &nbsp; ContextManager&#40;const ContextManager&amp;&#41; &#123; &#125;&nbsp; &nbsp;// no copying<br />&nbsp; &nbsp; void operator = &#40;const ContextManager&amp;&#41; &#123; &#125; // no assigning<br />&#125;;<br /><br />&#125;<br /><br />#endif // SCHPUNE_CONTEXTMANAGER_H_INCLUDED<br /></div><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent"><br />#ifndef SCHPUNE_PREEMPTIVECONTEXT_H_INCLUDED<br />#define SCHPUNE_PREEMPTIVECONTEXT_H_INCLUDED<br /><br />#include &quot;contextmanager.h&quot;<br /><br />namespace schpune<br />&#123;<br /><br />class PreemptiveContext : public ContextManager<br />&#123;<br />public:<br />&nbsp; &nbsp; virtual void Wait&#40;&#41;<br />&nbsp; &nbsp; &#123;<br />&nbsp; &nbsp; &nbsp; &nbsp; mParent-&gt;mCV.notify_all&#40;&#41;;<br />&nbsp; &nbsp; &nbsp; &nbsp; if&#40;mSuspended&#41;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; WaitUntil&#40; mParent, &#91;this&#93; &#40;&#41; &#123; return !mSuspended; &#125; &#41;;<br />&nbsp; &nbsp; &nbsp; &nbsp; else<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; threadlib::this_thread::yield&#40;&#41;;<br />&nbsp; &nbsp; &#125;<br /><br />&nbsp; &nbsp; virtual void WaitUntil&#40;ContextManager* switchto, function&lt;bool&#40;&#41;&gt; pred&#41;<br />&nbsp; &nbsp; &#123;<br />&nbsp; &nbsp; &nbsp; &nbsp; static_cast&lt;PreemptiveContext*&gt;&#40;switchto&#41;-&gt;mCV.notify_all&#40;&#41;;<br />&nbsp; &nbsp; &nbsp; &nbsp; mCV.wait&#40; threadlib::unique_lock&lt;threadlib::mutex&gt;&#40;mMutex, pred&#41; &#41;;<br />&nbsp; &nbsp; &#125;<br /><br />&nbsp; &nbsp; virtual void Suspend&#40;&#41;<br />&nbsp; &nbsp; &#123;<br />&nbsp; &nbsp; &nbsp; &nbsp; mSuspended = true;<br />&nbsp; &nbsp; &#125;<br /><br />&nbsp; &nbsp; virtual void Resume&#40;&#41;<br />&nbsp; &nbsp; &#123;<br />&nbsp; &nbsp; &nbsp; &nbsp; mSuspended = false;<br />&nbsp; &nbsp; &#125;<br /><br />private:<br />&nbsp; &nbsp; PreemptiveContext*&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; mParent;<br />&nbsp; &nbsp; threadlib::mutex&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; mMutex;&nbsp; // note, 'threadlib' is std if C++11 threads supported, or boost otherwise<br />&nbsp; &nbsp; threadlib::condition_variable&nbsp; &nbsp;mCV;<br />&nbsp; &nbsp; volatile bool&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;mSuspended;<br />&#125;;<br /><br />&#125;<br /><br />#endif // SCHPUNE_PREEMPTIVECONTEXT_H_INCLUDED<br /></div><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent"><br />#ifndef SCHPUNE_COOPERATIVECONTEXT_H_INCLUDED<br />#define SCHPUNE_COOPERATIVECONTEXT_H_INCLUDED<br /><br />#include &quot;contextmanager.h&quot;<br /><br />namespace schpune<br />&#123;<br /><br />class CooperativeContext : public ContextManager<br />&#123;<br />public:<br />&nbsp; &nbsp; virtual void Wait&#40;&#41;<br />&nbsp; &nbsp; &#123;<br />&nbsp; &nbsp; &nbsp; &nbsp; // TODO: switch to parent<br />&nbsp; &nbsp; &#125;<br />&nbsp; &nbsp; virtual void WaitUntil&#40;ContextManager* switchto, function&lt;bool&#40;&#41;&gt;&#41;<br />&nbsp; &nbsp; &#123;<br />&nbsp; &nbsp; &nbsp; &nbsp; // TODO: while&#40;!pred&#40;&#41;&#41; switch to 'switchto'<br />&nbsp; &nbsp; &#125;<br />&nbsp; &nbsp; virtual void Suspend&#40;&#41;<br />&nbsp; &nbsp; &#123;<br />&nbsp; &nbsp; &nbsp; &nbsp; // do nothing - suspension is not required with cooperative threading<br />&nbsp; &nbsp; &#125;<br />&nbsp; &nbsp; virtual void Resume&#40;&#41;<br />&nbsp; &nbsp; &#123;<br />&nbsp; &nbsp; &nbsp; &nbsp; // do nothing - suspension is not required with cooperative threading<br />&nbsp; &nbsp; &#125;<br /><br />private:<br />&nbsp; &nbsp; // TODO - look up byuu's cooperative threading lib and implement<br />&#125;;<br /><br />&#125;<br /><br />#endif // SCHPUNE_PREEMPTIVECONTEXT_H_INCLUDED<br /></div>
+<br />
+<br />
+<br />
+<br />For purposes of this discussion, there are 3 threads:  NES, CPU, and PPU.  The NES is the one the user will be interfacing with, and the CPU/PPU will only be referenced inside of the NES.
+<br />
+<br />PPU's context parent is CPU
+<br />CPU's context parent is NES
+<br />and NES's context parent is null.
+<br />
+<br />The intended flow is like so:
+<br />
+<br />When the NES is called to emulate a frame:
+<br />- Call CPU::FrameStart (not shown above)
+<br />- WaitUntil( CPU_context, cpu_is_finished_with_frame &amp;&amp; ppu_is_finished )
+<br />
+<br />
+<br />CPU logic on FrameStart:
+<br />- Resume current context
+<br />- Resume PPU context
+<br />
+<br />CPU logic (in CPU's thread):
+<br />- emulate up to a given timestamp
+<br />- on writes where it's necessary to sync with PPU, WaitUntil( PPU_Context, ppu_is_caught_up )
+<br />- when frame is complete, Suspend()
+<br />
+<br />
+<br />PPU logic:
+<br />- emulate up to CPU's current (realtime) timestamp
+<br />- if PPU catches up to CPU, Wait()
+<br />- when frame is complete, Suspend()
+<br />
+<br />
+<br />
+<br />
+<br />Additionally, the Suspend/Resume bits can be used for implementing a debugger with breakpoints (when a breakpoint is hit, Suspend() all contexts except for NES's)
+<br />
+<br />
+<br />
+<br />But like I said it's so far untested.  Against byuu's advice I'm kind of jumping right in with this rather than doing smaller tests first.  It's mostly an educational/experimental project anyway, so if it doesn't turn out I won't feel so bad.
+<br />
+<br />Anyway, thought you guys might be interested.  If you spot any problems with the format let me know.  Other feedback/critique also welcome.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>byuu</b> [ Thu Jun 14, 2012 10:29 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Well, here's the entire libco API library:
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">void* co_active&#40;&#41;;<br />void* co_create&#40;unsigned stack_size, void &#40;*entrypoint&#41;&#40;&#41;&#41;;<br />void co_switch&#40;void *target&#41;;<br />void co_delete&#40;void *target&#41;;</div>
+<br />
+<br />I know it's really huge and complicated ... but bear with me here :P
+<br />
+<br />co_active() returns a handle of the active thread. This even happens for the main program thread (and is in fact the only way you can jump back to it later. Store it when your program starts.)
+<br />
+<br />co_create() makes a new stack, with however many bytes you want. 1M or less is more than enough. C++ apps usually allocate 512K or 1M. Go too small (256 bytes or something absurd) and expect crashes. Do not return from the entrypoint, that won't destroy the thread. It can't, because that thread is active.
+<br />
+<br />co_switch() will save the context in the active thread, then load the context from the target thread, and resume processing there. Don't switch to the already active context. It'll probably be a no-op, but don't be stupid.
+<br />
+<br />co_delete() will free the memory of a created context. Do not try and delete the main context, do not try and delete the current context. If you do, things will blow up, and you will deserve it.
+<br />
+<br />libco doesn't have any concept of parent&lt;&gt;child relationships. They are all siblings. It also doesn't pass around parameters to entry points. There is no scheduler built-in. You can do all of this with wrapper code that you create. (Note: parameters to entry points are easy, use an std::map&lt;void *thread, ParameterList&gt;) The idea is for you to do things your way, and leave libco simple and easy to port to other targets. There's also a handy-dancy typedef void* cothread_t; ... you should NEVER stab at the raw memory, of course.
+<br />
+<br />The way I do my scheduler:
+<br />
+<br />cothread_t host;  //this is the thread that the GUI runs in
+<br />cothread_t active;  //this is the currently executing -emulation thread-
+<br />cothread_t cpu, ppu, apu;
+<br />
+<br />On reset, co_delete() all threads; co_create() all threads [gets us to entry point on all threads]; active = cpu; reset all variables in all classes
+<br />When you call Emulator::runForOneFrame(), it does co_switch(active), and then the core keeps switching between threads as it needs to.
+<br />Once an entire frame has been rendered, it does active = co_active() [so it knows where to re-enter], co_switch(host), and the host thread calls videoRefresh(ppuVideoData); and returns.
+<br />
+<br />You're free to do things however you want, of course.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Fri Jun 15, 2012 7:00 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I figured it would be simple like that.  Very nice.
+<br />
+<br />I'm going to give preemptive a run first and see how it goes.  Then I'll work on getting your coop lib in there (should be VERY easy to drop in, I've already abstracted around it).  Once both are in side-by-side comparisons will be easy.  I gotta say I'm very curious as to how each approach is going to go.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Sun Jun 17, 2012 4:46 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Dwedit wrote:</div><div class="quotecontent">Really?  Longjmp is just a PC reassignment?  Never seen that before.  On Newlib for ARM, longjmp swaps all registers, including the stack pointer, but not r0-r3.  I'm not as familiar with other implementations of setjmp/longjmp.</div>
+<br />No, you're correct, it's <strong>not</strong> just PC reassignment. longjmp saves the current registers on the stack, then swaps PC with another thread's PC and restores its registers off the stack. This is what libco does as well. longjmp()-based threading can work on some platforms, since it's doing the same thing, though it's undefined behavior since you're using longjmp() in an illegal way. The main trick is getting each thread a separate stack. "Portably" you can allocate a large char array on the stack, as you mentioned, then divide it up with a recursive function with a smaller char array on its stack, noting where each stack starts.
+<br />
+<br />One snag is that it doesn't save volatile registers, which may mean that local variables not declared <em>volatile</em> may lose changes to their values after setjmp(). byuu's library preserves all local variables even if not declared volatile.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Tue Jun 19, 2012 8:00 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Well I got preemptive and cooperative multithreading in as a compile time switch now.  Can't speak to performance on either one of them yet, as my preemptive implementation still have a few kinks I need to work out.
+<br />
+<br />libco was EXTREMELY easy to drop in, though.  Took me all of 10 minutes.
+<br />
+<br />Kudos, byuu.
+<br />
+<br />
+<br />In other news, basic CPU/PPU are working.  No sprites or attributes currently.  I'll probably do sprites next.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>byuu</b> [ Wed Jun 20, 2012 9:30 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Awesome job! Can't wait to see cooperative vs preemptive numbers on the full emulator. Especially on quad cores and higher. If it's a huge improvement, I may want to ask for your help in a wrapper library to allow cooperative or preemptive as a switch, so I can use it too :D
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>mozz</b> [ Thu Jun 21, 2012 9:03 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">blargg wrote:</div><div class="quotecontent"><div class="quotetitle">Dwedit wrote:</div><div class="quotecontent">Really?  Longjmp is just a PC reassignment?  Never seen that before.  On Newlib for ARM, longjmp swaps all registers, including the stack pointer, but not r0-r3.  I'm not as familiar with other implementations of setjmp/longjmp.</div><br />No, you're correct, it's <strong>not</strong> just PC reassignment. longjmp saves the current registers on the stack, then swaps PC with another thread's PC and restores its registers off the stack. This is what libco does as well. longjmp()-based threading can work on some platforms, since it's doing the same thing, though it's undefined behavior since you're using longjmp() in an illegal way. The main trick is getting each thread a separate stack. "Portably" you can allocate a large char array on the stack, as you mentioned, then divide it up with a recursive function with a smaller char array on its stack, noting where each stack starts.<br /><br />One snag is that it doesn't save volatile registers, which may mean that local variables not declared <em>volatile</em> may lose changes to their values after setjmp(). byuu's library preserves all local variables even if not declared volatile.</div>
+<br />
+<br />Wow, its been a long time since I dropped by here and I'm so happy to see the same crowd still obsessed with this stuff.   <img src="./images/smilies/icon_lol.gif" alt=":lol:" title="Laughing" /> 
+<br />
+<br />An important note about the co-operative multithreading:  If you allocate your own stack area (as libco's co_create does) then you MUST BE CAREFUL not to make any OS calls while running that co-thread!  Some of them may work, but there is no guarantee.  On at least some versons of Windows (95 through XP at least, I think) any Win32 API function that goes into kernel space will check that the user-mode stack pointer is inside the stack area that Windows allocated for the thread.  If you have allocated your own stack space elsewhere and set the stack pointer to it, it will raise an SEH exception or something.  (I encountered this ages ago while working on a Win32 emulator for a mobile device which ran a cooperatively-threaded OS).
+<br />
+<br />I don't know if this still applies to newer versions of Windows (Vista+) or to other systems like OSX, but the safest thing to do is never make OS calls while your stack pointer has been swapped out to some other stack area besides the OS-allocated stack supplied for that OS thread.  To be safe, all you have to do is use the original host cothread (from co_active) for running the GUI and use your other co_create-d cothreads just for emulator code.  Any file access, etc. should also be done from the host co-thread.
+<br />
+<br />Also: I am a big fan of cooperative multithreading for emulators, and I am highly skeptical of this preemptive multithreading idea you guys are discussing.  Preemptive thread switches are thousands of times more expensive than a libco co-operative switch, and Windows thread switching has all sorts of gotchas that will surprise you.
+<br />
+<br /><a href="http://cbloomrants.blogspot.ca/2010/09/09-12-10-defficiency-of-windows-multi.html" class="postlink">Read this post, for example</a>.  High-performance multi-threaded programming is painful and complicated.  <a href="http://cbloomrants.blogspot.ca/2012/06/06-12-12-another-threading-post-index.html" class="postlink">Here's an index of that guy's posts on the topic.</a>
+<br />
+<br /><strong>Be EXTREMELY careful if you decide to try and implement your own lock-free data structures or primitives!</strong>  This is a subtle art filled with unexpected gotchas, and you will waste weeks or months trying to get this right (or more likely, you won't get it right and there will be one-in-a-million crash bugs in every future version of your preemptive emulator).
+<br />
+<br />And be even more careful if you decide to use somebody else's.  <strong>DO NOT</strong> trust any lock-free implementations you find on the Internet or even in academic research papers--nearly all of them have bugs or race conditions, or make assumptions about memory effect ordering that are not always true on real hardware, etc.  In my day job as a game engine programmer, I've watched an extremely smart programmer develop a set of working lock-free primitives for our game engine, and it was a six-month process where he would be <em>positive</em> he had a working implementation, and for around one month it would apparently work until finally a rare-and-weird crash would be traced back to the lock-free stuff and he'd find <em>yet another</em>  extremely obscure and impossible-to-reproduce race condition that none of us had thought of, and re-design the thing <em>yet again</em>.. this happened at least 5 times, and every single published paper we read about lock-free data structures contained errors of this type.  Believe me, lock-free stuff can be a real minefield and sensible programmers should stay the hell out of it!  <img src="./images/smilies/icon_wink.gif" alt=";)" title="Wink" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>2</strong> of <strong>4</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

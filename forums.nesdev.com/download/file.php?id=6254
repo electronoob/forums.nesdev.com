@@ -1,0 +1,440 @@
+;   Draw controller 2 input onto the NES screen.
+;   Copyright (C) 2016  Johnathan Roatch
+;
+;   Copying and distribution of this file, with or without
+;   modification, are permitted in any medium without royalty
+;   provided the copyright notice and this notice are preserved
+;   in all source code copies.
+;
+;   This file is offered as-is, without any warranty.
+
+; begin nes.inc
+PPU_CTRL        = $2000
+  VBLANK_NMI    = %10000000
+  OBJ_8X8       = %00000000
+  OBJ_8X16      = %00100000
+  BG_0000       = %00000000
+  BG_1000       = %00010000
+  OBJ_0000      = %00000000
+  OBJ_1000      = %00001000
+  VRAM_DOWN     = %00000100
+  NT_2000       = %00000000
+  NT_2400       = %00000001
+  NT_2800       = %00000010
+  NT_2C00       = %00000011
+
+PPU_MASK        = $2001
+  TINT_B        = %10000000
+  TINT_G        = %01000000
+  TINT_R        = %00100000
+  OBJ_OFF       = %00000000
+  OBJ_CLIP      = %00010000
+  OBJ_ON        = %00010100
+  BG_OFF        = %00000000
+  BG_CLIP       = %00001000
+  BG_ON         = %00001010
+  LIGHTGRAY     = %00000001
+
+PPU_STATUS      = $2002
+OAM_ADDR        = $2003
+OAM_DATA        = $2004
+PPU_SCROLL      = $2005
+PPU_ADDR        = $2006
+PPU_DATA        = $2007
+
+APU_PL1_VOL     = $4000
+APU_PL1_SWEEP   = $4001
+APU_PL1_LO      = $4002
+APU_PL1_HI      = $4003
+APU_PL2_VOL     = $4004
+APU_PL2_SWEEP   = $4005
+APU_PL2_LO      = $4006
+APU_PL2_HI      = $4007
+APU_TRI_LINEAR  = $4008
+;//nothing      = $4009
+APU_TRI_LO      = $400a
+APU_TRI_HI      = $400b
+APU_NOISE_VOL   = $400c
+;//nothing      = $400d
+APU_NOISE_LO    = $400e
+APU_NOISE_HI    = $400f
+APU_DMC_FREQ    = $4010
+APU_DMC_RAW     = $4011
+APU_DMC_START   = $4012
+APU_DMC_LEN     = $4013
+OAM_DMA         = $4014
+APU_SND_CHN     = $4015
+APU_STATUS      = $4015
+JOY_STROBE      = $4016
+APU_FRAMECNT    = $4017
+
+JOY_PORT_1      = $4016
+JOY_PORT_2      = $4017
+  BUTTON_NONE      = %00000000
+  BUTTON_A         = %10000000
+  BUTTON_B         = %01000000
+  BUTTON_SELECT    = %00100000
+  BUTTON_START     = %00010000
+  BUTTON_UP        = %00001000
+  BUTTON_DOWN      = %00000100
+  BUTTON_LEFT      = %00000010
+  BUTTON_RIGHT     = %00000001
+  BUTTON_SNES_B        = %10000000
+  BUTTON_SNES_Y        = %01000000
+  BUTTON_SNES_SELECT   = %00100000
+  BUTTON_SNES_START    = %00010000
+  BUTTON_SNES_UP       = %00001000
+  BUTTON_SNES_DOWN     = %00000100
+  BUTTON_SNES_LEFT     = %00000010
+  BUTTON_SNES_RIGHT    = %00000001
+  BUTTON_SNES_A        = %10000000
+  BUTTON_SNES_X        = %01000000
+  BUTTON_SNES_L        = %00100000
+  BUTTON_SNES_R        = %00010000
+; end of nes.inc
+
+  .db "NES",$1a     ; magic signature
+  .db 1             ; number of PRG ROM in 16384 byte pages
+  .db 0             ; number of CHR ROM in 8192 byte pages
+  .db $00, $00      ; Mapper 0
+  .db $00           ; No submapper
+  .db $00           ; PRG ROM not 4 MiB or larger
+  .db $00           ; No PRG RAM
+  .db $00           ; no NES 2.0 feature
+  .db $00           ; NTSC; use $01 for PAL
+  .db $00           ; No special PPU
+  .dsb 2, $00       ; padding
+
+.base $c000
+.fillvalue $ff
+
+temp = $00
+
+address_ptr_lo = temp+4
+address_ptr_hi = temp+5
+stop_state = temp+6
+sliver_pattren = temp+7
+
+RST:
+  sei
+  ldx #$00
+  stx PPU_CTRL
+  stx PPU_MASK
+  stx APU_SND_CHN
+  dex
+  txs
+  lda #$40
+  sta APU_FRAMECNT
+  lda PPU_STATUS
+  vwait1:
+    lda PPU_STATUS
+opcode_10:
+  bpl vwait1
+  vwait2:
+    lda PPU_STATUS
+  bpl vwait2
+
+  lda #$3f
+  ldy #$e0
+  jsr set_ppu_addr
+
+  lda #%11001010
+  ldx #$0f
+  ;,; ldy #$e0
+  jsr do_ppu_pattren_load
+
+  lda #$0f
+  ;,; ldy #$00
+  jsr set_ppu_addr
+  ldx #$00
+  ;,; ldy #$00
+  font_load_v2:
+    tya
+    eor #%00001000
+    and #%00001111
+    bne font_load_v2_plane2
+      txa
+      sec
+      sbc #8
+      tax
+    font_load_v2_plane2:
+    lda font_v2, x
+    sta PPU_DATA
+    inx
+    iny
+  bne font_load_v2
+
+  lda #$2c
+  ;,; ldy #$00
+  jsr set_ppu_addr
+
+  ldy #$100-130
+  jsr write_minus_y_number_of_blanks
+
+  sty temp+0
+  ;,; ldx temp+0
+  nt_data_loop:
+    jsr draw_log_row
+    jsr draw_log_row
+    ldy #$100-4
+    jsr write_minus_y_number_of_blanks
+    stx temp+0
+    cpx #21*12
+  bne nt_data_loop
+
+  ldy #$100-158
+  jsr write_minus_y_number_of_blanks
+
+  lda #%11110000
+  ldx #$00
+  ldy #$100-64
+  jsr do_ppu_pattren_load
+
+  tya ;,; lda #0
+  ldx #8
+  clear_temp_loop:
+    dex
+    sta temp, x
+  bne clear_temp_loop
+  lda #$03
+  sta sliver_pattren
+
+  lda #VBLANK_NMI|NT_2C00
+  sta PPU_CTRL
+
+forever:
+jmp forever
+
+NMI:
+  lda #>($0200)
+  sta OAM_DMA
+  jsr pads_read
+  lda JOY_PORT_1
+  and #$18
+  eor temp+3
+  sta temp+3
+  ;,; lda PPU_STATUS
+
+  lda temp+0
+  and stop_state
+  and #BUTTON_A|BUTTON_B
+  lsr
+  lsr
+  eor stop_state
+  cmp #$a0
+  bne alt_tigger_exit
+    eor #$30
+  alt_tigger_exit:
+  cmp #$50
+  beq fix_a_continuing
+  cmp #$f0
+  bne trigger_not_set
+    ldx temp+2
+    beq not_triggered
+fix_a_continuing:
+      and #$c0
+    not_triggered:
+  trigger_not_set:
+  sta stop_state
+
+  ;,; lda stop_state
+  lsr
+  ora temp+0
+  and #BUTTON_START
+  bne paused
+    lda #12
+    sta temp+1
+    ldx address_ptr_lo
+    ldy address_ptr_hi
+    ppu_update_loop:
+      sty PPU_ADDR
+      stx PPU_ADDR
+      asl temp+3
+      rol temp+2
+      lda sliver_pattren
+      bcc ppu_update_skip_bit
+        ora #$7c
+      ppu_update_skip_bit:
+      sta PPU_DATA
+      txa
+      clc
+      adc #16
+      tax
+      bcc ppu_update_high_byte
+        iny
+      ppu_update_high_byte:
+      dec temp+1
+    bne ppu_update_loop
+
+    lda #$00
+    sta PPU_SCROLL
+    sta PPU_SCROLL
+    lda #VBLANK_NMI|NT_2C00
+    sta PPU_CTRL
+    lda #BG_ON|OBJ_OFF
+    sta PPU_MASK
+
+    ldx address_ptr_lo
+    ldy address_ptr_hi
+    inx
+    txa
+    and #%00000111
+    bne not_tile_number_carry
+      txa
+      clc
+      adc #(16*12)-8
+      tax
+      bcc not_tile_number_carry_high_byte
+        iny
+        cpy #>(16*12*20)
+        bcc not_carry_to_next_plane
+          ldy #0
+          eor #%00001000
+          tax
+          bne skip_line_switch
+            lda sliver_pattren
+            eor #$82
+            sta sliver_pattren
+          skip_line_switch:
+          lda stop_state
+          bit opcode_10   ;; bit #BUTTON_START
+          beq dont_sync
+            ;,;lda stop_state
+            eor #$20
+            sta stop_state
+          dont_sync:
+        not_carry_to_next_plane:
+      not_tile_number_carry_high_byte:
+    not_tile_number_carry:
+    stx address_ptr_lo
+    sty address_ptr_hi
+    lda sliver_pattren
+    eor #$01
+    sta sliver_pattren
+  paused:
+
+  lda temp+0
+  eor #$ff
+  and #BUTTON_A|BUTTON_B
+  sta temp+0
+
+  lda stop_state
+  and #$30
+  ora temp+0
+  sta stop_state
+IRQ:
+rti
+
+;;
+; Read 16 bits from both NES controller ports MSB first but in little endian
+; byte order. Also keeps in mind the even odd cycles after a DMA aliment.
+; To avoid DMC glitches, call this immediately after the `sta OAM_DMA`.
+; http://forums.nesdev.com/viewtopic.php?p=172188#p172188
+;
+; Preserves X, Y.
+pads_read:
+pad_1_keys = temp+0
+pad_1_axlr = temp+1
+pad_2_keys = temp+2
+pad_2_axlr = temp+3
+    ; 16 Bits from the controllers are shifted into pad_1 and pad_2.
+    ; In addition, $0001 in pad_2 serves as the loop counter:
+    ; once the bit gets shifted left sixteen times, it'll end up in carry
+    ; terminating the read loop.
+    ;
+    ; Also the strobe part must take an odd total number of cycles.
+  lda #$01
+  sta pad_2_axlr
+    ; Write 1 then 0 to JOY_PORT_1 to send a latch signal, telling the
+    ; controllers to copy button states into a shift register.
+  sta JOY_STROBE
+    ; We need an extra cycle here that functions the same as `lda #0`
+    ; XORing with itself will clear all the bits in A.
+  eor pad_2_axlr
+  sta pad_2_keys
+  sta JOY_STROBE
+    ; The loop part must take an even number of cycles.
+  @read_loop:
+      ; On NES and AV Famicom, button presses always show up in D0.
+      ; On the original Famicom, presses on the hardwired controllers
+      ; show up in D0 and presses on plug-in controllers show up in D1.
+      ; D2-D7 consist of data from the Zapper, Power Pad, Vs. System
+      ; DIP switches, and bus capacitance; so we ignore them.
+    lda JOY_PORT_1    ; read player 1's controller
+    and #%00000011    ; ignore D2-D7
+    cmp #1            ; CLC if A=0, SEC if A>=1
+    rol pad_1_axlr    ; shift the the bit into memory
+    rol pad_1_keys
+    lda JOY_PORT_2    ; read player 2's controller the same way
+    and #%00000011
+    cmp #1
+    rol pad_2_axlr
+    rol pad_2_keys
+      ; Even out the odd cycles in the loop branch.
+      ; 3 cycles with harmless flag setting side effects.
+    bit $24
+  bcc @read_loop
+    ; once $0001 has been shifted 16 times, we're done
+rts
+
+do_ppu_pattren_load:
+  sta temp+0
+  attr_loop2:
+    lda temp+0
+    lsr
+    ror temp+0
+    txa
+    bcc bit_cleared2
+      eor #$ff
+    bit_cleared2:
+    sta PPU_DATA
+    iny
+  bne attr_loop2
+rts
+
+.align 128
+
+font_v2:
+  .byte $00,$3c,$66,$66,$7e,$66,$66,$66 ; A
+  .byte $00,$7c,$66,$66,$7c,$66,$66,$7c ; B
+  .byte $00,$00,$00,$e8,$88,$e8,$28,$ee ; sl
+  .byte $00,$00,$00,$ee,$84,$e4,$24,$e4 ; st
+  .byte $00,$10,$38,$7c,$d6,$92,$10,$10 ; up
+  .byte $00,$10,$10,$92,$d6,$7c,$38,$10 ; down
+  .byte $00,$18,$30,$60,$fe,$60,$30,$18 ; left
+  .byte $00,$30,$18,$0c,$fe,$0c,$18,$30 ; right
+set_ppu_addr:
+  sta PPU_ADDR
+  sty PPU_ADDR
+rts
+write_minus_y_number_of_blanks:
+  lda #$ff
+  chr_clear_inner_loop:
+    sta PPU_DATA
+    iny
+  bne chr_clear_inner_loop
+rts
+draw_log_row:
+  ldy #$fe
+  sty PPU_DATA
+  ldy #12
+  ldx temp+0
+  nt_loop2:
+    stx PPU_DATA
+    inx
+    dey
+  bne nt_loop2
+  ldy #$fd
+  sty PPU_DATA
+rts
+  .byte $ff,$ff
+  .byte $e0,$00,$00,$00,$80,$00,$00,$00 ; right ruler
+  .byte $0f,$00,$01,$00,$03,$00,$01,$00 ; left ruler
+  .byte $00,$00,$00,$00,$00,$00,$00,$00 ; blank
+
+
+
+.org $fffa
+  .dw NMI
+  .dw RST
+  .dw IRQ

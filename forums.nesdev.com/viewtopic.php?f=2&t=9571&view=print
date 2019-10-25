@@ -1,0 +1,144 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Splitting the screen vertically...</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Splitting the screen vertically...</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=9571">http://forums.nesdev.com/viewtopic.php?f=2&amp;t=9571</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bananmos</b> [ Tue Dec 04, 2012 4:55 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Splitting the screen vertically...</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Ever since Blargg released his awesome code for syncing with the PPU, I've been thinking about whether it could be used for updating the scrolling registers reliably outside of hblank. So when I finally got my Powerpak transfer cable working, I decided to play around with his example demo to investigate what was possible. <a href="https://www.dropbox.com/s/ya8g3pdoplab4fv/multisplitscroll_ntsc.zip" class="postlink">here</a> is a very glitchy work-in-progress attempt at doing so. <br /><br />It shows the title screen of Prince Of Persia for NES, with a smaller &quot;logo window&quot; which is scrolling separately, achieved by updating scrolling to the logo scroll at the left side of this window, then restoring scroll at the right side and finally restoring the coordinates again so they get loaded from t to vaddr in hblank. This is NTSC only for once, since (according to Blarggs doc) syncing on PAL seemed quite a bit more complicated to accomplish due to the variable cycle shift at reset. <br /><br />It starts up in a stable state and allows you to do the following with the joypad:<br />Left/Right/Up/Down: Move window position by adjusting delay. Up/Down doesn't currently compensate for fractional cycles, so will gradually shift it left/right as well. <br />A + Left/Right: scroll logo within window<br />B + Left/Right: scroll rest of background<br />Hold START: update all movements in single-step increments instead of continuosly<br /><br />Moving the window itself is VERY glitchy when you change it from the initial stable position. I am guessing this is due to the address being updated between writes to $2006 and $2005 registers, in which case it should be fixable by using an alternate table for these writes when you know such a conflict will occur.<br /><br />The following interesting insights were new to me at least:<br />* Loopy's famous four-write pattern of $2006,$2005,$2005,$2006 for setting the scroll coordinates to arbitrary positions doesn't  work so well outside of hblank since the 3 lowest bits of the horizontal scroll update much faster than the other ones. This is expected, since updating all values except these 3 bits just affects what PPU addresses will be used for fetching new data into the internal latches.<br />The result is a very big area where the scroll is in an intermediate state and would need to be hidden with an unreasonable number of sprites. <br /><br />The problem is, that to update all bits of the vertical scroll you HAVE to use this four-write pattern AFAIK, and thus you have to update the fine scroll bits even though you'd rather defer it until alter. I worked around this by wasting some more register write cycles and updating $2005 with the old value in the four-write pattern, then delaying with a NOP and finally writing the updated value to try to sync this final fine scroll update with the delayed updates coming from the address writes. With this technique I seem to be able to minimize this undefined period to 1 8-pixel column on the left side and 2 8-pixel columns on the right side, which would be much more reasonable to hide with overlayed sprites.<br /><br /><s>* Writing the 3 horizontal fine scroll bits does NOT update them instantly. If it did, the graphics inside the scrolled window and the restored background at the right side of it would show the same jaggy sawtooth-pattern that can be observed when updating the bits of $2000/$2001 &#40;emphasis, monochrome mode, BG visibility etc&#41;. So there must be some latching going on that isn&#39;t yet documented. This actually seems to be a good thing since it makes writing the fine scroll value a lot more predictable.</s><br /><br /><strong>EDIT: Nevermind this part, I was being totally silly here. Since the fine-scroll register only affects selection of preloaded data which is loaded into the shift registers at fixed cycles in the scanline, it is expected to not cause any shifted visual appearance.</strong><br /><br />* Updating the fine horizontal scroll bits does however cause a few pixels of garbage to appear when you write it. This is especially noticable when writing the old value to $2005 as mentioned earlier. I'm guessing there might be some sort of internal bus conflict happening when the latch is updated while being used. Understanding exactly why this happens and whether it can be worked around in any way would require a deeper understanding of how the PPU internals work, which I am hoping that Q's and org's work of reverse engineering by tracing the 2C02 chip layout will eventually give us...<br /><br />So in summary, this experiment seems to show potential for updating scroll outside of hblank, but unless the garbage from changing the fine scroll can be worked around somehow I guess it is of limited use. <br /><br />But it's nevertheless fun to, in late 2012, still be able to write code for the NES that no emulators seem to show correctly... <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>cpow</b> [ Tue Dec 04, 2012 8:45 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Splitting the screen vertically...</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Bananmos wrote:</div><div class="quotecontent">But it's nevertheless fun to, in late 2012, still be able to write code for the NES that no emulators seem to show correctly... <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" /></div><br />How about a pic of what it's supposed to look like?  I get one line that scrolls and the logo part moves up and down but it doesn't scroll left or right, just one line does.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

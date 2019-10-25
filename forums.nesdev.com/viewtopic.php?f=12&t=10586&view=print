@@ -1,0 +1,468 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Gauss Table Creation</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Gauss Table Creation</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=12&amp;t=10586">http://forums.nesdev.com/viewtopic.php?f=12&amp;t=10586</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>nocash</b> [ Tue Oct 15, 2013 4:50 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Gauss Table Creation</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Sony's soundchips (as used in SNES and PSX) are using a &quot;gauss_table&quot; with 512 entries for pitch interpolations:<br />PSX: <!-- m --><a class="postlink" href="http://nocash.emubase.de/psx-spx.htm#spuadpcmpitch">http://nocash.emubase.de/psx-spx.htm#spuadpcmpitch</a><!-- m --><br />SNES: <!-- m --><a class="postlink" href="http://nocash.emubase.de/fullsnes.htm#snesapudspbrrpitch">http://nocash.emubase.de/fullsnes.htm#s ... spbrrpitch</a><!-- m --><br />Above docs are containing the table contents as extracted from real hardware.<br /><br />So far, the table contents are known, and everything is fine. But, just for curiosity: How did Sony create those tables?<br /><br />The guy who did originally dump one of that tables (and who branded the name &quot;gauss&quot; table) did later admit that he doesn't have a clue if the table/interpolation has any relation to Gauss at all. Anyway, the table content <em>does</em> seem to resemble to something that is called &quot;gaussian normal distribution&quot; - so after all, the name &quot;gauss_table&quot; seems to be correct.<br /><br />Here's a formula that does - more or less - reproduce the contents for table[0..511]:<br /><br /><span style="color: #40FF00">table[i] =  (e^(-((siz-i)^2)/curv)) * (volume) - offset</span><br /><br />e = Euler's Number (2.718281828...)<br />siz = index of last table entry (511) (or maybe 512 in case the table excludes the highest point)<br />offset = some small offset, needed to get table[0]=0 for SNES, and table[0]=-1 for PSX<br />volume = volume factor (should be equal to &quot;table[siz]+offset&quot;)<br />curv = some constant that somehow affects the shape of the curve<br /><br />The &quot;volume&quot; should be kinda obvious since<br /><span style="color: #00FF00">table[siz]=(e^(0/curv) * (volume) - offset</span><br />If siz should be 512 rather than 511, then (for obtaining the &quot;volume&quot; value) one must guess the value for table[512], the value should be same or maybe one bigger than table[511].<br /><br />The &quot;offset&quot; value is needed to get table[0]=0 for SNES, and table[0]=-1 for PSX. Without subtracting that offset, table[0] would be some positive value (the formula won't reach zero until somewhere at table[-infinite]).<br />with some experimentation, I ended up with these offset values<br /><span style="color: #00FF00">offset=circa 10 for SNES<br />offset=circa 50 for PSX</span><br />that assuming that offset is constant for all table entries. I might be also variable, something like &quot;offset=(512-i)/10&quot; instead of &quot;offset=50&quot; or whatever. But anyways, the offset is needed only for fine-tuning.<br /><br />And &quot;curv&quot; can be calculated as:<br /><span style="color: #00FF00">curv = -(siz-i)^2 / log.e((table[i]+offset)/volume)</span><br />aka<br /><span style="color: #00FF00">curv = -(siz-i)^2 / ln((table[i]+offset)/volume)</span><br />aka, when picking i=256 for example,<br /><span style="color: #00FF00">curv = -(siz-256)^2 / ln((table[256]+offset)/volume)</span><br />and then I got this curv values from above formula:<br />curv=circa 53240 for SNES<br />curv=circa 42484 for PSX<br /><br />So, with above stuff, three table entries are used as reference points:<br /><span style="color: #00FF00">table[siz]=highest point, used to calculate &quot;volume&quot;<br />table[256]=some random point, used to calculate &quot;curv&quot;<br />table[0]=lowest point, used to compute &quot;offset&quot; (done by experimentation, not really calculated)</span><br />and with the computed volume, curv, offset values, it should be theoretically possible to calculate all other table entries.<br /><br />Unfortunately, the results are still far away from perfection. Maybe I got something wrong, or maybe Sony used some rounded value like e=2.7 rather than e=2.718281828... or the overall formula isn't correct at all.<br /><br />Any ideas?<br /><br />PS. credits to Felix Laepple for pointing me on the basic formula.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Tue Oct 15, 2013 6:33 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Gauss Table Creation</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Here's a generator I wrote a while back that comes close (about 12 units off at the extremes):<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">double e = 2.718281828;<br />for ( int i = 0; i &lt; 512; i++ ) {<br />&nbsp; &nbsp;double x = i / 511.0 * 2.31 - 0.05;<br />&nbsp; &nbsp;double y = pow( e, -x * x ) * 1305.64;<br />&nbsp; &nbsp;gauss &#91;i&#93; = y - 8.54;<br />}</div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>nocash</b> [ Wed Oct 16, 2013 5:42 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Gauss Table Creation</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Thanks! That looks similar... <br />Your &quot;<span style="color: #00FF00">511.0*2.31</span>&quot; would be equivalent to &quot;<span style="color: #00FF00">curv=(511.0/2.31)^2</span>&quot; (ie. curv=48934.8) (a good bit different than the curv=53240 that I came up with for SNES).<br />The &quot;<span style="color: #00FF00">-0.05</span>&quot; is something that I didn't have, did you use that to maintain the highest point at <span style="color: #00FF00">1305</span> despite of the <span style="color: #00FF00">-8.54</span> subtraction?<br />Big difference is that <span style="color: #00FF00">&quot;i&quot;</span> instead of <span style="color: #00FF00">&quot;siz-i&quot;</span> will reverse the table, ie. table[0]=highest point instead of lowest point.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Wed Oct 16, 2013 6:03 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Gauss Table Creation</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I opened numpy, graphed the log FFT of the whole thing, and found a huge notch in the frequency response around period 256 (one input sample). It's as if they took their original curve and tweaked it to resolve one special case of whining at the sample frequency. I was able to produce a very similar-looking (and similar-functioning but nowhere near bit-exact) curve by convolving four boxcar functions of length 256, or three 256-boxcars and two 128-boxcars. Next I might see what I can do with products of the bell curve at various scales and various window functions (Hann, Blackman, etc.).<br /><br />Is one of the goals some way to compress the table for use in an emulator?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>nocash</b> [ Wed Oct 16, 2013 10:54 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Gauss Table Creation</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />No, no goal, just for curiosity. The whole table takes only 1kbyte, the floating point math needed to calculate the table might even eat up more memory.<br /><br />The table contains a 'smooth' waveform without notches, where did you see notches? Or did you go some step farther and did analyze interpolation filtering characterisics... or whatever?<br /><br />Tried the SNES table with my formula and <span style="color: #00FF00">curv=53240</span> that gave me errors around +/-16, a bit worse than blargg's results. Then I tried <span style="color: #00FF00">curv=53240-3000+i*6000/512</span> that dropped the error to around +/-8, that's even a bit better than blargg's results. Maybe this is the right direction and gives perfect results when fine-tuning the &quot;-3000+i*6000&quot; values.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Wed Oct 16, 2013 11:13 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Gauss Table Creation</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">nocash wrote:</div><div class="quotecontent">The table contains a 'smooth' waveform without notches, where did you see notches? Or did you go some step farther and did analyze interpolation filtering characterisics... or whatever?</div><br />Yes, I took the Fourier transform to analyze its filtering characteristics. By &quot;notch&quot;, I meant near-zero response at a particular frequency.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>nocash</b> [ Wed Oct 16, 2013 11:48 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Gauss Table Creation</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Another try, <span style="color: #00FF00">curv=46440+i*24</span> (and offset=5, siz=511, volume=1305.5+offset), gives error in range -0..+6, yet a good bit closer.<br /><br /><div class="quotetitle">tepples wrote:</div><div class="quotecontent">By &quot;notch&quot;, I meant near-zero response at a particular frequency.</div><br />Yikes, frequency responses are sounding difficult.<br />With my plus/minus/xor integer math skills, even multiplications and exponents are already looking horribly complicated to me :-)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>nocash</b> [ Wed Oct 16, 2013 12:33 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Gauss Table Creation</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Tried to calculate &quot;curv&quot; values for three points...<br /><span style="color: #00FF00">i=128, table[128]=029h=41,  curv=-383^2 / ln((41+5)/1310.5)  = 43794<br />i=256, table[256]=176h=374, curv=-255^2 / ln((<s>474</s>+5)/1310.5) = <s>64607</s><br />i=384, table[384]=3C9h=969, curv=-127^2 / ln((969+5)/1310.5) = 54351</span><br /><s>Hmmmm... not the expected the result. I was expecting that curv would increase alongside with i.<br />But of that three values, it&#39;s reaching the highest point at i=256.<br />NB. at i=256, the &quot;ln&#40;...&#41;&quot; result is close to -1.00.</s><br /><br />EDIT: Oops, typo, used 474 instead of 374. Correct should be:<br /><span style="color: #00FF00">i=128, table[128]=029h=41,  curv=-383^2 / ln((41+5)/1310.5)  = 43794<br />i=256, table[256]=176h=374, curv=-255^2 / ln((374+5)/1310.5) = 52412<br />i=384, table[384]=3C9h=969, curv=-127^2 / ln((969+5)/1310.5) = 54351</span><br />So curv does increase alongsides with i, but not linearily.<br />Or maybe curv is constant and I am just trying to workaround a mistake elsewhere in the formula.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>byuu</b> [ Wed Oct 16, 2013 11:41 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Gauss Table Creation</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Just noting, in case you weren't aware ... but the S-DSP stores the gaussian table in a 512x12-bit (6144-bit) mask ROM table.<br /><br />Unfortunately we haven't been able to extract the table yet, the die scans needed another layer removed to see it and this hasn't been done.<br /><br />It is possible, though it'd be extreme and unlikely, that they hand-tweaked entries in this table.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>nocash</b> [ Wed Oct 23, 2013 10:22 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Gauss Table Creation</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Okay, I've written a utility that can display the graphs, and calculate graphs using FPU opcodes, and display differences between original and calculated graphs... (source code <div class="attachtitle">Attachment:</div><div class="attachcontent">
+			<span class="genmed">
+				<img src="./styles/subsilver2/imageset/icon_topic_attach.gif" width="14" height="18" alt="" title="" /> 
+				<a href="./download/file.php?id=905">Gauss.zip</a> [10.17 KiB]
+			</span><br />
+			<span class="gensmall">Downloaded 24 times</span>
+		
+
+		<br />
+	</div> for Borland TASM).<br /><br />First of, here are the original SNES and PSX tables, shown at their 12bit/16bit ranges (max=800h/8000h for SNES/PSX). And scaled to max=519h/59B3h, ie. highest points of the SNES/PSX graphs).<br />The sum of entries gauss[000h+i]+gauss[0FFh-i]+gauss[100h+i]+gauss[1FFh-i] is approximately 800h/8000h for SNES/PSX, the difference is that the PSX graph having a steeper+higher peak level, but less steep+high bottom).<br /><div class="attachtitle">Attachment:</div><div class="attachcontent">
+			<img src="./download/file.php?id=906" alt="gauss1.gif" /><br />
+			<span class="gensmall">gauss1.gif [ 7.59 KiB | Viewed 575 times ]</span>
+		
+
+		<br />
+	</div><br /><br />Next, here are some attemps to compute the SNES table by software.<br />The upper picture shows what happens when using bigger/smaller &quot;curv&quot; values. The bold lines are the actual graphs, the thin lines are showing the difference between original (red graph) and computed graphs at higher resolution - ideally this should be a straight horizontal line (=no difference).<br />The lower picture shows some more attempts:<br />curv=55968 is quite fine on the left side, but goes wrong at the right side<br />curv=58700+x*24 is quite fine, but still has some up/down error<br /><div class="attachtitle">Attachment:</div><div class="attachcontent">
+			<a href="./download/file.php?id=907&amp;mode=view"><img src="./download/file.php?id=907&amp;t=1" alt="gauss2.gif" /></a><br />
+			<span class="gensmall">gauss2.gif [ 12.63 KiB | Viewed 575 times ]</span>
+		
+
+		<br />
+	</div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>nocash</b> [ Wed Oct 23, 2013 10:36 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Gauss Table Creation</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />This is computing the required &quot;curv[i]&quot; values... the jitter at the left/right sides is due low resolution of the 12bit table entries... but even without that glitch, the result doesn't look too useful :-/<br /><div class="attachtitle">Attachment:</div><div class="attachcontent">
+			<img src="./download/file.php?id=908" alt="gauss3.gif" /><br />
+			<span class="gensmall">gauss3.gif [ 5.39 KiB | Viewed 575 times ]</span>
+		
+
+		<br />
+	</div><br /><br />So next, attempt, replacing the &quot;((x)^2)/curv&quot; idea by &quot;(something)^2&quot;, and now computing that &quot;something&quot;:<br />The upper picture is using factor=256, looks fine. The lower one factor=235, which looks even better.<br />And, the graphs with offset=0 (cyan) are finally showing some &quot;constantly&quot; raising waveform, yeah :-)<br /><div class="attachtitle">Attachment:</div><div class="attachcontent">
+			<a href="./download/file.php?id=909&amp;mode=view"><img src="./download/file.php?id=909&amp;t=1" alt="gauss4.gif" /></a><br />
+			<span class="gensmall">gauss4.gif [ 15.16 KiB | Viewed 575 times ]</span>
+		
+
+		<br />
+	</div><br /><br />And, my first attempt to calculate &quot;(something)&quot; by software. Not perfect, but it looks as if it chould give perfect results when fine-tuning the 7000 and 532 values.<br />EDIT: And, the &quot;235&quot; in the reference-graph may also need some fine-tuning.<br /><div class="attachtitle">Attachment:</div><div class="attachcontent">
+			<img src="./download/file.php?id=910" alt="gauss5.gif" /><br />
+			<span class="gensmall">gauss5.gif [ 5.79 KiB | Viewed 575 times ]</span>
+		
+
+		<br />
+	</div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>nocash</b> [ Wed Oct 23, 2013 6:42 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Gauss Table Creation</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Got bored of calculating or guessing numbers, and instead, used dumb brute-force approach for finding better values than 7000, 532, 235. This did threw out values 11580, 551, 244. Giving these graphs:<br /><div class="attachtitle">Attachment:</div><div class="attachcontent">
+			<img src="./download/file.php?id=911" alt="gauss6.gif" /><br />
+			<span class="gensmall">gauss6.gif [ 10.15 KiB | Viewed 551 times ]</span>
+		
+
+		<br />
+	</div><br />The difference to the original SNES table is now within -1..+3. The formula is most probably correct, and errors may be due to rounding issues on the final result, or fractional parts of the constants (like maybe 551.4 instead of 551, or 1305.5 instead of 1305, etc).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Wed Oct 23, 2013 6:45 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Gauss Table Creation</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />The remaining waviness may be a post-processing step to make sure all sums of four corresponding values are near $800, so that DC interpolates to DC.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>nocash</b> [ Fri Oct 25, 2013 4:29 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Gauss Table Creation</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tepples wrote:</div><div class="quotecontent">The remaining waviness may be a post-processing step to make sure all sums of four corresponding values are near $800, so that DC interpolates to DC.</div><br />Theoretically yes, but the formula does spit out sums near 800h anyways (don't know how and why, but it does do so). And Sony definetly didn't mind about getting <em>exact</em> sums of 800h (causing the nasty hardware glitch when sum becomes 801h).<br /><br />I've changed the brute-force stuff a bit, allowing it to span bigger range at better resolutions (with steps smaller than 1.0). The problem is that some of the FPU opcodes are quite slow, computing a few million graphs with 512 points each can take up a whole minute, or even several hours when using slightly bigger ranges for the separate constants.<br /><br />Some nice constants are 16185, 580.0, 255.0, 1305.0. Used like this:<br /><span style="color: #00FF00">n = (x + 16185/(580-x) - 16185/580) / 255<br />table[x] = (e^(-(n^2))) * 1305</span><br />Results are very close to the original snes table (with errors are in range -1..+1).<br />Though there are various other constants that give similar (or possibly even better) results, so it's hard to tell which values are best.<br /><br />I think some of the remaining errors could be blamed to rounding errors. One thing that is definitely wrong is that my tool spits out <span style="color: #00FF00">table[0]=(e^0)*1305=1304</span>. And Sony's original program may have similar rounding errors, which would make it difficult to get the same results without knowing the original FPU rounding mode and FPU resolution.<br /><br />Oh, and I've replaced &quot;e=2.718281828&quot; by &quot;e=(1.0)*(2^log.2(e))&quot; (using fld1,fldl2e,fscale opcodes, which is hopefully more accurate).<br /><br />EDIT: Just changed the resolution of FPU memory operands from 64bit (qword) to the full 80bit (tbyte) resolution - that has fixed the &quot;(e^0)&lt;1&quot; error.<br /><br />EDIT: I was somehow thinking that table[511] might be rounded <em>down</em> to 1305. But actually, it might be rounded <em>up</em> to 1305. With constants like so <span style="color: #00FF00">16151.9, 580.1, 255.0, 1304.5</span>. Results are possibly looking a bit better that way. Only, again the FPU is giving me table[0]=(e^0)*1304.5=1304, same for (e^0)*1304.6, despite of round-to-nearest mode, the damn thing just isn't rounding as desired.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>nocash</b> [ Fri Oct 25, 2013 7:53 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Gauss Table Creation</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Tried to do the same for the PSX table - should have been doing that anyways since the 16bit entries are having 16x better precision than the 12bit SNES values.<br /><div class="attachtitle">Attachment:</div><div class="attachcontent">
+			<img src="./download/file.php?id=913" alt="gauss7.gif" /><br />
+			<span class="gensmall">gauss7.gif [ 4.67 KiB | Viewed 481 times ]</span>
+		
+
+		<br />
+	</div><br />Hmmmm, the error (the thin line at the bottom of the image) ranging from +25..-10 doesn't look good. I got a similar error for the SNES (but barely visible, ranging only from +1..-1 due to the lower resolution).<br />Anyways, I am afraid that +25..-10 can't be blamed on rounding errors, so there's probably still something wrong/missing in the overall formula :-/<br />EDIT: As tepples mentioned the entries should sum up properly (to 7F7Fh..7F81h for the PSX), which won't work with the above errors. Either Sony has applied post processing to get the 7F7Fh..7F81h range, or they used a better formula that didn't need post processing...
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

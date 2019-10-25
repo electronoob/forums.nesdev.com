@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=10&amp;t=1966" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2006-09-13T20:59:52-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=10&amp;t=1966</id>
+<entry>
+<author><name><![CDATA[Quietust]]></name></author>
+<updated>2006-09-13T20:59:52-07:00</updated>
+<published>2006-09-13T20:59:52-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=1966&amp;p=17391#p17391</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=1966&amp;p=17391#p17391"/>
+<title type="html"><![CDATA[Loading the next screen]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=1966&amp;p=17391#p17391"><![CDATA[
+A ways up, I said I would post my "VRAM update queue" code. I suppose I can do that now.<br /><br />One limitation is that it does not support "vertical" writing (i.e. using the "increment VRAM address by 32" option), but that's mainly because I don't use it.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">;Variables - these ones are best located in zeropage<br />ioptr:      .res 2<br />addxy:      .res 1<br /><br />splitiobank:   .res 1<br />splitiolen:   .res 2<br />splitiofrom:   .res 2<br />splitioto:   .res 2<br />splitiocur:   .res 2<br /><br />io_nextbank:   .res 1<br />io_nextlen:   .res 1<br />io_nextfrom:   .res 2<br />io_nextto:   .res 2<br /><br />;More variables - these can go elsewhere in RAM<br />io_bank:   .res 32<br />io_len:      .res 32<br />io_from:   .res 64<br />io_to:      .res 64<br />io_reqi:   .res 1<br />io_reqo:   .res 1<br /><br />splitio_tmp:   .res 1<br /><br />;Macros<br /><br />.define   PLO&#40;ptr&#41; ptr+0<br />.define   PHI&#40;ptr&#41; ptr+1<br /><br />.macro   clr_pointer   dest<br />   LDA #$00<br />   STA dest+0<br />   STA dest+1<br />.endmacro<br /><br />.macro   copy_pointer   src, dest<br />   LDA PLO src<br />   STA PLO dest<br />   LDA PHI src<br />   STA PHI dest<br />.endmacro<br /><br />.macro   load_pointer_x   src, dest<br />   LDA PLO src,X<br />   STA PLO dest<br />   LDA PHI src,X<br />   STA PHI dest<br />.endmacro<br /><br />.macro   save_pointer_x   src, dest<br />   LDA PLO src<br />   STA PLO dest,X<br />   LDA PHI src<br />   STA PHI dest,X<br />.endmacro<br /><br />;Code<br /><br />;*** Waits for a bulk I/O request to clear.<br />.proc waitio<br />   PHA<br />:   LDA io_reqi<br />   CMP io_reqo<br />   BNE :-<br />   PLA<br />   RTS<br />.endproc<br /><br />;*** Queues a bulk VRAM update - as big as you want. This is the main routine you use.<br />;splitiofrom - where you want to copy memory from<br />;splitiolen - the length of the block you want to copy<br />;splitiobank - PRG bank in which the data resides &#40;optional&#41;<br />;splitioto - the VRAM address you want to copy the data to<br />.proc splitio<br />   clr_pointer splitiocur<br />:   SEC<br />   LDA PLO splitiolen<br />   SBC PLO splitiocur<br />   STA splitio_tmp<br />   LDA PHI splitiolen<br />   SBC PHI splitiocur<br />   BNE :+<br />   LDA splitio_tmp<br />   CMP #$40<br />   BCC :++<br />:   LDA #$40<br />:   STA io_nextlen<br />   LDA splitiobank<br />   STA io_nextbank<br />   copy_pointer splitiofrom, io_nextfrom<br />   copy_pointer splitioto, io_nextto<br />   JSR iorequest<br /><br />   LDA #$40<br />   LDX PHI splitiofrom<br />   LDY PLO splitiofrom<br />   JSR add_xy_a<br />   STX PHI splitiofrom<br />   STY PLO splitiofrom<br /><br />   LDX PHI splitioto<br />   LDY PLO splitioto<br />   JSR add_xy_a<br />   STX PHI splitioto<br />   STY PLO splitioto<br /><br />   LDX PHI splitiocur<br />   LDY PLO splitiocur<br />   JSR add_xy_a<br />   STX PHI splitiocur<br />   STY PLO splitiocur<br /><br />   LDA PHI splitiocur<br />   CMP PHI splitiolen<br />   BCC :---<br />   LDA PLO splitiocur<br />   CMP PLO splitiolen<br />   BCC :---<br />   RTS<br /><br />add_xy_a:<br />   STA addxy<br />   TYA<br />   CLC<br />   ADC addxy<br />   TAY<br />   TXA<br />   ADC #$00<br />   TAX<br />   LDA addxy<br />   RTS<br />.endproc<br /><br />;*** Resets the I/O queue, in case you need to do something like that<br />.proc ioreset<br />   LDA #$00<br />   STA io_reqi<br />   STA io_reqo<br />   RTS<br />.endproc<br /><br />;*** Used by splitio, queues a single 64-byte VRAM transfer<br />.proc iorequest<br />   PHA<br />   TXA<br />   PHA<br />   LDX io_reqi<br />   LDA io_nextlen<br />   STA io_len,X<br />   LDA io_nextbank<br />   STA io_bank,X<br />   TXA<br />   ASL A<br />   TAX<br />   save_pointer_x io_nextfrom, io_from<br />   save_pointer_x io_nextto, io_to<br />   INX<br />   INX<br />   TXA<br />   LSR A<br />   AND #$1F<br />   STA io_reqi<br />   PLA<br />   TAX<br />   PLA<br />   RTS<br />.endproc<br /><br />;*** Called during VBLANK as part of your NMI routine, dispatches one VRAM transfer<br />.proc iodispatch<br />   LDY io_reqo<br />   CPY io_reqi<br />   BEQ :++<br />   TYA<br />   ASL A<br />   TAX<br />   load_pointer_x io_from, ioptr<br />   LDA PHI io_to,X<br />   STA $2006<br />   LDA PLO io_to,X<br />   STA $2006<br />   LDA io_bank,Y<br />   STA MAP_PRG      ;this is your mapper's PRG banking register<br />   LDA io_len,Y<br />   TAX<br />   LDY #$00<br />:   LDA &#40;ioptr&#41;,Y<br />   STA $2007<br />   INY<br />   DEX<br />   BNE :-<br />   LDY io_reqo<br />   INY<br />   TYA<br />   AND #$1F<br />   STA io_reqo<br />:   RTS<br />.endproc<br /></div><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=7">Quietust</a> — Wed Sep 13, 2006 8:59 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Bregalad]]></name></author>
+<updated>2006-09-13T08:14:11-07:00</updated>
+<published>2006-09-13T08:14:11-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=1966&amp;p=17320#p17320</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=1966&amp;p=17320#p17320"/>
+<title type="html"><![CDATA[Loading the next screen]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=1966&amp;p=17320#p17320"><![CDATA[
+Yes, left clipping isn't the way to go, especially that in some case you'd want to not have the clipping enabled.<br />Putting all sprite vertical range of $f0 or above will NEVER have them to be even considered by the PPU, making them disabled. All other tricks may hide the sprites to the user, but those are still tricks and technically, the sprites will be displayed.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=38">Bregalad</a> — Wed Sep 13, 2006 8:14 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Memblers]]></name></author>
+<updated>2006-09-12T19:35:18-07:00</updated>
+<published>2006-09-12T19:35:18-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=1966&amp;p=17301#p17301</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=1966&amp;p=17301#p17301"/>
+<title type="html"><![CDATA[Loading the next screen]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=1966&amp;p=17301#p17301"><![CDATA[
+I previously used to just set all their tiles #s to a blank tile.  It probably is better to set the Y positions below the screen though, that possibly would've hidden a (fairly rare) sprite display bug that shows up in Munchie Attack.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=10">Memblers</a> — Tue Sep 12, 2006 7:35 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tokumaru]]></name></author>
+<updated>2006-09-12T14:20:28-07:00</updated>
+<published>2006-09-12T14:20:28-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=1966&amp;p=17286#p17286</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=1966&amp;p=17286#p17286"/>
+<title type="html"><![CDATA[Loading the next screen]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=1966&amp;p=17286#p17286"><![CDATA[
+<div class="quotetitle">commodorejohn wrote:</div><div class="quotecontent"><br />Another option for garbage sprites is to turn on sprite clipping in the leftmost 8 pixels and then put all the sprites at X location 0.<br /></div><br />You won't get garbage sprites like this, sure, but remember that the NES can only display 8 sprites on a scanline. Those sprites hidden in the left 8 pixels still count for this limit, so you'd be lowering your displayed sprite count if you hid them like this. If many of them occupy the same scanlines, you may even be blanking the sprites for those entire scanlines, depending on sprite priorities.<br /><br />Always hide unused sprites at the bottom of the screen, where it doesn't matter if they occupy the same scanlines.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=95">tokumaru</a> — Tue Sep 12, 2006 2:20 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[commodorejohn]]></name></author>
+<updated>2006-09-12T13:55:42-07:00</updated>
+<published>2006-09-12T13:55:42-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=1966&amp;p=17284#p17284</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=1966&amp;p=17284#p17284"/>
+<title type="html"><![CDATA[Loading the next screen]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=1966&amp;p=17284#p17284"><![CDATA[
+Another option for garbage sprites is to turn on sprite clipping in the leftmost 8 pixels and then put all the sprites at X location 0.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=1013">commodorejohn</a> — Tue Sep 12, 2006 1:55 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Roth]]></name></author>
+<updated>2006-09-01T09:35:12-07:00</updated>
+<published>2006-09-01T09:35:12-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=1966&amp;p=16780#p16780</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=1966&amp;p=16780#p16780"/>
+<title type="html"><![CDATA[Loading the next screen]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=1966&amp;p=16780#p16780"><![CDATA[
+Tepples, you are certainly the man.  I made a seperate subroutine for turning on the PPU, but without the sprites on... this made it work perfect <img src="http://forums.nesdev.com/images/smilies/icon_smile.gif" alt=":)" title="Smile" />  Thanks.  Now to get to the controller polling.  Thanks again all.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=174">Roth</a> — Fri Sep 01, 2006 9:35 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2006-09-01T09:15:25-07:00</updated>
+<published>2006-09-01T09:15:25-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=1966&amp;p=16778#p16778</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=1966&amp;p=16778#p16778"/>
+<title type="html"><![CDATA[Loading the next screen]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=1966&amp;p=16778#p16778"><![CDATA[
+Top left corner being garbage means that you need to either turn sprite display off or put all the unused sprites offscreen (y attribute value between $EF and $FF).<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Fri Sep 01, 2006 9:15 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Roth]]></name></author>
+<updated>2006-09-01T09:11:23-07:00</updated>
+<published>2006-09-01T09:11:23-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=1966&amp;p=16777#p16777</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=1966&amp;p=16777#p16777"/>
+<title type="html"><![CDATA[Loading the next screen]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=1966&amp;p=16777#p16777"><![CDATA[
+<div class="quotetitle">tokumaru wrote:</div><div class="quotecontent"><br />As for the start button, you should do that trick that will only detect keys that have changed since the last read, because when you hold the start button down for a while, the next screen is reloaded an insane ammount of times. The trick goes something like this (supposing you use a byte to store the status of all 8 possible buttons): EOR the byte holding the old states with the one holding the new states. Whatever buttons changed will have 1's, the ones that remain the same will be 0's. AND that to the new byte, so that what CHANGED AND IS PRESSED NOW will be 1's, and everything else will be 0's. This way you'll only detect the moment when the button is pressed (transition), wich is the desired behaviour of the start button.<br /></div><br /><br />Thanks for the tip on that.  I noticed when I held down Start that it just stayed in place, then upon release loaded the garbage.  I think I've seen some code like what you described before.  I'll check out a few sources and see what's going on in them.<br /><br /><br /><div class="quotetitle">Queitust wrote:</div><div class="quotecontent"><br />As for reloading an entire nametable, you pretty much have 2 options - either disable rendering and load it all at once, or load it a little bit at a time (during VBLANKs) into an alternate nametable and then switch it in when you're done.<br />From what I've seen, though, most games don't disable the screen to reload nametables - they'll turn the palette black and then queue up a screen's worth of data to be updated during VBLANKs.<br />You may find it useful to code a general-purpose I/O queue for dispatching VRAM updates during VBLANK and splitting them into sufficiently small chunks so as to avoid overflowing into rendering. I have some code that does exactly this (for Drip, an Amiga game I'm porting* to the NES) - if you're interested, I'll post it here (it's reasonably small, but fairly versatile).<br /></div><br /><br />I tried disabling, then running the code, then enabling.  It did indeed draw the screen MUCH better, but the upper-left corner was still garbage.  I'll play with the code a little more and see if I can get the code shorter, as it seems like I must be stepping on something I shouldn't have been... and sure, I'd like to see the code for that you have.  It's always nice to see how someone implements something.<br /><br />Thanks for the replies <img src="http://forums.nesdev.com/images/smilies/icon_smile.gif" alt=":)" title="Smile" /><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=174">Roth</a> — Fri Sep 01, 2006 9:11 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Quietust]]></name></author>
+<updated>2006-09-01T08:43:10-07:00</updated>
+<published>2006-09-01T08:43:10-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=1966&amp;p=16774#p16774</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=1966&amp;p=16774#p16774"/>
+<title type="html"><![CDATA[Loading the next screen]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=1966&amp;p=16774#p16774"><![CDATA[
+As for reloading an entire nametable, you pretty much have 2 options - either disable rendering and load it all at once, or load it a little bit at a time (during VBLANKs) into an alternate nametable and then switch it in when you're done.<br />From what I've seen, though, most games don't disable the screen to reload nametables - they'll turn the palette black and then queue up a screen's worth of data to be updated during VBLANKs.<br />You may find it useful to code a general-purpose I/O queue for dispatching VRAM updates during VBLANK and splitting them into sufficiently small chunks so as to avoid overflowing into rendering. I have some code that does exactly this (for <a href="http://qmt.ath.cx/~nes/drip" class="postlink">Drip</a>, an Amiga game I'm porting* to the NES) - if you're interested, I'll post it here (it's reasonably small, but fairly versatile).<br /><br /><br />(* not so much "porting", moreso "completely rewriting it from scratch to work in mostly the same way")<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=7">Quietust</a> — Fri Sep 01, 2006 8:43 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tokumaru]]></name></author>
+<updated>2006-09-01T08:15:23-07:00</updated>
+<published>2006-09-01T08:15:23-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=1966&amp;p=16771#p16771</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=1966&amp;p=16771#p16771"/>
+<title type="html"><![CDATA[Loading the next screen]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=1966&amp;p=16771#p16771"><![CDATA[
+The next screen seems like a lot of new data. Are you disabling rendering before drawing the second screen? If by any chance you are trying to draw it during rendering time, you're sure to get garbage on the screen.<br /><br />As for the start button, you should do that trick that will only detect keys that have changed since the last read, because when you hold the start button down for a while, the next screen is reloaded an insane ammount of times. The trick goes something like this (supposing you use a byte to store the status of all 8 possible buttons): EOR the byte holding the old states with the one holding the new states. Whatever buttons changed will have 1's, the ones that remain the same will be 0's. AND that to the new byte, so that what CHANGED AND IS PRESSED NOW will be 1's, and everything else will be 0's. This way you'll only detect the moment when the button is pressed (transition), wich is the desired behaviour of the start button.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=95">tokumaru</a> — Fri Sep 01, 2006 8:15 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Roth]]></name></author>
+<updated>2006-09-01T07:07:24-07:00</updated>
+<published>2006-09-01T07:07:24-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=1966&amp;p=16770#p16770</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=1966&amp;p=16770#p16770"/>
+<title type="html"><![CDATA[Loading the next screen]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=1966&amp;p=16770#p16770"><![CDATA[
+Hello all.<br /><br />I've been trying to implement using the Start button to switch screens, to simulate going from a title screen, to the actual game area.  I'm wondering if anyone knows exactly what would cause the second screen to just be a jumbled mess?  Mind you that I use the same nametable to load the second screen.  When I used the other to preload that second screen, it still gets jumbled after pressing Start.  Here's the ROM if you would like to see what I mean:<br /><br /><!-- m --><a class="postlink" href="http://roth.zhxhome.net/junk/NCAT.NES">http://roth.zhxhome.net/junk/NCAT.NES</a><!-- m --><br /><br />If anyone could let me know what <em>could</em> be causing it, then I can check out my code and see if there's something similar to what is described.  Thanks.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=174">Roth</a> — Fri Sep 01, 2006 7:07 am</p><hr />
+]]></content>
+</entry>
+</feed>

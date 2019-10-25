@@ -1,0 +1,417 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Scrolling collision methods</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Scrolling collision methods</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=10&amp;t=17572">http://forums.nesdev.com/viewtopic.php?f=10&amp;t=17572</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>2</strong> of <strong>2</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>FrankenGraphics</b> [ Tue Jul 24, 2018 9:24 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Scrolling collision methods</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />A wholly different collision topology is metroid and project blue (sorry for all the self-referencing lately). Both are per tile-based in different ways. Under variants, some other ideas are mentioned. <br /><br />In metroid, collision is implied by ranges of tile ID:s. I don't remember the exact ranges and properties, but say $00-$BF are solid, $C0-$EF are nonsolid, $F0-F8 are hurting nonsolid, and $F9-FF are breakable. Metroid is using most of its tilespace for solids.<br /><br />Even in a scroller, detecting a hit is just the matter of checking screen position / 8 vs the NT cell tile ID (in the relevant nametable) every 8th pixel (you can AND position with #7 to branch past reduntant checks).  <br /><br />Project Blue differs in that it lets you set what tiles have what properties freely and combinable with the help of separate property arrays. <br /><br />Pros:<br />-Easy/Requires no collision map sliver updates/collision is automatically derived from NT content.<br />-Promotes big worlds / levels<br />-Tile-granularity collision (not that metroid ever uses it - but the engine is perfectly capable to do so!)<br />-(valid for metroid) no significant ROM storage cost whatsoever<br />-(valid for project blue) relatively low ROM storage cost per level<br />-(valid for metroid) Doesn't need RAM. <br />-(valid for project blue) overlapping, combinable physics attributes<br />-(valid for project blue) no need to organize your tiles, other than for convenience. <br /><br />Cons:<br />-If you plan on using the same tiles multiple time for solid/nonsolid, you either need to <br />a)waste some tile space with duplicates (this is the metroid method)<br />b)make collisions conditional on PPU attribute as well (this is part of  the project blue method), which as a downside locks in the function of subpalettes pretty tight. Anyway, i've found that this is pretty natural and not much of a hindrance since you want to keep solids and far background differently coloured in a platformer anyway. An isometric game or the like would fare worse. <br />-(valid for metroid): you need to organize your tiles in accordance to the physics attribute ranges you've defined. <br />-(valid for metroid, but not necessarily for you): you may need different ratios of differently propertized tiles in different levels/stages/boards. Of course, you can just keep different definitions or routines for different levels.<br /><br />Variants:<br />-Going with the metroid &quot;range scheme&quot;, you can of course have overlapping ranges. So maybe there's a hurt property that overlaps with both solid and nonsolid.<br />-Something like project blue could instead bitpack 8 properties in a byte corresponding to each tileID. It would be free of RAM, small in ROM. <br /><br />edited to be less confusing.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>JoeGtake2</b> [ Tue Jul 24, 2018 9:48 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Scrolling collision methods</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />It's all very interesting to consider the various ways I could approach this now, with some thought.  Thinking this out here....<br /><br /><strong>Choice 1:</strong> Keep collision data as full bytes, still loading into RAM.  Rearrange memory to try to free up RAM space for second collision table, and just mirror exactly how the nametable updates function, but on a metatile basis.  <br /><br />Pro: Probably how it SHOULD be done, as the infrastructure is already lain for when to update and column checking.<br />Con: Would have to sacrifice some of the RAM space allocated to many of the customizable things inherent.  This might be hugely detrimental.<br /><br /><br /><strong>Choice 2:</strong> Use only 4 bit nibbles for each collision tile.  That way, two screens worth of data could be packed in to the same space as one screen worth of full bytes.  I could actually pretty easily determine which nametable is being looked at (2000 or 2400); if it's the former, read the first nibble, if it's the latter, read the second.  That's a quick enough read to essentially behave the same way.  And then on updates, it would blank that nibble and ora in new data, placing it in the proper nibble dependent on which of the two 'screens' is being updated.<br /><br />Pro: Wouldn't have to reorganize RAM map at all.  <br />Con: Any potential uses for those extra bits in real time game play would be gone, and the logic is a little bit more convoluted.<br /><br /><br /><strong>Choice 3: </strong>Shifting columns.  Use a 16 byte buffer (this is clean, since the screen has 240 collision bytes...one ram page fits that + the buffer) for next potential row of collision.  When threshold is reached, shift each column, column by column, filling the last with the buffer, and filling the buffer with the next potential column.<br /><br />Pro: No reorganization of RAM map, OR loss of extra &quot;real time&quot; collision bits.<br />Con: Very complex relatively, and I'd imagine terribly slow.  <br /><br /><br />Out of the three, I think the second may keep the current skeleton if things in tact the most and might be the simplest to implement.  What do you guys think?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Tue Jul 24, 2018 10:25 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Scrolling collision methods</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Sumez wrote:</div><div class="quotecontent">What are your reasons for loading collision data into RAM?</div><br />In Lizard's case, there are several reasons. Here's 3 big ones I can think of immediately:<br /><br /><ul><li> Uncompressed 1-bit per tile collision data for the world would have been an extra 100k+ of data for the game (which is a pretty full 512k already).</li><li> RAM means it can be modified (doors and platforms can be created and destroyed), though I wish I'd used this feature more.</li><li> RAM also means I don't have to bankswitch that data in to do a collision test. (Was able to do interesting stuff like colliding snow particles partly because of this.)</li></ul><br />There are some good reasons to use ROM collision tables too though. I'm certainly not saying that there's only one way to do it. Part of why it'd be so much data for Lizard is that it has 8x8 tiles instead of 16x16.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Sumez</b> [ Tue Jul 24, 2018 2:30 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Scrolling collision methods</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />An advantage to Lizard though, is that as far as I recall, no room uses more than two nametables? So scrolling is less of an issue, if any at all.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>dougeff</b> [ Tue Jul 24, 2018 2:52 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Scrolling collision methods</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">no room uses more than two nametables?</div><br /><br />The river (surfing) and the frog boss scroll seamlessly.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Sumez</b> [ Tue Jul 24, 2018 3:04 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Scrolling collision methods</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I'd wager collisions also work quite differently in those two examples? <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Tue Jul 24, 2018 5:04 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Scrolling collision methods</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Yes, those two are special.<br /><br />...but there's no fundamental incompatibility with RAM collision and scrolling, either, and compression is still a bonus there.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>unregistered</b> [ Wed Jul 25, 2018 8:44 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Scrolling collision methods</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I don't know if I'm too late, but tepples gave me an excellent idea for scrolling horizontally using two 8bit variables <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">visible_left</tt> and <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">valid_left</tt>.  After lots of my rereading, prayer, and efforts his method works excellent for me!!  <img src="./images/smilies/icon_mrgreen.gif" alt=":mrgreen:" title="Mr. Green" />  <img src="./images/smilies/icon_biggrin.gif" alt=":D" title="Very Happy" />   <a href="https://forums.nesdev.com/viewtopic.php?p=114940#p114940" class="postlink">tepples' visible_left valid_left scrolling advice (bottom of page 69)</a>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>JoeGtake2</b> [ Wed Jul 25, 2018 12:59 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Scrolling collision methods</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />So, trying some things.  Give or take, got a few things *sort of* working the way I want.  Graphically, it's all good (and has been).  But collisions...oh collisions.  Going to sort of do some public rubber duck debugging here....<br /><br />Something simple enough like just determining which collision table to pull from (one loading for when NT 1 is showing, one loading for when NT 2 is showing) I think I'm overcomplicating terribly.  <br /><br />So, essentially, I have a columnTracker variable that is keeping track of the left side of the scroll camera (and in tandem what column to update in the opposite nametable).  The player has about an 80 px padding area in the center (which can be adjusted by changing a constant) where the scroll doesn't kick in.  So now I have to figure out what nametable the player &quot;is in&quot;.  Fairly simple, xScroll + playerX...if the carry is set, we're in the second nametable....<br /><br />But wait, no.  That's not right.  If columnTracker is a value of 00-15 AND xScroll+playerX yields a set carry, we've moved into the second nametable (because that means the left of our camera window is still in the first screen).  If columnTracker is 16-31 in the same condition, it means we've cycled back around to the first (because that means the left of our camera window is now in the second screen).<br /><br />Alright, so now I could go three ways...keep track also of &quot;object's&quot; column, which would be different than his position (his position only returns values of 00-ff, but column could keep track of which column he's in and mirror the columnTracker function, just tracking the object, not the left of screen...), or I could create an overflow byte for position, sort of reading world coordinates, for which the last bit would determine whether collisions are in collision table one or two....or I could flip an arbitrary bit somewhere would an object could read to make that determination.<br /><br />And in any case, I preemptively wonder how ugly collision detection will end up getting when I have to read left points of collision from one collision table, but right points of collision from the next.<br /><br />These are my fleeting thoughts.  You guys are awesome for your responses, as always.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>unregistered</b> [ Wed Jul 25, 2018 3:45 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Scrolling collision methods</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">JoeGtake2 wrote:</div><div class="quotecontent">And in any case, I preemptively wonder how ugly collision detection will end up getting when I have to read left points of collision from one collision table, but right points of collision from the next.</div> It doesn't have to get super ugly.  So far I use one function to check 4 points.  Before calling that function I have my assembly code set <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">PointX</tt>, <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">PointY</tt>, <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">PointXX</tt>, and <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">PointYY</tt> to different values depending on the purpose for jsring the function (i.e. falling, left or right movement, etc.).  <a href="https://forums.nesdev.com/viewtopic.php?p=216670#p216670" class="postlink">An outstanding Kasumi post explaining points checking.</a>  I also have a variable <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">FORWARD_last</tt> that holds the last left (#$00) or right (#$01) direction pressed.  Then for left or right it looks something like this:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp; ldx FORWARD_last<br />&nbsp; &nbsp; beq +ei<br />&nbsp; &nbsp; &nbsp; &nbsp; ldx #xx ;a value for PointX and PointXX when pressing right<br />&nbsp; &nbsp; &nbsp; &nbsp; bne +; &lt;jmp<br />&nbsp;+ei&nbsp; &nbsp; ldx #$xx ;a value for PointX and PointXX when pressing left<br /><br />&nbsp; + lda #01<br />&nbsp; &nbsp; ldy #30<br />&nbsp; &nbsp; stx PointX<br />&nbsp; &nbsp; sta PointY<br />&nbsp; &nbsp; stx PointXX<br />&nbsp; &nbsp; sty PointYY<br />&nbsp; &nbsp; jsr function that checks the points (see link to Kasumi's post)<br />;other code specific to my sister's game here </div><br />If you always calculate your character using its left side then PointX would be #$00 when pressing left and #(decimal value of your characters width when pressing right).  That way, inside your points checking function, you can simply always add PointX to your character's X value, check the appropriate collision value, store the result, then always add PointXX to your character's X value, check, and store the result.   Then include appropriate code that processes the results <span style="color: #80FFFF">that were</span> stored inside of your points checking function.  It's not ugly at all, to me at least. <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" /><br /><br />p.s.<br />a.) I'm using #01 and #30 because my sister's game runs much better that way... even though Kasumi recommends using #00 and #31.<br />b.) To prevent my screen from flashing I was very blessed with an understanding that it is extremely important to always order groups of stores (i.e. stx PointX sta PointY stx PointXX sty PointYY) from lowest memory address to highest memory address.<br /><br /><br />edit: my main loop skips the <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">jsr LRfootCollision...</tt><span style="color: #80FFFF">, looks something like code section above, </span>if input is not currently left or right so that use of <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">FORWARD_last</tt> will never be used unappropriately. <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" /><br /><br /><span style="color: #80FFFF">final edits.</span>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Kasumi</b> [ Thu Jul 26, 2018 12:06 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Scrolling collision methods</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Determining which nametable any given point is in is three instructions. <br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">lda highxbyte<br />ror a<br />bcs nametable1<br />nametable0:<br /></div><br />The scroll doesn't even need to factor into the decision. That's the beauty of have exactly 32 columns in the buffer.<br /><br />The scroll only determines what's in the buffer/when the buffer gets updated. If you do have 32 columns, you have a buffer of 8 on each side of the screen.<br /><br />Edit: Similarly, if the left and right points are in different nametables, if you're checking the left point, and you add the width and that sets the carry, now you're in the opposite nametable, otherwise you're still in the same one.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>na_th_an</b> [ Thu Jul 26, 2018 2:44 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Scrolling collision methods</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I usually don't need collisions for entities which are off-screen, so I use a plain 16x12 circular buffer (16x16 for vertical scrolling games).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>JoeGtake2</b> [ Thu Jul 26, 2018 4:56 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Scrolling collision methods</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Kasumi - I assume your xhi var is tracking a 16bit positioning, meaning even=table 1, odd=table 2.  Am I understanding this right?  If so that’s not exactly how my movement update/positioning code works.  I have 16 bit positioning, but the low is just for holding finer speed adjustment.  In this example, would right movement keep track of x + xScroll in a 16 bit variable, called posX?  Something like this maybe?<br /><br />And unregistered - yep...that’s pretty much exactly my method.<br /><br />***EDIT***<br /><br />I seem to have worked out a semi-passable method based on the influx of input...thanks everyone!  <img src="./images/smilies/icon_smile.gif" alt=":-)" title="Smile" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Kasumi</b> [ Fri Jul 27, 2018 5:30 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Scrolling collision methods</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />You're understanding that right. I really recommend adding that extra byte for each object for scrolling, I imagine it will save you a lot of trouble down the road.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Fri Jul 27, 2018 6:21 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Scrolling collision methods</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />If you have an active area wider than 256 pixels (and you really do need one if you scroll horizontally) you absolutely need 16-bit coordinates to keep track of positions properly. Anything else will be a hack, and probably not worth the 1-byte saved per object.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>2</strong> of <strong>2</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=2&amp;t=7468" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2011-02-10T14:07:34-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=2&amp;t=7468</id>
+<entry>
+<author><name><![CDATA[Wave]]></name></author>
+<updated>2011-02-10T14:07:34-07:00</updated>
+<published>2011-02-10T14:07:34-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=7468&amp;p=73780#p73780</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=7468&amp;p=73780#p73780"/>
+<title type="html"><![CDATA[Generic CA65 project template]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=7468&amp;p=73780#p73780"><![CDATA[
+Woa, seems a lot better than my idea.<br />In the functions case I use: map_setPrg8K_x_a for example, meaning load in segment x (in 8K partitions) bank a<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4116">Wave</a> — Thu Feb 10, 2011 2:07 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[thefox]]></name></author>
+<updated>2011-02-09T19:43:55-07:00</updated>
+<published>2011-02-09T19:43:55-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=7468&amp;p=73745#p73745</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=7468&amp;p=73745#p73745"/>
+<title type="html"><![CDATA[Generic CA65 project template]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=7468&amp;p=73745#p73745"><![CDATA[
+I've been thinking about making a generic template CA65 (like I posted <a href="http://nesdev.com/bbs/viewtopic.php?p=72033#72033" class="postlink">here</a>), one where the user could switch mapper, PRG size, CHR size etc easily. I'm tentatively calling this "xnes". It would consist of two files: xnes.inc and xnes.cfg. Thanks to <a href="http://nesdev.com/bbs/viewtopic.php?p=71547#71547" class="postlink">Wave</a> for the inspiration.<br /><br />It works something like this:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">.include &quot;xnes.inc&quot;<br />    xnes_build_ines 64, 0, xnes::mapper::UxROM | xnes::mirroring::VERTICAL | xnes::SRAM_BATTERY<br /></div><br />xnes_build_ines is a macro that takes PRG and CHR size (in kilobytes) and flags as parameters. Based on these it builds iNES header and exports symbols for the linker config file which will make the output file size match the given PRG and CHR size. The macro can give diagnostic warnings for stuff like non-power-of-two PRG sizes or invalid mapper configs.<br /><br />There are some design decisions to be made, though. I was wondering if anybody would have opinions on them:<br /><ul><li>Should bank (segment) size stay same regardless of mapper (e.g. 8K) or change depending on the chosen mapper? IMO it should vary, otherwise using, for example, NROM would require placing stuff in 4 different segments, possibly wasting space. The con is that switching mappers becomes harder.</li><li>AxROM has 32K banking, so boot code (for switching to known bank) and IRQ vectors need to be placed in every bank. The macro can automatize all of that if NMI, RESET and IRQ vectors were passed to it... also passing them to the macro is kinda cool because placeholders can be provided if user leaves them empty. This would change the code to something like: <div class="codetitle"><b>Code:</b></div><div class="codecontent">.include &quot;xnes.inc&quot; <br />.import my_nmi, my_reset, my_irq<br />    xnes_build_ines 64, 0, xnes::mapper::UxROM | xnes::mirroring::VERTICAL | xnes::SRAM_BATTERY, my_nmi, my_reset, my_irq</div></li><li>xnes could provide size optimized, well tested reset/init routine that initializes EVERYTHING to known state (incl. PPU/APU) before jumping to user specified entry point. This could be overridden if user so desires.</li><li>Another problem with 32K banking: IRQ handlers would also need to be duplicated across banks unless the programmer makes sure IRQs can only trip when the correct bank is mapped in. One solution for this would be to have xnes duplicate some trampoline code (indirect JMP, 5 cycles isn't too bad).</li><li>MMC1 problem: should the programmer be allowed to switch between PRG config (16K/32K and what memory area is fixed) at runtime? One negative side to this is that there's no way to detect (without CPU cost) whether user is using the mapping macros/functions incorrectly.</li><li>How should the mapping macros be named? I was thinking something like map_4K_CHR_at_0000, map_8K_PRG_at_8000, etc. I like verbose names. User gets a compile time error if the chosen mapper doesn't support the requested functionality.</li><li>Problem I thought of just now: the mapping macros need to come from the .inc file, so when including it it needs to know what mapper was selected to define the correct macros. So the mapper might have to be specified with a .define/something before including xnes.inc. This sucks because it'd have to be done every time xnes.inc was included. <img src="http://forums.nesdev.com/images/smilies/icon_sad.gif" alt=":(" title="Sad" /> However programmer could place all of that to a general include file of his own...<div class="codetitle"><b>Code:</b></div><div class="codecontent">XNES_MAPPER = 2 ; bohoo, don't have .enums to use :&#40;<br />.include &quot;xnes.inc&quot;<br />; mapping macros are now defined<br /></div><br />This wouldn't be needed if functions were used instead of macros. I think it might be the best solution.. it's not too often that you can't spare couple of cycles for JSR/RTS. And in that case you can always write to the mapper regs manually.</li></ul>Sorry for the wall of text, may not be the most coherent thing in the world. <img src="http://forums.nesdev.com/images/smilies/icon_smile.gif" alt=":)" title="Smile" /> Pros to using something like this: it's newbie friendly, very easy to setup. Cons: much of the flexibility of CA65 is lost. If somebody is interested in working on this with me I could upload the current (very basic) version to some source control thing somewhere.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=80">thefox</a> — Wed Feb 09, 2011 7:43 pm</p><hr />
+]]></content>
+</entry>
+</feed>

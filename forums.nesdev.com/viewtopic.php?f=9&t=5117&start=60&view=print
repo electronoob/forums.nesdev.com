@@ -1,0 +1,507 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - New approach to the fabled NES ethernet adapter</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">New approach to the fabled NES ethernet adapter</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=9&amp;t=5117">http://forums.nesdev.com/viewtopic.php?f=9&amp;t=5117</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>5</strong> of <strong>9</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Sun Dec 13, 2009 3:00 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />The Wi-Fi adapter is more expensive because it uses Wi-Fi. But it works even if your landlord won't let you pull CAT-5e through your walls.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>chykn</b> [ Sun Feb 21, 2010 6:57 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Hate to reply to an old post, but though I'd share what I came up with tonight.  I was able to establish bi-directional communication from a PC serial port to the NES using the second controller port on the NES.  No expansion port, no wires hanging out of a cart.  This may have been done before, but I haven't found any references to it.  I've been reading up on all the ideas regarding embedded ethernet controllers, but I figured I'd start with one block at a time.  Here's what I did...
+<br />
+<br />Step 1 was to transmit data to an unmodified NES.  Easy enough.  I've used an Atmel ATTiny2313 to read data from a NES Advantage before.  Instead of providing the clock and latch signals to pick up the data, reverse the process and listen for latch and clock signals.  When latch and clock signals are received, shift the data out to the data pin.
+<br />
+<br />Step 2 was to receive data from an unmodified NES without using the expansion port or a hacked cartridge with wires hanging out the front.  This was quite a bit trickier.  To get controller input, you normally send high/low signals to $4016, then read each bit from $4016.  I modified the clouds.asm demo to include three additional high/low cycles to $4016 before fetching the data.  In effect, you can use the latch signal as a serial output.  While the latch signal gets sent to both controller ports, this did not affect the ability to then read data from controller 1.  I hooked an oscilloscope up to the clock and latch lines to verify the multiple latch signals were good.
+<br />
+<br />Step 3 was to interpret and re-transmit the data.  The ATTiny2313 is attached to the serial port via a Max232 chip.  The clock and latch pins from controller 2 are connected to additional I/O pins on the 2313.  Figuring out the timing and order was a real pain.  Also, the 2313 had to know whether it was going to send or receive data.  Problem is that when the first latch is sent, you still don't know if the 2313 is expected to read or write.  If the NES wants a read, you have to have the first data bit ready on the next cycle.  If the NES is going to output data, it will sent two latch cycles in a row instead of sending a latch then a clock.  If the latter occurs, the 2313 will then use wait cycles for timing to receive data on the latch line.  If the NES sends clock signals, the 2313 will output from a buffer to the data pin.
+<br />
+<br />The next step will be to write a simple app on the PC to receive the data over the serial connection and proxy it to a server.  A daemon will be running on the server to interpret and reply to the data from the PC, which will then send it back to the NES.  You could bypass the PC by using one of the ethernet enabled MCU's mentioned earlier.  If you were to get something like this up and running on the PC, then it might be worthwhile to look at building a solution from an MCU.
+<br />
+<br />Someone mentioned a MMORPG using the NES - definitely possible!
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>hyarion</b> [ Sun Feb 21, 2010 11:19 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">chykn wrote:</div><div class="quotecontent">Someone mentioned a MMORPG using the NES - definitely possible!</div> Masive multiplayer as in not more than 8 characters at the same time due to sprite limitations? <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" />
+<br />
+<br />Don't get me wrong, it would be awesome with some kind of internet multiplayer support and it would be possible too with the right hardware but I wouldn't go as far as saying a MMORPG would be "definitely possible" to create.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Mon Feb 22, 2010 5:50 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />That and how would you find enough retro gamers to pay for your cartridge and adapter, let alone for running the server?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>chykn</b> [ Mon Feb 22, 2010 6:06 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />It's possible, even feasible, just not likely due to the lack of interest.  Pretty much an academic debate anyway, but just for grins, we'll think about it.  You'd definitely have to break away from the traditional style of gameplay.  Let's say you have a Dragon Warrior style game and there are 100+ people in a town.  You're absolutely right - you're limited on the number of concurrent sprites that can be displayed.  One workaround would be to limit your view to players you want to see, maybe players that are in your party or guild.  Another workaround would be to view only the first 20 or 30 players available in your viewing area.  Not as pretty, but doable.  Finally, no one says you can't use the background instead of sprites for displaying remote player avatars.  I'd avoid this last one, though - wouldn't look very clean.
+<br />
+<br />As long as you can effectively filter the information coming into the NES, it could be done.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>chykn</b> [ Mon Feb 22, 2010 6:23 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tepples wrote:</div><div class="quotecontent">That and how would you find enough retro gamers to pay for your cartridge and adapter, let alone for running the server?</div>
+<br />
+<br />Good questions...
+<br />Hardware Availability - it would be open source schematic and code, so people would have the option of building or buying.  It you have an EEPROM programmer, you could mod your own cart then connect a controller cable into an Atmel or PIC MCU.  The parts cost so far is less than $15 for the adapter.  If you don't have the tools, I'm sure there's someone out there who would be happy to build and distribute the cart and cable for a small profit.  You could also use the existing flash carts sold commercially.
+<br />
+<br />Server - hosting is not an issue, but maintenance would be.  Updating stories, maps, etc.  It would definitely be a community effort.
+<br />
+<br />Generating Interest - you got me there!  That's why I'm posting here, maybe get the idea out there to see what folks might be interested in.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>hyarion</b> [ Mon Feb 22, 2010 7:22 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">chykn wrote:</div><div class="quotecontent">The parts cost so far is less than $15 for the adapter.</div> Think you didn't take something into calculations, $15 might be enough for creating a PCB + the cost of a uC and a ethernet socket, but you also need some kind of connector to interface it with the NES (if you don't put everything in the cartridge), casing, ethernet chip etc.(this if you just want to make one unit)
+<br />
+<br />think the best way to do this would be to make a network module that you connect to the EXT-port like the unreleased <a href="http://www.vintagecomputing.com/index.php/archives/272" class="postlink">Batons TelePlay modem</a>(as mentioned before in this thread). This way it's only one time cost for the player.
+<br />
+<br />
+<br />To be able to do such unit we would need to establish:
+<br />
+<br />1) a protocol for communicating with EXT-port devices (to identify what kind of device that is plugged in)
+<br />
+<br />2) a pin configuration so no shortage is made if more than one unit is constructed and used with the wrong type of cartridge
+<br />
+<br />3) a way to program an onboard MCU in the device via the from the Game PAK to reduce what the NES has to do in order to communicate
+<br />
+<br />I would guess such a unit would costs at least $70 for the end costumer (if produced in more than 50units), and games that would support it would probably cost 5-15$ more than what they costs today @ retrozone (if bunnyboy wants it in his store)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>chykn</b> [ Mon Feb 22, 2010 9:47 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Remember, this is about establishing communication between the NES software and a game server.  First I'd like to prove the concept, then we can go back and start adding more functionality such as updating a flash cart on the fly.
+<br />
+<br /><div class="quotetitle">hyarion wrote:</div><div class="quotecontent">Think you didn't take something into calculations, $15 might be enough...</div><br /><br />For a DIY'er building the thing on a breadboard, $15 for the adapter would be about right.  Buy the breadboard ($2), ATTiny2313 ($3), Max232 chip ($2), DB9 header ($2), caps ($2) and controller cable ($4).  Obviously, this is for early adopters who have at least some experience working with components.  Yes, a polished, commercial package would be a bit more.<br /><br /><br /><div class="quotetitle">hyarion wrote:</div><div class="quotecontent">think the best way to do this would be to make a network module that you connect to the EXT-port...</div><br />Technically speaking, I would agree on using the EXT port.  Would be much easier, but remember - this solution is geared towards an unmodified NES.  Taking a cutter and removing the EXT port cover may be trivial to you or I, but not everyone would feel comfortable with that.  Using the second controller port allows you to communicate with the NES without any hacks.<br /><br />If you overcomplicate the idea, it will be doomed from the beginning.  No one will touch a project like this if they have to plunk down $80 for custom hardware.  But, if you give the developers and players a less expensive option to accomplish the same goal, you might have a shot at getting it off the ground.  This way, the NES would not care whether it was talking to an ATTiny2313 connected to a PC or a MCU with embedded ethernet.  It would use the same protocol to talk to both.  Open the protocol and let people choose which way they want to go.<br /><br /><br /><div class="quotetitle">hyarion wrote:</div><div class="quotecontent">1) a protocol for communicating</div>
+<br />Yes, you're right about establishing a protocol.  Most games cycle the latch bit, input the data for controller 1 then controller 2.  For the raw signalling, I'm thinking of something along these lines...
+<br />
+<br />A. Cycle latch (normal)
+<br />B. Get Controller A bits 1-8 (normal)
+<br />C. Get Controller B bits 1-8 (normal, but shift bits into an "incoming command" byte)
+<br />D. Get Controller B bits 9-16 (new, shift bits into an "incoming data" byte)
+<br />E. Cycle latch again (new)
+<br />F. Output an "outgoing command" byte, shift bits out to the latch (new)
+<br />G. Output an "outgoing data" byte, shift bits out to the latch (new)
+<br />
+<br />Each controller read cycle will input 1 byte from controller 1, two bytes from controller two then output two bytes to the latch line.  This could be the low level protocol for transmitting and receiving, then each game would then interpret the command/data byte pairs in their own way.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>hyarion</b> [ Mon Feb 22, 2010 10:12 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">chykn wrote:</div><div class="quotecontent">If you overcomplicate the idea, it will be doomed from the beginning.  No one will touch a project like this if they have to plunk down $80 for custom hardware.  But, if you give the developers and players a less expensive option to accomplish the same goal, you might have a shot at getting it off the ground.  This way, the NES would not care whether it was talking to an ATTiny2313 connected to a PC or a MCU with embedded ethernet.  It would use the same protocol to talk to both.  Open the protocol and let people choose which way they want to go.<br /></div><br /><br />a power pak costs $135 and people still buys it, even though it's custom hardware <img src="./images/smilies/icon_wink.gif" alt=";)" title="Wink" /><br /><br />but I agree with you, wouldn't be that many who would buy a device that costs that much if nothing supports it, and it's hard to add support for it if you don't have one to test on. chykn or the egg dilemma so to speak...<br /><br /><div class="quotetitle">chykn wrote:</div><div class="quotecontent">Yes, you're right about establishing a protocol.  Most games cycle the latch bit, input the data for controller 1 then controller 2.  For the raw signalling, I'm thinking of something along these lines...<br />.<br />.<br />.<br /></div> you should be able to use all three data lines which would tripple the data that can be transfered each read cycle AFAIK. But what would it talk to? would each game need it's own custom adapter or what should interpret the byte peers?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>chykn</b> [ Mon Feb 22, 2010 11:38 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">hyarion wrote:</div><div class="quotecontent">But what would it talk to? would each game need it's own custom adapter or what should interpret the byte peers?</div>
+<br />
+<br />No, all games could use a common adapter.  As long as the game and the adapter use the same method of transmitting and receiving, you're good.  Each game would be free to interpret the command and data bytes as they please, but the data is still exchanged the same way.  Right now that would be: Cycle the latch, receive 8-bits on controller 1, receive 16-bits on controller 2 (cmd &amp; data in), cycle the latch then output 16 bits on the latch (cmd &amp; data out).  Let me know if you want the ASM I came up with to accomplish this.
+<br />
+<br />When the transceiving method is standardized, I'd be happy to build a few modules and send them out to people who are seriously interested in working on games.
+<br />
+<br />And again, if we use a modular approach like this, the serial-&gt;PC adapter could easily be swapped out with an ethernet MCU down the road without modifying the ROM code.  I'm almost tempted to hook it up to the second serial port on the WRT54G, but it would be better to spend the time finishing the proxy app in VB and writing a server daemon.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>chykn</b> [ Mon Feb 22, 2010 12:38 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Wow - it just dawned on me, I have an Arduino at home.  I hate to jump on that bandwagon (it was a gift), but you could use that as the adapter to connect the NES to the USB port on the PC.  The VB proxy app could then communicate with the Arduino's virtual serial port.  
+<br />
+<br />This way anyone who is interested could just pick one up online ($30 + shipping) and splice a NES controller cable into it.
+<br /><a href="http://www.liquidware.com/shop/show/ARD/Arduino+Duemilanove" class="postlink">http://www.liquidware.com/shop/show/ARD/Arduino+Duemilanove</a>
+<br />
+<br />You could also put an Ethernet shield on it and have it communicate with the server directly, bypassing the PC altogether.  I can't vouch for this, though, since I've never used the Ethernet shield.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>hyarion</b> [ Mon Feb 22, 2010 2:16 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />so if i understand you correctly it would be something like this:
+<br />
+<br />NES &lt;-&gt; adapter &lt;-&gt; something using RS232
+<br />or if over internet
+<br />NES &lt;-&gt; adapter &lt;-&gt; internets (connected to a server) 
+<br />
+<br />so lets say I want to write an email client, then I should
+<br />1) somehow setup the adapter to use internet
+<br />2) tell it to use tcp
+<br />3) tell the adapter to open a connection to a server
+<br />4) create packages on the NES
+<br />5) send the packages to the adapter so it can redirect it
+<br />6) poll the adapter to see if any new packages has arrived
+<br />7) interpret the received data
+<br />8) pressent it to the user
+<br />9) goto 4
+<br />
+<br />this would be pretty much to handel for the NES, and it would be even worse for games and p2p programs. they would have even more to do, synchronizing messages etc.
+<br />
+<br />If most of this communication could be put on another processor on the adapter/device it would free a lot of NES CPU time. However to be able to do this offload one would need to program the adapter-uC so it can convert the data coming from the internet to something easily interpretable for the NES.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Memblers</b> [ Mon Feb 22, 2010 3:47 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />In this kind of setup the all the TCP stuff can and should be transparent to the NES.  It should be as simple as telnet.  The PC or adapter interface would be handling a lot of stuff behind the scenes.  I've found a way to do this using a free version of some software, but it's limited to whatever server and port you enter in the interface.  It works though.  It definitely needs custom software, I've never written any useful PC apps before.  The big missing feature is that the NES can't close the connection, open a new one, etc.
+<br />
+<br />I've also done the bare interface of NES controller port &gt; MAX202 &gt; PC before, bad thing there is the NES not knowing when to receive.  It works great for XMODEM transfers and user-initiated stuff like that, however.  I also hacked an NSF player to stream sound register writes over that connection and that played good.  blargg did that too, but did even better and had DPCM samples playing at the same time.
+<br />
+<br />Because of the receiving thing it does need an MCU though, it's part of why I have a PIC on my Squeedo cartridge.  It uses the NES's data bus as a parallel port, and also works as a FIFO buffer in the PIC software.
+<br />
+<br />chykn: If there is any interest in Squeedo as a test platform for this, I do have some prototypes that I've been wanting to show around.  I already have one tester who is getting one to test some networking experiments with me.  So hopefully this could be compatible.  But if you'll be making progress on this, you can just have one if you want it.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>chykn</b> [ Mon Feb 22, 2010 4:45 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />From here on out, I'll use the term "adapter" to identify the solution which brokers the communication between the NES controller port and the target game server.  It could be an MCU-&gt;PC-&gt;Ethernet solution or a straight MCU-&gt;Ethernet solution.  If you think another term is more suitable (broker, proxy, magicrainstick), LMK.
+<br />
+<br />Memblers, you're dead on concerning the TCP handling.  The only interaction the NES should have in setting up IP communication is possibly telling the adapter what host to connect to.  After that, when the NES sends a byte to the adapter, the byte is simply re-transmitted to the game server.  Same for the return path.  If the TCP session is broken or unresponsive, the adapter will send a status message to the NES and you might see "Server Unresponsive" pop up.
+<br />
+<br />If I'm able to make this work in the next few days and get the client/server functioning properly, I may have to take you up on the Squeedo.  Could you send me some info on it?  As you can tell from my number of posts, I'm still pretty new at this and am not too familiar with all the tools of the trade.
+<br />
+<br />Tonight I'm going to try and program the Arduino to talk to the NES.  I've written a basic server daemon as well as an app for the desktop to retransmit the data from the Arduino (both in Perl).  What I'll REALLY need help with is writing a test game.  Know of any Pong clones we can get the source to?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>hyarion</b> [ Mon Feb 22, 2010 4:55 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">chykn wrote:</div><div class="quotecontent">Know of any Pong clones we can get the source to?</div>
+<br />perhaps <a href="http://membler-industries.com/jero32/" class="postlink">"pung - balls of steel"</a>, who knows jero32 might want to help out <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>5</strong> of <strong>9</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

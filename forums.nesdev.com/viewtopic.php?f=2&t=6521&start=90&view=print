@@ -1,0 +1,254 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - DMC IRQs</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">DMC IRQs</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=6521">http://forums.nesdev.com/viewtopic.php?f=2&amp;t=6521</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>7</strong> of <strong>7</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Tue Apr 19, 2011 10:57 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Well can't you play the shortest 1-byte sample at rate $0f for the initial tuning, then play a longer/slower sample for a second IRQ, then wait a variable time that adds up to a constant with the first delay ? I'm pretty sure you could.
+<br />Of course if you play a slower sample you loose resolution, but then you'd have to find the best length/rate ratio for this. Then it'd be a tradeoff between playing a longer sample, thrus waste ROM, or play a shorter one and waste some CPU time counting useless IRQs before the interesting one.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Tue Apr 19, 2011 11:38 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />IIRC, the whole problem with DMC IRQs is that the APU runs at it's own pace, meaning that even if you give it the command to start playing a sample at the same point in the frame every time, the IRQ will not happen at the same time.
+<br />
+<br />If we count how long it takes for the IRQ to fire (this is one of the waiting loops), we know what the error is, and we can use this information to compensate for the error later (this is the second waiting loop), when it's time for the raster effect.
+<br />
+<br />Maybe it is actually possible to detect the error using a shorter/faster sample to reduce the amount of waiting, but it might not be trivial to dynamically vary the frequency during the frame as the split point comes closer.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Tue Apr 19, 2011 12:00 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />No, no that's not what I mean.
+<br />
+<br />The timing diagram of what I mean is that :
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">------------------<br />NMI Vblank sync<br />Sprite DMA, VRAM updates, etc... &#40;constant time&#41;<br />------------------<br />start playback of short sample &#40;varying time&#41;<br />enter in a loop polling $4015 and counting iterations<br />--------------------<br />&quot;IRQ #1&quot; -&gt; count time before the pseudo-IRQ &#40;an actual IRQ isn't needed and can be disabled with SEI, this is automatically done in an NMI routine by the way&#41;.<br />Start playback of long/slow sample &#40;fixed time&#41;<br />RTI &#40;also clears the I flag&#41;<br /><br /><br />....sound, game engine, etc. code here....<br /><br />-------------------<br />IRQ #2 -&gt; disable DMC channel<br />Wait for constant time minus the calulated one<br />Wait for an adjustement time for the raster effect &#40;compensate for lack of precision in lenght/speed of the long sample&#41;<br />Raster effect register writes<br />RTI<br />----------------------<br /><br />end of frame here<br />----------------------</div>
+<br />
+<br />I think this is what would make the most sense to me, and I think it should work, but the adjustment time that compensate the lack of precision must not be too big else too much CPU time will be wasted
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Tue Apr 19, 2011 12:25 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Bregalad wrote:</div><div class="quotecontent">Well can't you play the shortest 1-byte sample at rate $0f for the initial tuning, then play a longer/slower sample for a second IRQ, then wait a variable time that adds up to a constant with the first delay ?</div>
+<br />I already do this, sort of: I use a 1-byte sample and a 17-byte sample. The 1-byte sample takes 1*8*54 = 432 CPU cycles, or 432*3/341 = 3.8 scanlines. The 17-byte sample takes 17*8*54 = 7344 CPU cycles, or 7344*3/341 = 64.6 scanlines. I already do play a 17-byte sample to skip large areas. But there's nothing in between a 1- and 17-byte sample. On the other hand, you're right that I haven't investigated playing the 1-byte sample at maximum rate (54 cycle period) and then switching to 1-byte samples at a slower rate (longer period) in order to skip areas smaller than 64 scanlines.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Fri Apr 29, 2011 5:10 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />OK I took time to compute the # of scanline each possibility of DMC length, for both NTSC and PAL (hopefully I didn't do accidental errors).
+<br />I rounded all values to the <em>higer</em> integer, because if you want to wait N scanlines, you want the IRQ to happen BEFORE the Nth scanline after setting up the IRQ.
+<br />(samples taking longer than a frame are represented by stars)
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">NTSC&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;Rate<br />Length&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; $0&nbsp; &nbsp; $1&nbsp; &nbsp;$2&nbsp; &nbsp;$3&nbsp; &nbsp;$4&nbsp; &nbsp;$5&nbsp; &nbsp;$6&nbsp; &nbsp;$7&nbsp; &nbsp;$8&nbsp; &nbsp;$9&nbsp; &nbsp;$a&nbsp; &nbsp;$b&nbsp; &nbsp;$c&nbsp; &nbsp;$d&nbsp; &nbsp;$e&nbsp; &nbsp;$f<br />----------------------------------------------------------------------------------------------------<br />1-byte &#40;8 bits&#41;&nbsp; &nbsp; &nbsp;31&nbsp; &nbsp; 27&nbsp; &nbsp;24&nbsp; &nbsp;23&nbsp; &nbsp;21&nbsp; &nbsp;18&nbsp; &nbsp;16&nbsp; &nbsp;16&nbsp; &nbsp;14&nbsp; &nbsp;12&nbsp; &nbsp;10&nbsp; &nbsp;10&nbsp; &nbsp;8&nbsp; &nbsp; 6&nbsp; &nbsp; 6&nbsp; &nbsp; 4<br />17-byte &#40;136 bits&#41;&nbsp; **&nbsp; &nbsp; **&nbsp; &nbsp;**&nbsp; &nbsp;**&nbsp; &nbsp;**&nbsp; &nbsp;**&nbsp; &nbsp;**&nbsp; &nbsp;**&nbsp; &nbsp;228&nbsp; 192&nbsp; 170&nbsp; 154&nbsp; 127&nbsp; 101&nbsp; 87&nbsp; &nbsp;65<br />33-byte &#40;264 bits&#41;&nbsp; **&nbsp; &nbsp; **&nbsp; &nbsp;**&nbsp; &nbsp;**&nbsp; &nbsp;**&nbsp; &nbsp;**&nbsp; &nbsp;**&nbsp; &nbsp;**&nbsp; &nbsp;**&nbsp; &nbsp;**&nbsp; &nbsp;**&nbsp; &nbsp;**&nbsp; &nbsp;**&nbsp; &nbsp;196&nbsp; 168&nbsp; 126<br />49-byte &#40;392 bits&#41;&nbsp; **&nbsp; &nbsp; **&nbsp; &nbsp;**&nbsp; &nbsp;**&nbsp; &nbsp;**&nbsp; &nbsp;**&nbsp; &nbsp;**&nbsp; &nbsp;**&nbsp; &nbsp;**&nbsp; &nbsp;**&nbsp; &nbsp;**&nbsp; &nbsp;**&nbsp; &nbsp;**&nbsp; &nbsp;**&nbsp; &nbsp;**&nbsp; &nbsp;187<br /><br />PAL&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Rate<br />Length&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; $0&nbsp; &nbsp; $1&nbsp; &nbsp;$2&nbsp; &nbsp;$3&nbsp; &nbsp;$4&nbsp; &nbsp;$5&nbsp; &nbsp;$6&nbsp; &nbsp;$7&nbsp; &nbsp;$8&nbsp; &nbsp;$9&nbsp; &nbsp;$a&nbsp; &nbsp;$b&nbsp; &nbsp;$c&nbsp; &nbsp;$d&nbsp; &nbsp;$e&nbsp; &nbsp;$f<br />----------------------------------------------------------------------------------------------------<br />1-byte &#40;8 bits&#41;&nbsp; &nbsp; &nbsp;30&nbsp; &nbsp; 27&nbsp; &nbsp;24&nbsp; &nbsp;23&nbsp; &nbsp;21&nbsp; &nbsp;18&nbsp; &nbsp;16&nbsp; &nbsp;15&nbsp; &nbsp;14&nbsp; &nbsp;12&nbsp; &nbsp;10&nbsp; &nbsp;9&nbsp; &nbsp; 8&nbsp; &nbsp; 6&nbsp; &nbsp; 5&nbsp; &nbsp; 4<br />17-byte &#40;136 bits&#41;&nbsp; **&nbsp; &nbsp; **&nbsp; &nbsp;**&nbsp; &nbsp;**&nbsp; &nbsp;**&nbsp; &nbsp;**&nbsp; &nbsp;**&nbsp; &nbsp;**&nbsp; &nbsp;225&nbsp; 189&nbsp; 169&nbsp; 151&nbsp; 126&nbsp; 100&nbsp; 85&nbsp; &nbsp;64<br />33-byte &#40;264 bits&#41;&nbsp; **&nbsp; &nbsp; **&nbsp; &nbsp;**&nbsp; &nbsp;**&nbsp; &nbsp;**&nbsp; &nbsp;**&nbsp; &nbsp;**&nbsp; &nbsp;**&nbsp; &nbsp;**&nbsp; &nbsp;**&nbsp; &nbsp;**&nbsp; &nbsp;**&nbsp; &nbsp;**&nbsp; &nbsp;194&nbsp; 164&nbsp; 124<br />49-byte &#40;392 bits&#41;&nbsp; **&nbsp; &nbsp; **&nbsp; &nbsp;**&nbsp; &nbsp;**&nbsp; &nbsp;**&nbsp; &nbsp;**&nbsp; &nbsp;**&nbsp; &nbsp;**&nbsp; &nbsp;**&nbsp; &nbsp;**&nbsp; &nbsp;**&nbsp; &nbsp;**&nbsp; &nbsp;**&nbsp; &nbsp;**&nbsp; &nbsp;**&nbsp; &nbsp;184<br /></div><br /><br />Because a PAL interrupt will always happen about the same time or a bit sooner than a NTSC interrupt, I will use the NTSC table exclusively to set the "best" setting here :<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">Delta&nbsp; &nbsp; &nbsp; Best opt. for IRQ<br /><br />1-3&nbsp; &nbsp; &nbsp; &nbsp; Timed code<br />4-5&nbsp; &nbsp; &nbsp; &nbsp; Length $0, rate $f<br />6-7&nbsp; &nbsp; &nbsp; &nbsp; Lenght $0, rate $d<br />8-9&nbsp; &nbsp; &nbsp; &nbsp; Length $0, rate $c<br />10-11&nbsp; &nbsp; &nbsp; Length $0, rate $a<br />12-13&nbsp; &nbsp; &nbsp; Length $0, rate $9<br />14-15&nbsp; &nbsp; &nbsp; Length $0, rate $8<br />16-17&nbsp; &nbsp; &nbsp; Length $0, rate $6<br />18-20&nbsp; &nbsp; &nbsp; Length $0, rate $5<br />21-22&nbsp; &nbsp; &nbsp; Length $0, rate $4<br />23&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;Lenght $0, rate $3<br />24-26&nbsp; &nbsp; &nbsp; Length $0, rate $2<br />27-30&nbsp; &nbsp; &nbsp; Length $0, rate $1<br />31-64&nbsp; &nbsp; &nbsp; Length $0, rate $0<br />65-86&nbsp; &nbsp; &nbsp; Length $1, rate $f<br />87-100&nbsp; &nbsp; &nbsp;Length $1, rate $e<br />101-125&nbsp; &nbsp; Lenght $1, rate $d<br />126&nbsp; &nbsp; &nbsp; &nbsp; Lenght $2, rate $f<br />127-153&nbsp; &nbsp; Length $1, rate $c<br />154-167&nbsp; &nbsp; Lenght $1, rate $b<br />168-169&nbsp; &nbsp; Lenght $2, rate $e<br />170-186&nbsp; &nbsp; Length $1, rate $a<br />187-191&nbsp; &nbsp; Length $3, rate $f<br />192-195&nbsp; &nbsp; Length $1, rate $9<br />196-227&nbsp; &nbsp; Length $2, rate $d<br />228-239&nbsp; &nbsp; Length $1, rate $8<br /></div>
+<br />
+<br />Therefore, after counting a necesarly initial wait of 4 scanlines, which is necessarily for the sync because of how DMC works, you should compute the # of scanline that remains to wait before the split and use the lockup table above.
+<br />
+<br />Note that it's in most cases unnecessary to have a sample longer than 17 bytes, because it will only save a couple of scan-lines in the final fine-tuned timed code wait. The only exeption is if you want to wait something close to 220- 227 scanlines, where there is a significant gap where it's best to use a 33 bytes sample.
+<br />
+<br />Also note the huge gap between 31 and 64 scan lines, where there is nothing better than 31 scanlines available. If you wanted to wait, let's say exactly 63 scanlines and use only one IRQ, you'd have to set an IRQ to line 31 and wait the remaining 32 lines "by hand", wasting a lot of CPU usage. Therefore for this game I'd really to use a second IRQ, to save CPU usage.
+<br />
+<br />So there is probably no way more than 2 IRQs and more than 8 scanlines of "timed code" would ever be required for this, for ANY split.
+<br />
+<br />I agree it's not the most amazing thing in the world, but remember all this is possible WITHOUT ANY MAPPER.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Fri Apr 29, 2011 5:37 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />This is a very interesting idea, Bregalad. Suddenly I feel very tempted to try coding the "definitive mapperless scanline counter" again...! =)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>7</strong> of <strong>7</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

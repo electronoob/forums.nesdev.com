@@ -1,0 +1,417 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - 8x16 and whatever else unreg wants to know</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">8x16 and whatever else unreg wants to know</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=10&amp;t=7451">http://forums.nesdev.com/viewtopic.php?f=10&amp;t=7451</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>77</strong> of <strong>83</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Kasumi</b> [ Fri Dec 06, 2013 11:47 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: 8x16 and whatever else unreg wants to know</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />So you can partially unroll, fully unroll (probably not worth it) or do stack stuff. <br /><br /><br />Partially unrolled looks like this:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">ldx #5<br />- lda RAMbufferW, y<br />&nbsp; &nbsp;sta PPUDATA7<br />&nbsp; &nbsp;dey<br />lda RAMbufferW, y<br />&nbsp; &nbsp;sta PPUDATA7<br />&nbsp; &nbsp;dey<br />lda RAMbufferW, y<br />&nbsp; &nbsp;sta PPUDATA7<br />&nbsp; &nbsp;dey<br />lda RAMbufferW, y<br />&nbsp; &nbsp;sta PPUDATA7<br />&nbsp; &nbsp;dey<br />lda RAMbufferW, y<br />&nbsp; &nbsp;sta PPUDATA7<br />&nbsp; &nbsp;dey<br />&nbsp; &nbsp;dex<br />&nbsp; &nbsp;bpl -<br /></div><br />It has the inner part of your loop copied five times, so it loops 6 times at 55 cycles per loop. (330 total. Well... minus 1 because the branch not taken to end the loop takes 1 less cycle than a branch taken to loop again.)<br /><br />Stack is tricky, because you have to store/restore the stack pointer. When your program returns from the NMI, the stack pointer needs to be what is what when the NMI started, since it uses values on the stack to return.<br /><br />But it looks like a little like this:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">;assume your data is at $0100-whatever instead of<br />;RAMbufferW-whatever<br /><br />ldx #$FF;$FF not $00 because the stack pointer sets where<br />txs;a value is pushed to. Pulling from the stack takes the value<br />;one greater than that with wrap.<br />ldy #29<br />-pla;automatically increases the stack pointer<br />sta PPUDATA7<br />dey<br />bpl -<br /></div><br />It's 13 cycles per loop, loops 30 times for 390-1 total. Only 60 cycles faster than what you've got now (assuming no page cross). Dex is 2 cycles, we avoid doing it 30 times. It's worth noting that pla is 2 bytes smaller than absolute,y, and removing the dex saves 1 more. So it doesn't take as much space to partially unroll or unroll.<br /><br />Here's what a stack partially unrolled approach would look like:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">ldx #$FF;$FF not $00 because the stack pointer sets where<br />txs;a value is pushed to. Pulling from the stack takes the value<br />;one greater than that with wrap.<br />ldy #2<br />-pla;automatically increases the stack pointer<br />sta PPUDATA7<br />pla<br />sta PPUDATA7<br />pla<br />sta PPUDATA7<br />pla<br />sta PPUDATA7<br />pla<br />sta PPUDATA7<br />pla<br />sta PPUDATA7<br />pla<br />sta PPUDATA7<br />pla<br />sta PPUDATA7<br />pla<br />sta PPUDATA7<br />pla<br />sta PPUDATA7<br />dey<br />bpl -<br /></div><br />It loops 3 times, at 83 cycles a loop. 249-1 total. Also, even though it has the inner part of the loop copied ten times instead of the 5 used in the absolute,y unrolled example, it's only 5 bytes larger. Not quite twice as fast as what you have now, but pretty close. Requires some additional work to setup and restore the stack, though.<br /><br />Another option is to update just one column in the NMI. Just save the attribute bytes to RAM to make those updates easier when you're only doing one. This would be faster for your NMI than doing anything above twice.<br /><br />You could even do both! Have a faster update method AND use it for only one column at once.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>unregistered</b> [ Mon Dec 09, 2013 11:17 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: 8x16 and whatever else unreg wants to know</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">unregistered wrote:</div><div class="quotecontent">edit: ok... each of these loops runs 30 times<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp;sta $401e<br />&nbsp;- lda RAMbufferW, y<br />&nbsp; &nbsp;sta PPUDATA7<br />&nbsp; &nbsp;dey<br />&nbsp; &nbsp;dex<br />&nbsp; &nbsp;bpl -<br />sta $401f</div>  The upper loop runs 449 cycles and the lower loop runs 479 cycles cause I guess it crosses a page boundary.</div><br /><br />How do I make it not cross a page boundary?... Then I'd save 30 cycles! <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Mon Dec 09, 2013 11:35 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: 8x16 and whatever else unreg wants to know</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">unregistered wrote:</div><div class="quotecontent">How do I make it not cross a page boundary?... Then I'd save 30 cycles! <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" /></div><br />Make sure that the branch and the address branched to are in the same page. You might need to move some code/data around.<br /><br />I often group routines that can't cross pages together, before all the code that's not timing sensitive, so that I can mix and match until I find the best order for them. You obviously can't keep changing the routines after you find a place for them, otherwise you might break the page alignment. During development you can use the .align command to align subroutines to page boundaries.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>unregistered</b> [ Mon Dec 09, 2013 4:55 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: 8x16 and whatever else unreg wants to know</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tokumaru wrote:</div><div class="quotecontent">I often group routines that can't cross pages together, before all the code that's not timing sensitive, so that I can mix and match until I find the best order for them. You obviously can't keep changing the routines after you find a place for them, otherwise you might break the page alignment. During development you can use the .align command to align subroutines to page boundaries.</div>  How do I use the .align command?  <img src="./images/smilies/icon_confused.gif" alt=":?" title="Confused" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Tue Dec 10, 2013 7:22 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: 8x16 and whatever else unreg wants to know</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">unregistered wrote:</div><div class="quotecontent">How do I use the .align command?  <img src="./images/smilies/icon_confused.gif" alt=":?" title="Confused" /></div><br />Say that the PC (program counter) is $8d54. If you put an &quot;.align 256&quot; command, the assembler will pad the ROM to $8e00 (the next 256-byte boundary). This means that 172 bytes go to waste, which is why you shouldn't use this in your final program, just during development while you still don't know the sizes of all timing-sensitive routines.<br /><br />Also, don't use .align in the middle of a routine, because the CPU will try to execute the padding bytes and will most likely crash. Use .align only between tables and subroutines.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Tue Dec 10, 2013 7:59 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: 8x16 and whatever else unreg wants to know</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />If using ca65 I prefer to create a segment with the desired alignment and then use that segment.<br /><br />I usually combine with something like this to make sure the code is placed where I expect:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">.assert * = $8000, error, &quot;This code is not at the correct position.&quot;</div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>unregistered</b> [ Tue Dec 10, 2013 10:31 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: 8x16 and whatever else unreg wants to know</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tokumaru wrote:</div><div class="quotecontent"><div class="quotetitle">unregistered wrote:</div><div class="quotecontent">How do I use the .align command?  <img src="./images/smilies/icon_confused.gif" alt=":?" title="Confused" /></div><br />Say that the PC (program counter) is $8d54. If you put an &quot;.align 256&quot; command, the assembler will pad the ROM to $8e00 (the next 256-byte boundary). This means that 172 bytes go to waste, which is why you shouldn't use this in your final program, just during development while you still don't know the sizes of all timing-sensitive routines.<br /><br />Also, don't use .align in the middle of a routine, because the CPU will try to execute the padding bytes and will most likely crash. Use .align only between tables and subroutines.</div>  Excellent! <span style="color: #BF00FF"><span style="font-size: 150%; line-height: normal"><strong>Thanks tokumaru!! <img src="./images/smilies/icon_biggrin.gif" alt=":D" title="Very Happy" /></strong></span></span>  You answered both of my questions... thank you kind sir. <img src="./images/smilies/icon_biggrin.gif" alt=":D" title="Very Happy" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>unregistered</b> [ Tue Dec 10, 2013 8:48 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: 8x16 and whatever else unreg wants to know</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Kasumi wrote:</div><div class="quotecontent">So you can partially unroll, fully unroll (probably not worth it) or do stack stuff. <br /><br /><br />Partially unrolled looks like this:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">ldx #5<br />- lda RAMbufferW, y<br />&nbsp; &nbsp;sta PPUDATA7<br />&nbsp; &nbsp;dey<br />lda RAMbufferW, y<br />&nbsp; &nbsp;sta PPUDATA7<br />&nbsp; &nbsp;dey<br />lda RAMbufferW, y<br />&nbsp; &nbsp;sta PPUDATA7<br />&nbsp; &nbsp;dey<br />lda RAMbufferW, y<br />&nbsp; &nbsp;sta PPUDATA7<br />&nbsp; &nbsp;dey<br />lda RAMbufferW, y<br />&nbsp; &nbsp;sta PPUDATA7<br />&nbsp; &nbsp;dey<br />&nbsp; &nbsp;dex<br />&nbsp; &nbsp;bpl -<br /></div><br />It has the inner part of your loop copied five times, so it loops 6 times at 55 cycles per loop. (330 total. Well... minus 1 because the branch not taken to end the loop takes 1 less cycle than a branch taken to loop again.)</div><span style="font-size: 200%; line-height: normal"><span style="color: #FFBF00"><strong>KASUMI!!!!!!!!!!!!!!!!!!!!!!!!!!!!  THANK YOU  SO INCREDIBLY MUCH!!!</strong></span></span>  <img src="./images/smilies/icon_biggrin.gif" alt=":D" title="Very Happy" />  <img src="./images/smilies/icon_biggrin.gif" alt=":D" title="Very Happy" /> <br />Well I triedmeasuring my enitre vblank and the max is 2259.  That's using your partially unrolled loop for each column.  It's crazy how that works unrolling partially...  That 2259 is too high... looks like I'm going to have to draw one 16 bit wide column per vblank.  And I'm happy about that. <img src="./images/smilies/icon_biggrin.gif" alt=":D" title="Very Happy" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Tue Dec 10, 2013 9:04 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: 8x16 and whatever else unreg wants to know</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />16px per vblank is how fast Sonic scrolls, so you're in good company.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>unregistered</b> [ Wed Dec 11, 2013 12:12 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: 8x16 and whatever else unreg wants to know</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I want to do this the correct way... and I feel that 2 16bit columns per vblank is possible... maybe next could go away.  <strong>2223 cycles.</strong>  That is without  my  attribute table coloring code.  And that is ok because I haven't started writing it yet.  And... there isn't any scroll_screen code to remove from that number because scroll_screen is after SkipUpdates: and Kasumi, you had me end  cycle counting at SkipUpdates.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Kasumi</b> [ Wed Dec 11, 2013 12:24 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: 8x16 and whatever else unreg wants to know</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">I feel that 2 16bit columns per vblank is possible.</div><br />Tokumaru says it can be done. But if your game never actually scrolls that fast, doing the work it requires is wasted effort. For the record, my game is prepared to scroll 8 pixels in both directions every frame, and isn't optimized enough to even do 16 pixels in one direction and 8 in another. And it's already pretty large/optimized. Doing four 8 pixel wide updates is pretty intense.<br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent"> Kasumi, you had me end cycle counting at SkipUpdates.</div><br />The scroll stuff could take just 14 cycles, so it shouldn't be a problem. But technically the writes to $2005 should also be done before ~2270 cycles pass. It just won't break terribly much if you don't make it. (Maybe vertical scrolling will be off for a frame, with a wrong scanline or two of horizontal scrolling.) Unlike $2006 and $2007, $2005 is safe to write to during rendering.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Wed Dec 11, 2013 8:33 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: 8x16 and whatever else unreg wants to know</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Kasumi wrote:</div><div class="quotecontent"><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">I feel that 2 16bit columns per vblank is possible.</div><br />Tokumaru says it can be done.</div><br />Indeed, but you won't be doing much else (sprite DMA is OK, but that's it)! =)<br /><br />The way I did it is pretty intense, because of the 8-way scrolling, which means that new rows/columns can cross name table boundaries... To unroll the code without having to check for the boundaries I had to use a jump table (to jump to the middle of the unrolled data transfer routine, with the correct amount of bytes left to copy) and some index trickery (mostly explained <a href="http://forums.nesdev.com/viewtopic.php?p=29772#p29772" class="postlink">here</a> and <a href="http://forums.nesdev.com/viewtopic.php?p=32622#p32622" class="postlink">here</a> - man, this thing is OLD!).<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">But if your game never actually scrolls that fast, doing the work it requires is wasted effort.</div><br />Yeah, I see no point in maxing out the amount of bytes you send to VRAM each frame if you don't need that much. You could better spend the time on CHR-RAM animations and things like that.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>unregistered</b> [ Wed Dec 11, 2013 1:07 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: 8x16 and whatever else unreg wants to know</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><strong>Thank you both Kasumi and tokumaru!</strong>  You two have helped me realize that scrolling 16 px per vblank will be an effort supported by a welcoming relief.  We will soundly build our 16 pixel column and save part of our coloring in RAM for the next vblank.  Ah ok, it is 2 pm... time to begin!  <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>unregistered</b> [ Fri Dec 13, 2013 7:05 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: 8x16 and whatever else unreg wants to know</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tepples wrote:</div><div class="quotecontent">I'd be tempted to allocate five 32-byte buffers $0100, $0120, $0140, $0160, and $0180.</div><br />Ah, I understand now why you would use 32 byte buffers... it's really confusing trying to compare three thirty-byte columns.  Would have been easier to compare the buffers you suggested! <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" />  Thank you very much tepples!! <img src="./images/smilies/icon_biggrin.gif" alt=":D" title="Very Happy" /><br /><br />---<br />And GRAND EXCELLENT GREATNESS!!! <img src="./images/smilies/icon_biggrin.gif" alt=":D" title="Very Happy" /> <img src="./images/smilies/icon_biggrin.gif" alt=":D" title="Very Happy" />  <img src="./images/smilies/icon_mrgreen.gif" alt=":mrgreen:" title="Mr. Green" />  Ya'lls help  has been excellent!  Kasumi, I relearned how to use FCEUX's hex editor... and I had to check my buffers to see if they were correct... and they were!  So <strong><span style="font-size: 200%; line-height: normal">thank you Kasumi!!</span></strong> <img src="./images/smilies/icon_biggrin.gif" alt=":D" title="Very Happy" />  <strong><span style="color: #00FF00"><span style="font-size: 150%; line-height: normal">MY GRAFITTIE IS GONE AND ITS RUNNING EXTRA SMOOTH WITH YOUR UNROLLED LOOP!!</span></span></strong>  I bet that's the cause of all the extra grafittie... now that my loop is running within vblank time (my MAX is 1410 cycles! <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" />) the extra grafittie art that happened in nametable 01 while drawing nametable 00 columns is gone!!  So if you are ever shown grafittie during column drawing don't worry about it... it will go away once your vblank is within the vblank limit (I'm sorry I don't know what the limit is right now) ...I'm ready to post this and take a break... you know relax! Sigh... <img src="./images/smilies/icon_biggrin.gif" alt=":D" title="Very Happy" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Kasumi</b> [ Fri Dec 13, 2013 8:04 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: 8x16 and whatever else unreg wants to know</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Cool, glad you've got it sorted!
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>77</strong> of <strong>83</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

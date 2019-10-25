@@ -1,0 +1,332 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Efficient emulation of $2002.5 (&gt; 8 sprites on scanline)?</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Efficient emulation of $2002.5 (&gt; 8 sprites on scanline)?</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=3&amp;t=690">http://forums.nesdev.com/viewtopic.php?f=3&amp;t=690</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Mon Oct 24, 2005 3:37 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Efficient emulation of $2002.5 (&gt; 8 sprites on scanline)?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />This is a continuation of a previous thread where efficient implementation of the "more than 8 sprites on a scanline encountered" flag, bit 5 of $2002 when read. Here's an elaboration of the idea I sketched out. Basically you keep a cache of how many sprites are on each scanline, and recalculate it whenever you access it after it might have become invalid. I'm going to try this in my emulator and report on the performance impact (as compared to not implementing the flag at all).
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">int scanlines &#91;256 + 16&#93;; // extra lines allow elimination of range checking<br />bool scanlines_valid;<br /><br />void calc_scanlines&#40;&#41;<br />&#123;<br />&nbsp; &nbsp; scanlines_valid = true;<br />&nbsp; &nbsp; memset&#40; scanlines, 0, sizeof scanlines &#41;; // clear counts<br />&nbsp; &nbsp; for &#40; int i = 0; i &lt; 64; i++ &#41;<br />&nbsp; &nbsp; &#123;<br />&nbsp; &nbsp; &nbsp; &nbsp; int top = sprite_ram &#91;i * 4&#93; + 1;<br />&nbsp; &nbsp; &nbsp; &nbsp; for &#40; int line = top; line &lt; height; line++ &#41;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; scanlines &#91;top + line&#93;++;<br />&nbsp; &nbsp; &#125;<br />&#125;<br /><br />void write_2000&#40; int data &#41;<br />&#123;<br />&nbsp; &nbsp; if &#40; &#40;w2000 ^ data&#41; &amp; 0x20 &#41;<br />&nbsp; &nbsp; &nbsp; &nbsp; scanlines_valid = false; // sprite height changed<br />&nbsp; &nbsp; ...<br />&nbsp; &nbsp; w2000 = data;<br />&#125;<br /><br />void write_2001&#40; int data &#41;<br />&#123;<br />&nbsp; &nbsp; if &#40; &#40;w2001 ^ data&#41; &amp; 0x10 &#41;<br />&nbsp; &nbsp; &nbsp; &nbsp; scanlines_valid = false; // sprite visibility changed<br />&nbsp; &nbsp; ...<br />&nbsp; &nbsp; w2001 = data;<br />&#125;<br /><br />// &#40;same for 0x4014&#41;<br />void write_2004&#40; int data &#41;<br />&#123;<br />&nbsp; &nbsp; if &#40; &#40;w2003 &amp; 3&#41; == 0 &#41;<br />&nbsp; &nbsp; &nbsp; &nbsp; scanlines_valid = false; // might have modified vertical position<br />&nbsp; &nbsp; ...<br />&nbsp; &nbsp; w2003 = data;<br />&#125;<br /><br />int read_2002&#40; long timestamp &#41;<br />&#123;<br />&nbsp; &nbsp; if &#40; !r2002 &amp; 0x20 &#41;<br />&nbsp; &nbsp; &#123;<br />&nbsp; &nbsp; &nbsp; &nbsp; // max sprites flag not yet set<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; if &#40; !scanlines_valid &#41;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; calc_scanlines&#40;&#41;;<br />&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; if &#40; scanlines &#91;timestamp / 341&#93; &gt; 8 &#41;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; run_ppu_until&#40; time &#41;; // may set max sprites flag<br />&nbsp; &nbsp; &#125;<br />&nbsp; &nbsp; <br />&nbsp; &nbsp; ...<br />&nbsp; &nbsp; return r2002;<br />&#125;<br /></div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Mon Oct 24, 2005 5:46 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Preliminary results are fairly good. On average, this slows emulation by 3-8% (as compared to no max sprite checking). Emulation speed is halved in the worst case where a continuous loop constantly toggles sprite height in $2000 and reads $2002 each time. Absolute numbers are ~1.39 msec/frame without max sprite checking, average ~1.47 msec/frame with max sprite checking (on a 400 MHz PowerMac).
+<br />
+<br />I should profile games that poll $2002 to get an idea of what pattern is best to optimize for. I doubt the worst-case is a good one to tune to. For example, it might be that most games start polling $2002 within a scanline or two of when they expect it to be set, which would call for something simpler than the scanlines array.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Quietust</b> [ Mon Oct 24, 2005 6:25 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I should point out to you that this is only good for "Normal" sprite overflow emulation. "Correct" sprite overflow emulation is much, much stranger, due to a <strong>flaw in the PPU hardware</strong> which causes it to, once exactly 8 sprites have been found, evaluate sprite TILE, FLAGS, and X-coordinate as though they were Y coordinates. More details can be found in the wiki.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Mon Oct 24, 2005 8:18 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I had that in mind when I made my suggestion. Even in bug-for-bug compatibility mode, a delayed PPU engine can still benefit from storing which scanlines have 8 sprites because you need at least 8 sprites to trigger that weird diagonal search pattern.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Tue Oct 25, 2005 10:31 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I profiled $2002 polling behavior of several older games that didn't have a scanline IRQ (and a few that did). None of the games modified sprite height or sprite RAM mid-frame, so they only required one pass through sprites to determine any lines where sprite max might be set. For each game, the number of CPU clocks from the beginning of the frame to the first $2002 read is listed, then delays between further $2002 reads. NxRRR means N repeated RRR times, i.e. in a polling loop that reads $2002 every N CPU clocks. N1,N2xRRR means N1 N2 repeated RRR times.
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">SMB&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;2576 1653 9x177<br />SMB2&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; 29781<br />SMB3&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; 24329 4 104 17 5326 <br />Zelda&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;8784 20996 <br />Zelda 2&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;4328 7x214 9405 14543 <br />Rod Land&nbsp; &nbsp; &nbsp; &nbsp; 2711 27069 <br />RC Pro-Am&nbsp; &nbsp; &nbsp; &nbsp;10820 8x1460 97 910 6265 <br />Gimmick!&nbsp; &nbsp; &nbsp; &nbsp; 24190 5591 <br />Fester's Quest&nbsp; 29780 <br />Battletoads&nbsp; &nbsp; &nbsp;4196 905 7x111 23896 <br />Rygar&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;14650 15130 <br />Mega Man&nbsp; &nbsp; &nbsp; &nbsp; 29781 <br />Section-Z&nbsp; &nbsp; &nbsp; &nbsp;3103 9x240 655 51 23802 <br />Snake's Revenge 13371 9x1327 160 4298 <br />Castlevania&nbsp; &nbsp; &nbsp;2428 13,8x208 13 8 229 84 22735 <br />Goonies II&nbsp; &nbsp; &nbsp; 3568 8,13x179 330 22124 <br />Rambo&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;2424 9x387 23865 <br />Guardian Legend 11 7x180 &#40;sometimes 500&#41;<br /></div>
+<br />
+<br />I also optimized and reimplemented the sprite max algorithm to properly handle the weird search pattern for the 9th sprite. On most games, it slows emulation by 0.3-0.7%. In the elevator in Snake's Revenge it slowed by almost 2% due to the large number of scanlines with 8 sprites.
+<br />
+<br />And as Disch said, it doesn't require doing any PPU rendering at all. You just clear out the scanlines array, go through all sprites and increment the counts on the scanlines each falls on, then check any scanlines with 8 or more sprites using the algorithm described on the wiki page. Repeat mid-frame if sprite height or RAM is changed.
+<br />
+<br />If you weren't emulating the odd search pattern for the 9th sprite, the algorithm would be almost exactly the same, except you'd stop on the first scanline with 9 or more sprites. You'd still need to find <em>which</em> sprite is the 9th, since the time the flag is set is based on the sprite number.
+<br />
+<br />Bee 52 is the only game I have found that needs this flag implemented. Can anyone point me to any other games/demos that rely on it? Or maybe write something to provide more justification for implementing this flag.
+<br /> other games/demos that rely on it? Or maybe write something to provide more justification for implementing this flag.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Tue Oct 25, 2005 12:49 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Did you test any games that use a split screen effect, such as Bigfoot, The Three Stooges, and Spy vs. Spy?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Tue Oct 25, 2005 1:14 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Bigfoot, The Three Stooges, and Spy vs. Spy didn't use the max sprites flag for their split-screen effects (I'm assuming they used sprite hit). I'll have to try some of the more obscure Codemasters games.
+<br />
+<br />I played around a bit with the odd PPU search pattern for the 9th sprite. It seems that the flag isn't even useful as a way to find if any sprites were (partially) hidden due to exceeding the maximum per scanline. It doesn't even seem reliable as a secondary equivalent to sprite 0 hit for finding when a particular scanline is hit, since it might get set on any scanline with 8 sprites and particular tile/attribute/x values that the search pattern looks at. It would work for marking the end of a status display, since there you can easily ensure that there are always 7 or less sprites per scanline.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Tue Oct 25, 2005 1:26 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">blargg wrote:</div><div class="quotecontent">Bigfoot, The Three Stooges, and Spy vs. Spy didn't use the max sprites flag for their split-screen effects (I'm assuming they used sprite hit).</div>
+<br />But did they rewrite the sprite memory in the middle?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Tue Oct 25, 2005 1:53 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Just tested them again and none write to sprite memory mid-frame. I also tested Stunt Kids, another one with split-screen scrolling. I'm going to verify that you can actually rewrite sprites mid-frame, then perhaps have my tool scan all 3500+ ROMs for instances of this.
+<br />
+<br />What's the significance of this? The algorithm works perfectly well if sprite RAM is rewritten mid-frame, it just needs to 1) set the max sprites flag if that event already occurred, and 2) recalculate the sprites per line for the remaining scanlines.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Tue Oct 25, 2005 2:23 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Sorry, I was being quite sloppy and relying on the max sprites algorithm behavior rather than writing a couple of lines that print when $2004 or $4014 are written to. Adding the latter showed that Stunt Kids <em>does</em> rewrite sprites mid-frame. I also wrote a PPU test that puts a large 8x8 block of sprites at the top of the screen, waits 15000 clocks, then DMAs another 8x8 block of them with their Y coordinates lower on screen, and it works on my NES. It's kind of cool, and the DMA only takes 4.5 scanlines.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

@@ -1,0 +1,281 @@
+;;
+;;		Roguelike
+;;		Original Code: Aloiamoa Anesi
+;;		Code snippets: As Noted in Comments
+;;		File: Main
+;;
+;;
+;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+	.db "NES", $1a   ; iNes identifier
+	.db $02          ; number of PRG-Rom blocks the game has 1 = 16KB, 2 = 32KB
+	.db $01          ; number of CHR-Rom blocks the game has (CHR-ROM blocks are 8KB)
+	.db $01, $00     ; control bytes
+	.db $00, $00, $00, $00, $00, $00, $00, $00 
+  
+;; Defines
+	include "ggsound.inc"
+	include "defines.asm"
+
+;; Zero page variables
+	.enum $0000
+	
+;; GGSound zeropage variables
+
+	include "ggsound_zp.inc"
+
+;; Variable declaration
+
+	include "variables.asm"
+	
+;; Constant declaration
+
+	.ende
+
+
+						
+;; BSS section
+	.enum $0300
+	
+	include "ggsound_ram.inc"
+
+	.ende
+	
+
+	.org $8000
+
+RESET:
+;; Init
+	SEI          ; disable IRQs
+	CLD          ; disable decimal mode
+	LDX #$40
+	STX $4017    ; disable APU frame IRQ
+	LDX #$FF
+	TXS          ; Set up stack
+	INX          ; now X = 0
+	STX PPUCTRL    ; disable NMI
+	STX PPUMASK    ; disable rendering
+	STX $4010    ; disable DMC IRQs
+	
+	BIT PPUSTATUS
+
+vblankwait1:       
+	BIT PPUSTATUS
+	BPL vblankwait1
+	
+clrmem:
+	LDA #$00
+	STA $0000, x
+	STA $0100, x
+	STA $0300, x
+	STA $0400, x
+	STA $0500, x
+	STA $0600, x
+	STA $0700, x
+	; We skip $0200,x on purpose.  Usually, RAM page 2 is used for the
+	; display list to be copied to OAM.  OAM needs to be initialized to
+	; $EF-$FF, not 0, or you'll get a bunch of garbage sprites at (0, 0).
+	LDA #$FE
+	STA $0200, x
+	INX
+	BNE clrmem
+   
+vblankwait2:      ; Second wait for vblank, PPU is ready after this
+	BIT PPUSTATUS
+	BPL vblankwait2
+	
+
+;; Initialize variables TODO
+	lda #$00
+	sta gamestate	; set STATE_START
+	sta flagDRAW
+	sta flagPPUREG
+	sta flagOAM
+	sta flagDMA
+	sta sleeping	; set zero. main thread is not waiting for vblank
+	sta xscroll		; zero out scroll
+	sta yscroll		; 
+	
+	jsr initSprites
+
+;; Init done, Draw screen
+
+
+;	jsr loadBackground
+;	jsr loadAttributes				
+	jsr loadSprites
+	jsr loadPalettes
+		
+	LDA #%10010000  	; enable NMI, sprites from Pattern Table 0, background from Pattern Table 1
+	STA bufferPPUCTRL
+	STA PPUCTRL
+	
+	LDA #%00011110   	; enable sprites, enable background, no clipping on left side
+						;7  bit  0
+						;---- ----
+						;BGRs bMmG
+						;|||| ||||
+						;|||| |||+- Greyscale (0: normal color, 1: produce a greyscale display)
+						;|||| ||+-- 1: Show background in leftmost 8 pixels of screen, 0: Hide
+						;|||| |+--- 1: Show sprites in leftmost 8 pixels of screen, 0: Hide
+						;|||| +---- 1: Show background
+						;|||+------ 1: Show sprites
+						;||+------- Emphasize red*
+						;|+-------- Emphasize green*
+						;+--------- Emphasize blue*
+	STA bufferPPUMASK
+	STA PPUMASK
+
+
+
+;; Init ggsound engine
+    lda #SOUND_REGION_NTSC ;or #SOUND_REGION_PAL, or #SOUND_REGION_DENDY
+    sta sound_param_byte_0
+    lda #<(song_list)
+    sta sound_param_word_0
+    lda #>(song_list)
+    sta sound_param_word_0+1
+;    lda #<(sfx_list)
+;    sta sound_param_word_1
+;    lda #>(sfx_list)
+;    sta sound_param_word_1+1
+    lda #<(instrument_list)
+    sta sound_param_word_2
+    lda #>(instrument_list)
+    sta sound_param_word_2+1
+;    lda #<dpcm_list
+;    sta sound_param_word_3
+;    lda #>dpcm_list
+;    sta sound_param_word_3+1
+    jsr sound_initialize
+	
+	lda #song_index_4eew20song
+    sta sound_param_byte_0
+    jsr play_song
+
+	
+main:
+	lda gamestate
+	
+	cmp STATE_START
+	bne main
+
+	; start screen
+	
+	jmp main
+	
+	cmp STATE_CHARSELECT
+	bne main
+	
+	; character select
+	
+	jmp main
+	
+	cmp STATE_LEVELSTART
+	bne main
+	
+	; setup level
+	
+	jmp main
+	
+	
+	cmp STATE_RUNNING
+	bne main
+	
+	; run game
+	
+	jmp main
+	
+
+	
+NMI:
+    pha
+    txa
+    pha
+    tya
+    pha
+    php		; backup registers and stack pointer
+  
+checkDMA:
+	lda flagDMA
+	beq checkDRAWING
+		lda #$00	; do sprite DMA
+		sta $2003
+		lda #bufferOAM
+		sta $4014
+		
+checkDRAWING:
+	lda flagDRAW	; do PPU drawing
+	beq checkPPUREG
+		bit PPUSTATUS
+;		jsr doDrawing	; TODO
+		dec flagDRAW
+		
+checkPPUREG:
+	lda flagPPUREG
+	beq runSOUNDENGINE
+		lda bufferPPUMASK
+		sta PPUMASK
+		lda bufferPPUCTRL
+		sta PPUCTRL
+		
+		bit PPUSTATUS
+		lda xscroll
+		sta PPUSCROLL
+		lda yscroll
+		sta PPUSCROLL
+		
+runSOUNDENGINE:
+	soundengine_update ; music engine updates
+  
+	lda #$00
+	sta sleeping
+	
+    plp
+    pla
+    tay
+    pla
+    tax
+    pla		; restore registers and stack pointer
+	
+	rti
+
+
+	
+	include "subroutines.asm"
+	
+	include "ggsound.asm"
+	
+	include "music-rogue-start.asm" ; placeholder music
+	
+sprites:
+	incbin "sprites.spr"
+	
+background:
+	incbin "rogue.nam"
+	
+attributes:  ;8 x 8 = 64 bytes
+	incbin "rogue.atr"
+	
+palette:
+	incbin "rogue-bg.pal"
+	incbin "rogue-spr.pal"
+	
+
+	
+	.pad $FFFA
+	
+	.org $FFFA     ;first of the three vectors starts here
+	
+	.dw NMI        ;when an NMI happens (once per frame if enabled) the 
+					;processor will jump to the label NMI:
+	.dw RESET      ;when the processor first turns on or is reset, it will jump
+					;to the label RESET:
+	.dw 00          ;external interrupt IRQ is not used in this tutorial
+  
+
+  
+	; Generitiles by Drag, Cavewoman by Sik, and Chase by shiru
+	.incbin "rogue1.chr"
+	

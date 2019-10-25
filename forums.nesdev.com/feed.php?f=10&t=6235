@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=10&amp;t=6235" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2010-03-30T19:29:51-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=10&amp;t=6235</id>
+<entry>
+<author><name><![CDATA[tokumaru]]></name></author>
+<updated>2010-03-30T19:29:51-07:00</updated>
+<published>2010-03-30T19:29:51-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6235&amp;p=59336#p59336</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6235&amp;p=59336#p59336"/>
+<title type="html"><![CDATA[Separating game logic from NMI]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6235&amp;p=59336#p59336"><![CDATA[
+Yeah, pretty much! =)<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=95">tokumaru</a> — Tue Mar 30, 2010 7:29 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Orsi]]></name></author>
+<updated>2010-03-30T19:20:56-07:00</updated>
+<published>2010-03-30T19:20:56-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6235&amp;p=59335#p59335</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6235&amp;p=59335#p59335"/>
+<title type="html"><![CDATA[Separating game logic from NMI]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6235&amp;p=59335#p59335"><![CDATA[
+Ah yes, that is simpler. But now I understand a little more than I did before about how things work, and so it's not completely wrong in my mind. I am just excited that it worked in the way I was planning. I'll finish the demo thing I'm doing, and will definitely start using your example for the next one.<br /><br />Everything always turns out roundabout and complicated until you get familiar with the system. It's like when you first visit a big city. Everything is foreign to you, you take the wrong trains or buses, all directions seem so complicated, until eventually it all makes sense and you can't even remember how complicated the city seemed to you in the beginning <img src="http://forums.nesdev.com/images/smilies/icon_smile.gif" alt=":)" title="Smile" />.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4297">Orsi</a> — Tue Mar 30, 2010 7:20 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tokumaru]]></name></author>
+<updated>2010-03-30T19:09:27-07:00</updated>
+<published>2010-03-30T19:09:27-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6235&amp;p=59332#p59332</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6235&amp;p=59332#p59332"/>
+<title type="html"><![CDATA[Separating game logic from NMI]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6235&amp;p=59332#p59332"><![CDATA[
+Still too complicated for such a simple task IMO.<br /><br />The fact that you are running your game loop several times per second, but are in fact skipping over everything that classifies it as a game loop (i.e. the game logic) is really weird.<br /><br />If you don't want to do any logic for 60 frames, why not simply not run the game loop for that amount of time. It's less confusing. If I understand your code correctly, this will do the exact same thing but in a more compact and less confusing way:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">GameLoop:<br />   JSR DoInput<br /><br />   lda #60<br />   sta nmiCounter<br />Wait:<br />   lda nmiCounter<br />   bne Wait ;if the counter isn't 0, keep waiting<br /><br />   jmp GameLoop<br /><br />&#40;...&#41;<br /><br />NMI:<br />   dec nmiCounter ;update the counter<br /><br />   ldx #$00 ;use X to not trash A<br />   stx $2003<br />   ldx #$02<br />   stx $4014<br /><br />   rti</div><br /><br />Note that a lot of times it's easier to count down than up, because when the counter reaches 0, the Zero flag is automatically set, so there is no need for a CMP to detect if the end of the count was reached.<br /><br />Also note that code like you presented or the one I just showed will pause all game activities until the counter expires, so everything will run at the same rate. However, a game often benefits from different things running at different rates, so it's usually better to let the NMI just indicate that a frame has gone by and let each element of the game loop decide how many times per second they'll update. For example:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">   lda #4 ;input is handled every 4 frames<br />   sta inputDelay<br /><br />   lda #8 ;enemies are moved every 8 frames<br />   sta enemyDelay<br /><br />   lda #60 ;the timer updates every 60 frames<br />   sta timerDelay<br /><br />GameLoop:<br /><br />   dec inputDelay<br />   bne SkipInput<br />   jsr DoInput ;handle input<br />   lda #4<br />   sta inputDelay<br />SkipInput:<br /><br />   dec enemyDelay<br />   bne SkipEnemy<br />   jsr MoveEnemy<br />   lda #8<br />   sta enemyDelay<br />Skipenemy:<br /><br />   dec timerDelay<br />   bne SkipTimer<br />   jsr Updatetimer<br />   lda #60<br />   sta timerDelay<br />SkipTimer:<br /><br />   lda nmiCounter<br />Wait:<br />   cmp nmiCounter<br />   beq Wait<br /><br />   jmp GameLoop<br /><br />&#40;...&#41;<br /><br />NMI:<br />   inc nmiCounter ;update the counter<br /><br />   ldx #$00 ;use X to not trash A<br />   stx $2003<br />   ldx #$02<br />   stx $4014<br /><br />   rti</div><br />Here you have a game with several sub-systems, each running at its own pace.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=95">tokumaru</a> — Tue Mar 30, 2010 7:09 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Orsi]]></name></author>
+<updated>2010-03-30T18:45:07-07:00</updated>
+<published>2010-03-30T18:45:07-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6235&amp;p=59330#p59330</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6235&amp;p=59330#p59330"/>
+<title type="html"><![CDATA[Separating game logic from NMI]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6235&amp;p=59330#p59330"><![CDATA[
+Oh my goodness, I may be an expert yet <img src="http://forums.nesdev.com/images/smilies/icon_biggrin.gif" alt=":D" title="Very Happy" />. I finally got everything working according to plan. Run input once every nmi/frame, let the nmi keep track of a counter to 60 to represent ~1 second, start using variables to clean up the code a bit, and no more spilling memory over into the wrong addresses. Here's the revised code:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">GameLoop:<br />   LDA frameFlag            ;see if a frame has happened<br />   BEQ DoNothing            ;and process input once<br />      JSR DoInput         <br />      LDA #$00         ;reset frameFlag to 0 so input doesn't<br />      STA frameFlag         ;process a billion times inbetween frame<br />DoNothing: JMP GameLoop<br />.<br />.<br />.<br />NMI:   <br />   PHA               ;push accumulator to stack<br /><br />   LDX nmiCounter            ;load the nmi counter &#40;~60 per sec&#41; <br />   INX               ;increase it by one<br />   STX nmiCounter            ;compare to 60 frames<br />   CPX #60               ;...<br />   BNE CounterJump         ;...   <br />   LDA #$00                    ;...<br />   STA nmiCounter                         ;and reset counter if at 60th frame<br />   CounterJump:<br />   <br />   LDA #$01<br />   STA frameFlag            ;set frameFlage to run input once per nmi<br /><br />   LDA #$00            ;reload all the sprites<br />   STA $2003<br />   LDA #$02<br />   STA $4014<br /><br />   PLA               ;pull accumulator from stack <br />   RTI<br /></div><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4297">Orsi</a> — Tue Mar 30, 2010 6:45 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tokumaru]]></name></author>
+<updated>2010-03-30T16:00:43-07:00</updated>
+<published>2010-03-30T16:00:43-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6235&amp;p=59319#p59319</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6235&amp;p=59319#p59319"/>
+<title type="html"><![CDATA[Separating game logic from NMI]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6235&amp;p=59319#p59319"><![CDATA[
+<div class="quotetitle">tepples wrote:</div><div class="quotecontent"><br />I can think of plenty of cases where some parts would run once per second and other parts once per frame.<br /></div><br />Yeah, and a good way to go about that is to still run the main loop once per frame, but inside it use different counters for the different tasks that happen at different rates.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=95">tokumaru</a> — Tue Mar 30, 2010 4:00 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2010-03-30T15:51:11-07:00</updated>
+<published>2010-03-30T15:51:11-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6235&amp;p=59317#p59317</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6235&amp;p=59317#p59317"/>
+<title type="html"><![CDATA[Separating game logic from NMI]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6235&amp;p=59317#p59317"><![CDATA[
+I can think of plenty of cases where some parts would run once per second and other parts once per frame.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Tue Mar 30, 2010 3:51 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Orsi]]></name></author>
+<updated>2010-03-30T11:21:51-07:00</updated>
+<published>2010-03-30T11:21:51-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6235&amp;p=59304#p59304</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6235&amp;p=59304#p59304"/>
+<title type="html"><![CDATA[Separating game logic from NMI]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6235&amp;p=59304#p59304"><![CDATA[
+Ya, I've been wondering why I thought running it once per second was a good idea in the first place <img src="http://forums.nesdev.com/images/smilies/icon_smile.gif" alt=":)" title="Smile" />. I became sidetracked once my input was being mirrored in the flag I had going. Learning the hard way through trial and error is the best way for me, so I tend to do things backwards sometimes just to see why haha.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4297">Orsi</a> — Tue Mar 30, 2010 11:21 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tokumaru]]></name></author>
+<updated>2010-03-30T10:16:01-07:00</updated>
+<published>2010-03-30T10:16:01-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6235&amp;p=59302#p59302</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6235&amp;p=59302#p59302"/>
+<title type="html"><![CDATA[Re: Separating game logic from NMI]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6235&amp;p=59302#p59302"><![CDATA[
+I think you are overcomplicating things...<br /><br /><div class="quotetitle">Orsi wrote:</div><div class="quotecontent"><br />So I tried to take previous advice and separate my game logic from the NMI by having the NMI increase a counter and the main loop only processing logic once every 64 NMIs.<br /></div><br />There are 60 NMIs in a second, if you wait for 64 of them between logic updates your game will run at less than 1 frame per second. I don't get why you'd want that.<br /><br />Before I begin, there are a few newbie "mistakes" (they are not not necessarily bugs, but should be avoided) I'd like to point out:<br /><br />1. Don't reference variables by address. It makes the source harder to read (it's hard to remember what each address was supposed to hold) and is hell to rearrange if you even need/want to. Always name your variables.<br /><br />2. There is no need for CMP #$00 after you've just loaded a value. If the value is 0, the Zero flag will be set just from loading it.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent"><br />Another thing I believe is going on is the accumulator is probably getting changed in the middle of the main loop when an NMI is called, causing some trickery.<br /></div><br />This is very likely to be your problem, as you change A to $02 for the sprite DMA every NMI. The quick fix for this particular code could be using X instead of A for the DMA like you did with the logic above it.<br /><br /><div class="quotetitle">Orsi wrote:</div><div class="quotecontent"><br />Ok, so I figured I need to set a flag in the NMI that says "Hey, I'm at 0, run logic once" and then in the main loop process the logic and turn off the flag at the end of it.<br /></div><br />Now you are reeeaaally overcomplicating it. Two flags for such a simple purpose?<br /><br />If you really do want to wait 64 frames between logic updates (for whatever weird reason that is, because the common ratio is 1 logic update per NMI), the first code should work, just don't trash A in the NMI.<br /><br />EDIT:<br /><br />However, the program would look more well coded if the 64-frame delay was handled outside of the NMI, since the delay is in fact related to logic updates rather than graphical updates (which should be the main focus of the NMI). Something like this:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">GameLoop:<br />   ;-GAME LOGIC-<br /><br />   lda #64<br />   sta Counter<br />Wait:<br />   lda Counter<br />   bne Wait<br />   jmp GameLoop<br /><br />&#40;...&#41;<br /><br />NMI:<br />   dec Counter<br /><br />   ;-VRAM UPDATES-<br /><br />   rti</div><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=95">tokumaru</a> — Tue Mar 30, 2010 10:16 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[3gengames]]></name></author>
+<updated>2010-03-30T08:35:58-07:00</updated>
+<published>2010-03-30T08:35:58-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6235&amp;p=59298#p59298</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6235&amp;p=59298#p59298"/>
+<title type="html"><![CDATA[Separating game logic from NMI]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6235&amp;p=59298#p59298"><![CDATA[
+Not exactly sure but I'd maybe do something like:<br /><br /><br /> <div class="codetitle"><b>Code:</b></div><div class="codecontent"> Main Loop<br /> -Code-<br /> LDA LoopFlag<br />Loop:<br /> CMP LoopFlag<br /> BNE Loop<br /><br /><br />NMI:<br /><br /> PHA<br /> INC LoopFlag<br /> -Stuff-<br /> -Sprite update-<br /> PLA<br /> RTI<br /><br /></div><br /><br /><br />Not sure but I think thats a bare bones of their idea. ^_^<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4311">3gengames</a> — Tue Mar 30, 2010 8:35 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Orsi]]></name></author>
+<updated>2010-03-30T08:36:18-07:00</updated>
+<published>2010-03-30T08:34:02-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6235&amp;p=59297#p59297</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6235&amp;p=59297#p59297"/>
+<title type="html"><![CDATA[Separating game logic from NMI]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6235&amp;p=59297#p59297"><![CDATA[
+Ok, so I figured I need to set a flag in the NMI that says "Hey, I'm at 0, run logic once" and then in the main loop process the logic and turn off the flag at the end of it. It seems to work, but there is a new problem now. The flag which is supposes to tell the main loop to run through the input once seems to change its value to whatever button is being pressed which I know shouldn't be happening. Here's my revision:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">GameLoop:<br />   LDA $02<br />   AND #$01<br />   BEQ DoNothing<br />      JSR DoInput<br />      LDA $00<br />      STA $02<br />DoNothing: JMP GameLoop<br />...<br />NMI:   <br />   LDY $01               ;Address $01 is the counter <br />   INY<br />   STY $01<br />   CPY #$40<br />   BNE CounterJump<br />   LDA #$00<br />   STA $01<br />   LDA #$01<br />   STA $02               ;Address $02 is the flag for main loop<br />   CounterJump:<br /><br />   LDA #$00            ;Reload all the sprites<br />   STA $2003<br />   LDA #$02<br />   STA $4014<br />   RTI<br /></div><br />I assume this is because the NMI is interrupting the input routine and changing the values of the cpu registers. I'm trying to run the logic approx. once per second, just for learning purposes. I know it should be run once per frame in a real game.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4297">Orsi</a> — Tue Mar 30, 2010 8:34 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Orsi]]></name></author>
+<updated>2010-03-30T08:19:03-07:00</updated>
+<published>2010-03-30T08:19:03-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6235&amp;p=59295#p59295</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6235&amp;p=59295#p59295"/>
+<title type="html"><![CDATA[Separating game logic from NMI]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6235&amp;p=59295#p59295"><![CDATA[
+So I tried to take previous advice and separate my game logic from the NMI by having the NMI increase a counter and the main loop only processing logic once every 64 NMIs. Unfortunately, it isn't working as planned <img src="http://forums.nesdev.com/images/smilies/icon_razz.gif" alt=":P" title="Razz" />. It seems the game cycle runs more often than it should. Here's the main loop and NMI:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">GameLoop:<br />   LDA $01<br />   CMP #$00<br />   BNE DoNothing<br />   JSR DoInput<br />DoNothing: JMP GameLoop<br />...<br />NMI:<br />   LDX $01<br />   INX<br />   STX $01<br />   CPX #$40<br />   BNE CounterJump<br />   LDX #$00<br />   STX $01<br />   CounterJump:<br /><br />   LDA #$00            ;Reload all the sprites<br />   STA $2003<br />   LDA #$02<br />   STA $4014<br />   RTI</div><br /><br />My guesses are the main loop still runs multiple times in between the NMIs that count to 0 and to 1. Another thing I believe is going on is the accumulator is probably getting changed in the middle of the main loop when an NMI is called, causing some trickery. In that case, does anyone have any suggestions on what is the appropriate use of each cpu register?<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4297">Orsi</a> — Tue Mar 30, 2010 8:19 am</p><hr />
+]]></content>
+</entry>
+</feed>

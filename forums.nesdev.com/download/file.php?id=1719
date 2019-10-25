@@ -1,0 +1,360 @@
+  .inesprg 1    ;only 1 PRG bank, simple program
+  .ineschr 12    ;currently 12 CHR banks
+  .inesmap $01  ;using MMC1
+  .inesmir 0
+
+  .bank 0
+  .org 0000
+vblanktimer .db 1  ;some RAM variables
+multi .db 0
+framelow .db 0
+framehigh .db 0
+bankCounter .db 0
+banklow .db 0
+bankhigh .db 0
+
+  .org $8000
+Start:
+  bit $2002     ;processor waits
+vwait1:
+  bit $2002
+  bpl vwait1
+vwait2:
+  bit $2002
+  bpl vwait2
+
+  lda #%10000000  ;set up PPU
+  sta $2000
+  lda #%00011110
+  sta $2001
+
+  lda #$01
+  sta vblanktimer
+  lda #$00
+  sta multi
+  sta bankCounter
+  lda #low(frames)
+  sta framelow
+  lda #high(frames)
+  sta framehigh
+  lda #low(bankselector)
+  sta banklow
+  lda #high(bankselector)
+  sta bankhigh
+
+  jsr initMMC1Mapper
+
+  lda #$01
+  jsr setPRGBank
+
+  lda #$3F
+  sta $2006
+  lda #$00
+  sta $2006
+
+  ldx #$00
+loadpal:
+  lda ourpal, x
+  sta $2007
+  inx
+  cpx #32
+  bne loadpal
+
+loadsprites:
+  ldx #$00
+loadspritesloop:
+  lda sprites, x
+  sta $0200, x
+  inx
+  bne loadspritesloop
+
+infin:
+
+  lda vblanktimer
+WaitForVBlank:
+  cmp vblanktimer
+  beq WaitForVBlank
+
+
+
+
+  ldy #$FF
+UpdateFrame:
+  iny
+  lda [framelow], y
+  sty multi
+  asl multi
+  asl multi
+  ldx multi
+  sta $0201, x
+  cpy #$3F
+  bne UpdateFrame
+
+
+  lda framelow
+  clc
+  adc #64
+  sta framelow
+
+  lda framehigh
+  adc #0
+  sta framehigh
+
+setPalette:
+  ldx bankCounter
+  cpx #$24
+  bne skip1
+  ldy #$01
+  jsr changePalette
+skip1:
+  ldx bankCounter
+  cpx #$4F
+  bne skip2
+  ldy #$00
+  jsr changePalette
+skip2:
+
+resetFrames:
+  ldx bankCounter
+  cpx #$6E
+  bne skip3
+  lda #low(frames)
+  sta framelow
+  lda #high(frames)
+  sta framehigh
+  lda #low(bankselector)
+  sta banklow
+  lda #high(bankselector)
+  sta bankhigh
+  lda #$FF
+  sta bankCounter
+
+
+skip3:
+
+  inc bankCounter
+
+ 
+
+Wait:
+  jsr spinWheels
+  jsr spinWheels
+
+
+  jmp infin
+
+changePalette:
+  ldx #$00  
+changePaletteLoop:
+  inx
+  inx
+  tya
+  sta $0200, x
+  inx
+  inx
+  cpx #$00
+  bne changePaletteLoop
+  
+  rts
+
+initMMC1Mapper:
+  lda #$80
+  sta $8000
+  lda #%00011000
+  jsr setMMC1ControlMode
+  lda #$0
+  jsr setPRGBank
+  lda #$04
+  jsr setCHRPage0000
+  lda #$04
+  jsr setCHRPage1000
+  rts
+
+setMMC1ControlMode:
+  sta $8000
+  lsr a
+  sta $8000
+  lsr a
+  sta $8000
+  lsr a
+  sta $8000
+  lsr a
+  sta $8000
+  rts
+
+setCHRPage0000:
+  sta $A000
+  lsr a
+  sta $A000
+  lsr a
+  sta $A000
+  lsr a
+  sta $A000
+  lsr a
+  sta $A000
+  rts
+
+setCHRPage1000
+  sta $C000
+  lsr a
+  sta $C000
+  lsr a
+  sta $C000
+  lsr a
+  sta $C000
+  lsr a
+  sta $C000
+  rts
+
+setPRGBank:
+  sta $E000
+  lsr a
+  sta $E000
+  lsr a
+  sta $E000
+  lsr a
+  sta $E000
+  lsr a
+  sta $E000
+  rts
+
+spinWheels:
+  ldx #50
+  ldy #0
+spinloop1:
+  spinloop2:
+  nop
+  nop
+  dey
+  bne spinloop2
+  dex
+  bne spinloop1
+  rts
+
+NMI:
+  pha
+  txa
+  pha
+  tya
+  pha
+SetPage:
+  ldy bankCounter
+  lda [banklow], y
+  jsr setCHRPage0000
+  lda #$00
+  jsr setCHRPage1000
+  lda #$00
+  sta $2003
+  lda #2
+  sta $4014
+  pla
+  tay
+  pla
+  tax
+  pla
+  dec vblanktimer
+  rti
+
+ourpal: incbin "eclipse.pal"
+
+  .bank 1
+  .org $E000
+sprites:
+  .db $40, $00, $00, $40
+  .db $40, $01, $00, $48
+  .db $40, $02, $00, $50
+  .db $40, $03, $00, $58
+  .db $40, $04, $00, $60
+  .db $40, $05, $00, $68
+  .db $40, $06, $00, $70
+  .db $40, $00, $00, $78
+
+  .db $48, $07, $00, $40
+  .db $48, $08, $00, $48
+  .db $48, $09, $00, $50
+  .db $48, $0A, $00, $58
+  .db $48, $0B, $00, $60
+  .db $48, $0B, $00, $68
+  .db $48, $0C, $00, $70
+  .db $48, $0D, $00, $78
+
+  .db $50, $0E, $00, $40
+  .db $50, $0F, $00, $48
+  .db $50, $10, $00, $50
+  .db $50, $11, $00, $58
+  .db $50, $0B, $00, $60
+  .db $50, $0B, $00, $68
+  .db $50, $0B, $00, $70
+  .db $50, $12, $00, $78
+
+  .db $58, $13, $00, $40
+  .db $58, $14, $00, $48
+  .db $58, $15, $00, $50
+  .db $58, $16, $00, $58
+  .db $58, $0B, $00, $60
+  .db $58, $17, $00, $68
+  .db $58, $18, $00, $70
+  .db $58, $19, $00, $78
+
+  .db $60, $1A, $00, $40
+  .db $60, $1B, $00, $48
+  .db $60, $1C, $00, $50
+  .db $60, $1D, $00, $58
+  .db $60, $1E, $00, $60
+  .db $60, $1F, $00, $68
+  .db $60, $20, $00, $70
+  .db $60, $21, $00, $78
+
+  .db $68, $22, $00, $40
+  .db $68, $23, $00, $48
+  .db $68, $24, $00, $50
+  .db $68, $25, $00, $58
+  .db $68, $26, $00, $60
+  .db $68, $27, $00, $68
+  .db $68, $28, $00, $70
+  .db $68, $29, $00, $78
+
+  .db $70, $2A, $00, $40
+  .db $70, $2B, $00, $48
+  .db $70, $2C, $00, $50
+  .db $70, $2D, $00, $58
+  .db $70, $2E, $00, $60
+  .db $70, $2F, $00, $68
+  .db $70, $30, $00, $70
+  .db $70, $31, $00, $78
+
+  .db $78, $00, $00, $40
+  .db $78, $32, $00, $48
+  .db $78, $33, $00, $50
+  .db $78, $34, $00, $58
+  .db $78, $35, $00, $60
+  .db $78, $36, $00, $68
+  .db $78, $37, $00, $70
+  .db $78, $00, $00, $78
+
+frames: 
+  .incbin "eclipse2.bin"
+
+bankselector:
+  .incbin "bankarray2.bin"
+
+  .org $FFFA
+  .dw NMI
+  .dw Start
+  .dw 0
+
+  .bank 2
+  .org $0000
+
+  .incbin "eclipse1.chr"
+  .incbin "eclipse2.chr"
+  .incbin "eclipse3.chr"
+  .incbin "eclipse4.chr"
+  .incbin "eclipse5.chr"
+  .incbin "eclipse6.chr"
+  .incbin "eclipse7.chr"
+  .incbin "eclipse8.chr"
+  .incbin "eclipse9.chr"
+  .incbin "eclipse10.chr"
+  .incbin "eclipse11.chr"
+  .incbin "eclipse12.chr"

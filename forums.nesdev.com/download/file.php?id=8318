@@ -1,0 +1,68 @@
+.segment "ZEROPAGE"
+t0:   .res 1
+t1:   .res 1
+t2:   .res 1
+t3:   .res 1
+temp: .res 1
+
+.macro assert_branch_page label_
+   .assert >(label_) = >(*+2), error, "Page crossing detected!"
+.endmacro
+
+.segment "CODE"
+fortytwo:
+	 ;t*(42&t>>10)
+	lda #0
+	sta t0
+	sta t1
+	sta t2
+	sta t3
+fortytwo_loop:
+	; t = t+1
+	clc
+	lda t0
+	adc #1
+	sta t0
+	lda t1
+	adc #0
+	sta t1
+	lda t2
+	adc #0
+	sta t2
+	lda t3
+	adc #0
+	sta t3
+	; t >> 10
+	lda t1
+	sta temp
+	lda t2
+	ror
+	ror temp
+	ror
+	ror temp
+	lda temp
+	; 42 & (t >> 10)
+	and #42
+	sta temp
+	; t * (42 & (t >> 10))
+	lda #0
+	ldx #8
+	@multiply:
+		asl
+		rol temp
+		assert_branch_page :++
+		bcs :++
+			; 2 cycles
+			jmp :+ ; +3 = 5
+			:
+			jmp :++ ; +3 = 8
+		:
+			; 3 cycles
+			clc ; +2 = 5
+			adc t0 ; +3 = 8
+		:
+		dex
+		bne @multiply
+	lsr
+	sta $4011
+	jmp fortytwo_loop

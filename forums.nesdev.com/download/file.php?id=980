@@ -1,0 +1,625 @@
+Noism - High-level language for old-school console CPUs
+
+I. General Purpose
+II. What Noism Outputs
+III. Short list of symbols
+IV. Preprocessor Stuff
+	Declaring Variables
+	a. Declaring Zeropage Variables
+	b. Declaring Data
+	c. Number Format
+	Bit-shifting note
+	Parentheses
+	Arrays
+		Declaring Arrays
+	Structures
+		Array of Structures
+	Pointers
+		Pointer Arithmetic
+		What about Pointers to a Structure?
+		What about an Array of Pointers?
+	Writing to an address
+	Functions
+	Bit Operations
+	Accessing Multi-byte Variables
+	Locating Variables
+	Scoping
+	Evading the Gameboy Sprite RAM bug
+	Note on Noism Pseudo-Assembly
+
+---------------
+I. General purpose
+---------------
+Noism is meant to reduce the complexity of writing software for old-school game systems, namely NES and GB (Others to be added later, possibly).  Although NES and GB software can be written in C, usage of local variables and function parameters (i.e. stack frame) makes the code extremely bloated.  Noism will allow these standard features while outputting streamlined asm.
+
+What's more, Noism abstracts away usage of the carry flag and multiple loads and stores for a variable larger than the CPU data bus.
+
+Best of all, Noism will generate assembly code for both systems, meaning an NES and GB version of the same game can be written in one code base.  Code that depends on specific hardware can be mixed with an .IF/.ELSE block so it will only compile for that hardware.
+
+Tentative:  May add support for
+
+65c02 (PCE/TG16)
+65816 (SFC/SNES)
+Spc700 (SFC/SNES)
+z80 (SMS, Megadrive/Genesis, many others)
+M68000 (Megadrive/Genesis, others)
+
+Noism is a compiled low-level language which means the programmer should understand memory addressing and pointers.  If you've never programmed before, it is a good idea to learn assembly for at least one system supported by Noism.  
+
+What this is not:  A rapid prototyping framework.  Other high-level frameworks like PyNES completely abstract away the hardware, but the Noism programmer will have to understand the system being coded for.
+
+------------------
+II. What Noism Outputs
+------------------
+
+Noism output will be compatible with wla-dx by default; it will call wla-dx after the compile process to build the project in one step.  (It will also do a CRC32 check on the executable to make sure it's not some other program renamed wla-dx).
+
+---------------------
+III. Short List of Symbols
+---------------------
+Most of the symbols are familiar from other programming languages.
+
+Beware:  '/' and '%' on anything other than a power of 2 will call a software division routine. '*' on anything other than a power of 2 will call a software multiply routine.
+
++,-,*,/
+& - and
+| - or
+^ - exclusive or
+<<< - rotate left
+>>> - rotate right
+<< - shift left
+>> - shift right
+% - modulo
+= - note that all the above symbols can be combined with '='
+
+++ - increment
+-- - decrement
+
+[] - array or address of variable
+
+rom/const/data
+
+if 
+else
+elif
+endif
+&&,||
+==,!=,<>,<,>,<=,>=
+
+dowhile
+while
+endwhile
+
+for index=0 to limit
+endfor
+
+struct/endstruct
+
+func/endfunc
+return
+
+; - comment
+@ - block comment, terminate with another @
+
+------------------
+IV. Preprocessor Stuff
+------------------
+.IF <condition>
+.ELIF <condition>
+.ELSE
+.ENDIF
+
+Conditionally compile anything in this block
+
+--------------------------------------------------
+
+.DEFINE <name> <$---->
+
+Defines a constant.  'NES' and 'GB' must be defined in the header file.
+
+--------------------------------------------------
+
+.SCOPE
+.ENDSCOPE
+
+Any variable defined in this block will free its ram space after .ENDSCOPE and be unusable.
+
+--------------------------------------------------
+
+.ADDRESS var_name = $----
+
+Assigns this variable to a ram address.  Only applies to the next scope it is used in.
+
+--------------------------------------------------
+
+.REGION <ram address>
+.ENDREGION
+
+.REGIONZ <zeropage address>
+.ENDREGIONZ
+
+Each new variable is assigned a byte starting from <ram address> or <zeropage address>.  Both can be used in conjunction.  A new .REGION or .REGIONZ is also effectively an .ENDREGION (.ENDREGIONZ).
+
+.REGIONZ must be used for 'ptr' variables on NES.
+
+Generates ERROR:  Declaring a variable outside a .REGION/.REGIONZ block.
+
+--------------------------------------------------
+
+.NESREGION
+.NESREGIONZ
+.NESENDREGION
+.NESENDREGIONZ
+.GBREGION
+.GBREGIONZ
+.GBENDREGION
+.GBENDREGIONZ
+
+Equivalent to
+.IF NES
+.REGION <ram address>
+.ELIF GB
+.REGION <ram address>
+.ENDIF
+
+--------------------------------------------------
+
+.INCLUDE
+
+Includes another Noism file or assembly file (In that case, the compiler only inserts an asm .INCLUDE directive).
+
+--------------------------------------------------
+
+.INCBIN
+
+Makes the compiler insert an .INCBIN into the asm file.
+
+--------------------------------------------------
+
+.DIRECTIVE "string"
+
+Inserts an assembler directive into the asm file.
+
+--------------------------------------------------
+
+.EXTERN
+
+If a function or variable is defined in another file (That's not included), extern prevents an 'undefined symbol' error.  Use this for anything defined in an asm file.
+
+--------------------------------------------------
+
+.ORG <rom address>
+Locates ROM starting at this address.
+
+Generates ERROR:  Using any code before an .ORG directive.
+
+--------------------------------------------------
+
+.ORGNES <rom address>
+.ORGGB <rom address>
+
+Equivalent to
+.IF NES
+.ORG <rom address>
+.ELIF GB
+.ORG <rom address>
+.ENDIF
+
+--------------------------------------------------
+
+.RORG <rom address>
+
+Gameboy ROM starts at $0 while NES ROM starts at $8000.  So this simply adds $8000 to the starting address for NES.
+
+--------------------------------------------------
+
+.NES
+.ENDNES
+
+.GB
+.ENDGB
+
+Equivalent to
+.IF NES
+...
+.ENDIF
+
+.IF GB
+...
+.ENDIF...
+
+--------------------------------------------------
+
+.ASM
+...
+.ENDASM
+
+Anything in this block will be directly inserted into the asm file and will be ignored by the compiler.  Use it to mix assembly with Noism code.  Use an .IF/.ELSE block to mix .ASM blocks for different CPUs.
+
+This will have to be done for special CPU state instructions, like setting the direct page register for 65816.
+
+Beware:  The asm entered in this block needs to be compatible with wla-dx.
+
+--------------------
+. Declaring Variables
+--------------------
+
+Variables are declared using 's' or 'z' with the size in bits.
+							8 bit	16 bit	24 bit	32 bit	64 bit
+Ram address >= 0x100		s8		s16		s24		s32		s64
+Ram in zero page (0x0-0xFF)	z8		z16		z24		z32		z64
+
+Unsigned variables			8 bit		16 bit		24 bit		32 bit		64 bit
+Ram address >= 0x100		u8			u16			u24			u32			u64
+Ram in zero page (0x0-0xFF)	uz8			uz16		uz24		uz32		uz64	
+
+Depending on the data bus of the processor (How many bits it can load and store in one operation), each size will compile to the according loads and stores.  Using s24 or s32 on a 16-bit cpu will result in 2 stores, for example.  For zeropage variables, use 'z' instead of 's'.  On a cpu with no zeropage ram, 'z' defaults to 's'.
+
+Another way to declare a variable is with 'ptr' (For 'pointer').  Pointers will always be the same size as the address bus of the cpu (So while the 6502 has an 8-bit data bus, the address bus is 16-bit, hence the pointer must be loaded and stored 8-bits at a time).  See X. Pointers for using this data type.
+
+Declaring a variable size is optional if it's set to a value clearly indicating the size.
+
+s8 var_8 = $FE
+var_8 = $FE
+s16 var_16 = $FE
+var_16 = $00FE
+another_var_16 = var_16
+s24 var_24
+var_24 = 0x0000FE
+
+8-bit vars can also be declared with 'bool' for clarity, but they'll work the same way.
+
+Variables can be declared without initialization using the types.
+
+Beware:  Setting a variable to a size larger than it was first declared as will generate an ERROR.
+
+----------------------------
+. Declaring Zeropage Variables
+----------------------------
+
+Using z8, z16, z24, z32 or z64 in a .REGIONZ block will put the variable in zeropage if the cpu has that feature.  This is necessary when there's both a .REGION and .REGIONZ block and the variable needs to be in zeropage.
+
+--------------
+. Declaring Data
+--------------
+ROM data can be declared with 'rom' or 'const' or 'data' preceding a regular declaration.  It will occupy the same rom space as code relative to the last .ORG.  Anything declared within a function will be located after an 'rts'.
+
+-------------
+. Number format
+-------------
+Numbers can be decimal or hexadecimal.
+255
+0xFF
+$FF
+
+-----------------
+. Bit shifting note
+-----------------
+'<<<' and '>>>' rotate the carry flag into the byte.  '<<' and '>>' set the carry flag but don't transfer it to the byte.  '<<' and '>>' abstract away use of the carry flag on a 16-bit variable, so it will use a sequence of 'asl,rol' ('<<') and 'lsr,ror' ('>>').
+
+NOTE:  I may completely scrap the rotate operator after figuring out a good way to auto-generate carry flag checking.
+
+-----------
+. Parentheses
+-----------
+With nested '(' and ')', the inner-most expression will be evaluated first.
+
+5 + 2 << 1 = 14
+5 + (2 << 1) = 9
+5 + (2 << (4 - 1) ) = 13
+
+------
+. Arrays
+------
+The array feature of Noism is based on the indexed addressing modes of 6502 assembly.  Any variable not part of a structure can be subscripted with [].
+
+s8 var0 = $FF
+s8 var1 = $03
+var0[1] = $05	; same as var1 = $05
+
+To keep the underlying assembly from becoming too complicated, only 1D arrays exist, but multiple dimensions can be simulated like this:
+
+rom s8 table0[$05] = [1,2,3,4,5]
+rom s8 table1[$05] = [6,7,8,9,$A]
+rom ptr addrtable[$02] = [table0,table1]
+ptr table_ptr = addrtable[1]
+val = table_ptr[3]	; val = 9 or table1[3]
+
+----------------
+. Declaring Arrays
+----------------
+A variable can be declared with the '[]' operator and it will reserve that many bytes.  In this case it's necessary to declare the variable with a type.
+
+s8 array[$0A]
+for i=0 to $0A
+	array[i] = 0
+endfor
+
+s8 array[$05] = [1,2,3,4,5]
+
+Beware:  Arrays can not be declared with a variable as the size because Noism does not have built-in memory management.
+
+----------
+. Structures
+----------
+
+[NOTE:  EDIT BELOW]
+struct structure_name
+{
+	s8 bvar
+	s16 wvar
+	ptr pvar
+}
+
+structure_name s = [$05,$8000,$0600]
+
+structure_name s
+s.bvar = $05
+s.wvar = $8000
+s.pvar = $0600
+
+structure_name s2 = s	; sets all fields in s2 to all fields in s
+
+-------------------
+. Array of Structures
+-------------------
+structure_name s[$0A] = [[$05,$8000,$0600],...]
+s[0].bvar = $05
+s[0].wvar = $8000
+s[0].pvar = $0600
+
+--------
+. Pointers
+--------
+Pointers store the address of a byte and can use '[]' to access the bytes following the one at that address.
+
+var0 = $05
+var1 = $06
+...
+ptr pointer = [var0]
+pointer[1] = $03	; same as var1 = $03
+
+Don't store literal addresses if planning to compile for NES and GB.  Use .DEFINE in an .IF block or enclose the variable name in '[...]'.
+
+Reminder:  Pointers on the NES must be zeropage variables.
+
+------------------
+. Pointer Arithmetic
+------------------
+Any arithmetic on a pointer is based on the size of the variable it points to.
+
+s16 var16 = $8000
+ptr pointer = [var16]
+pointer+=1	; increments pointer by 2 bytes
+pointer[1] = $05 ; stores $05 at address of var16 plus 2 bytes
+
+-----------------------------------
+. What About Pointers to a Structure?
+-----------------------------------
+Because of the way structures are implemented in the underlying assembly, creating a pointer to a structure would involve many lines of pointer arithmetic to access all the fields.  However, a pointer to a structure can be simulated by creating an array of structs and storing the index in a variable.  This can be used to implement a linked-list or binary tree.
+
+------------------------------------
+. What about an Array of Pointers?
+------------------------------------
+There can be an array of pointers.  However, each pointer must be moved to its own variable for access.
+
+ptr pointers[3] = [var0,var1,var2]
+ptr pointer = pointers[1]
+v0 = pointer[0]	; v0 = var1
+
+--------------------------
+. Writing to an address
+--------------------------
+Use .REGION or .ADDRESS for writing to i/o ports.
+
+.REGION $2000
+s8 PPUCTRL
+s8 PPUMASK
+s8 PPUSTAT
+s8 OAMADDR
+s8 OAMDATA
+s8 PPUSCRL
+s8 PPUADDR
+s8 PPUDATA
+.ENDREGION
+
+---------
+. Functions
+---------
+func a_function var1, var2, var3
+	...
+	return value
+endfunc
+
+...
+a_function(var1,var2,var3)
+...
+
+var = a_function(var1,var2,var3)
+
+
+
+--------------
+. Bit Operations
+--------------
+The standard bitwise operators are available, but here's another way to access individual bits.
+
+var0.0 = 1	; same as var0 |= 0x1
+var0.7 = 1	; same as var0 |= 0x80
+var0.6 = 0	; same as var0 &= 0xBF
+
+Bit operations can also be done like this:
+
+var0.0F = 0xD
+	var0 &= 0xF0
+	var0 |= 0x0D
+var0.30 = 0x2
+	var0 &= 0xCF
+	var0 |= 0x20
+	
+NOTE:  This feature might be cut due to lack of interest for the programmer unless requested.
+
+------------------
+. Multi-byte variables
+------------------
+
+u32 dword = 0xabcd8899
+
+dword.a		; 0x99
+dword.b		; 0x88
+dword.c		; 0xcd
+dword.d		; 0xab
+
+Many games use 16-bit math in places but only need the result in the high-byte; this will save the compiler from outputting redundant comparisons.
+
+------------------
+. Locating Variables
+------------------
+.ADDRESS var = <ram address>
+
+Assigns this variable to a ram address.  Useful for debugging if you want to watch a specific variable.
+
+.REGION <ram address>
+.ENDREGION 
+
+Each variable will be assigned the next byte starting from <ram address>.
+
+.REGION $0600
+byte var0 = 5	; var0 at $0600
+word var1 = 6	; var1 at $0601
+byte var2 = 7	; var2 at $0603
+ptr array = [var0]	; array at $0604; stores $0600
+.ENDREGION
+
+.ENDREGION is optional and using another .REGION also works.
+
+Any variable declared with 'ptr' automatically uses zero page ram with NES.  Handle this with 
+.REGIONZ $80	
+ptr array = MEM
+ptr data_ptr = DATA_ADDR
+.ENDREGIONZ
+
+-------
+. Scoping
+-------
+Any variable or structure declared inside a scope will have its ram space freed outside the scope.  This way it's not necessary to juggle many bytes for temporary variables.  These are the layers of scoping:  
+
+global
+	subroutine (aka function) local vars
+		if/else/elif/endif
+		while/endwhile
+		for/endfor
+		scope/endscope
+			scope/endscope
+
+If you must use two variables with the same name (Convenient for something 
+quick and trivial), declare the variable in the inner scope with 'local'.  Otherwise the compiler 
+will assume it's the same variable as the outer scope.  When using the 'local' keyword, the variable with the same name from the outer scope is not available.  Any variable declared in a scope does not 
+exist outside that scope and it's safe to reuse the name.
+
+Beware:  For the purposes of scoping, function parameters are considered local variables.  Using global variables instead will save some ram bytes.
+
+----------------------
+. Evading the Gameboy Sprite RAM Bug
+----------------------
+Due to a bug in the GB hardware, these commands cause junk to be written to sprite ram when the 16-bit register contains a sprite ram address. (FE00-FEFF)
+
+ldi a,(hl)
+ldi (hl),a
+ldd a,(hl)
+ldd (hl),a
+inc rr (bc,de,hl)
+dec rr (bc,de,hl)
+
+To avoid this glitch, the high byte of a register pair (b,d,h) must not contain $FE for any reason.  c,e or l will always be used as a loop counter.  This bug does not apply to Gameboy Color.
+
+-----------------------------------
+Mid-level compilation:  A Note on Noism Pseudo-Assembly
+-----------------------------------
+
+Noism immediately compiles to a pseudo-asm syntax roughly modeled on 6502 and GBZ80.  This syntax is then converted line-by-line into asm for the target cpu.  This not only makes it easier to write the asm output backend and get basic syntactical features to work, it allows writing modules for different cpus.
+
+This information is mainly for anyone who might want to check the compiler source.  There will not be a feature that allows writing code in Noism assembly, because each instruction also stores the scope where the variable was declared.
+
+Registers
+---------
+r - Basic arithmetic register.
+
+t - Temporary register.  Mainly to save the contents of 'r' for parenthetical operations.  Can be used as an operand on arithmetic operations.  
+
+c - Comparison register.  For compare statements that include arithmetic, this saves the result of the left-hand side.
+
+i - Index register.  Works exactly like the X and Y registers of 6502.
+
+Operations and addressing modes
+-------------------------------
+
+Load register
+	ldr r,var
+	ldr var,r
+	ldr i,index_var
+	
+Add w/o carry
+	add r,var
+	add r,#1
+	
+Add w/ carry
+	adc r,var
+	adc r,#1
+	
+Sub w/o borrow
+	sub r,var
+	sub r,#1
+	
+Sub w/ borrow
+	sbb r,var
+	sbb r,#1
+	
+Increment register/memory
+	inc i
+	
+Decrement register/memory
+	dec i
+	
+Shift left
+	shl r,2
+	
+Shift right
+	shr r,1
+	
+The load instruction, the arithmetic and branch instructions are compatible with indexed addressing modes, direct and indirect.
+
+	ldr r,[var+i]
+	ldr [var+i],r
+	ldr r,var+i
+	ldr var+i,r
+	
+Push register on stack
+	pur i
+	
+Pull register from stack
+	plr i
+	
+Branch instructions (Compare instruction is implied)
+	blt r,#5,Label		Branch if r < value
+	bgt						  r > value
+	ble						  r <= value
+	bge						  r >= value
+	beq						  r == value
+	bne						  r != value
+	
+Jump to memory address
+	jmp Label
+
+Call subroutine
+	cas Label
+	
+Return from subroutine
+	ret
+
+
+
+
+
+
+

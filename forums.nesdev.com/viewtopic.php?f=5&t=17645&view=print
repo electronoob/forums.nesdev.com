@@ -1,0 +1,144 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Networking, Threads, and Multiplayer</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Networking, Threads, and Multiplayer</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=5&amp;t=17645">http://forums.nesdev.com/viewtopic.php?f=5&amp;t=17645</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>never-obsolete</b> [ Wed Aug 08, 2018 11:13 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Networking, Threads, and Multiplayer</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I've been reading up on both topics lately and was able to make a simple client-server chat program. Now I want to take this idea and extend it to a co-op game with both local and network support. For now, I'm just going to extend my original program to allow for multiple clients to join the server and respond in real time rather than the back and forth messaging it currently has.<br /><br />If I understand the general concept correctly:<br /><br />Server<br /> -has 1 thread watching for new and lost connections<br /> -when a user connects, create a new thread with a socket connected to the client<br /> -when a lost connection is found, the main thread will kill that client's thread and remove them from the list of clients<br /> <br />Client<br /> -has 1 thread that just sends and receives messages<br /><br /><br />Where would the server handle broadcasting messages it receives from one client to the others? The main thread, the thread it received the message from, or would it need a separate thread just for this?<br /><br />In the case of a game, a person joining would have 2 threads, one for the gameplay and the other for the client (assuming audio/video/simulation was all handled in one thread). Would the host have 3 (main, server, client)?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>3gengames</b> [ Wed Aug 08, 2018 12:27 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Networking, Threads, and Multiplayer</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I have experience in writing full client/server code in C, and handling everything manually. My takeaways when I was done were:<br /><br /><br /><br />The server I wrote was authoritative, it made it much easier, albeit this will not work well for games. All clients &quot;ask&quot; for what they need to be done. The client then sits on the message until it gets told it's accepted, it applies it locally, and then it queues more messages, or waits for other messages from the server. The downfall is it won't work well for multiplayer games, you would need something that can send and receive states at multiple times away from the last state and apply them accordingly. For this I'd recommend reading up on Valve's multiplayer/game networking they have on their wiki, it's a great read and will show you how they do it and I'd say your best bet is to try to apply what they do, just on a smaller scale. They basically send the full state back and forth, accounting for travel time and where it predicts other players to be, and it works very well as CSGO shows.<br /><br /><br /><br />Detecting connections dropping is very easy if you don't rely on the OS to do it. If you haven't communicated any data with the server in a few seconds (I used 3 seconds myself) then you send out a keep-alive to it. The server sees the message, and then sends a keep-alive packet back in response. The client never replies to it, only the server. Behind the scenes in the networking code, you're actually resetting a timer on that connection of the last communicated time. The idea for this is to fail out quickly by knowing if you were supposed to get *some* data from *somewhere*. If you don't get a reply, you drop the connection assuming the server never got it, and then try to reconnect after that. The server does the same if it doesn't get your messages. The keep-alive helped not wait for an awfully long timeout that the OS gives the connection. If you're in a multiplayer game, basically, you'll never even need to send the keep-alive packets because you'll always be communicating state information. Only when the server client talking goes low will it need to be sending the keep-alives.<br /><br /><br /><br />Lastly, to relay the message, the server has to do just that. It has to see it's a chat message and add it to the queue of packets to send to all others.<br /><br />Client Messages -&gt; Server.<br /><br />Server-&gt;Tells the client it is has accepted the packet or something like that.<br /><br />Server-&gt;Relays to all other clients with the message inside.<br /><br /><br /><br />Also the program I wrote ran on Raspberry Pi's. You don't have to worry about threads, as long as you don't block on the IO read from the network or something like that, you can write it all in one thread as my program performs fast on even those low powered computers.<br /><br /><br />If you are writing the code in C on Linux, let me know, I can help you and give you my code that does this. The connection code and socket handling isn't hard and seems like the worst part, but the biggest part of my program was processing the information and applying multiple packet types and state changes from many clients at once and keeping all the clients straight on what their state should be.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

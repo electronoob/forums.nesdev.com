@@ -1,0 +1,458 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Use APU Frame IRQ to run sound engine twice as fast ?</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Use APU Frame IRQ to run sound engine twice as fast ?</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=8911">http://forums.nesdev.com/viewtopic.php?f=2&amp;t=8911</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Sat May 19, 2012 1:59 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Use APU Frame IRQ to run sound engine twice as fast ?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Everything is in the title.
+<br />
+<br />My idea is simple, since updating sound engine at only 60Hz or 50Hz is not really a nice thing if you want fast effects. Update at 120Hz or 100Hz however sounds quite a lot better. The first idea that comes to mind is to use the NMI for every other update, as we're used to, but use another IRQ that would come aprox. in the middle of a frame for an additional update.
+<br />
+<br />It's of course possible to use IRQ from a mapper, but this requires a mapper with IRQ, and it can be a problem.
+<br />Mappers with a CPU cycle IRQ (like the FME-7 and the FDS) could even get rid of the update during NMI and update the sound engine at any rate you'd like.
+<br />
+<br />Since the APU Frame IRQ runs at a frequency close to the VBlank it would make sense to find a way to have both of them synced so that the frame IRQ happens almost at the middle between two VBlanks.
+<br />
+<br />Of course the thing will eventually get out of sync, so "re-syncing" will be needed once in a while. But I have no idea how this "re-syncing" should be done, which is why I'm discussing it in this thread.
+<br />
+<br />If such a thing is not possible then I guess the only option for updating music more often without using a mapper is to abuse DMC IRQ, which of course will only work for music that don't use DMC.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bananmos</b> [ Sat May 19, 2012 2:17 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />The problem with this is that (at least on the PAL console I tried it on many years back), the time length between frame IRQs is slightly longer than the time lengths between NMIs. 
+<br />
+<br />That means that everytime you try to re-sync it in your IRQ handler, it is already too late since the next IRQ will occur slightly later than the previous one, causing the time when frame IRQ occurs to move closer and closer to the NMI point after each time.
+<br />
+<br />To get 120Hz/100Hz, you're probably better off using a sprite #0 hit as the second update point.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Sat May 19, 2012 2:21 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />The problem with sprite #0 hits is that the CPU must poll the $2002 register at the right time, and this can be a huge problem if you want most of your CPU used for gameplay. This might be ok for some sort of demo or for simple games where you can get away with only half of the CPU time used...
+<br />
+<br />I think if you use frame IRQ and waste half of the frame for re-syncing only once in a while (for example every 10 frames) it might be an acceptable lag during gameplay.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Shiru</b> [ Sat May 19, 2012 2:42 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I wonder if it is possible to resync the IRQ every NMI. This way it would have something like fixed 0.6:0.4 ratio, which is acceptable.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Drag</b> [ Sat May 19, 2012 4:53 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Why not just use the DMC IRQ, by itself, to call your music engine? Does it really <em>need</em> to run in the NMI? Plus, you'd have instant compatibility across NTSC and PAL. (Well, tempo-wise, anyway)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Shiru</b> [ Sun May 20, 2012 2:17 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />It needs to not be called right in the middle of vblank. I guess it is quite possible that DMC IRQ could be triggered right before the vblank, and music players usually take time comparable with the vblank itself - so subsequent NMI will simply have no time to work with VRAM.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Sun May 20, 2012 3:27 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />No, no problem would arise, as NMI are allowed to happen during an IRQ routine (so the music engine that was triggered just before the VBlank would get interrupted), and IRQs are not allowed to happen during NMIs by default, as the I flag is set when an NMI happens, therfore, the VRAM updates or whathever there is in the NMI won't get interrupted, unless you place a "cli" instruction which of course you won't.
+<br />
+<br />The only problem with DMC IRQ, is that it'd be hard to predict at which rate exactly the music engine would run, but basically I agree it's fundamentally a great idea to run the engine faster (no matter how much faster) without a mapper.
+<br />Also it will only work for music that doesn't use DMC obviously.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>LocalH</b> [ Sun May 20, 2012 9:54 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Bregalad wrote:</div><div class="quotecontent">The problem with sprite #0 hits is that the CPU must poll the $2002 register at the right time, and this can be a huge problem if you want most of your CPU used for gameplay. This might be ok for some sort of demo or for simple games where you can get away with only half of the CPU time used...<br /><br />I think if you use frame IRQ and waste half of the frame for re-syncing only once in a while (for example every 10 frames) it might be an acceptable lag during gameplay.</div>
+<br />Depending on how your game logic is structured, you could use NMI to handle the normal vblank processing and call the music player once, run part of your game logic (roughly a bit less than half the frame, if it takes that long), use sprite 0 hit and burn a few lines polling $2002, call the music player a second time, then finish your game logic. This assumes, of course, that the first half of the game logic will never overrun the time you have allotted it before the sprite 0 hit. Luckily, the exact point of the second player call is not set in stone, as long as it's somewhat close to halfway between vblanks then it will sound ok.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Sun May 20, 2012 12:23 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">LocalH wrote:</div><div class="quotecontent">use sprite 0 hit and burn a few lines polling $2002</div>
+<br />Sprite 0 hits are terrible for this, not only because breaking your game logic in two requires wasting lots of cycles in idle loops, but also because it severely restricts the kind of scrolling you can use.
+<br />
+<br />Vertical scrolling and sprite 0 hits really don't go well with each other, because the solid line/tile/whatever responsible for causing the hit will keep moving up and down... also, these solid background pixels aren't in a status bar, they'll also move left and right.
+<br />
+<br />So, in order to effectively cause a sprite hit in the middle of the screen you have to manually move a stray solid tile in the background as the screen scrolls. Not very clean and might even cause visual glitches.
+<br />
+<br />Seriously, sprite 0 hits sucks for anything other than status bars at the top of the screen.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Drag</b> [ Mon May 21, 2012 9:59 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Shiru wrote:</div><div class="quotecontent">It needs to not be called right in the middle of vblank. I guess it is quite possible that DMC IRQ could be triggered right before the vblank, and music players usually take time comparable with the vblank itself - so subsequent NMI will simply have no time to work with VRAM.</div>
+<br />
+<br />NMIs take priority over IRQs. Any kind of IRQ will set the I flag, but only regular IRQs are inhibited by the I flag; NMIs will still interrupt the CPU regardless of the I flag (hence the name "<span style="text-decoration: underline">n</span>on-<span style="text-decoration: underline">m</span>askable" <span style="text-decoration: underline">i</span>nterrupt). So, the vblank NMI will interrupt your IRQ routine, but the DMC IRQ will <em>never</em> interrupt your NMI routine.
+<br />
+<br />When the DMC generates an IRQ, it will continually assert the IRQ line of the CPU until you acknowledge it by writing to $4015. So, if a DMC IRQ happens in the middle of your NMI routine, the CPU doesn't actually interrupt until you RTI out of your NMI routine, because only then is the I flag cleared, and only then will the CPU see that the IRQ line is being asserted.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>infiniteneslives</b> [ Mon May 21, 2012 11:58 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Sounds like it's more hassle than it's worth to not make use of a mapper with IRQ capability IMO.
+<br />
+<br />It's cheaper than I'm guessing you think.  A (EDIT $2.25) CPLD has enough logic for a MMC3 style IRQ and should have room to spare for simple discrete style mapper.  If you want me to test a specific setup let me know.
+<br />
+<br />I know it would be a new mapper and all, and requires skills to make a prototype and such.  But knowing how cheap it is to implement I thought it would be worth sharing.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Drag</b> [ Tue May 22, 2012 10:16 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">infiniteneslives wrote:</div><div class="quotecontent">Sounds like it's more hassle than it's worth to not make use of a mapper with IRQ capability IMO.</div>
+<br />There's no hassle, you literally put your JSR PlayMusic inside your IRQ routine and turn DMC interrupts on. That's all you need to do.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Tue May 22, 2012 12:18 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Yes, along with some teaking with DMC and $4015 read/writes to keep it working.
+<br />
+<br />The only problem I see again is to know how exacly often your music engine will update, the tempo might be a little random but that's a small price to pay to be able to run it as fast as you want without any mappers.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Shiru</b> [ Tue May 22, 2012 12:23 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />With NMI being able to interrupt IRQ I would worry about NMI that happens right in the middle of registers write, when the APU stays in an undefined state (like, channel frequency is changed but volume is not changed yet) during NMI time. Should be not too bad, but I guess it could be more noticeable than the tempo flow.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Tue May 22, 2012 2:22 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Well, if the NMI suspends the IRQ until it's over, if your NMI routine is a consistent length, and if you can get the DPCM to trigger its IRQ anywhere in the middle of it (seems like a nice wide target), it'll automatically get synched with the end of the NMI every frame. You should be able to get two updates per frame in very reliably (though one of the updates might be slightly longer; probably this is fine).
+<br />
+<br />Might take a little care to get the first frame's IRQ aligned properly, but once you catch the first DPCM IRQ in your NMI it should be stable afterward.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

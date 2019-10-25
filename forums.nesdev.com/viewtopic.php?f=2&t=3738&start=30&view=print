@@ -1,0 +1,494 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Question about bank switching CHR data from PRG RAM</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Question about bank switching CHR data from PRG RAM</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=3738">http://forums.nesdev.com/viewtopic.php?f=2&amp;t=3738</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>3</strong> of <strong>4</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>strangenesfreak</b> [ Fri Nov 30, 2007 7:16 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I had a little weird, but maybe workable, idea for a PowerPak mapper that could allow the CPU to access the CHR RAM when rendering is off:
+<br />
+<br />
+<br />When rendering is off (or during VBlank), to make direct writes, the CPU could set up registers for bits A0-A2 and A10-A18 (since according to dvdmth, those are the only bits of the CHR RAM directly available to the FPGA).  Since the CHR RAM apparently gets its other bits (A3-A9) from the PPU's address bus, those bits must be updated through the PPU's native address register ($2006).
+<br />
+<br />
+<br />A crazy idea I had was to have the mapper hijack sprite DMA transfers and project writes to the CHR RAM, FRAM, extra RAM - this can be up to 2KB, according to the synthesis reports from the development kit - from the custom mapper.  Note that this goes with if the assumption that the DMA data writes do show up on the CPU's data bus - if this is incorrect, please correct me and if you like, skip to the last paragraph.
+<br />
+<br />In the extra RAM, there would be space for 2-byte words for each of the 256 bytes for each of a couple of transfers.  For CHR RAM, these words would utilize 12 bits to represent bits A0-A2 and A10-A18 - PPU reg $2006 would set bits A3-A9, but they would need to be fixed for the transfer.  In FRAM and exRAM modes, these words would represent the whole address.  There would be extra bits in each word to determine whether to take the previous address and increase by 1, take it and increase by 32 (like the column increase mode in PPU reg $2000), or switch to a different address.  A consequence of this is that if you don't need to update sprites - but you are still rendering sprites AND need to do those special transfers, you must run sprite DMA to update the sprites anyway. 
+<br />
+<br />
+<br />A pseudo-HDMA during rendering could also be done for FRAM (if it is accessed by the PPU) - for each of the 18 garbage reads per scanline, a byte can be transfered, allowing for up to 18 bytes to be transfered per scanline.  The bytes would be loaded off from the exRAM.  But I have a feeling that unfortunately, CHR RAM cannot be written easily like this - the game would need to update $2006 during exact locations in the scanline - and that would not be very pretty.  Such theoretical CHR RAM writes would mean that only one byte could be transfered for every 4 PPU cycles of garbage reads (since 1 CPU cycle is 3 PPU cycles).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Sat Dec 01, 2007 7:30 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I don't undestand all of what you are saying, however, keep in mind that CHRRRAM is only writable and readable by the PPU itself. During rendering, the PPU will read the CHRRAM (and name tables, attribute tables, etc...) via it's PPU bus, so all those devices are unacessible by the CPU and by the mapper no matter what.
+<br />Sprite DMA performs 256 reads on the CPU bus (not the PPU bus), and the destination is OAM and cannot be changed. Only the source can be changed.
+<br />
+<br />Pseudo-HDMA as you mention is just not possible, the only thing you can do from the cartridge slot during rendering is basically bankswitching stuff. The only possible effect is to bankswitch things automatically very fast to simulate things, or possibly to replace the CHRR ROM/RAM with other stuff that could give other graphics, etc... You could do a mapper that could count the scanlines and automatically bankswitch CHRROM at a certain point, or even midscanline (that's what the MMC5 does in fact). However you cannot change scrolling or anything by hardware, software must operate this.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Sat Dec 01, 2007 8:41 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Bregalad wrote:</div><div class="quotecontent">I don't undestand all of what you are saying, however, keep in mind that CHRRRAM is only writable and readable by the PPU itself. During rendering, the PPU will read the CHRRAM (and name tables, attribute tables, etc...) via it's PPU bus</div>
+<br />During vblank, does the PPU drive the CHR address bus, or does it put the lines in high-Z?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>strangenesfreak</b> [ Sat Dec 01, 2007 9:34 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Sorry if I sounded too confusing - I'll try to clarify some of the ideas - but it may overall be more or less confusing  <img src="./images/smilies/icon_confused.gif" alt=":?" title="Confused" /> :
+<br />
+<br />XRAM would theoretically be extra 2KB of RAM inside the FPGA - the FPGA the PowerPak uses can use up to 6KB of extra RAM.  FRAM only uses 4KB of that 6KB, so an extra 2KB defined in the custom mapper schematics is possible.
+<br />
+<br />For the SpriteDMA hijacks, the mapper would watch for writes to $4014 to know that SpriteDMA is about to happen - allowing the mapper to make an accurate prediction.  Based on this prediction, the mapper will take each byte read by the transfer (readable from the CPU's data bus), read a word from an address look-up table inside XRAM, and write to the address specified.  Because of how the PowerPak's CHR RAM A lines work, certain bits must be fixed for the transfers to CHR RAM.  Technically, the sprite DMA tranfers do update the sprites with irrelevant data - that's why once you're done with these special transfers, you need to do a real sprite DMA transfer.  Of course, the mapper will be told whether to or not to hijack the reads from the data bus.
+<br />
+<br />As for pseudo-HDMA, I thought of this based on the fact that there are 18 useless nametable reads in every scanline - so it doesn't really matter what the PPU is accessing during those reads.  If FRAM is used by the PPU (for nametables or extra attributes), the mapper could read from XRAM and write to the FRAM directly.
+<br />
+<br />Bregalad, I think you might be thinking that this is trying to allow the CPU to write to PPU directly or vice verca - but I intended for these ideas to have the mapper write directly to the in-cartridge chips the PPU uses - not through the PPU itself.  Although, this would not allow the mapper to write to the PPU's internal 2KB VRAM.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Sat Dec 01, 2007 10:26 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I think I understand part of your original post. If you want to do your idea justice, give it a chance to be understood by going <em>slowly</em>, first describing the goal, then how it achieves that. What I understand is that you want to increase the amount of VRAM that can be modified during vblank, using a custom mapper. You observed that a sprite DMA transfer is able to copy 256 bytes in 512 CPU clocks, something the CPU could never dream of normally. You say that during the write portion of the sprite DMA transfer, the PPU is only driving a few of the address lines, so a custom mapper could perhaps drive the other lines as it pleased, and somehow write to CHR RAM during that time. I don't really grasp the idea, since surely the entire CHR address bus is driven, and the read/write lines deasserted. I would have figured you could just have a custom mapper write to CHR RAM as it pleased during vblank, since I don't think the PPU is accessing it at all then.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>strangenesfreak</b> [ Sat Dec 01, 2007 10:37 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">blargg wrote:</div><div class="quotecontent">I don't really grasp the idea, since surely the entire CHR address bus is driven, and the read/write lines deasserted.</div><br />If you mean CHR address bus as in the CHR RAM chip's address bus, apparently, not all of the lines are directly available within the FPGA:<br /><br /><div class="quotetitle">dvdmth wrote:</div><div class="quotecontent">while the CHR gets A3-A9 from the PPU directly (with A0-A2 and A10-A18 coming from the FPGA)</div>
+<br />
+<br />And IIRC, the PPU's own address bus is readable only... :/
+<br />
+<br />BTW, thank you for the advice regarding explanation.  It's pretty good.  <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" />
+<br />
+<br />I'll try to make my explanation much clearer:
+<br />
+<br />
+<br /><strong>DMA Transfers:</strong>  The goal for this is to transfer data to CHR RAM and FRAM much faster than writing manually.  The NES's own Sprite DMA register reads 256 bytes for writing to OAM in only 512 cycles.  A mapper could take advantage of this and have the register indirectly write to CHR RAM and FRAM as well.
+<br />
+<br />Some of the important components needed for this mapper include - a CPU clock timer, an address bus and data bus latcher, and extra 2KB internal RAM (hereby called XRAM).
+<br />
+<br />The mapper must watch for writes to the register - $4014 - by watching the address bus and CPU R/W signal.  Once it detects it, it will wait for the actual write to $4014 to finish.  Then, it will read off the bytes transfered by reading on every odd cycle of the transfer.  The mapper would do this by using a CPU clock timer and reading off the data bus.
+<br />
+<br />To write the byte read from the CPU, it must get the address to write to.  The mapper does this by reading off 2-byte words from XRAM.  These words determine the address written.  They also have a special format as to whether to increase the previous address or to directly set a new address.  
+<br />
+<br /><strong>Note for CHR RAM Transfers only:</strong>  Because of how the CHR RAM's address lines on the FPGA work, some of the bits must be set by PPU reg $2006 - those bits are fixed throughout the whole transfer.
+<br />
+<br />Once it gets the word, it can write to CHR RAM or FRAM by requesting a write through the address bus + data bus input + write signals of the chip.
+<br />
+<br />Of course, there would be a way to turn on or off the behavior with a simple register.  If sprite rendering is needed, the program must conserve the sprites by turning off the mapper's behavior and doing a normal sprite DMA transfer.
+<br />
+<br />
+<br />As for the program simply directly writing to CHR RAM as it wanted to, I think that would be a simple register set - a mapper's address register to set most of the bits, $2006 to set the other bits, and a mapper's data register.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>kyuusaku</b> [ Sat Dec 01, 2007 11:03 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Since you can't freely control the address lines with the PPU driving them it won't work :( It's a shame the PPU lines aren't Hi-Z since then a FIFO-DMA mapper would be possible which in many ways is even better than CPU DMA. FIFO DMA is still available for VRAM inside the FPGA though :)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>strangenesfreak</b> [ Sat Dec 01, 2007 11:38 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">kyuusaku wrote:</div><div class="quotecontent">Since you can't freely control the address lines with the PPU driving them it won't work <img src="./images/smilies/icon_sad.gif" alt=":(" title="Sad" /></div>
+<br />Is this all caused on the whole PCB?  If not, couldn't the schematics and the other files for the FPGA be changed around a bit?  While apparently, some of the CHR RAM address lines don't even touch the FPGA directly, maybe changing around the FPGA's files could make the address lines that <em>are</em> available to the FPGA more flexible to use.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>kyuusaku</b> [ Sat Dec 01, 2007 1:21 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />The problem is on the NES' side, not the PowerPak
+<br />
+<br />Even with address trickery you can't use the FPGA to much extent without reworking since since 13 bits are necessary to address 8KiB and the FPGA only connects to 9 bits. To control the low bits, you'll always have to use $2006 unless you want to add more A lines to the FPGA and fight the PPU.
+<br />
+<br />If you're going to rework the PCB, you could put a tri-states on the A and D bus between the CHR RAM and NES. If you connected up the rest of the A lines to the FPGA too you could do almost anything :D I dunno where you'll find the I/O though.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>strangenesfreak</b> [ Sat Dec 01, 2007 2:47 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Technically, the FPGA connects to 13 bits, but not in the way to support 8KB, though - bits A10-A18 are missing and supposedly utilizes the PPU's bus on the PCB.
+<br />
+<br />I do have a question regarding a few of the CHR RAM pins that <em>are</em> connected to the FPGA - 
+<br />
+<br />Why are pins A0-A2 and A10-A11 pretty weird?  I can sort of understand about A10 - based on how it's connected to "crama10" it seems to be involved in the NES bus's CIRAM A10 signal.  But A11 is connected to "crama11" - where does this come from?  I do sort of understand A0-A2; I think they're buffers from the PPU bus in addition to A10-A18 on the PCB.  I am still curious why only these pins (A0-A2 and A10-A11) are clocked off of the NES's main CLK, while the others available on the FPGA (A12-A18) aren't.
+<br />
+<br />
+<br />It also seems to look like we're only talking about FIFO-DMA - what about the pseudo-HDMA?  Is that possible?  If that needs to be clarified better:
+<br />
+<br /><strong>Pseudo-HDMA:</strong>  The goal of this is to allow bytes from memory being accessed by the PPU to be transfered during rendered scanlines - similar to the SNES's HDMA.  Because of the problems with CHR RAM address lines, this will only concern VRAM within the FPGA.
+<br />
+<br />The concept of this is based on how there are 18 garbage nametable reads (36 PPU cycles) and 1 resting PPU cycle per scanline.  Therefore, writes accessing even FPGA-VRAM can be made during those 36 PPU cycles.
+<br />
+<br />For NESes only, there are at most 148 bytes that can be transfered per scanline.  This is because the NES has the NES_CLK available on the cart bus - since that is 4 times faster than the PPU's clock, that would allow for 4 bytes per PPU cycle - with 37 PPU cycles, that would mean 148 bytes.
+<br />
+<br />However, unless you use some NES-to-Fami converter that happened to have the NES_CLK crystal, this would not work with Famicoms because they don't have NES_CLK.  That would reduce the maximum number of bytes per scanline to 18 bytes per scanline - Famicom carts can still clock off the PPU /RD signal to keep track of the garbage memory accesses - but it cannot track down the resting cycle.
+<br />
+<br />There would be a timer clocked off from - either NES_CLK (for NESes only) or PPU /RD.  To determine what to clock off from, the mapper will watch $2002 reads for the VBlank bit to be set.  Once it sees it set ASAP, it can start clocking off its timer to sync with the PPU.
+<br />
+<br />The bytes to read off would be from extra RAM internal to the FPGA (not FRAM).  There would be 4 scanline entries for each transfer - an entry per scanline wouldn't fit in the 2KB.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>kyuusaku</b> [ Sat Dec 01, 2007 4:08 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">strangenesfreak wrote:</div><div class="quotecontent">Technically, the FPGA connects to 13 bits, but not in the way to support 8KB, though - bits A10-A18 are missing and supposedly utilizes the PPU's bus on the PCB.</div><br />If there's 13 bits connected, you can control 8KiB worth of data, just not linearly. Unfortunately this means you'll need a crazy algorithm to write $2006 and the FPGA to get your data into the RAM at the right locations. I think this would be so confusing and slowed down by CPU writes that it'd be very hard to optimize for better performance than a normal CHR RAM games heh.<br /><br /><div class="quotetitle">strangenesfreak wrote:</div><div class="quotecontent">It also seems to look like we're only talking about FIFO-DMA - what about the pseudo-HDMA?  Is that possible?</div><br />It's possible if you write to a FPGA register after a NMI which counts until a particular Hblank. But you since you're limited to DMAing to VRAM, would it be worth it?<br /><br /><div class="quotetitle">strangenesfreak wrote:</div><div class="quotecontent">For NESes only, there are at most 148 bytes that can be transfered per scanline.  This is because the NES has the NES_CLK available on the cart bus - since that is 4 times faster than the PPU's clock, that would allow for 4 bytes per PPU cycle - with 37 PPU cycles, that would mean 148 bytes.<br /></div>
+<br />Why not use the  PowerPak's 20MHz clock instead? It's only ~1 MHz less than "NES_CLK" and "NES_CLK" isn't necessarily in phase with M2 anyway.
+<br />
+<br />
+<br />It sounds like you've got it all worked out, give it a try and show us something cool!
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>strangenesfreak</b> [ Sat Dec 01, 2007 4:46 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I don't have a PowerPak yet - maybe until Christmas or my birthday...but I might want to try create a mapper anyway, heh  <img src="./images/smilies/icon_razz.gif" alt=":P" title="Razz" />
+<br />
+<br />Where's the PowerPak's own clock, though?  I can't see it anywhere for some reason...
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>kyuusaku</b> [ Sat Dec 01, 2007 4:50 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Can't tell you since I don't have ISE installed but it's there-- it's what clocks the block RAM.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>strangenesfreak</b> [ Sat Dec 01, 2007 4:54 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I assume you are referring to FRAM...I checked the schematics and it appears that it's clocked by "nesclk".  However, it's really strange, because for the symbol definition and schematics for FRAM, the clock is labeled "m2", but "nesclk" is being fed into "m2" for the FRAM symbol...but either way, I think it uses one of the NES's clocks and not a PowerPak internal clock.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>kyuusaku</b> [ Sat Dec 01, 2007 10:00 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />It's the 20MHz oscillator because I don't have NES, only FC.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>3</strong> of <strong>4</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

@@ -1,0 +1,186 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - blargg's Branch Timing Test</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">blargg's Branch Timing Test</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=3&amp;t=10707">http://forums.nesdev.com/viewtopic.php?f=3&amp;t=10707</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>WedNESday</b> [ Thu Nov 21, 2013 7:22 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>blargg's Branch Timing Test</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />In regards to 2-branch_timing.nes, all I get are 64 0's printed across the screen and an error message.<br /><br />I've tested my branch code manually and its branching and timing are perfect (even the dummy read on the 4th cycle).<br /><br />Can anybody (pref. blargg) explain to me how the test works?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Thu Nov 21, 2013 12:34 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: blargg's Branch Timing Test</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Any timing test must use some kind of timer, so if your branches are flawless, then it's probably the timer.<br /><br />Looking at source/2-branch_timing.s:<br /><br />; Verifies timing of branch instructions<br />;<br />; Runs branch instruction in loop that counts iterations<br />; until APU length counter expires. Moves the loop around<br />; in memory to trigger page cross/no cross cases.<br /><br />So it uses the APU's length counter to do the timing. Searching for APU yields this:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp; ; Synchronize with APU length counter<br />&nbsp; &nbsp; setb SNDMODE,$40<br />&nbsp; &nbsp; setb SNDCHN,$01<br />&nbsp; &nbsp; setb $4000,$10<br />&nbsp; &nbsp; setb $4001,$7F<br />&nbsp; &nbsp; setb $4002,$FF<br />&nbsp; &nbsp; setb $4003,$18<br />&nbsp; &nbsp; lda #$01<br />:&nbsp; &nbsp;and SNDCHN<br />&nbsp; &nbsp; bne :-<br /></div><br />setb, what's that? There's a readme.txt in the source/ directory:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">Macros<br />------<br />Some macros are used to make common operations more convenient, defined<br />in common/macros.inc. The left is equivalent to the right:<br /><br />&nbsp; &nbsp; Macro&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;Equivalent<br />&nbsp; &nbsp; - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - <br />...<br />&nbsp; &nbsp; <br />&nbsp; &nbsp; setb addr,byte&nbsp; &nbsp; &nbsp; lda #byte<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; sta addr<br /></div><br />Then it does the length counter setup described above, runs the instruction, and converts the number of iterations the branch loop ran to a cycle count:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp; ; Setup length counter<br />&nbsp; &nbsp; setb $4003,$18<br />&nbsp; &nbsp; <br />&nbsp; &nbsp; delay 29830-7120<br />&nbsp; &nbsp; <br />&nbsp; &nbsp; ; Run instruction<br />&nbsp; &nbsp; setb temp,0<br />&nbsp; &nbsp; pla<br />&nbsp; &nbsp; jmp (addr)<br />&nbsp; &nbsp; <br />raw_to_cycles: ; entry i is lowest value that qualifies for i cycles<br />&nbsp; &nbsp; .byte 250, 241, 233, 226, 219, 213, 206, 201, 195, 190, 0<br /><br />; Jumps here when instruction has been timed<br />instr_done:<br />&nbsp; &nbsp; ; Convert iteration count to cycle count<br />&nbsp; &nbsp; lda temp<br />&nbsp; &nbsp; ldy #-1<br />:&nbsp; &nbsp;iny<br />&nbsp; &nbsp; cmp raw_to_cycles,y<br />&nbsp; &nbsp; blt :-<br /></div><br /><br />So your APU length counter handling might be wrong.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>WedNESday</b> [ Thu Nov 21, 2013 1:22 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: blargg's Branch Timing Test</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I don't yet emulate the APU timer so that must be it, thanks.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Thu Nov 21, 2013 4:10 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: blargg's Branch Timing Test</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />The length counter for a sound channel? It doesn't use the APU frame interrupt or anything like that.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=9&amp;t=16954" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2018-01-18T06:21:29-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=9&amp;t=16954</id>
+<entry>
+<author><name><![CDATA[zxbdragon]]></name></author>
+<updated>2018-01-18T06:21:29-07:00</updated>
+<published>2018-01-18T06:21:29-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=16954&amp;p=211962#p211962</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=16954&amp;p=211962#p211962"/>
+<title type="html"><![CDATA[PCB 76IN1 128K UNROM+same games. Mapper 281 ROM~]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=16954&amp;p=211962#p211962"><![CDATA[
+感谢:krzysiobal<br /><img src="https://obrazki.elektroda.pl/2370085100_1515964049.png" alt="Image" /><br /><img src="https://obrazki.elektroda.pl/5988208200_1515964051.png" alt="Image" /><br /><img src="https://obrazki.elektroda.pl/4616655800_1515964072.png" alt="Image" /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">PRG-ROM: 512 kB (hovewer A19 is wired to the EPROM)<br />CHR-RAM:  8 kB<br /><br />&#91;mvPP .P..&#93; 74*174: $8000-$bfff<br /> ||||  |  <br /> ||++--+--- outer PRG (high to low: D0, D5, D4)<br /> |+-------- mode (0=16kB, 1=32kB)<br /> +--------- mirroring (0=V, 1=H)<br /><br />&#91;.... uppp&#93; 74*161: $8000-$9fff and $c000-$dfff <br />      ||||<br />      |+++- inner PRG<br />      +---- mode (0=UNROM,1=NROM)<br />yes, it overlaps partially with previous reg, so when wring at $8000-$9fff, botch registers are updated<br /><br />Power up: both registers set to 0<br />Reset: no change<br /> <br />PRG Modes:<br /><br />uv $8000  $bfff<br />----------------<br />00 PPPppp PPP111<br />01 PPPpp0 PPP111<br />10 PPPppp PPPppp<br />11 PPPpp0 PPPpp1<br />------------------------------------<br /><br />#include &quot;mapinc.h&quot;<br />   <br />static uint8 reg174, reg161;<br /><br />//shifts bit at position `from` to position `to` in expression<br />#define shi(exp, from, to) ((((exp) &gt;&gt; (from)) &amp; 1) &lt;&lt; (to))<br /><br />static SFORMAT StateRegs&#91;&#93; =<br />{<br />   { 0 }<br />};<br /><br />static void Sync(void) {<br />   int uv = shi(reg161, 3, 1) | shi(reg174, 6, 0);<br />   int PPP = shi(reg174, 0, 2) | shi(reg174, 5, 1) | shi(reg174, 4, 0);<br />   int ppp  = reg161 &amp; 0x7;<br />   <br />   switch (uv) {<br />   case 0: setprg16(0x8000, (PPP &lt;&lt; 3) | ppp); setprg16(0xc000, (PPP &lt;&lt; 3) | 7); break;<br />   case 1: setprg16(0x8000, ((PPP &lt;&lt; 3) | ppp) &amp; (~1)); setprg16(0xc000, (PPP &lt;&lt; 3) | 7); break;<br />   case 2: setprg16(0x8000, (PPP &lt;&lt; 3) | ppp); setprg16(0xc000, (PPP &lt;&lt; 3) | ppp); break;<br />   case 3: setprg32(0x8000, ((PPP &lt;&lt; 3) | ppp) &gt;&gt; 1); break;<br />   }<br />   setmirror(((reg174 &gt;&gt; 7) &amp; 1) == 0 ? MI_V : MI_H);<br />   <br />}<br /><br />static DECLFW(M281Write) {<br />   if ((A &gt;= 0x8000) &amp;&amp; (A &lt;= 0xBFFF)) {<br />      reg174 = V;<br />   }<br />   if (((A &gt;= 0x8000) &amp;&amp; (A &lt;= 0x9FFF)) || ((A &gt;= 0xC000) &amp;&amp; (A &lt;= 0xFFFF))) {<br />      reg161 = V;<br />   }<br />   Sync();<br />}<br /><br />static void M281Power(void) {<br />   setchr8(0);<br />   reg174 = reg161 = 0;<br />   SetWriteHandler(0x8000, 0xffff, M281Write);<br />   SetReadHandler(0x8000, 0xFFFF, CartBR);<br />   Sync();<br />}<br /><br />static void M281Reset(void) {<br />   Sync();<br />}<br /><br /><br />static void StateRestore(int version) {<br />   Sync();<br />}<br /><br />void Mapper281_Init(CartInfo *info) {<br />   info-&gt;Power = M281Power;<br />   info-&gt;Reset = M281Reset;<br />   <br />   GameStateRestore = StateRestore;<br /><br />   AddExState(&amp;StateRegs, ~0, 0, 0);<br />}</div><br /><br /><br /><br /><br />first pulic:<br /><!-- m --><a class="postlink" href="http://nestopia.gamemw.com/index.php/2015-06-05-01-16-54">http://nestopia.gamemw.com/index.php/20 ... 5-01-16-54</a><!-- m --><br /><br /><br />ROM:FCEUX+ROM.zip<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=5124">zxbdragon</a> — Thu Jan 18, 2018 6:21 am</p><hr />
+]]></content>
+</entry>
+</feed>

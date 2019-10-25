@@ -1,0 +1,461 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - PowerPak + Tetramino = sprite flicker</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">PowerPak + Tetramino = sprite flicker</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=9&amp;t=4647">http://forums.nesdev.com/viewtopic.php?f=9&amp;t=4647</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>4</strong> of <strong>6</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>dvdmth</b> [ Thu Dec 25, 2008 1:37 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Some clarification:
+<br />
+<br />1. If sprite 0 is the only sprite in range, then OAM $20-27 is corrupted.  Suppose sprite 1 is the only one in range.  Which sprite pair is corrupted?  If I'm reading right, you're saying that the same pair is corrupted (OAM $20-27).  Or, are you saying sprite 1 causes the same pair to be corrupted, but it's a different pair from sprite 0 (e.g. $40-47 instead)?
+<br />
+<br />2. Suppose both sprites 0 and 1 are in range.  What sprite pair gets corrupted in this case?  I want to know if the corrupted sprites (1) depends on the total number of sprites found, (2) depends on the first (or last) sprite found, or (3) is always $20-27 (provided shut-off is in the OAM scanning period mid-scanline).
+<br />
+<br />3. If none of the first six sprites are in range, there is no corruption?  Are you sure of this?  Perhaps you were shutting off the PPU before the seventh sprite was evaluated?  (I have an idea what might be causing the bug, but my idea will go out the window if only sprites 0-5 cause the problem.)
+<br />
+<br />4. What happens if $2004 is read during the first 64 cycles of the pre-render scanline?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Mon Dec 29, 2008 9:03 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><a href="http://www.pineight.com/nes/" class="postlink">Tetramino 0.33</a>: no more flicker, among numerous other changes.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>dvdmth</b> [ Sat Jan 03, 2009 11:10 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I was hoping to get answers to my questions, but oh well.  Here's my idea of what's happening.
+<br />
+<br />My theory is that the corruption is being caused by the fact that there are two different sections of OAM.  The primary OAM, which is 256 bytes, contains all 64 sprites and is ultimately what is written to during sprite DMA, etc.  Secomdary OAM is 32 bytes and contains the 8 sprites that are in range for a particular scanline.  At the start of a scanline (cycles 0-63), the sprite engine sets all bytes in secondary OAM to $FF (reading $2004 returns $FF during this period).  During cycles 64-255, primary OAM is scanned and any sprites that are in range are copied to secondary OAM.  During H-Blank (cycles 256-319), secondary OAM is scanned, and each in-range sprite is processed for display on the next scanline (CHR data is fetched, etc.).  The sprite engine is inactive from cycles 320-340.
+<br />
+<br />At the end of each scanline, the secondary OAM address will always be zero, but during a scanline (including H-Blank) this address becomes non-zero.  What I'm thinking is that if the secondary OAM address is non-zero at the time the PPU is turned off, then its address will determine which pair of sprites will be corupted at the start of the next frame.  There are 32 bytes in secondary OAM, and there are also 32 sprite pairs in primary OAM, so my guess is that if you multiply the secondary OAM address by eight, you'll get the first byte in primary OAM that gets overwritten.
+<br />
+<br />If this is the case, then turning off the PPU between cycles 64 and 255 on a line with no in-range sprites will not cause the glitch, since the secondary OAM address will stay at zero.  If there are in-range sprites, then the address will become non-zero and cause the glitch to happen.  During H-Blank, and during the first 64 cycles of each scanline, the secondary OAM address always changes whether there were sprites on that line or not.  Theoretically, the address should be zero between cycles 320 and 340, but that's probably too small of a window to be used in most applications.
+<br />
+<br />I would like to see this tested.  I hope there's a way to predict the corruption so that emulators can implement it.  Nestopia does have the recent controller read/DPCM bug implemented - maybe this is another one that could be added to that emu.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Celius</b> [ Tue Dec 21, 2010 10:15 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I understand this topic is pretty old, but I think I was having an issue related to this. The issue would -only- happen on hardware, as a result of a failed sprite #0 hit.
+<br />
+<br />In my current project, I have a status bar at the top, with a sprite #0 hit happening at pixel 31, 204. After this, the scroll is appropriately set and whatnot. In my test level, I have a part where the player can enter a cave by pressing the up button. When that happens, the "level initialize" routine is called to load the next part of the level. Since there is so much updating, I actually have to disable rendering and the NMI. This disabling of rendering was originally happening mid-frame. After that, a ton of updates would occur, and I would clear out everything but sprite #0 in my RAM page dedicated to OAM. At the end of the routine, I would wait for the next Vblank, re-enable rendering and perform a DMA transfer as well as re-enabling the NMI. The code I performed was as follows:
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp;lda #$00<br />&nbsp; &nbsp;sta $2000<br />&nbsp; &nbsp;sta $2001<br />&nbsp; &nbsp;sta Standard.$2001<br />&nbsp; &nbsp;sta Standard.$2000<br /><br />....<br />;Whole ton of PPU updates<br />....<br /><br />&nbsp; &nbsp;lda $2002&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<br />-<br />&nbsp; &nbsp;lda $2002<br />&nbsp; &nbsp;bpl -<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;lda #$1E<br />&nbsp; &nbsp;sta Standard.$2001<br />&nbsp; &nbsp;sta $2001<br /><br />&nbsp; &nbsp;lda #&gt;Game.ObjectDraw.OAMPage<br />&nbsp; &nbsp;sta $4014<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;bit $2002<br />&nbsp; &nbsp;lda #$88<br />&nbsp; &nbsp;sta Standard.$2000<br />&nbsp; &nbsp;sta $2000<br />&nbsp; &nbsp;rts<br /></div><br /><br />Interestingly enough after this routine, what sometimes happened, and what sometimes didn't, was that the screen would come up displaying my status bar, and the background below, but absolutely no game logic was being processed. I added in some native debugging features to view the contents of RAM while testing the game on the powerpak, and I noticed the stack was overflowing as a result of the game never exiting the NMI. From a little more testing, I narrowed it down to sprite #0; it was never detecting the hit.<br /><br />What was strange is I was able to see the tile used for sprite #0 hits where it was supposed to be on the screen. Also, the page I used for DMA transfers appeared normal. The only thing was, since the game logic loop wasn't able to finish up its usual game logic in time for the first execution of the NMI, PPU updates were still locked, so it wasn't performing a DMA transfer within the NMI handler (It only performed the one at the end of the level init routine).<br /><br />After hours of pulling my hair out, I noticed something that I think may be the cause of this problem. When I was disabling rendering, it was midframe, and the glitch would only happen when the player's sprite was on the scanline being rendered at the time of disabling! As I've said before, no emulator was able to recreate this behavior; it only happened on hardware. Looking at the contents of RAM, I saw absolutely nothing indicating there should not have been a sprite #0 hit when rendering was re-enabled.<br /><br />So, with that aside, what I'm wondering is how I can effectively avoid this. The first thing I did once I discovered this was wait for the NMI to disable rendering. So I replaced:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp;lda #$00<br />&nbsp; &nbsp;sta $2000<br />&nbsp; &nbsp;sta $2001<br />&nbsp; &nbsp;sta Standard.$2001<br />&nbsp; &nbsp;sta Standard.$2000<br /></div><br /><br />with<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp;lda #$00<br />&nbsp; &nbsp;sta Standard.$2001&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;;Clear virtual PPU register<br />&nbsp; &nbsp;lda Standard.VBLCount&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;;Wait for NMI; it will shut off the screen<br />-<br />&nbsp; &nbsp;cmp Standard.VBLCount<br />&nbsp; &nbsp;beq -<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;sta $2000<br />&nbsp; &nbsp;sta Standard.$2000<br /></div>
+<br />
+<br />So that the NMI handler would see that I wrote #$00 to the virtual $2001 register, and then in turn write $00 to the real $2001 register (and of course, skipping the wait for sprite #0). After that NMI is executed (which would be seen by the difference of the originally loaded VBLCount and the updated VBLCount variable), the NMI would be shut off. So all together, this code would be disabling rendering during actual Vblank, and then shutting off the NMI. Would this be an adequate solution to the bug discussed in this thread?
+<br />
+<br />Sorry if this is not enough information, or too much to make sense of. If clarification is needed, I would be happy to provide =).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Tue Dec 21, 2010 10:55 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Celius wrote:</div><div class="quotecontent">Would this be an adequate solution to the bug discussed in this thread?</div>
+<br />I think so. The whole problem is that disabling sprites while the sprite rendering logic is running causes it to act funny when they're enabled back. Since no sprites are rendered during VBlank, that seems to be a safe time to disable rendering.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Dwedit</b> [ Wed Dec 22, 2010 7:32 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Some games disable sprites for 1 scanline, then turn off the screen at the next scanline.  Is this always a safe way of doing things?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Wed Dec 22, 2010 8:15 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />As I understand it, disabling sprites and leaving the background turned on only hides the sprites. It doesn't disable the sprite rendering pipeline.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Wed Dec 22, 2010 10:40 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Yeah, and as I understand, the other way arround is true too : "disabling" background but not sprites only hides the BG, but the rendering pipeline still works as usual.
+<br />
+<br />At least I was able to toggle the BG on/off without having any problems with scrolling (with sprites on) which soft of "proofs" this.
+<br />
+<br />I guess the PPU only enters in it's "iddle" mode when both BG and sprites are hidden.
+<br />A total proof of it would be to use MMC3's scanline counter with BG or sprites (but not both) disabled and show that it works as supposed. Does any games/demoes do this ?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Celius</b> [ Wed Dec 22, 2010 10:04 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Ha, I actually used this code as I wrote above:
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp;lda #$00<br />&nbsp; &nbsp;sta Standard.$2001&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;;Clear virtual PPU register<br />&nbsp; &nbsp;lda Standard.VBLCount&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;;Wait for NMI; it will shut off the screen<br />-<br />&nbsp; &nbsp;cmp Standard.VBLCount<br />&nbsp; &nbsp;beq -<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;sta $2000<br />&nbsp; &nbsp;sta Standard.$2000<br /></div><br /><br />And noticed that very strange things were going on visually. Sometimes, my status bar would be drawn as if PPU increment 32 was on, and there would also be very strange color glitches when the second half of the level was loaded. Hmmm.... Well, it could have something to do with:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp;lda Standard.VBLCount&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;;Wait for NMI; it will shut off the screen<br />-<br />&nbsp; &nbsp;cmp Standard.VBLCount<br />&nbsp; &nbsp;beq -<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;sta $2000<br />&nbsp; &nbsp;sta Standard.$2000<br /></div>
+<br />
+<br />Because if you look, the VBL count is actually getting stored in $2000! Woops. Adding an lda #$00 before that fixed that problem right away =).
+<br />
+<br />And actually, relating to what you guys are talking about, I was curious about something. Is it not safe to do BG updates while BG rendering is disabled, but sprites are enabled?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Wed Dec 22, 2010 10:10 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Celius wrote:</div><div class="quotecontent">Is it not safe to do BG updates while BG rendering is disabled, but sprites are enabled?</div>
+<br />No, it isn't. The PPU is only free for updates if both are disabled.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Dwedit</b> [ Thu Dec 23, 2010 7:15 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Bregalad wrote:</div><div class="quotecontent">A total proof of it would be to use MMC3's scanline counter with BG or sprites (but not both) disabled and show that it works as supposed. Does any games/demoes do this ?</div>
+<br />
+<br />Chu Chu Rocket does it, when it shows a dialog box, it disables sprites, but allows background, and the IRQ to end the box happens just like it should.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Thu Dec 23, 2010 11:36 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Dwedit wrote:</div><div class="quotecontent">Chu Chu Rocket does it, when it shows a dialog box, it disables sprites, but allows background, and the IRQ to end the box happens just like it should.</div>
+<br />Have you tested with an actual MMC3 chip? Because we all know that the PowerPak can't be trusted for these things.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>thefox</b> [ Sat Feb 05, 2011 7:09 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Did any emulator ever implement this corruption behaviour?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Drag</b> [ Sat Apr 02, 2011 1:06 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I'm having a hard time following this thread, because there seems to be conflicting information.
+<br />
+<br />Just so I have it straight, disabling sprite rendering on a scanline that has sprites on it will cause the sprite flicker glitch, <em>unless</em> you disable sprite rendering sometime between pixels 64-255 within the scanline?
+<br />
+<br />Or do you have to <em>avoid</em> disabling between pixels 64-255?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Sat Apr 02, 2011 1:26 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />You have to avoid disabling while a sprite is in range, and you have to disable between x=64 and x=255. At least these rules worked for clearing up the flicker in LJ65 (formerly Tetramino).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>4</strong> of <strong>6</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

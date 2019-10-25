@@ -1,0 +1,144 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Famizork II and Nintendulator mapper DLL</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Famizork II and Nintendulator mapper DLL</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=22&amp;t=12441">http://forums.nesdev.com/viewtopic.php?f=22&amp;t=12441</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>zzo38</b> [ Sat Feb 28, 2015 1:28 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Famizork II and Nintendulator mapper DLL</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Although I have made much progress it still is not completed; once it is the full source-codes will be release by public-domain. Please you can write on here whatever comment/question/answers/complaints/etc.<br /><br />The mapper in use is <a href="http://wiki.nesdev.com/w/index.php/User:Zzo38/Mapper_I" class="postlink">User:Zzo38/Mapper I</a>; an implementation for Nintendulator (in C, not C++) is listed below. This implemention tries to emulate bus conflicts too, although I do not recommend their use. It does not attempt to consider race conditions; you should still try to avoid race conditions in a program that uses it though.<br /><br />I fixed interface.h to add the following codes immediately after the pragmas:<div class="codetitle"><b>Code:</b></div><div class="codecontent">#ifndef __cplusplus<br />typedef struct EmulatorInterface EmulatorInterface;<br />typedef struct MapperInfo MapperInfo;<br />typedef struct ROMInfo ROMInfo;<br />typedef struct DLLInfo DLLInfo;<br />typedef enum COMPAT_TYPE COMPAT_TYPE;<br />typedef enum RESET_TYPE RESET_TYPE;<br />typedef enum STATE_TYPE STATE_TYPE;<br />typedef enum CFG_TYPE CFG_TYPE;<br />typedef enum ROM_TYPE ROM_TYPE;<br />#endif</div>Maybe you should also include it into the official file too. It can then allow mapper plugins written in C rather than only C++ mapper plugins.<br /><br />Here is the implementation in Nintendulator:<div class="codetitle"><b>Code:</b></div><div class="codecontent">/*<br />&nbsp; Nintendulator mapper interface for Famizork II<br />&nbsp; This program is in the public domain.<br />*/<br /><br />#include &lt;stdlib.h&gt;<br />#include &quot;interface.h&quot;<br /><br />HWND hWnd;<br />HINSTANCE hInstance;<br />const EmulatorInterface*EMU;<br />const ROMInfo*ROM;<br />static uint16 MapperNum=380;<br /><br />static uint32 story_rom_mask;<br />static uint32 story_ram_mask;<br />static uint16 story_addr;<br />static uint8*story_ram&#91;64&#93;;<br />static uint8*story_rom&#91;64&#93;;<br />static FCPURead orig_read1;<br />static FCPURead orig_read3;<br />static FCPURead orig_read5;<br />static FCPUWrite orig_write1;<br />static FCPUWrite orig_write3;<br />static FCPUWrite orig_write5;<br /><br />static int MAPINT Read(int Bank,int Addr) {<br />&nbsp; int v=255;<br />&nbsp; switch(Bank) {<br />&nbsp; &nbsp; case 1: v=orig_read1(Bank,Addr); break;<br />&nbsp; &nbsp; case 3: v=orig_read3(Bank,Addr); break;<br />&nbsp; }<br />&nbsp; if(Addr&amp;2048) {<br />&nbsp; &nbsp; if(Addr&amp;4) {<br />&nbsp; &nbsp; &nbsp; v&amp;=story_rom&#91;((story_addr|(Addr&lt;&lt;16))&amp;story_rom_mask)&gt;&gt;12&#93;&#91;story_addr&amp;story_rom_mask&amp;0xFFF&#93;;<br />&nbsp; &nbsp; } else {<br />&nbsp; &nbsp; &nbsp; v&amp;=story_ram&#91;((story_addr|(Addr&lt;&lt;16))&amp;story_ram_mask)&gt;&gt;12&#93;&#91;story_addr&amp;story_ram_mask&amp;0xFFF&#93;;<br />&nbsp; &nbsp; }<br />&nbsp; }<br />&nbsp; if(Addr&amp;16) story_addr=(story_addr&amp;0xFF00)|(v&amp;255);<br />&nbsp; if(Addr&amp;32) story_addr=(story_addr&amp;0x00FF)|((v&amp;255)&lt;&lt;8);<br />&nbsp; return v;<br />}<br /><br />static void MAPINT Write(int Bank,int Addr,int Val) {<br />&nbsp; int v=Val&amp;255;<br />&nbsp; if(Addr&amp;2048) {<br />&nbsp; &nbsp; if(Addr&amp;4) {<br />&nbsp; &nbsp; &nbsp; v&amp;=story_rom&#91;((story_addr|(Addr&lt;&lt;16))&amp;story_rom_mask)&gt;&gt;12&#93;&#91;story_addr&amp;story_rom_mask&amp;0xFFF&#93;;<br />&nbsp; &nbsp; } else {<br />&nbsp; &nbsp; &nbsp; story_ram&#91;((story_addr|(Addr&lt;&lt;16))&amp;story_ram_mask)&gt;&gt;12&#93;&#91;story_addr&amp;story_ram_mask&amp;0xFFF&#93;=v;<br />&nbsp; &nbsp; }<br />&nbsp; }<br />&nbsp; if(Addr&amp;16) story_addr=(story_addr&amp;0xFF00)|(v&amp;255);<br />&nbsp; if(Addr&amp;32) story_addr=(story_addr&amp;0x00FF)|((v&amp;255)&lt;&lt;8);<br />&nbsp; switch(Bank) {<br />&nbsp; &nbsp; case 1: orig_write1(Bank,Addr,v); break;<br />&nbsp; &nbsp; case 3: orig_write3(Bank,Addr,v); break;<br />&nbsp; }<br />}<br /><br />static int MAPINT SaveLoad(STATE_TYPE mode,int offset,unsigned char*data) {<br />&nbsp; SAVELOAD_WORD(mode,offset,data,story_addr);<br />&nbsp; return offset;<br />}<br /><br />static BOOL MAPINT Load(void) {<br />&nbsp; return TRUE;<br />}<br /><br />static void MAPINT Reset(RESET_TYPE typ) {<br />&nbsp; int i;<br />&nbsp; if(ROM-&gt;INES_Flags&amp;1) EMU-&gt;Mirror_V(); else EMU-&gt;Mirror_H();<br />&nbsp; switch(ROM-&gt;INES_PRGSize) {<br />&nbsp; &nbsp; case 1: // 8K story + 8K interpreter<br />&nbsp; &nbsp; &nbsp; story_rom_mask=0x1FFF;<br />&nbsp; &nbsp; &nbsp; EMU-&gt;SetPRG_ROM8(0x8,1);<br />&nbsp; &nbsp; &nbsp; EMU-&gt;SetPRG_ROM8(0xA,1);<br />&nbsp; &nbsp; &nbsp; EMU-&gt;SetPRG_ROM8(0xC,1);<br />&nbsp; &nbsp; &nbsp; EMU-&gt;SetPRG_ROM8(0xE,1);<br />&nbsp; &nbsp; &nbsp; break;<br />&nbsp; &nbsp; case 2: // 16K story + 16K interpreter<br />&nbsp; &nbsp; &nbsp; story_rom_mask=0x3FFF;<br />&nbsp; &nbsp; &nbsp; EMU-&gt;SetPRG_ROM8(0x8,2);<br />&nbsp; &nbsp; &nbsp; EMU-&gt;SetPRG_ROM8(0xA,3);<br />&nbsp; &nbsp; &nbsp; EMU-&gt;SetPRG_ROM8(0xC,2);<br />&nbsp; &nbsp; &nbsp; EMU-&gt;SetPRG_ROM8(0xE,3);<br />&nbsp; &nbsp; &nbsp; break;<br />&nbsp; &nbsp; case 3: // 16K story + 32K interpreter<br />&nbsp; &nbsp; &nbsp; story_rom_mask=0x3FFF;<br />&nbsp; &nbsp; &nbsp; EMU-&gt;SetPRG_ROM8(0x8,2);<br />&nbsp; &nbsp; &nbsp; EMU-&gt;SetPRG_ROM8(0xA,3);<br />&nbsp; &nbsp; &nbsp; EMU-&gt;SetPRG_ROM8(0xC,4);<br />&nbsp; &nbsp; &nbsp; EMU-&gt;SetPRG_ROM8(0xE,5);<br />&nbsp; &nbsp; &nbsp; break;<br />&nbsp; &nbsp; case 4: // 32K story + 32K interpreter<br />&nbsp; &nbsp; &nbsp; story_rom_mask=0x7FFF;<br />&nbsp; &nbsp; &nbsp; EMU-&gt;SetPRG_ROM8(0x8,4);<br />&nbsp; &nbsp; &nbsp; EMU-&gt;SetPRG_ROM8(0xA,5);<br />&nbsp; &nbsp; &nbsp; EMU-&gt;SetPRG_ROM8(0xC,6);<br />&nbsp; &nbsp; &nbsp; EMU-&gt;SetPRG_ROM8(0xE,7);<br />&nbsp; &nbsp; &nbsp; break;<br />&nbsp; &nbsp; case 5: // 64K story + 16K interpreter<br />&nbsp; &nbsp; &nbsp; story_rom_mask=0xFFFF;<br />&nbsp; &nbsp; &nbsp; EMU-&gt;SetPRG_ROM8(0x8,8);<br />&nbsp; &nbsp; &nbsp; EMU-&gt;SetPRG_ROM8(0xA,9);<br />&nbsp; &nbsp; &nbsp; EMU-&gt;SetPRG_ROM8(0xC,8);<br />&nbsp; &nbsp; &nbsp; EMU-&gt;SetPRG_ROM8(0xE,9);<br />&nbsp; &nbsp; &nbsp; break;<br />&nbsp; &nbsp; case 6: // 64K story + 32K interpreter<br />&nbsp; &nbsp; &nbsp; story_rom_mask=0xFFFF;<br />&nbsp; &nbsp; &nbsp; EMU-&gt;SetPRG_ROM8(0x8,8);<br />&nbsp; &nbsp; &nbsp; EMU-&gt;SetPRG_ROM8(0xA,9);<br />&nbsp; &nbsp; &nbsp; EMU-&gt;SetPRG_ROM8(0xC,10);<br />&nbsp; &nbsp; &nbsp; EMU-&gt;SetPRG_ROM8(0xE,11);<br />&nbsp; &nbsp; &nbsp; break;<br />&nbsp; &nbsp; case 9: // 128K story + 16K interpreter<br />&nbsp; &nbsp; &nbsp; story_rom_mask=0x1FFFF;<br />&nbsp; &nbsp; &nbsp; EMU-&gt;SetPRG_ROM8(0x8,16);<br />&nbsp; &nbsp; &nbsp; EMU-&gt;SetPRG_ROM8(0xA,17);<br />&nbsp; &nbsp; &nbsp; EMU-&gt;SetPRG_ROM8(0xC,16);<br />&nbsp; &nbsp; &nbsp; EMU-&gt;SetPRG_ROM8(0xE,17);<br />&nbsp; &nbsp; &nbsp; break;<br />&nbsp; &nbsp; case 10: // 128K story + 32K interpreter<br />&nbsp; &nbsp; &nbsp; story_rom_mask=0x1FFFF;<br />&nbsp; &nbsp; &nbsp; EMU-&gt;SetPRG_ROM8(0x8,16);<br />&nbsp; &nbsp; &nbsp; EMU-&gt;SetPRG_ROM8(0xA,17);<br />&nbsp; &nbsp; &nbsp; EMU-&gt;SetPRG_ROM8(0xC,18);<br />&nbsp; &nbsp; &nbsp; EMU-&gt;SetPRG_ROM8(0xE,19);<br />&nbsp; &nbsp; &nbsp; break;<br />&nbsp; &nbsp; case 17: // 256K story + 16K interpreter<br />&nbsp; &nbsp; &nbsp; story_rom_mask=0x3FFFF;<br />&nbsp; &nbsp; &nbsp; EMU-&gt;SetPRG_ROM8(0x8,32);<br />&nbsp; &nbsp; &nbsp; EMU-&gt;SetPRG_ROM8(0xA,33);<br />&nbsp; &nbsp; &nbsp; EMU-&gt;SetPRG_ROM8(0xC,32);<br />&nbsp; &nbsp; &nbsp; EMU-&gt;SetPRG_ROM8(0xE,33);<br />&nbsp; &nbsp; &nbsp; break;<br />&nbsp; &nbsp; case 18: // 256K story + 32K interpreter<br />&nbsp; &nbsp; &nbsp; story_rom_mask=0x3FFFF;<br />&nbsp; &nbsp; &nbsp; EMU-&gt;SetPRG_ROM8(0x8,32);<br />&nbsp; &nbsp; &nbsp; EMU-&gt;SetPRG_ROM8(0xA,33);<br />&nbsp; &nbsp; &nbsp; EMU-&gt;SetPRG_ROM8(0xC,34);<br />&nbsp; &nbsp; &nbsp; EMU-&gt;SetPRG_ROM8(0xE,35);<br />&nbsp; &nbsp; &nbsp; break;<br />&nbsp; }<br />&nbsp; if(ROM-&gt;INES_CHRSize) EMU-&gt;SetCHR_ROM8(0,0);<br />&nbsp; story_ram_mask=(64&lt;&lt;((ROM-&gt;INES2_PRGRAM|(ROM-&gt;INES2_PRGRAM&gt;&gt;4))&amp;15))-1;<br />&nbsp; if(ROM-&gt;INES_Flags&amp;2) EMU-&gt;Set_SRAMSize(64&lt;&lt;(ROM-&gt;INES2_PRGRAM&gt;&gt;4));<br />&nbsp; EMU-&gt;SetPRG_ROM4(6,story_rom_mask&gt;&gt;12);<br />&nbsp; for(i=0;i&lt;64;i++) {<br />&nbsp; &nbsp; EMU-&gt;SetPRG_ROM4(6,i&amp;(story_rom_mask&gt;&gt;12));<br />&nbsp; &nbsp; story_rom&#91;i&#93;=EMU-&gt;GetPRG_Ptr4(6);<br />&nbsp; }<br />&nbsp; EMU-&gt;SetPRG_RAM4(6,story_ram_mask&gt;&gt;12);<br />&nbsp; for(i=0;i&lt;64;i++) {<br />&nbsp; &nbsp; EMU-&gt;SetPRG_RAM4(6,i&amp;(story_ram_mask&gt;&gt;12));<br />&nbsp; &nbsp; story_ram&#91;i&#93;=EMU-&gt;GetPRG_Ptr4(6);<br />&nbsp; }<br />&nbsp; EMU-&gt;SetPRG_OB4(6);<br />&nbsp; orig_read1=EMU-&gt;GetCPUReadHandler(1);<br />&nbsp; orig_read3=EMU-&gt;GetCPUReadHandler(3);<br />&nbsp; orig_read5=EMU-&gt;GetCPUReadHandler(5);<br />&nbsp; orig_write1=EMU-&gt;GetCPUWriteHandler(1);<br />&nbsp; orig_write3=EMU-&gt;GetCPUWriteHandler(3);<br />&nbsp; orig_write5=EMU-&gt;GetCPUWriteHandler(5);<br />&nbsp; EMU-&gt;SetCPUReadHandler(1,Read);<br />&nbsp; EMU-&gt;SetCPUReadHandler(3,Read);<br />&nbsp; EMU-&gt;SetCPUReadHandler(5,Read);<br />&nbsp; EMU-&gt;SetCPUReadHandler(7,Read);<br />&nbsp; EMU-&gt;SetCPUWriteHandler(1,Write);<br />&nbsp; EMU-&gt;SetCPUWriteHandler(3,Write);<br />&nbsp; EMU-&gt;SetCPUWriteHandler(5,Write);<br />&nbsp; EMU-&gt;SetCPUWriteHandler(7,Write);<br />}<br /><br />static const MapperInfo the_mapper={<br />&nbsp; .MapperId=&amp;MapperNum,<br />&nbsp; .Description=_T(&quot;Famizork II&quot;),<br />&nbsp; .Compatibility=COMPAT_FULL,<br />&nbsp; .Load=Load,<br />&nbsp; .Reset=Reset,<br />&nbsp; .SaveLoad=SaveLoad,<br />};<br /><br />static void MAPINT UnloadMapper(void) {<br />&nbsp; ROM=0;<br />}<br /><br />static const MapperInfo*MAPINT LoadMapper (const ROMInfo*_ROM) {<br />&nbsp; ROM=_ROM;<br />&nbsp; if(ROM-&gt;ROMType!=ROM_INES || ROM-&gt;INES_MapperNum!=MapperNum) {<br />&nbsp; &nbsp; UnloadMapper();<br />&nbsp; &nbsp; return 0;<br />&nbsp; }<br />&nbsp; return &amp;the_mapper;<br />}<br /><br />DLLInfo&nbsp; &nbsp;DLL_Info={<br />&nbsp; _T(&quot;famizorkii_mapper.dll by zzo38&quot;),<br />&nbsp; 0x20150303,<br />&nbsp; 0x00010000,<br />&nbsp; LoadMapper,<br />&nbsp; UnloadMapper<br />};<br /><br />__declspec(dllexport) void MAPINT UnloadMapperDLL (void) {<br />&nbsp; EMU = NULL;<br />&nbsp; hWnd = NULL;<br />}<br /><br />__declspec(dllexport) DLLInfo*MAPINT LoadMapperDLL (HWND hWndEmu, const EmulatorInterface *_EMU, int VersionRequired) {<br />&nbsp; hWnd = hWndEmu;<br />&nbsp; EMU = _EMU;<br />&nbsp; if(VersionRequired != CurrentMapperInterface) {<br />&nbsp; &nbsp; UnloadMapperDLL();<br />&nbsp; &nbsp; return NULL;<br />&nbsp; }<br />&nbsp; return &amp;DLL_Info;<br />}<br /><br />BOOL&nbsp; &nbsp;WINAPI&nbsp; &nbsp;DllMain (HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)<br />{<br />&nbsp; &nbsp;hInstance = hinstDLL;<br />&nbsp; &nbsp;return TRUE;<br />}<br /></div>Note: I compile using GNU C on MinGW, not using Microsoft. (I didn't get any compiler errors/warnings.)<br /><br />I will also show you a few of the macros right now (maybe you can learn the working of macros in Unofficial-MagicKit then):<div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp;; Z-character-decoding assigning macro<br />&nbsp; &nbsp;macro def_zchars<br />&nbsp; &nbsp;if \#=1<br />&nbsp; &nbsp;macset 2,4,\1<br />&nbsp; &nbsp;else<br />&nbsp; &nbsp;macset 2,4,\2<br />&nbsp; &nbsp;endif<br />&nbsp; &nbsp;macset 1,4,\1<br />&nbsp; &nbsp;macset 3,4,*<br />&nbsp; &nbsp;macset 4,4,?B<br />&nbsp; &nbsp;bank bank(zchad)<br />&nbsp; &nbsp;macgoto def_zchars_0<br />&nbsp; &nbsp;endm<br /><br />&nbsp; &nbsp;macro def_zchars_0<br />&nbsp; &nbsp;macset 5,4,\1=\2<br />&nbsp; &nbsp;org zchad+\1<br />&nbsp; &nbsp;db low(\3-1)<br />&nbsp; &nbsp;if \3&lt;$FE01<br />&nbsp; &nbsp;fail &quot;Z-character routine out of range&quot;<br />&nbsp; &nbsp;endif<br />&nbsp; &nbsp;if \3&gt;$FF00<br />&nbsp; &nbsp;fail &quot;Z-character routine out of range&quot;<br />&nbsp; &nbsp;endif<br />&nbsp; &nbsp;macset 1,4,\1+1<br />&nbsp; &nbsp;macgoto def_zchars_\5<br />&nbsp; &nbsp;endm<br /><br />&nbsp; &nbsp;macro def_zchars_1<br />&nbsp; &nbsp;bank \4<br />&nbsp; &nbsp;org \3<br />&nbsp; &nbsp;endm<br /><br />&nbsp; &nbsp;; Instruction assigning macro<br />&nbsp; &nbsp;macro def_inst<br />&nbsp; &nbsp;macset 2,4,*<br />&nbsp; &nbsp;macset 3,4,?B<br />&nbsp; &nbsp;bank bank(instadl)<br />&nbsp; &nbsp;org instadl+(\1)<br />&nbsp; &nbsp;db low(\2-1)<br />&nbsp; &nbsp;org instadh+(\1)<br />&nbsp; &nbsp;db high(\2-1)<br />&nbsp; &nbsp;bank \3<br />&nbsp; &nbsp;org \2<br />&nbsp; &nbsp;endm<br /><br />&nbsp; &nbsp;macro def_inst_2op<br />&nbsp; &nbsp;def_inst (\1)+$00<br />&nbsp; &nbsp;def_inst (\1)+$20<br />&nbsp; &nbsp;def_inst (\1)+$40<br />&nbsp; &nbsp;def_inst (\1)+$60<br />&nbsp; &nbsp;def_inst (\1)+$C0<br />&nbsp; &nbsp;endm<br /><br />&nbsp; &nbsp;macro def_inst_2op_eq<br />&nbsp; &nbsp;def_inst (\1)+$00<br />&nbsp; &nbsp;def_inst (\1)+$20<br />&nbsp; &nbsp;def_inst (\1)+$40<br />&nbsp; &nbsp;def_inst (\1)+$60<br />&nbsp; &nbsp;endm<br /><br />&nbsp; &nbsp;macro def_inst_1op<br />&nbsp; &nbsp;def_inst (\1)+$00<br />&nbsp; &nbsp;def_inst (\1)+$10<br />&nbsp; &nbsp;def_inst (\1)+$20<br />&nbsp; &nbsp;endm<br /><br />&nbsp; &nbsp;macro def_inst_0op<br />&nbsp; &nbsp;def_inst (\1)+$00<br />&nbsp; &nbsp;endm<br /><br />&nbsp; &nbsp;macro def_inst_ext<br />&nbsp; &nbsp;def_inst (\1)+$00<br />&nbsp; &nbsp;endm</div><br /><br />If you have other questions about Famizork II, please write it on here
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>zzo38</b> [ Tue Mar 03, 2015 11:31 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Famizork II and Nintendulator mapper DLL</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />The NES 2.0 supporting in Unofficial-MagicKit was defective, but I have fixed it now: <a href="http://zzo38computer.org/nes_program/ppmck.zip" class="postlink">http://zzo38computer.org/nes_program/ppmck.zip</a>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

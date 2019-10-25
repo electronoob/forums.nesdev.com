@@ -1,0 +1,456 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - DMC IRQ for game logic?</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">DMC IRQ for game logic?</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=10&amp;t=11059">http://forums.nesdev.com/viewtopic.php?f=10&amp;t=11059</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>43110</b> [ Thu Feb 27, 2014 7:57 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>DMC IRQ for game logic?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />So before I was considering using two sets of numbers for physics calculation on PAL and NTSC systems, but I now I'm searching for how to abuse DMC for a regular IRQ that would read the joypad into a circular buffer.<br /><br />I'm having difficulty understanding what to write in what registers. I know that I write $00 to $4010 and $40 to $4017 on reset, and that silent dpcm data is located at $c000, but that's about it. What's next?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Thu Feb 27, 2014 10:40 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: DMC IRQ for game logic?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />$4010 sets your IRQ flag and samplerate<br />$4011 sets the DMC counter position, should be initialized to 0<br />$4012 sets the address, writing 0 will select $C000<br />$4013 sets the sample length<br /><br />After you've set these things, write to $4015 to play the sample. If IRQs are not masked (see CLI/SEI), the IRQ will fire when the sample finishes playing. You should not need to reinitialize anything for subsequent plays, you can restart playback from the beginning of the sample again solely via writes to $4015. Read this: <a href="http://wiki.nesdev.com/w/index.php/APU_Status#Status_.28.244015.29" class="postlink">APU Status</a><br /><br />$4017 should be initialized with the frame counter IRQ disabled, obviously, because it would conflict with the DPCM IRQ you are trying to catch. $40 is fine to initialize this with.<br /><br />You will need a bunch of 0 bytes at $C000 for your sample, obviously, unless you want it to be audible (might be useful to put a string of $F0 here for debugging, for example).<br /><br />It will probably also be useful to read this: <a href="http://wiki.nesdev.com/w/index.php/APU_DMC#Usage_of_DMC_for_syncing_to_video" class="postlink">Usage of DMC for syncing to video</a><br /><br />And of course, when you're working on it make sure to verify. Measure the cycles in your debugging emulator to make sure you did it right.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>43110</b> [ Fri Feb 28, 2014 12:14 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: DMC IRQ for game logic?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />thanks. I just got intimidated by all the number formulas (rightfully so, I was at first off by several orders of binary magnitude).<br /><br />I tried setting the IRQ enabled and Loop flag at the same time in $4010, but I couldn't see any IRQs firing. So I set only the IRQ enabled flag and looping by writing to $4015 in the IRQ.<br /><br />I then tried out different combinations of sample length and rates to try to get a IRQ rate I like. The formula I got eventually is irq_rate = cpu_clock / (dmc_rate[rate_index] * 8 * (16 * sample_length + 1))<br />so I choose Rate index: 10 and sample length 1 to get a rate of about 92.64 hz +- 0.04 hz.<br /><br />attached is the quick test I did.<br /><br />Will I be right to assume that joypad read glitches will not happen because I have the joypad reading in a IRQ fired by DMC?<br />and how would this work on a dendy?
+
+		
+			<br clear="all" /><br />
+
+			<table class="tablebg" width="100%" cellspacing="1">
+			<tr>
+				<td><b class="genmed">Attachments: </b></td>
+			</tr>
+			
+				<tr>
+					<td>
+			<span class="gensmall"><b>File comment:</b> DMC IRQ Test rom</span><br />
+		
+			<span class="genmed">
+				<img src="./styles/subsilver2/imageset/icon_topic_attach.gif" width="14" height="18" alt="" title="" /> 
+				<a href="./download/file.php?id=1281">2014-02-28_dmc-irq-test.nes</a> [24.02 KiB]
+			</span><br />
+			<span class="gensmall">Downloaded 17 times</span>
+		
+
+		<br />
+	</td>
+				</tr>
+			
+				<tr>
+					<td>
+			<span class="gensmall"><b>File comment:</b> DMC IRQ Test source</span><br />
+		
+			<span class="genmed">
+				<img src="./styles/subsilver2/imageset/icon_topic_attach.gif" width="14" height="18" alt="" title="" /> 
+				<a href="./download/file.php?id=1280">2014-02-28_dmc-irq-test.asm</a> [8.19 KiB]
+			</span><br />
+			<span class="gensmall">Downloaded 17 times</span>
+		
+
+		<br />
+	</td>
+				</tr>
+			
+			</table>
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Fri Feb 28, 2014 9:15 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: DMC IRQ for game logic?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />If the DPCM clock dividers use the same table on the Dendy as on the NTSC NES then you should be able to calculate the samplerate by just multiplying by the ratio of the NTSC vs Dendy clock frequencies.<br /><br />I haven't seen any reports on whether Dendy uses the same table, or has its own table, so I can't say whether it does. If you have access to a Dendy and can make some audio recordings for me I could measure it.<br /><br />Yes, there should not be DPCM interference if there is no DPCM playing while you do the controller reads, but this also means you have to add the time spent on the controller read to your total cycles calculation until the next IRQ. I'm curious, though, how come you want to read the controller on a seemingly arbitrary IRQ timing? Wouldn't it be more useful to tie it to the timing of gameplay updates?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Fri Feb 28, 2014 10:56 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: DMC IRQ for game logic?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">rainwarrior wrote:</div><div class="quotecontent">If the DPCM clock dividers use the same table on the Dendy as on the NTSC NES then you should be able to calculate the samplerate by just multiplying by the ratio of the NTSC vs Dendy clock frequencies.<br /></div>They really should, because the Dendy is designed to be compatible with NTSC NES software in every other way. (Admittedly, only Sunsoft was really fond of playing tonal instruments using the DPCM channel, and for percussion they <em>could</em> have gotten away with being a little off) ...<br /><br />In an extreme tangent, do we know whether the Dendy has the same difference in pitch bend behavior between the two square wave channels?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>43110</b> [ Sat Mar 01, 2014 12:10 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: DMC IRQ for game logic?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I guess I won't worry wherever or not I need to adjust the dmc parameters, until dendy is tested.<br /><br /><div class="quotetitle">rainwarrior wrote:</div><div class="quotecontent">... but this also means you have to add the time spent on the controller read to your total cycles calculation until the next IRQ.</div><br />So restarting the DMC first thing in the IRQ won't help with this?<br /><br /><div class="quotetitle">rainwarrior wrote:</div><div class="quotecontent">I'm curious, though, how come you want to read the controller on a seemingly arbitrary IRQ timing? Wouldn't it be more useful to tie it to the timing of gameplay updates?</div><br />For NTSC and PAL compensation.<br />I plan for the gameplay logic rate to be the IRQ rate, independent of video rate.<br /><br />There's 3 ways I've seen games compensate for the 2 video rates.<br />1. Ignore the difference and let it play slower on PAL/ faster on NTSC<br />2. logic at 50hz skipping every 6'th frame for NTSC<br />3. two sets of movement numbers.<br /><br />I'm trying something a bit like inverse of 2 where the logic rate is greater then the display rate. I may be wrong, but I'm guessing having a logic frame rate grater then the display rate won't feel choppy. Especially since the hardware will actually read the controllers at each exact moment it's told to.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Sat Mar 01, 2014 4:31 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: DMC IRQ for game logic?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">43110 wrote:</div><div class="quotecontent"><div class="quotetitle">rainwarrior wrote:</div><div class="quotecontent">... but this also means you have to add the time spent on the controller read to your total cycles calculation until the next IRQ.</div><br />So restarting the DMC first thing in the IRQ won't help with this?</div><br />No, because then the DMC unit will be fetching samples while you're trying to read the controller and you'll have to deal with the conflict.<br /><br /><div class="quotetitle">43110 wrote:</div><div class="quotecontent">I'm trying something a bit like inverse of 2 where the logic rate is greater then the display rate. I may be wrong, but I'm guessing having a logic frame rate grater then the display rate won't feel choppy. Especially since the hardware will actually read the controllers at each exact moment it's told to.</div><br /><br />There's a synchronization step between game logic and the display. After updating the game logic, you need to &quot;draw&quot; everything to a buffer (i.e. OAM buffer, and some buffer for nametable updates). Once these buffers are ready, they will get uploaded to the PPU on your next NMI. This means that if you have a nametable update, you'll need to wait for the update to be done in the NMI vblank before you can make another nametable update, so running the logic faster might give you a problem here. For example, if the game logic was adding a column of tiles every frame, each of those columns needs to go through in its own vblank. Either your logic has to wait for the buffer to get uploaded, or you need to have multiple buffers and accept some lag to be caught up on frames that don't need a nametable update, etc. it gets kinda complex. If your game doesn't make any cumulative nametable changes, however, this may not be a problem at all.<br /><br />Another issue is that the NMI will interrupt your game logic, so there will be some jitter introduced by this anyway. The only way to maximize timing consistency is to synchronize with the NMI.<br /><br />Finally, for consistent speed, your game code has to be tight/controlled enough to prevent <a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=11040" class="postlink">slowdown</a>.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Sat Mar 01, 2014 4:45 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: DMC IRQ for game logic?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Some games reportedly use interpolation to smooth out the fact that the logic runs at 30 fps or less. (I forget which one, or I'd link to the post where this was pointed out.) You could run game logic at 50 fps and scrolling logic at 60 fps to hide the fact that your logic isn't running at the TV's native frame rate. But if controller reading is done inside an IRQ handler, at least you don't have to worry about DMC double clocks fouling up the serial clock signal and causing button deletions because you know how many cycles there will be until the next IRQ.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Sat Mar 01, 2014 7:22 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: DMC IRQ for game logic?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tepples wrote:</div><div class="quotecontent">Some games reportedly use interpolation to smooth out the fact that the logic runs at 30 fps or less. (I forget which one, or I'd link to the post where this was pointed out.)</div><br /><br />This kind of thing is very common with networked multiplayer games. Where an object is owned by another user, information about what it's doing isn't coming in immediately or every frame, so usually something like dead reckoning is used to interpolate its motion until more information is received about the object.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Sat Mar 01, 2014 9:35 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: DMC IRQ for game logic?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">43110 wrote:</div><div class="quotecontent">I'm trying something a bit like inverse of 2 where the logic rate is greater then the display rate. I may be wrong, but I'm guessing having a logic frame rate grater then the display rate won't feel choppy.</div><br />Sounds good in theory, but like rainwarrior said, it will be hard to completely separate the logic rate from the display rate, since the display uses data generated by the logic. If you keep running the logic at its own pace, it will be constantly modifying the display buffers and when VBlank starts the buffers will hardly ever be in a consistent state. The only way I see this working, is if you have 2 sets of display buffers, so that one of them is always ready to be used. Doubling the buffers could require a significant amount of RAM.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Especially since the hardware will actually read the controllers at each exact moment it's told to.</div><br />Reading the controllers is the least important thing here, all the logic that comes after is the problem. You will often not even be able to respond to the DMC IRQ immediately, if the samples happens to end in the middle of VBlank while you're busy with display updates, so that ought to throw your timing off a bit.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>43110</b> [ Sun Mar 02, 2014 3:34 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: DMC IRQ for game logic?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I'll agree this will be very unorthodox and never suitable for standard NES game design.<br /><br />I didn't figure in vblank calculations too well. I did understand that I would have to have multiple thread safe ppu buffers that are activated individually by a single sta. The main game logic is very basic with a low risk of overflowing. I'm fine with jitter but not with uncertain frequency, that is a delay caused by nmi should happen only to one update not to all of them.<br /><br />If I'm reading the DMC for syncing to video thread correctly, the IRQ fires when the last byte is read but not played. If that's the case, and as long as it has not been more then 1056 cycles (PAL rate $A) between IRQ being asserted and writing to $4015, it should play gaplessly and at the same frequency. But like you both said, there is a problem with NMI interrupting with vblank updates.<br /><br />Overnight I considered adding cli to NMI, but that has a worst case of executing the IRQ twice (not good at all)! I'm going to try to see if having NMI simply increment a counter will work, and do vblank updates in a main loop <em>or</em> after IRQ or but not both.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Sun Mar 02, 2014 7:27 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: DMC IRQ for game logic?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">43110 wrote:</div><div class="quotecontent">Overnight I considered adding cli to NMI, but that has a worst case of executing the IRQ twice (not good at all)!</div><br />I believe that the NMI fires no matter the state of the I flag, since the NMI is non-maskable by definition. If your NMI code takes longer than a frame to execute another NMI will interrupt it unless you disable NMIs through PPU register $2000. That shouldn't be a problem in your case though, because you're not running the game logic inside the NMI handler, so it will never take that long.<br /><br />A CLI will allow you to respond to the IRQ even if you're in the middle of you PPU updates, and you could set up the next IRQ immediately. You could set a flag indicating that an IRQ fired in the middle of VBlank, so that after the updates you could call the game logic if this flag was set. This would result in a small delay in handling the current IRQ, but the next one will stil fire on time. The only problem is that this will steal you some VBlank time (as will the samples being fetched for playback), but if you take that lost time into account when designing your PPU update code<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">I'm going to try to see if having NMI simply increment a counter will work, and do vblank updates in a main loop</div><br />Do you even have a main loop? If I understand correctly, your game logic runs in the IRQ handler, which is not a loop. If you really do have a main loop (that probably doesn't have anything to do), polling a VBlank flag won't work, because the IRQ still has precedence over the main loop. Say that you're waiting for the flag to change, and then the NMI fires and changes the flag, but then the IRQ also fires, meaning that the IRQ handler will run before the CPU resumes your main loop, so the entire game logic will run during VBlank, <br />stealing all the time you'd have for PPU updates. Then, when control is finally returned to the main loop, VBlank will probably have already ended and you'll not be able to update the graphics (if you try you'll get a corrupted screen). Something just as bad would happen if the loop successfully detected the start of VBlank but the PPU updates were interrupted by the IRQ that does the game logic.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent"><em>or</em> after IRQ or but not both.</div><br />Now it seems like you're just guessing! This is not something you guess, it's something you plan carefully so that you don't have to redesign the whole thing later on. The NES is very strict about PPU updates: they can only happen when the PPU is not rendering. This means you can't risk losing a lot of VBlank time, or you'll end up with glitched screens more often than not.<br /><br />The only way I see your idea working is this:<br /><br />1- The game logic runs entirely in the IRQ handler. If the logic takes too long and another IRQ fires, set up the next IRQ and set a flag indicating that the logic has to catch up. At the end of the IRQ handler, if this flag is set, run the IRQ handler again and try to catch up (this has to stop at some point, if you're not able to catch up eventually you'll have to stop trying and accept the slowdown).<br /><br />2- The NMI handler always updates the PPU using the set of buffers that's marked as consistent (you'll definitely need 2 sets of buffers). If the NMI is interrupted by an IRQ, set up the next IRQ and set a flag indicating that the logic has to catch up. At the end of the NMI handler, if this flag is set, run the IRQ handler.<br /><br />3- The main loop would do nothing more than decide whether to stay in the current game mode or switch to another one. This will be indicated by the game logic through specific variables that will be constantly checked in the main loop.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>43110</b> [ Sun Mar 02, 2014 9:17 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: DMC IRQ for game logic?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Sorry, &quot;vblank updates in a main loop or after IRQ <em>or</em> but not both&quot; was very unclear and did not convey what I meant at all.<br /><br />If a NMI can interrupt a IRQ before the first instruction of that IRQ routine is executed and CLI is the first instruction in the NMI routine, then no amount of variable locks will fix the situation where a IRQ is on top of NMI that's on top of another IRQ. That is why I said simply adding a CLI in NMI won't work.<br /><br /><div class="quotetitle">tokumaru wrote:</div><div class="quotecontent">The only problem is that this will steal you some VBlank time (as will the samples being fetched for playback), but if you take that lost time into account when designing your PPU update code</div><br />Yes, I'm attempting to place the IRQ routine (which will only restart DMC, and read the controllers) at a higher priority then vblank updates. nmi is the highest priority interrupt, but I still need it because it's more stable then a $2002 poll. Interrupting a NMI routine might lead to a situation explained above so I'm reducing NMI to a flag setter.<br /><br />I'm trying to get vblank to follow a NMI signal, yet I want vblank to follow the IRQ routine if the NMI signal happens in the middle of it. <br /><br /><div class="quotetitle">tokumaru wrote:</div><div class="quotecontent">Do you even have a main loop?</div><br />I always meant for the IRQ routine to be controller reading alone and that game logic is computed outside of any interrupts. The game logic as polling loop at the lowest level of execution is the simplest thing I can think of now.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Sun Mar 02, 2014 10:44 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: DMC IRQ for game logic?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">43110 wrote:</div><div class="quotecontent">I always meant for the IRQ routine to be controller reading alone and that game logic is computed outside of any interrupts. The game logic as polling loop at the lowest level of execution is the simplest thing I can think of now.</div><br />So you want to poll a flag to know when to run the game logic, and poll another flag to know when to update the graphics? I still say this won't work well. You can't have both the logic and the graphics based on polling flags, because that will constantly delay the PPU updates, which will only happen when the logic finishes conveniently before VBlank. Traditionally, game logic uses much more CPU time than PPU updates, so the chances of PPU updates falling neatly into the window between 2 logic updates are pretty slim. All animations will look jerky because of the constant skipped frames, and scrolling may glitch up if the necessary PPU updates are delayed too much.<br /><br />If you really want to time your logic with IRQs, as unconventional as that may be, it might just work, but PPU updates must be done EVERY VBlank if you want this game to animate smoothly. You absolutely have to update the graphics when the NMI fires, with no delays. If you give the game logic higher priority, you'll end up dropping A LOT of frames, to the point of making the game unplayable, so your whole idea of supporting both PAL and NTSC systems goes down the drain.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>43110</b> [ Mon Mar 03, 2014 11:08 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: DMC IRQ for game logic?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Yeah, polling won't work. I investigated detection of interrupted IRQ by comparing the program counter in the stack, but still got stuck on how to completely give the vblank subroutine execution from NMI to IRQ. Even stack surgery won't work, for the basic fact that NMI will occur anywhere. The next thing would be to disable then re-enable NMI, but before I shoot myself in the foot, I'll try the standard NMI is vblank approach.<br /><br />That will work as long at NMI+IRQ &lt; 1056 cycles. If they exceed that, I'll either have to either decrease the IRQ frequency, or accept the occasional controller delay (and measure the true average on a real console against a stop watch). So far I have IRQ at 300 cycles, and there be at least the 513 cycle OAM transfer, so I'll have about 240 cycles for at least 1 column of tiles.<br /><br />Thank you tokumaru, rainwarrior, and tepples for all the advice.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

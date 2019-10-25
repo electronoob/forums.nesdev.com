@@ -1,0 +1,312 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - blargg's vbl_nmi_timing and special-case behavior confusion</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">blargg's vbl_nmi_timing and special-case behavior confusion</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=3&amp;t=9999">http://forums.nesdev.com/viewtopic.php?f=3&amp;t=9999</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ulfalizer</b> [ Mon Apr 08, 2013 12:02 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>blargg's vbl_nmi_timing and special-case behavior confusion</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I'm trying to understand how the special behavior related to reading $2002 around the point where the vbl flag is set works. Here are two (semi-)related questions:<br /><br />1. What's the ideal PPU/CPU alignment to assume in an emulator? One where the the CPU and PPU ticks line up like below? (Alignments where they don't line up nicely are possible since the PPU divides the master clock by 4.)<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&#91;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; CPU&nbsp; tick&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;&#93;&#91;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; CPU&nbsp; tick&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;&#93;<br />&#91;PPU tick&#93;&#91;PPU tick&#93;&#91;PPU tick&#93;&#91;PPU tick&#93;&#91;PPU tick&#93;&#91;PPU tick&#93;<br /></div><br /><br />2. When the wiki says e.g. &quot;reading one PPU clock before reads it as clear and never sets the flag or generates NMI for that frame&quot; (on <!-- m --><a class="postlink" href="http://wiki.nesdev.com/w/index.php/PPU_frame_timing">http://wiki.nesdev.com/w/index.php/PPU_frame_timing</a><!-- m -->), is that referring to a situation like below?<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">CPU: &#91;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Read $2002&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &#93;<br />PPU: &#91;............&#93;&#91;Set VBL flag&#93;&#91;............&#93;<br /></div><br /><br />If so, does that mean that there's no special-case behavior for e.g.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">CPU: &#91;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Read $2002&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &#93;<br />PPU: &#91;............&#93;&#91;............&#93;&#91;Set VBL flag&#93;<br /></div><br /><br />? (I.e., will that read the flag as false and later set it and generate an NMI?)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>thefox</b> [ Mon Apr 08, 2013 4:09 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: blargg's vbl_nmi_timing and special-case behavior confus</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">ulfalizer wrote:</div><div class="quotecontent">1. What's the ideal PPU/CPU alignment to assume in an emulator? One where the the CPU and PPU ticks line up like below?</div><br />Ideal in what sense? I'd love to see an emulator that actually emulates <em>all </em>of the different PPU/CPU alignments, because that would be something new, something unique, something that nobody else has done yet.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Mon Apr 08, 2013 10:21 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: blargg's vbl_nmi_timing and special-case behavior confus</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Seconded. The snag is that this basically requires testing all CPU-PPU timings thoroughly for the other three alignments, or else the emulator will be less accurate than using the preferred one.<br /><br />I tested the four alignments and mapped them to the previous findings. The top trace is the PPU's ALE, the bottom M2 out of the 2A03. Note that the ALE is effectively overlaid on itself offset by one PPU clock, such that it shows every PPU clock rather than every other one (normally ALE occurs every two PPU clocks). This is because the scope is triggering on the CPU's M2, and you get 1.5 ALE pulses for every M2. This is exactly what we want since it shows every PPU clock. So it's all good. And yeah, there's not the best connection to the CPU's M2, as shown by the ripple when it's low.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">After power/reset, PPU is randomly in one of four synchronizations with CPU. This synchronization cannot be changed without resetting/powering down. Trials of 50-60 power/resets were done to determine likelihoods. The third synchronization is the preferred one for emulators and test ROMs, due to the least special cases. Also, the three-digit codes are just something specific to my tests that help identify each alignment; the numbrs of no significance worth explaining.<br /><br />&#91;code&#93;&nbsp; &nbsp; &nbsp; &nbsp; NMI&nbsp; &nbsp; &nbsp;VBL&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;Hit&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;Overflow&nbsp; &nbsp; Likelihood<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Reset&nbsp; &nbsp;Reset&nbsp; &nbsp;Set&nbsp; &nbsp; &nbsp;Reset&nbsp; &nbsp;Set<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; 6819+&nbsp; &nbsp;7502+&nbsp; &nbsp;6819+&nbsp; &nbsp;7290+&nbsp; &nbsp;Power&nbsp; &nbsp;Reset<br />----------------------------------------------------------------------<br />632&nbsp; &nbsp; &nbsp;-1&nbsp; &nbsp; &nbsp; -1&nbsp; &nbsp; &nbsp; -1&nbsp; &nbsp; &nbsp; 0&nbsp; &nbsp; &nbsp; &nbsp;-1&nbsp; &nbsp; &nbsp; -1&nbsp; &nbsp; &nbsp; 27%&nbsp; &nbsp; &nbsp;26%<br />732&nbsp; &nbsp; &nbsp;0&nbsp; &nbsp; &nbsp; &nbsp;-1&nbsp; &nbsp; &nbsp; 0&nbsp; &nbsp; &nbsp; &nbsp;0&nbsp; &nbsp; &nbsp; &nbsp;0&nbsp; &nbsp; &nbsp; &nbsp;0&nbsp; &nbsp; &nbsp; &nbsp;15%&nbsp; &nbsp; &nbsp;22%<br />742&nbsp; &nbsp; &nbsp;0&nbsp; &nbsp; &nbsp; &nbsp;0&nbsp; &nbsp; &nbsp; &nbsp;0&nbsp; &nbsp; &nbsp; &nbsp;0&nbsp; &nbsp; &nbsp; &nbsp;0&nbsp; &nbsp; &nbsp; &nbsp;0&nbsp; &nbsp; &nbsp; &nbsp;31%&nbsp; &nbsp; &nbsp;30%<br />743&nbsp; &nbsp; &nbsp;0&nbsp; &nbsp; &nbsp; &nbsp;0&nbsp; &nbsp; &nbsp; &nbsp;0&nbsp; &nbsp; &nbsp; &nbsp;+1&nbsp; &nbsp; &nbsp; 0&nbsp; &nbsp; &nbsp; &nbsp;0&nbsp; &nbsp; &nbsp; &nbsp;27%&nbsp; &nbsp; &nbsp;22%</div><br /><br /><img src="http://i.imgur.com/nq78U8I.gif" alt="Image" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ulfalizer</b> [ Mon Apr 08, 2013 1:51 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: blargg's vbl_nmi_timing and special-case behavior confus</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />OK - just to see that I'm reading this right: Do the above configurations correspond to the following alignments (where X is the relevant flag setting/clearing point)?<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">Master:&nbsp; ***********************<br />PPU:&nbsp; &nbsp; &nbsp;*&nbsp; &nbsp;X&nbsp; &nbsp;*&nbsp; &nbsp;*&nbsp; &nbsp;*&nbsp; &nbsp;*<br />CPU@632:&nbsp; &nbsp; &nbsp;----read----<br />CPU@732:&nbsp; &nbsp; ----read----<br />CPU@742:&nbsp; &nbsp;----read----<br />CPU@743:&nbsp; ----read----</div><br /><br />If so, does a -1 mean that the read can start one tick before the flag is set/cleared and be seen, and a +1 that it needs to start one tick after?<br /><br />By the way, the image starts at h=2 and not at h=0 as far as sprite zero hits are concerned, if that could be relevant. (See the second note in <!-- m --><a class="postlink" href="http://wiki.nesdev.com/w/images/d/d1/Ntsc_timing.png">http://wiki.nesdev.com/w/images/d/d1/Ntsc_timing.png</a><!-- m -->)<br /><br />Here's an easier-to-read version of the +- table since it got a bit mangled btw:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp; &nbsp;|&nbsp; NMI&nbsp; |&nbsp; VBL&nbsp; &nbsp;|&nbsp; &nbsp; &nbsp;Hit&nbsp; &nbsp; &nbsp; &nbsp;|&nbsp; &nbsp; Overflow&nbsp; &nbsp;| Likelihood<br />&nbsp; &nbsp; &nbsp;|&nbsp; &nbsp; &nbsp; &nbsp;|&nbsp; Reset | Reset | Set&nbsp; &nbsp;| Reset | Set&nbsp; &nbsp;|&nbsp; &nbsp; &nbsp; &nbsp;|<br />&nbsp; &nbsp; &nbsp;|&nbsp; &nbsp; &nbsp; &nbsp;|&nbsp; &nbsp; &nbsp; &nbsp; | 6819+ | 7502+ | 6819+ | 7290+ | Power | Reset<br />-----+-------+--------+-------+-------+-------+-------+-------+-------<br />632&nbsp; |&nbsp; -1&nbsp; &nbsp;|&nbsp; -1&nbsp; &nbsp; | -1&nbsp; &nbsp; | 0&nbsp; &nbsp; &nbsp;| -1&nbsp; &nbsp; | -1&nbsp; &nbsp; | 27%&nbsp; &nbsp;| 26%<br />732&nbsp; |&nbsp; 0&nbsp; &nbsp; |&nbsp; -1&nbsp; &nbsp; | 0&nbsp; &nbsp; &nbsp;| 0&nbsp; &nbsp; &nbsp;| 0&nbsp; &nbsp; &nbsp;| 0&nbsp; &nbsp; &nbsp;| 15%&nbsp; &nbsp;| 22%<br />742&nbsp; |&nbsp; 0&nbsp; &nbsp; |&nbsp; 0&nbsp; &nbsp; &nbsp;| 0&nbsp; &nbsp; &nbsp;| 0&nbsp; &nbsp; &nbsp;| 0&nbsp; &nbsp; &nbsp;| 0&nbsp; &nbsp; &nbsp;| 31%&nbsp; &nbsp;| 30%<br />743&nbsp; |&nbsp; 0&nbsp; &nbsp; |&nbsp; 0&nbsp; &nbsp; &nbsp;| 0&nbsp; &nbsp; &nbsp;| +1&nbsp; &nbsp; | 0&nbsp; &nbsp; &nbsp;| 0&nbsp; &nbsp; &nbsp;| 27%&nbsp; &nbsp;| 22%</div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Mon Apr 08, 2013 7:04 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: blargg's vbl_nmi_timing and special-case behavior confus</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Sorry, I'm only now noticing your specific questions.<br /><br />1. We don't know yet what the signal level looks like for each alignment. The tests I've done are for the &quot;742&quot; one, which has the most common timing to all four. I don't know what this corresponds to physically. The order they're listed in the table earlier was confirmed by the scope check yesterday to be in the correct order, where each one is the next in the same &quot;direction&quot; of relative alignments.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">2. When the wiki says e.g. <a href="http://wiki.nesdev.com/w/index.php/PPU_frame_timing" class="postlink">&quot;reading one PPU clock before reads it as clear and never sets the flag or generates NMI for that frame&quot;</a>, is that referring to a situation like below?</div><br />It means that if you keep reading it earlier and earlier in the frame, at some point you'll read it as set, and one PPU clock before that you'll read it as clear AND suppress the NMI for that frame. And again, this is for the &quot;742&quot; alignment. I'm not positive, but I believe that at least one other alignment has this suppression on reading one and two PPU clocks before this point. Possibly also one where you read it as clear and it keeps it from being set for the frame, but the NMI still occurs. See how much fun it is to try to cover all four alignments? four variants of each test ROM, perhaps using SRAM to be sure you've tested all four power-on/reset alignments (askng you to press reset until it gets to the next alignment it wants to test... hmmm, this would be a nice test that would eliminate all emulators from passing for now).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ulfalizer</b> [ Mon Apr 08, 2013 7:41 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: blargg's vbl_nmi_timing and special-case behavior confus</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Am I interpreting the -1's and +1's in the table correctly though? I.e., does a -1 mean that you see the change one PPU tick earlier in that alignment compared to an alignment that has 0? (Or equivalently, that you can start reading one PPU tick earlier and see it.)<br /><br />And do the timings for sprite 0 account for the fact that sprite 0 hits treat the image as starting as h=2 (while other flags like vbl are set/cleared at h=1)?<br /><br />(Not sure if you saw my other post above, but just in case <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" /> )
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Mon Apr 08, 2013 7:45 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: blargg's vbl_nmi_timing and special-case behavior confus</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />The times are I believe PPU clocks after the earliest you find VBL set. I did it mainly to keep track of the differences I found. I'd have to get back to those tests and make some test ROMs to give you anything concrete.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ulfalizer</b> [ Mon Apr 08, 2013 8:02 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: blargg's vbl_nmi_timing and special-case behavior confus</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />It's not surprising that e.g. 632 might allow changes to be seen earlier at least, since you could get e.g.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">Master:&nbsp; ***********************<br />PPU:&nbsp; &nbsp; &nbsp;*&nbsp; &nbsp;*&nbsp; &nbsp;S&nbsp; &nbsp;*&nbsp; &nbsp;*&nbsp; &nbsp;*<br />CPU@632:&nbsp; &nbsp; &nbsp;----read----<br /></div><br /><br />With other alignments the setting would be further into the read cycle, and so might pass under the radar - e.g.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">Master:&nbsp; ***********************<br />PPU:&nbsp; &nbsp; &nbsp;*&nbsp; &nbsp;*&nbsp; &nbsp;S&nbsp; &nbsp;*&nbsp; &nbsp;*&nbsp; &nbsp;*<br />CPU@742:&nbsp; &nbsp;----read----<br /></div><br /><br />Depends on exactly how 6502 does reads I guess (and on what the signal level looks like from the PPU around where the read happens), which someone more savvy than me on the hw side of things might be able to shed some light on.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ulfalizer</b> [ Thu Apr 11, 2013 4:12 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: blargg's vbl_nmi_timing and special-case behavior confus</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />What's the first entry on <!-- m --><a class="postlink" href="http://wiki.nesdev.com/w/index.php/Tricky-to-emulate_games">http://wiki.nesdev.com/w/index.php/Tric ... late_games</a><!-- m --> (for Adventures of Lolo 2, etc.) talking about btw? It's not entirely clear to me.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Thu Apr 11, 2013 10:14 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: blargg's vbl_nmi_timing and special-case behavior confus</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Not clear to me either. I think those games have an NMI handler and do a $2002 polling loop, such that the NMI suppression must be handled correctly. I remember the Ms. Pac Man one hanging with a black screen at power if you emulate it wrong.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

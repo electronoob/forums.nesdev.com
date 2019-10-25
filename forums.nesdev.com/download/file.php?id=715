@@ -1,0 +1,91 @@
+;
+; Your fun mapper 0 NES program
+;
+
+;
+; Start of NES header for .NES file format
+; http://wiki.nesdev.com/w/index.php/INES
+;
+
+	.db "NES",$1a	; "NES" followed by DOS EOF
+	.db 2		; PRG-ROM page count (16KB page size)
+	.db 0		; CHR-ROM page count (8KB page size)
+	.db 0		; flags + low nibble of mapper # (mapper 0)
+	.db 0		; flags + high nibble of mapper # (mapper 0)
+	.db 0		; PRG-RAM page count
+	.db 0		; flags
+	.db 0,0,0,0,0,0
+
+	.org $8000
+
+;
+; This is where the CPU will actually start running code per
+; the 6502 RESET vector (see bottom of file).
+;
+; Included here is a good initialisation rotine for the NES,
+; as per the following references:
+;
+; http://wiki.nesdev.com/w/index.php/Init_code
+; http://wiki.nesdev.com/w/index.php/PPU_power_up_state#Best_practice
+;
+; NOTE: Label "-" might confuse you; see asm6 README.TXT for details.
+;
+_RESET:
+	sei		; Disable interrupts
+	cld		; Clear decimal mode flag (precautionary)
+	ldx #$40
+	stx $4017	; Disable APU frame IRQ
+	ldx #$ff
+	txs		; S=$ff
+	inx		; X=0
+	stx $2000	; Disable NMI-on-VBlank
+	stx $2001	; Turn off screen et al
+	stx $4010	; Disable DMC IRQs
+
+	bit $2002	; Stage 1 of PPU power-on wait/delay
+-	bit $2002
+	bpl -
+
+	txa		; A=0
+-	sta $0000,x	; Zero NES RAM area ($0000 to $0700)
+	sta $0100,x	; $0200 to $02ff is skipped intentionally
+	sta $0300,x	; since it's a commonly-used place for OAM (sprite)
+	sta $0400,x	; data, which is usually initialised to $ef to $ff
+	sta $0500,x
+	sta $0600,x
+	sta $0700,x
+	inx
+	bne -
+
+-	bit $2002	; Stage 2 of PPU power-on wait/delay
+	bpl -
+
+;
+; And below is where your actual game code should be placed.
+;
+; If you want some example code (such as printing text on the screen,
+; etc.) just ask.
+;
+; Don't forget to "cli" if using NMI-on-VBlank updates (you probably
+; will need this eventually :-) ).
+;
+; For now, we just stick ourself into an infinite loop...
+
+-	jmp -
+
+
+
+
+
+;
+; 6502 vectors
+; http://en.wikipedia.org/wiki/Interrupts_in_65xx_processors
+;
+_NMI:
+_IRQ:
+	rti
+
+	.org $fffa
+	.dw _NMI
+	.dw _RESET
+	.dw _IRQ

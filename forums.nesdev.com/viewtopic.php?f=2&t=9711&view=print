@@ -1,0 +1,417 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Simulating decimal mode</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Simulating decimal mode</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=9711">http://forums.nesdev.com/viewtopic.php?f=2&amp;t=9711</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Thu Jan 17, 2013 2:02 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Simulating decimal mode</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I'm trying to find a way to replace the missing decimal mode on the 2A03. Currently I handle scores with each of the 6 digits separately, but I figured out that I could pack 2 digits in one byte, so it'd take 3 bytes of RAM instead of 6.<br /><br />For this, I'd need some system that reliably add 2 packed BCD numbers together, and set the carry if the result is greater than 100, while keeping the low 2 digits correctly. I don't care the results for invalid BCD numbers.<br /><br />Now the question is, is it more efficient (ROM and Speed wise) to do so ?<br /><br />1st idea : Do a binary addition, and do a software &quot;decimal adjust&quot;<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp;lda _packed_bcd1<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp;clc<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp;adc _packed_bcd2<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp;php<br /><br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp;sta _packed_result<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp;eor _packed_bcd1<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp;eor _packed_bcd2&nbsp; &nbsp; ;Check if half-carry was set<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp;and #$10<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp;bne halfcarryset<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp;lda _packed_result<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp;and #$0f&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ;Check if any non-valid BCD number<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp;cmp #$0a<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp;bcc nohalfcarry<br />&nbsp; &nbsp;&nbsp; &nbsp; &nbsp;halfcarryset:<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp;lda #$06&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;;If any of those was true -&gt; decimal adjust low digit<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp;clc<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp;adc _packed_result<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp;sta _packed_result<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp;bcc nohalfcarry<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp;pla<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp;php<br />&nbsp; &nbsp;&nbsp; &nbsp; &nbsp;nohalfcarry:<br /><br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp;lda _packed_result<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp;plp<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp;bcs carryset&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ;Check if full carry was set<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp;cmp #$a0&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;;Check for invalid high digit<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp;bcc nocarry<br />&nbsp; &nbsp;&nbsp; &nbsp; &nbsp;carryset:<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp;adc #$60-1&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ;If any of those true -&gt; decimal adjust high digit<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp;sta _packed_result<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp;sec<br />nocarry:<br /></div><br /><br />2nd idea : Handle each digit separatedly :<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp;lda _packed_bcd2<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp;and #$0f<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp;sta _c<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp;lda _packed_bcd1<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp;and #$0f<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp;clc<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp;adc _c<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp;cmp #$0a<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp;bcc nouovfl<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp;sbc #$0a<br />&nbsp; &nbsp;&nbsp; &nbsp; &nbsp;nouovfl:<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp;sta _packed_result<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp;lda #$00<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp;bcc nodadjust<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp;lda #$0f<br />&nbsp; &nbsp;&nbsp; &nbsp; &nbsp;nodadjust:<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp;adc _packed_bcd1<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp;and #$f0<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp;adc _packed_bcd2<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp;and #$f0<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp;bcs dovfl<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp;cmp #$a0<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp;bcc nodovfl<br />&nbsp; &nbsp;&nbsp; &nbsp; &nbsp;dovfl:<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp;sbc #$a0<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp;sec<br />&nbsp; &nbsp;&nbsp; &nbsp; &nbsp;nodovfl:<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp;ora _packed_result<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp;sta _packed_result<br /></div><br /><br />I think both solutions are somewhat complex and un-elegant.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Thu Jan 17, 2013 5:57 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Simulating decimal mode</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Bregalad wrote:</div><div class="quotecontent">I'm trying to find a way to replace the missing decimal mode on the 2A03. Currently I handle scores with each of the 6 digits separately, but I figured out that I could pack 2 digits in one byte, so it'd take 3 bytes of RAM instead of 6.<br /><br />For this, I'd need some system that reliably add 2 packed BCD numbers together, and set the carry if the result is greater than 100, while keeping the low 2 digits correctly.</div><br />You could look at what Thwaite does: the score is built from bytes of value 0-99 ($00-$63) which are individually converted to decimal at 80 cycles each for display.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Thu Jan 17, 2013 6:40 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Simulating decimal mode</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />It's a pretty good idea, especially since I already have a $00 to $63 to decimal converter for other numbers in the game.<br /><br />The only inconvenient I think is that summing the score with a constant would be weird - I would probably have to store the decimal + tens in a byte coded in binary, and the hundreds and thousands in another byte coded in binary. How weird, but if it is efficient I don't care how weird it is to store stuff.<br /><br />What I do currently is that I store the score adding constants (when defeating enemies, etc...) in packed BCD on 2 bytes (values between 0 to 9999 can be added), but I unpack it into 4 digits-bytes, and sum with the unpacked 6 digit-byte score.<br />I tought that doing 2 sums of packed numbers and then a dummy add with 0 for the upper 2 digits would be more efficient.<br /><br />But pehaps doing it like you say is even more efficient... ? I guess I'll have to write all 3 possibilities, count bytes, and draw my conclusions.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Thu Jan 17, 2013 6:59 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Simulating decimal mode</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Bregalad wrote:</div><div class="quotecontent">The only inconvenient I think is that summing the score with a constant would be weird - I would probably have to store the decimal + tens in a byte coded in binary, and the hundreds and thousands in another byte coded in binary. How weird, but if it is efficient I don't care how weird it is to store stuff.</div><br />Especially when a macro can abstract away all the weirdness of constants.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">I guess I'll have to write all 3 possibilities, count bytes, and draw my conclusions.</div><br />In any case, you can start with the relevant code from Thwaite:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">BG_GRASSNUM = $70&nbsp; ; row of tiles with 0-9 on status bar background<br /><br />.segment &quot;BSS&quot;<br />.houseXferBuf: .res 64<br /><br />.segment &quot;CODE&quot;<br />.macro bcd8bit_iter value<br />&nbsp; .local skip<br />&nbsp; cmp value<br />&nbsp; bcc skip<br />&nbsp; sbc value<br />skip:<br />&nbsp; rol highDigits<br />.endmacro<br /><br />;;<br />; Converts a decimal number to two or three BCD digits<br />; in no more than 84 cycles.<br />; @param a the number to change<br />; @return a: low digit; 0: upper digits as nibbles<br />.proc bcd8bit<br />highDigits = 0<br />&nbsp; pha<br />&nbsp; lda #0<br />&nbsp; sta 0<br />&nbsp; pla<br /><br />&nbsp; ; Each iteration takes 11 if subtraction occurs or 10 if not.<br />&nbsp; ; But if 80 is subtracted, 40 and 20 aren't, and if 200 is<br />&nbsp; ; subtracted, 80 is not, and at least one of 40 and 20 is not.<br />&nbsp; ; So this part takes up to 6*11-2 cycles.<br />&nbsp; bcd8bit_iter #200<br />&nbsp; bcd8bit_iter #100<br />&nbsp; bcd8bit_iter #80<br />&nbsp; bcd8bit_iter #40<br />&nbsp; bcd8bit_iter #20<br />&nbsp; bcd8bit_iter #10<br />&nbsp; rts<br />.endproc<br /><br />.proc buildStatusBar<br />&nbsp; lda bgDirty<br />&nbsp; and #~BG_DIRTY_STATUS<br />&nbsp; sta bgDirty<br />&nbsp; lda #$23<br />&nbsp; sta houseXferDstHi<br />&nbsp; lda #$40<br />&nbsp; sta houseXferDstLo<br /><br />&nbsp; ; Omitted: draw the rest of the status bar<br /><br />&nbsp; ; Draw the score<br />&nbsp; lda #BG_GRASSNUM<br />&nbsp; sta houseXferBuf+38<br />&nbsp; sta houseXferBuf+39<br />&nbsp; lda score100s<br />&nbsp; beq noScore100s<br />&nbsp; jsr bcd8bit<br />&nbsp; ora #BG_GRASSNUM<br />&nbsp; sta houseXferBuf+35<br />&nbsp; lda 0<br />&nbsp; beq noScore100s<br />&nbsp; ora #BG_GRASSNUM<br />&nbsp; sta houseXferBuf+34<br />noScore100s:<br />&nbsp; lda score1s<br />&nbsp; jsr bcd8bit<br />&nbsp; ora #BG_GRASSNUM<br />&nbsp; sta houseXferBuf+37<br />&nbsp; lda 0<br />&nbsp; ora score100s<br />&nbsp; beq noScore10s<br />&nbsp; lda 0<br />&nbsp; ora #BG_GRASSNUM<br />&nbsp; sta houseXferBuf+36<br />noScore10s:<br /><br />&nbsp; rts<br />.endproc<br /><br />;;<br />; Adds between 1 and 255 points to the score.<br />; X, Y, and memory (apart from score) are unchanged.<br />.proc addScore<br />&nbsp; clc<br />&nbsp; adc score1s<br />&nbsp; bcc notOver256<br />&nbsp; inc score100s<br />&nbsp; inc score100s<br />&nbsp; adc #55<br />notOver256:<br />&nbsp; cmp #100<br />&nbsp; bcc notOver100<br />&nbsp; sbc #100<br />&nbsp; inc score100s<br />&nbsp; bcs notOver256<br />notOver100:<br />&nbsp; sta score1s<br />&nbsp; lda bgDirty<br />&nbsp; ora #BG_DIRTY_STATUS<br />&nbsp; sta bgDirty<br />&nbsp; rts<br />.endproc</div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Movax12</b> [ Thu Jan 17, 2013 8:58 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Simulating decimal mode</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />If you use base100 to store numbers you can very quickly convert them to standard bcd if it helps:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent"><br />bcd_number:<br />.byte $0, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25<br />.byte $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45, $46, $47, $48, $49, $50<br />.byte $51, $52, $53, $54, $55, $56, $57, $58, $59, $60, $61, $62, $63, $64, $65, $66, $67, $68, $69, $70, $71, $72, $73, $74, $75<br />.byte $76, $77, $78, $79, $80, $81, $82, $83, $84, $85, $86, $87, $88, $89, $90, $91, $92, $93, $94, $95, $96, $97, $98, $99<br /><br />convertToBCD:<br />lda bcd_number,x<br />rts<br /></div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Thu Jan 17, 2013 10:12 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Simulating decimal mode</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Well tepples, thank you for sharing your code, but just a little trought make me think that of course, counting it in base 100 will obviously make it more efficient than anything else.<br /><br />Also, when I think about it it's not that much weird, for example to add 1234 to the scrore, to have it like this :<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">.db 12, 32<br /></div><br /><br />instead of the standard BCD I have currently :<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">.db $12, $32<br /></div><br /><br />I mean, visually, it's almost the same, just without the $.<br /><br />@Movax12 : Hell no, my game has to fit in 32kb of ROM, there is no way I'd waste 100 bytes like this ! Anyways thank you for this suggetion, but convert to &quot;standard&quot; BCD won't be needed.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Thu Jan 17, 2013 10:20 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Simulating decimal mode</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Bregalad wrote:</div><div class="quotecontent">Hell no, my game has to fit in 32kb of ROM, there is no way I'd waste 100 bytes like this !</div><br />You do have to take into account how much the conversion routines can be simplified by the look-up table in order to calculate the actual cost of using it.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Thu Jan 17, 2013 10:40 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Simulating decimal mode</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />True, my binary -&gt; decimal routines takes a total of 23 bytes, and I don't think it's possible to shrink it further (it could be simplified if 0-9 digits were 0-9 in the pattern table instead of $d0-$d9 but I don't want to do that).<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp;ldy #$00<br />-&nbsp; &nbsp;cmp #10<br />&nbsp; &nbsp;bcc +<br />&nbsp; &nbsp;sbc #10<br />&nbsp; &nbsp;iny&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;;Y count tens<br />&nbsp; &nbsp;bne -<br /><br />+&nbsp; &nbsp;ora #$d0<br />&nbsp; &nbsp;sta StringBuffer+1.w,X&nbsp; &nbsp;;The units is written 1 tile forwad<br />&nbsp; &nbsp;tya<br />&nbsp; &nbsp;ora #$d0&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;;Convert into tile #<br />&nbsp; &nbsp;sta StringBuffer.w,X&nbsp; &nbsp;;Write the tens<br />&nbsp; &nbsp;rts<br /></div><br /><br />EDIT : now I implemented it, I must thank you very much tepples, I could save quite a few precious bytes !
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Movax12</b> [ Thu Jan 17, 2013 2:48 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Simulating decimal mode</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I think this works.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp;ldy #$00<br />&nbsp; &nbsp;sec<br />-&nbsp; sbc #10<br />&nbsp; &nbsp;bcc +<br />&nbsp; &nbsp;iny&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;;Y count tens<br />&nbsp; &nbsp;bne -<br /><br />+&nbsp; &nbsp;adc #$da<br />&nbsp; &nbsp;sta StringBuffer+1.w,X&nbsp; &nbsp;;The units is written 1 tile forwad<br />&nbsp; &nbsp;tya<br />&nbsp; &nbsp;ora #$d0&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;;Convert into tile #<br />&nbsp; &nbsp;sta StringBuffer.w,X&nbsp; &nbsp;;Write the tens<br />&nbsp; &nbsp; rts<br /></div><br /><br />It's a bit faster too.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Thu Jan 17, 2013 2:51 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Simulating decimal mode</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Yeah, you saved me ONE byte !!
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bisqwit</b> [ Sun Jan 20, 2013 6:47 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Simulating decimal mode</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Related: Here is the code from Blargg's test framework to print decimal (non-BCD) numbers up to 65535. I no longer remember how much of it was written or changed by me.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">.pushseg<br />.segment &quot;RODATA&quot;<br />&nbsp; &nbsp; &nbsp; &nbsp; ; &gt;= 60000 ? (EA60)<br />&nbsp; &nbsp; &nbsp; &nbsp; ; &gt;= 50000 ? (C350)<br />&nbsp; &nbsp; &nbsp; &nbsp; ; &gt;= 40000 ? (9C40)<br />&nbsp; &nbsp; &nbsp; &nbsp; ; &gt;= 30000 ? (7530)<br />&nbsp; &nbsp; &nbsp; &nbsp; ; &gt;= 20000 ? (4E20)<br />&nbsp; &nbsp; &nbsp; &nbsp; ; &gt;= 10000 ? (2710)<br />digit10000_hi: .byte $00,$27,$4E,$75,$9C,$C3,$EA<br />digit10000_lo: .byte $00,$10,$20,$30,$40,$50,$60<br />&nbsp; &nbsp; &nbsp; &nbsp; ; &gt;= 9000 ? (2328 (hex))<br />&nbsp; &nbsp; &nbsp; &nbsp; ; &gt;= 8000 ? (1F40 (hex))<br />&nbsp; &nbsp; &nbsp; &nbsp; ; &gt;= 7000 ? (1B58 (hex))<br />&nbsp; &nbsp; &nbsp; &nbsp; ; &gt;= 6000 ? (1770 (hex))<br />&nbsp; &nbsp; &nbsp; &nbsp; ; &gt;= 5000 ? (1388 (hex))<br />&nbsp; &nbsp; &nbsp; &nbsp; ; &gt;= 4000 ? (FA0 (hex)) <br />&nbsp; &nbsp; &nbsp; &nbsp; ; &gt;= 3000 ? (BB8 (hex)) <br />&nbsp; &nbsp; &nbsp; &nbsp; ; &gt;= 2000 ? (7D0 (hex)) <br />&nbsp; &nbsp; &nbsp; &nbsp; ; &gt;= 1000 ? (3E8 (hex)) <br />digit1000_hi: .byte $00,$03,$07,$0B,$0F,$13,$17,$1B,$1F,$23<br />digit1000_lo: .byte $00,$E8,$D0,$B8,$A0,$88,$70,$58,$40,$28<br />; &gt;= 900 ? (384 (hex))<br />; &gt;= 800 ? (320 (hex))<br />; &gt;= 700 ? (2BC (hex))<br />; &gt;= 600 ? (258 (hex))<br />; &gt;= 500 ? (1F4 (hex))<br />; &gt;= 400 ? (190 (hex))<br />; &gt;= 300 ? (12C (hex))<br />; &gt;= 200 ? (C8 (hex)) <br />; &gt;= 100 ? (64 (hex)) <br />digit100_hi: .byte $00,$00,$00,$01,$01,$01,$02,$02,$03,$03<br />digit100_lo: .byte $00,$64,$C8,$2C,$90,$F4,$58,$BC,$20,$84<br />.popseg<br /><br />.macro dec16_comparew table_hi, table_lo<br />&nbsp; &nbsp; &nbsp; &nbsp; .local @lt<br />&nbsp; &nbsp; &nbsp; &nbsp; cmp table_hi,y<br />&nbsp; &nbsp; &nbsp; &nbsp; bcc @lt<br />&nbsp; &nbsp; &nbsp; &nbsp; bne @lt ; only test the lo-part if hi-part is equal<br />&nbsp; &nbsp; &nbsp; &nbsp; pha<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;txa<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;cmp table_lo,y<br />&nbsp; &nbsp; &nbsp; &nbsp; pla<br />@lt:<br />.endmacro<br />.macro do_digit table_hi, table_lo<br />&nbsp; &nbsp; &nbsp; &nbsp; pha<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; print Y as digit; put X in A and do SEC for subtraction<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;jsr @print_dec16_helper<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;sbc table_lo,y<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;tax<br />&nbsp; &nbsp; &nbsp; &nbsp; pla <br />&nbsp; &nbsp; &nbsp; &nbsp; sbc table_hi,y<br />.endmacro<br /><br />; Prints A:X as 2-5 digit decimal value, NO space after.<br />; A = high 8 bits, X = low 8 bits.<br />print_dec16:<br />&nbsp; &nbsp; &nbsp; &nbsp; ora #0<br />&nbsp; &nbsp; &nbsp; &nbsp; beq @less_than_256<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; ldy #6<br />&nbsp; &nbsp; &nbsp; &nbsp; sty print_temp_<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; ; TODO: Use binary search?<br />:&nbsp; &nbsp; &nbsp; &nbsp;dec16_comparew digit10000_hi,digit10000_lo<br />&nbsp; &nbsp; &nbsp; &nbsp; bcs @got10000<br />&nbsp; &nbsp; &nbsp; &nbsp; dey<br />&nbsp; &nbsp; &nbsp; &nbsp; bne :-<br />&nbsp; &nbsp; &nbsp; &nbsp; ;cpy print_temp_<br />&nbsp; &nbsp; &nbsp; &nbsp; ;beq @got10000&nbsp; <br />@cont_1000:<br />&nbsp; &nbsp; &nbsp; &nbsp; ldy #9<br />:&nbsp; &nbsp; &nbsp; &nbsp;dec16_comparew digit1000_hi,digit1000_lo<br />&nbsp; &nbsp; &nbsp; &nbsp; bcs @got1000<br />&nbsp; &nbsp; &nbsp; &nbsp; dey<br />&nbsp; &nbsp; &nbsp; &nbsp; bne :-&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; Y = 0.<br />&nbsp; &nbsp; &nbsp; &nbsp; cpy print_temp_ ; zero print_temp_ = print zero-digits<br />&nbsp; &nbsp; &nbsp; &nbsp; beq @got1000<br />@cont_100:<br />&nbsp; &nbsp; &nbsp; &nbsp; ldy #9<br />:&nbsp; &nbsp; &nbsp; &nbsp;dec16_comparew digit100_hi,digit100_lo<br />&nbsp; &nbsp; &nbsp; &nbsp; bcs @got100<br />&nbsp; &nbsp; &nbsp; &nbsp; dey<br />&nbsp; &nbsp; &nbsp; &nbsp; bne :-<br />&nbsp; &nbsp; &nbsp; &nbsp; cpy print_temp_<br />&nbsp; &nbsp; &nbsp; &nbsp; beq @got100<br />@got10000:<br />&nbsp; &nbsp; &nbsp; &nbsp; do_digit digit10000_hi,digit10000_lo<br />&nbsp; &nbsp; &nbsp; &nbsp; ; value is now 0000..9999<br />&nbsp; &nbsp; &nbsp; &nbsp; ldy #0<br />&nbsp; &nbsp; &nbsp; &nbsp; sty print_temp_<br />&nbsp; &nbsp; &nbsp; &nbsp; beq @cont_1000 <br />@got1000:<br />&nbsp; &nbsp; &nbsp; &nbsp; do_digit digit1000_hi,digit1000_lo<br />&nbsp; &nbsp; &nbsp; &nbsp; ; value is now 000..999<br />&nbsp; &nbsp; &nbsp; &nbsp; ldy #0<br />&nbsp; &nbsp; &nbsp; &nbsp; sty print_temp_<br />&nbsp; &nbsp; &nbsp; &nbsp; beq @cont_100&nbsp; <br />@got100:<br />&nbsp; &nbsp; &nbsp; &nbsp; do_digit digit100_hi,digit100_lo<br />&nbsp; &nbsp; &nbsp; &nbsp; ; value is now 00..99<br />&nbsp; &nbsp; &nbsp; &nbsp; txa<br />&nbsp; &nbsp; &nbsp; &nbsp; jmp print_dec_00_99<br />@less_than_256:<br />&nbsp; &nbsp; &nbsp; &nbsp; txa<br />&nbsp; &nbsp; &nbsp; &nbsp; jmp print_dec<br />@print_dec16_helper: <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;tya<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;jsr print_digit<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;txa<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;sec<br />&nbsp; &nbsp; &nbsp; &nbsp; rts <br /><br />; Prints A as 2-3 digit decimal value, NO space after.<br />; Preserved: Y<br />print_dec:<br />&nbsp; &nbsp; &nbsp; &nbsp; ; Hundreds<br />&nbsp; &nbsp; &nbsp; &nbsp; cmp #10&nbsp; &nbsp;<br />&nbsp; &nbsp; &nbsp; &nbsp; blt print_digit<br />&nbsp; &nbsp; &nbsp; &nbsp; cmp #100<br />&nbsp; &nbsp; &nbsp; &nbsp; blt print_dec_00_99<br />&nbsp; &nbsp; &nbsp; &nbsp; ldx #'0'-1&nbsp; &nbsp; &nbsp; ;DTE_CHARMAP<br />:&nbsp; &nbsp; &nbsp; &nbsp;inx<br />&nbsp; &nbsp; &nbsp; &nbsp; sbc #100<br />&nbsp; &nbsp; &nbsp; &nbsp; bge :-&nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; adc #100<br />&nbsp; &nbsp; &nbsp; &nbsp; jsr print_char_x<br />&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; ; Tens<br />print_dec_00_99:<br />&nbsp; &nbsp; &nbsp; &nbsp; sec<br />&nbsp; &nbsp; &nbsp; &nbsp; ldx #'0'-1&nbsp; &nbsp; &nbsp; ;DTE_CHARMAP<br />:&nbsp; &nbsp; &nbsp; &nbsp;inx<br />&nbsp; &nbsp; &nbsp; &nbsp; sbc #10<br />&nbsp; &nbsp; &nbsp; &nbsp; bge :- <br />&nbsp; &nbsp; &nbsp; &nbsp; adc #10<br />&nbsp; &nbsp; &nbsp; &nbsp; jsr print_char_x<br />&nbsp; &nbsp; &nbsp; &nbsp; ; Ones<br />print_digit:&nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; ora #'0'&nbsp; &nbsp; &nbsp; &nbsp; ;DTE_CHARMAP<br />&nbsp; &nbsp; &nbsp; &nbsp; jmp print_char<br />&nbsp; &nbsp; &nbsp; &nbsp; ; Print a single digit<br />print_char_x:<br />&nbsp; &nbsp; &nbsp; &nbsp; pha&nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; txa&nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; jsr print_char<br />&nbsp; &nbsp; &nbsp; &nbsp; pla<br />&nbsp; &nbsp; &nbsp; &nbsp; rts</div><br /><br />This code from my CV2 retranslation patch just outputs a two-digit non-BCD decimal number (00-99).<br />Note that compared to the earlier posted code, this does one branch instructino per sbc-loop rather than two.<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp; &nbsp; &nbsp; sec<br />&nbsp; &nbsp; &nbsp; &nbsp; ldy #'0'-1<br />&nbsp; &nbsp; &nbsp; &nbsp; : iny<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; sbc #10<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; bcs :-<br />&nbsp; &nbsp; &nbsp; &nbsp; adc #10+'0'<br />&nbsp; &nbsp; &nbsp; &nbsp; pha&nbsp; &nbsp;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;tya<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;PutChar 1<br />&nbsp; &nbsp; &nbsp; &nbsp; pla<br />&nbsp; &nbsp; &nbsp; &nbsp; PutChar 2</div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>koitsu</b> [ Wed Jan 30, 2013 5:15 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Simulating decimal mode</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />By the way, sort of relevant, sort of not: seems even actual commercial game programmers were wondering why Nintendo didn't include decimal mode:<br /><br /><!-- m --><a class="postlink" href="http://tcrf.net/Pachi_Com_%28NES%29">http://tcrf.net/Pachi_Com_%28NES%29</a><!-- m -->
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Wed Jan 30, 2013 6:01 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Simulating decimal mode</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Man, that's one angry programmer!
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>koitsu</b> [ Wed Jan 30, 2013 6:40 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Simulating decimal mode</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tokumaru wrote:</div><div class="quotecontent">Man, that's one angry programmer!</div><br />No, <a href="http://tcrf.net/Erika_to_Satoru_no_Yume_Bouken" class="postlink">this is one angry programmer</a>.  And apparently the translation is more or less accurate.  *chuckles*  Japanese, having to stomach all their anger because it's not polite to be angry...
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Celius</b> [ Thu Jan 31, 2013 11:14 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Simulating decimal mode</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I suppose it helps if you have a decimal limit on what your value can be, rather than a hex limit. This ensures the amount of decimal digits you have to account for. My method uses 3 fixed routines, one for 8 bits, one for 16, and one for 24. It uses tables holding preconverted values for $0-$F, $00 - $F0 (Counting $10s), $000 -$F00 (counting $100s), and $0000 - $F000 (counting $1000s). Using these preconverted values, you can add them all together by breaking a value like $E834 into $E000 + $800 + $30 + $4 and simulating pen and paper addition (ends up adding 57344 + 768 + 48 + 4, handling each decimal digit in the addition seperately). That might make sense only to me; it's kind of hard to explain. I'm pretty happy with the performance I got out of it, and the fact that it takes a fixed amount of time (118 cycles for 8 bits, 263 for 16 bits, and 475 for 24). However, it probably uses about 500-600 bytes of ROM for the whole thing. I seem to recall that Blargg's solution was smaller and faster. I just never took the time to understand how it works.<br /><br />If you were just doing 8 bit conversion, you'd want to go with a smaller solution. It still takes about 100 bytes for just 8 bits. But the tables from that routine are re-used in larger hex conversions.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

@@ -1,0 +1,40 @@
+#include <stdio.h>
+#include <fftw3.h>
+#include <math.h>
+
+void main (void) {
+	int lfsr, start, ii;
+	fftw_complex *fft_output;
+	double * fft_input;
+	fftw_plan fft_plan;
+
+	fft_input = (double *)fftw_malloc(sizeof(double) * 93);
+	fft_output = (fftw_complex *)fftw_malloc(sizeof(fftw_complex) * 47);
+
+	fft_plan = 
+		fftw_plan_dft_r2c_1d(93, fft_input, fft_output,
+		                     FFTW_EXHAUSTIVE);
+
+	for (start = 0; start < 32768; start ++) {
+		lfsr = start;
+		for (ii = 0; ii < 93; ii ++) {
+			lfsr = (lfsr << 1) | ((lfsr >> 14 ^ lfsr >> 8) & 1);
+			fft_input[ii] = !!(lfsr & 0x4000);
+		}
+		
+		fftw_execute(fft_plan);
+
+		for (ii = 1; ii < 47; ii++ ) {
+			printf ("%3d ",
+			        (int)(62.4376 *
+			        sqrt(pow(fft_output[ii][0],2)+
+			             pow(fft_output[ii][1],2))));
+			// scale it up from measured maximum of 16 to 999 for UI cleanlines
+		}
+		printf(" : %5d\n",start);
+	}
+
+	fftw_destroy_plan(fft_plan);
+	fftw_free(fft_input);
+	fftw_free(fft_output);
+}

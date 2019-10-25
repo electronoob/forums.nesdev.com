@@ -1,0 +1,166 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - my first ASM code, comments, advices, all welcome</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">my first ASM code, comments, advices, all welcome</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=4943">http://forums.nesdev.com/viewtopic.php?f=2&amp;t=4943</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Petruza</b> [ Wed Mar 11, 2009 2:21 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>my first ASM code, comments, advices, all welcome</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I'm rewriting my library in assembler, although optimization is not a priority right now, I just wanted to give asm a try, and I'm liking it.
+<br />Here I post my very first asm routine ever, for anyone who wants to comment, correct, point out some errors, give some advice or anything.
+<br />
+<br />The main idea is to copy a memory chunk from RAM to VRAM, a byte is used for the length so up to 256 bytes can be copied.
+<br />There will be anothe function to copy more than 256, but that will have to implement a 2 byte counter, spending more cpu cycles per loop.
+<br />
+<br />A special case is used to be able to copy exactly 256 bytes, which is when the length is set to 0. Do you consider this is useful? it means more bytes, more cpu cycles and more jumps just for one case, which I'm not sure will occur very often.
+<br />
+<br />Note: _param_p0, _param_w0 and _param_b0 are set to the given arguments in a C macro function called by the user which in turn calls this routine. This speeds things a little by using zero page vars instead of an argument stack, and also because I was too lazy to investigate how does cc65 operate that stack. <img src="./images/smilies/icon_wink.gif" alt=":wink:" title="Wink" />
+<br />(recursion and being called from an interrupt won't ocurr for this type of functions, so there's no problem of the zero page vars being corrupted)
+<br />
+<br />here's the code:
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">; void _copy_VRAM&#40; byte* source, word dest , byte length &#41;<br /><br />; Copies memory from source in RAM to dest in VRAM up to length bytes&#40;*&#41;<br /><br />; &#91; byte* source&nbsp; &nbsp;&#93;: pointer in RAM to data to be copied<br />; &#91; word dest&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&#93;: address in VRAM where data should be copied<br />; &#91; byte length&nbsp; &nbsp;&nbsp; &nbsp;&#93;: how many bytes should be copied<br />; &nbsp; &nbsp;&#40;*&#41; if length is in range &#91;1..255&#93; copies that many bytes<br />;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;else, if length is 0, copies 256 bytes<br /><br />.importzp _param_p0, _param_w0, _param_b0<br /><br />.export&nbsp; &nbsp;__copy_VRAM<br /><br />source&nbsp; &nbsp;= _param_p0 ; 2 bytes<br />dest&nbsp; &nbsp;&nbsp; &nbsp;= _param_w0 ; 2 bytes<br />length&nbsp; &nbsp;= _param_b0<br /><br />.proc __copy_VRAM<br /><br />&nbsp; &nbsp;ldy #0 ; y used to index source data<br />&nbsp; &nbsp;ldx #0 ; x used as counter<br /><br />&nbsp; &nbsp;cpx length<br />&nbsp; &nbsp;beq @copy_256_bytes ; if length is 0, copy 256 bytes<br />&nbsp; &nbsp;<br />@loop:<br /><br />; if counter X reached length, stop<br />&nbsp; &nbsp;cpx length<br />&nbsp; &nbsp;beq @end<br /><br />; skip first compare, to copy 256 bytes<br />@copy_256_bytes_entry:<br />&nbsp; &nbsp;<br />; dest's high byte<br />&nbsp; &nbsp;lda dest+1<br />&nbsp; &nbsp;sta $2006<br /><br />; dest's low byte<br />&nbsp; &nbsp;lda dest<br />&nbsp; &nbsp;sta $2006<br /><br />; copy data from source<br />&nbsp; &nbsp;lda &#40;source&#41;,y<br />&nbsp; &nbsp;sta $2007<br />&nbsp; &nbsp;<br />; 2 byte increment of dest<br />&nbsp; &nbsp;inc dest<br />&nbsp; &nbsp;bne @no_overflow <br />&nbsp; &nbsp;inc dest+1<br />@no_overflow:<br /><br />&nbsp; &nbsp;inx<br />&nbsp; &nbsp;iny<br />&nbsp; &nbsp;jmp @loop<br /><br />; If length is 0, copies 256 bytes<br />; start counter X in -1 &#40;$FF&#41; to make one more cycle than usual<br />; and skip first comparison to avoid &#40; $FF = $FF &#41; which would exit<br />; and not copy any byte at all<br />@copy_256_bytes:<br />&nbsp; &nbsp;ldx #$FF<br />&nbsp; &nbsp;stx length<br />&nbsp; &nbsp;jmp @copy_256_bytes_entry<br /><br />@end:&nbsp; &nbsp;<br />&nbsp; &nbsp;rts<br />&nbsp; &nbsp;<br />.endproc</div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Wed Mar 11, 2009 2:36 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Congrats on jumping into assembly!  =D  Here some misc tips:
+<br />
+<br />The PPU address auto-increments after every write to $2007, so you don't have to write to $2006 for every byte.
+<br />
+<br />Also, it's typically better to have a downcounter so you can just BEQ/BNE rather than doing an extra CPX.  Plus a loop of length 0 is automatically treated as a loop of length 256 because the condition isn't checked until the end -- so you don't need a special case.
+<br />
+<br />Example of a quick routine to copy X bytes from '(src)' to PPU address 'dest':
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">LDA dest+1<br />STA $2006<br />LDA dest<br />STA $2006<br /><br />LDY #0<br /><br />@loop:<br />&nbsp; LDA &#40;src&#41;,Y<br />&nbsp; STA $2007<br />&nbsp; INY<br />&nbsp; DEX<br />&nbsp; BNE @loop<br /><br />RTS<br /></div>
+<br />
+<br />Note that if X is zero, this loops 256 times, because X=FF after the first DEX
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

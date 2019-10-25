@@ -1,0 +1,284 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - PPU scanline docs wrong?</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">PPU scanline docs wrong?</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=543">http://forums.nesdev.com/viewtopic.php?f=2&amp;t=543</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Wed Sep 07, 2005 8:32 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>PPU scanline docs wrong?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I've done some tests on my NTSC NES PPU's scanline times and found information that differs from what I've read. From my test I conclude that the first visible scanline begins around 7485 PPU clocks from NMI, and the right edge of the last visible scanline ends around 89250 PPU clocks from NMI. That is, there are 22 undisplayed scanlines at the <em>start</em> of VBL, rather than 21 and then a wasted scanline at the end of the frame. I also found that three PPU frames always total exactly 89342 CPU clocks, meaning that the average scanline duration is exactly 341 (rather than a hair less as I've read).
+<br />
+<br />In my test the PPU is disabled and I have the VRAM address in the palette area to allow immediate feedback of $2007 accessess in the form of color change on screen. I figure the palette mapping is done at the final moment, so it has the least latency.
+<br />
+<br />I wait for my NMI handler to be invoked so I get the most accurate beginning of a PPU frame. Then I wait 2486 clocks before accessing $2007 the first time, then 27255 more clocks and access $2007 again. This results in two color changes on screen, one just after the beginning of the first scanline, and the other just before the end of the last scanline. I then delay until 29781 clocks have passed (29780 every third frame) since the NMI and loop back (NMI is disabled at this point). The edges of the color changes wobble a bit, but they don't crawl over time. I also verified that my video capture is capturing all 240 scanlines.
+<br />
+<br />This so strongly contradicts information I've read that I have to wonder what's going on.
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">nmi:&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; 1-3 clocks latency<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; 7 clocks to vector nmi<br />&nbsp; &nbsp; &nbsp; lda&nbsp; &nbsp;#0&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; 2 disable nmi<br />&nbsp; &nbsp; &nbsp; sta&nbsp; &nbsp;$2000&nbsp; &nbsp; &nbsp; &nbsp;; 4<br />&nbsp; &nbsp; &nbsp; <br />loop:<br />&nbsp; &nbsp; &nbsp; ldy&nbsp; &nbsp;#10&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; 2477 delay<br />&nbsp; &nbsp; &nbsp; lda&nbsp; &nbsp;#48&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;<br />&nbsp; &nbsp; &nbsp; jsr&nbsp; &nbsp;delay_ya0<br />&nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; lda&nbsp; &nbsp;$2007&nbsp; &nbsp; &nbsp; &nbsp;; 4 write occurs at VBL + 2495 &#40;scanline 21.95&#41;<br />&nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; ldy&nbsp; &nbsp;#34&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; 27251 delay<br />&nbsp; &nbsp; &nbsp; lda&nbsp; &nbsp;#159&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; jsr&nbsp; &nbsp;delay_ya0<br />&nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; lda&nbsp; &nbsp;$2007&nbsp; &nbsp; &nbsp; &nbsp;; 4 write occurs at VBL + 29750 &#40;scanline 261.73&#41;<br />&nbsp; &nbsp; &nbsp; <br />setup:<br />&nbsp; &nbsp; &nbsp; lda&nbsp; &nbsp;#$3f&nbsp; &nbsp; &nbsp; &nbsp; ; 2<br />&nbsp; &nbsp; &nbsp; sta&nbsp; &nbsp;$2006&nbsp; &nbsp; &nbsp; &nbsp;; 4<br />&nbsp; &nbsp; &nbsp; lda&nbsp; &nbsp;#$01&nbsp; &nbsp; &nbsp; &nbsp; ; 2<br />&nbsp; &nbsp; &nbsp; sta&nbsp; &nbsp;$2006&nbsp; &nbsp; &nbsp; &nbsp;; 4<br />&nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; lda&nbsp; &nbsp;#3&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; 2<br />&nbsp; &nbsp; &nbsp; ldx&nbsp; &nbsp;&lt;delay&nbsp; &nbsp; &nbsp; ; 3<br />&nbsp; &nbsp; &nbsp; dex&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; 2<br />&nbsp; &nbsp; &nbsp; beq&nbsp; &nbsp;+&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; 2/3 &#40;every third frame branch is taken&#41;<br />&nbsp; &nbsp; &nbsp; txa&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; 2<br />:&nbsp; &nbsp; &nbsp;sta&nbsp; &nbsp;&lt;delay&nbsp; &nbsp; &nbsp; ; 3<br />&nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; pha&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; 16 delay<br />&nbsp; &nbsp; &nbsp; pla<br />&nbsp; &nbsp; &nbsp; pha<br />&nbsp; &nbsp; &nbsp; pla<br />&nbsp; &nbsp; &nbsp; nop<br />&nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; jmp&nbsp; &nbsp;loop&nbsp; &nbsp; &nbsp; &nbsp; ; 3<br /></div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Wed Sep 07, 2005 9:47 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Addendum: The last (240th) scanline is always blank (sprites and background don't show up on it), thus you can only display 239 scanlines of normal graphics. When the PPU is enabled, it's the bg color. But there is a 240th scanline whose color can be manipulated to some extent.
+<br />
+<br />I just noticed some junk scanlines on the bottom of the screen of my emulator, which prompted me to check this out. A few other tests I've run (since it's often easier to ask the NES than read a doc) regarding vertical scroll position and sprite positions show that the vertical scroll position you set via $2005 is effectively incremented by one, and that the sprite vertical position matches that on screen. In other words, if you write 0 to $2005 twice, the first scanline will show the second line of the background. If you write 0 to a sprite's Y position, its first line will be displayed on the first visible scanline.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Quietust</b> [ Wed Sep 07, 2005 9:59 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />What revision PPU were you testing?
+<br />
+<br />Kevin Horton performed tests with an RP2C02G, and the results agree 100% with the existing timing information - that is, NMI for the duration of 20 idle scanlines, 1 blank-but-fetching scanline, 240 fetched-and-rendered scanlines, then 1 idle scanline before the next NMI. These tests were not done in a complete NES, but by manually manipulating the chip's input lines and observing its bus activity.
+<br />
+<br />I also have a test ROM which proves that every other frame in NTSC is 1/3 of a CPU cycle shorter by displaying a white box using timed manipulation of the grayscale bit - it tested flawlessly on Kevin Horton's CopyNES.
+<br />
+<br /><a href="http://www.qmtpro.com/~nes/cputime.nes" class="postlink">http://www.qmtpro.com/~nes/cputime.nes</a>
+<br /><a href="http://www.qmtpro.com/~nes/cputime.asm" class="postlink">http://www.qmtpro.com/~nes/cputime.asm</a>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Thu Sep 08, 2005 1:09 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />My NES has a 2C02G-0 video chip.
+<br />
+<br />I guess my video capture doesn't capture the full NTSC frame. I hooked the video output of my NES to the <em>audio</em> input of my PC and was able to look at the video waveform in a sound editor. I could see that there was a BG scanline displayed on the 22nd scanline, as you stated. This solves the issue of what happens on each scanline (it happens as documented).
+<br />
+<br />There's still the issue of frame length, and I realized that you were testing with the BG enabled. I used the grayscale bit as you mentioned, allowing me to test timing with the same loop regardless of whether BG was enabled. I found that the frame timing varies based on what's enabled:
+<br />
+<br />With BG and/OR sprites enabled, 59561 CPU clocks kept it stable (appearing every other frame). Every scanline being exactly 341 PPU clocks except one every other frame would fit with this number.
+<br />
+<br />With BG and sprites disabled, 89342 CPU clocks kept it stable (albeit appearing only one frame out of three). Every scanline being exactly 341 PPU clocks would fit with this number. This is what I was timing originally.
+<br />
+<br />So apparently every other frame is one PPU clock shorter <em>only</em> when BG and/or sprites are enabled.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>hap</b> [ Thu Sep 08, 2005 3:02 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />If your last point is the case, does the even/odd frame rule (the frame at boot being the even frame, then odd,even,odd,even,etc) still apply when the ppu has been disabled for a few frames ? Or will the odd frame after reenabling the ppu be 1 cycle shorter, no matter how many frames the ppu has been disabled, as if having an imaginary frame counter reset on ppu disabling ?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Thu Sep 08, 2005 10:41 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />That would be quite difficult to test. I have an idea for a test that turns the PPU off every other frame for hundreds of frames, then finds out how many clocks since power-up the next NMI occurs at. If I run this test on even frames, then odd frames, and get a significantly different result, then that confirms that the even/odd counter is maintained even when the PPU is off, otherwise it shows it's not maintained... or that the test has a bug or is simply flawed.
+<br />
+<br />Of course if a difference is not found, then we'll want to know exactly when the even/odd frame bit is toggled.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Sun Sep 25, 2005 4:50 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I've finally been able to synchronize to exact PPU clocks in my test code. My preliminary result is that the even/odd flag is toggled every frame and unaffected by the PPU being turned on and off. At some point I'll have some test ROMs for this.
+<br />
+<br />The way to synchronize with the PPU turned out quite simple. Turn the PPU off to get every frame at exactly 341 PPU clocks per scanline, resulting in frames 29780.66666 CPU clocks long. Roughly synchronize by polling $2002, delay slightly less than a frame, then keep checking $2002 every 29781 clocks. The VBL flag will be set at CPU clock intervals of 29781, 29781, 29780, 29781, 29781, 29780, etc. The loop starts out checking for the VBL flag slightly early, but runs at 29781 clocks per iteration, so the PPU slowly inch up and eventually start setting the VBL flag before the loop reads it, terminating the loop. At this point, the loop will have read the VBL flag the soonest after the PPU set it, and the code will be synchronized with the PPU. This opens the door to very precise tests.
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp; &nbsp; lda&nbsp; &nbsp;#0&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; disable bg<br />&nbsp; &nbsp; &nbsp; sta&nbsp; &nbsp;$2001<br /><br />&nbsp; &nbsp; &nbsp; bit&nbsp; &nbsp;$2002&nbsp; &nbsp; &nbsp; &nbsp;; clear vbl flag<br />:&nbsp; &nbsp; &nbsp;bit&nbsp; &nbsp;$2002&nbsp; &nbsp; &nbsp; &nbsp;; wait for vbl flag to be set<br />&nbsp; &nbsp; &nbsp; bpl&nbsp; &nbsp;-<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; delay slightly less than a frame<br />&nbsp; &nbsp; &nbsp; ldy&nbsp; &nbsp;#141&nbsp; &nbsp; &nbsp; &nbsp; ; 29770 delay<br />&nbsp; &nbsp; &nbsp; lda&nbsp; &nbsp;#41&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;<br />&nbsp; &nbsp; &nbsp; jsr&nbsp; &nbsp;delay_ya2<br />&nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; <br />:&nbsp; &nbsp; &nbsp;ldy&nbsp; &nbsp;#86&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; 29774 delay<br />&nbsp; &nbsp; &nbsp; lda&nbsp; &nbsp;#68&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;<br />&nbsp; &nbsp; &nbsp; jsr&nbsp; &nbsp;delay_ya1<br /><br />&nbsp; &nbsp; &nbsp; bit&nbsp; &nbsp;$2002<br />&nbsp; &nbsp; &nbsp; bpl&nbsp; &nbsp;-<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; code is now synchronized to PPU<br /></div>
+<br />
+<br />I'm glad to have figured this out since it opens the door to very precise PPU test ROMs.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

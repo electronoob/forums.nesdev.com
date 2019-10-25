@@ -1,0 +1,402 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - SN76489 (Master System, Mega Drive PSG)</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">SN76489 (Master System, Mega Drive PSG)</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=23&amp;t=15562">http://forums.nesdev.com/viewtopic.php?f=23&amp;t=15562</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>byuu</b> [ Tue Feb 21, 2017 4:11 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>SN76489 (Master System, Mega Drive PSG)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Reading through <!-- m --><a class="postlink" href="http://md.squee.co/PSG">http://md.squee.co/PSG</a><!-- m --> , we found:<br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Note: Any writes to the Attenuators will reset the waveform to high level, as recently found out by TmEE.</div><br /><br />But it's also my understanding that volume writes reload the period (tone) counter from what was written to said registers.<br /><br />Yet if I implement a volume write as always doing that, the audio distortion is pretty bad.<br /><br />For now, Cydrak came up with this that seems to work well:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp; tone0.volume = data.bits(0,3);<br />&nbsp; &nbsp; if(tone0.pitch &lt; 2) {<br />&nbsp; &nbsp; &nbsp; tone0.output = 1;<br />&nbsp; &nbsp; &nbsp; tone0.counter = tone0.pitch;<br />&nbsp; &nbsp; }</div><br /><br />... but is that accurate? I'm thinking that maybe ... the counter isn't reloaded on volume writes?<br /><br />Also, what about noise channel writes? Does that also raise the output to 1?<br /><br />Next up, there is this: <!-- m --><a class="postlink" href="http://www.smspower.org/Development/SN76489#TheImperfectSN76489">http://www.smspower.org/Development/SN7 ... ectSN76489</a><!-- m --><br /><br />I'm not really entirely sure how to emulate this.<br /><br />For now, Cydrak has a lowpass filter in place:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; lowpassLeft += (left - lowpassLeft) * 20.0 / 256.0;<br />&nbsp; left = left * 2.0 / 6.0 + lowpassLeft * 3.0 / 4.0;<br />&nbsp; left = sclamp&lt;16&gt;(left);<br />&nbsp; //same for right channel ... Master System mode is of course monaural</div><br /><br />But I doubt that's enough to simulate that waveform.<br /><br />What's the best technique for creating more faithful reproduction of the pictured imperfection in square waves?<br /><br />Lastly ... all of the documentation refers to the PSG running at 3.58MHz ... but unless I run it at 1/16th that speed, or 223.7KHz, then the pitch is way off and the audio sounds terrible.<br /><br />Am I doing something wrong, or if not, why don't the docs mention there's a /16 divider for clocking the tone/noise channels?<br /><br />Many thanks in advance to anyone who can help shed some light onto these remaining mysteries :)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>TmEE</b> [ Tue Feb 21, 2017 5:10 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: SN76489 (Master System, Mega Drive PSG)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />The note that volume writes reset waveform is not correct, I misinterpreted my readings (I just had got an oscilloscope at that time and didn't know how to use it properly yet). <br />I recall setting lowest freq (register value 0) and just spammed non changing attenuator value and didn't observe any change in signal, but I probably didn't look at slow enough timebase. That was really long ago, I will do new tests in not too far future, I got more work to do with VDP for now, there's plenty registers which exact points of taking effect aren't yet determined.<br /><br />EDIT: Waveform coming out the chip is perfect squarewave, any deviations are from any analog circuitry preset (only some bandpass filtering, low end at few tens of Hz, high end at few tens of KHz, depending on particular hardware). You also shouldn't try to replicate it, your sound card output or other devices in the signal path already do that.<br /><br />PSG has prescaler in it that divides the clock by 16. Ti sold chips with and without the prescaler. PSG integrated into the VDP (SMS, MD and SG-1000 II) always has prescaler present, and LFSR is different compared to real Ti chip (not sure about SG-1000 II). The last part matters for SG-1000 and SG-3000 vs SMS and MD, alternate mode on noise channel has 1/15% duty cycle on one and 1/16% duty cycle on other, causing things to be out of tune if not compensated for.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>byuu</b> [ Sat Feb 25, 2017 1:11 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: SN76489 (Master System, Mega Drive PSG)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Thanks very much for the info!<br /><br />One more question if possible ...<br /><br />I'm trying to emulate the noise channel properly. Does this code look correct?<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">auto PSG::Noise::run() -&gt; void {<br />&nbsp; if(--counter) return;<br /><br />&nbsp; if(rate == 0) counter = 0x10;<br />&nbsp; if(rate == 1) counter = 0x20;<br />&nbsp; if(rate == 2) counter = 0x40;<br />&nbsp; if(rate == 3) counter = pitch;&nbsp; //shared with tone2<br /><br />&nbsp; if(clock ^= 1) {&nbsp; //0-&gt;1 transition<br />&nbsp; &nbsp; output = lfsr &amp; 1;&nbsp; //docs say the shifted-out value goes to the output<br />&nbsp; &nbsp; auto eor = enable ? ~lfsr &gt;&gt; 3 : 0;&nbsp; //lfsr is a uint16 type<br />&nbsp; &nbsp; lfsr = (lfsr ^ eor) &lt;&lt; 15 | lfsr &gt;&gt; 1;<br />&nbsp; }<br />}</div><br /><br />run() is called 3.58MHz/16 times per second.<br /><br />The value in output, when set, outputs the noise channel's volume, otherwise zero.<br /><br />When you write to the Tone 2 register, I copy the value into the noise class.<br /><br />For now, when writing to the Noise register, I'm not modifying the counter at all.<br /><br />I'm also unsure if my LFSR computation is 100% correct. The docs go into testing parity and things like that, but that seems really overly complex. This implementation of the LFSR is courtesy of Cydrak, but I'm not sure where sie got it from.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>mic_</b> [ Mon Feb 27, 2017 9:17 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: SN76489 (Master System, Mega Drive PSG)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Why is there a bitwise NOT in there? All descriptions of the SN76489 noise channel I've seen have had the new bit15 set to bit0 XOR bit3 in &quot;white noise&quot; mode. Has someone made recordings where they concluded that it should in fact be bit0 XOR (NOT bit3) ?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>byuu</b> [ Mon Feb 27, 2017 7:33 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: SN76489 (Master System, Mega Drive PSG)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Cydrak spotted a really important bug in that I was saying if(--counter) return; instead of if(counter--) return;<br /><br />Lots of games set a period of 0 and expect that to be really short, not as long as possible. Fixes noise in tons of games.<br /><br />&gt; Why is there a bitwise NOT in there? All descriptions of the SN76489 noise channel I've seen have had the new bit15 set to bit0 XOR bit3 in &quot;white noise&quot; mode.<br /><br />Hmm, so would you say this is a better strategy?<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">bool bit0 = lfsr &amp; 1;<br />bool bit3 = lfsr &gt;&gt; 3 &amp; enable;&nbsp; //enable = 1 or 0<br />lfsr = (bit0 ^ bit3) &lt;&lt; 15 | lfsr &gt;&gt; 1;</div><br /><br />Or technically with my integer class, I can say:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">lfsr = (lfsr.bit(0) ^ (lfsr.bit(3) &amp; enable)) &lt;&lt; 15 | lfsr &gt;&gt; 1;</div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>mic_</b> [ Tue Feb 28, 2017 1:42 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: SN76489 (Master System, Mega Drive PSG)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />That looks like what I'd expect. Though I haven't made any hardware tests to verify this, so I was curious about that NOT and whether it was based on some recent discovery. If it wasn't then I'd say leave it out for the time being.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>TmEE</b> [ Wed Mar 01, 2017 8:09 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: SN76489 (Master System, Mega Drive PSG)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I have been testing hardware the entire yesterday and I've found and verified few things.<br />Things tested :<br />*SN76489AN in SC-3000<br />*315-5124 (SMS1 VDP)<br />*315-5246 (SMS2 VDP)<br />*315-5313-x (MD1 VDP)<br />*315-5476/5660/5700/5708/5960 (MD2 ASIC)<br />*315-6123 (Genesis 3 VA2 ASIC)<br />I would love to test out Sega SG-1000 II with 315-5066 chip which has VDP and PSG combined. It will be good to verify if it has vanilla PSG or what all other machines got, and also determine if the RGB output is same as SMS VDPs or different.<br /><br />Freq of $000 acts as $400 on TI chip (MCLK / 32 / $400), producing lowest possible frequency. Decrement counter and then check for zero logic.<br />On Sega VDPs, freq of $000 acts same as $001, producing (MCLK / 32) output rate, highest possible frequency. Rest works exactly as on TI PSG. Freq of $000 is handled specially, which makes little sense from hardware perspective. I would have liked the extra low freq step, as the chip has very shit lower end freq range to begin with due to being clocked so high.<br /><br />Noise phase is reset by frequency writes, volume writes have no effect. Noise always starts from low level. By spamming freq writes you can permanently keep noise output at low level.<br /><br />Noise register is 15 bits on TI chip. Bits 0 and 1 are XORed and output to bit14 of left rotated register. Output is inversion of bit 0. <br />Upon phase reset, noise reg is reloaded with 100 0000 0000 0000. <br />Starting bit pattern of noise on TI chip : <!-- m --><a class="postlink" href="http://www.tmeeco.eu/SMS/TI%20PSG%20Noise%20Pattern.flac">http://www.tmeeco.eu/SMS/TI%20PSG%20Noi ... ttern.flac</a><!-- m --><br /><br />On Sega VDPs the register is 16 bits and bits 0 and 3 XORed and output to bit 15 of left rotated reg, output is still inversion of bit 0. Phase reset reloads noise reg with 1000 0000 0000 0000.<br />Starting bit pattern of noise on Sega VDP : <!-- m --><a class="postlink" href="http://www.tmeeco.eu/SMS/SEGA%20VDP%20PSG%20Noise%20Pattern.flac">http://www.tmeeco.eu/SMS/SEGA%20VDP%20P ... ttern.flac</a><!-- m --><br /><br />Do notice the gap between start and first pulse, same thing also happens on hardware. Noise output is not instant, suggesting the way I do the noise register is correct.<br /><br />Alternate noise mode produces 100/15 duty cycle square wave on TI chips and 100/16 duty cycle squares on Sega VDPs. Noise register is rotated left without any XOR magic and output is inversion of bit 0. The implication of this is that you need a new freq table to have noise in tune with tones on TI PSG, while on Sega VDPs noise is exactly 4 octaves lower allowing freq table to be reused.<br /><br />Tone phase is not reset by either volume or frequency writes on TI chip or Sega VDPs. You can spam either to the chips and nothing happens as far as phase goes. Change applies immediately to current state. This has implications on PCM playback, only sane way to do it is by using highest possible frequency which then averages into something along the lines of DC level due to lowpass filters on the chip output path. This is also part of the reason why PCM playback is very quiet on actual hardware. If noise started at high level you could get reliable DC offset to exploit and get better results for PCM playback.<br /><br />It is possible to detect TI PSG, as it has READY output which is connected to !WAIT line on Z80 in SC-3000 and if the chip is not ready, CPU is stalled until it is. You can spam writes to the chip and then determine if you have lagged behind or not. There is no such stall mechanism with Sega VDPs. Chip is able to accept one write every sample, I'm not right now sure if Sega VDP can accept data faster than TI chip or it misses the writes, I will have to do some explicit tests to determine that.<br /><br />Outputs of TI chip behaves as expected, you have 4x log scaled channels that just get summed together. The output has tendency to oscillate at transitions from low to high and high to low, but that is fixed by placing a 150pF or smaller cap from Audio Out pin (9) to the Audio In / NC pin (7). TI chip is made of BJTs not MOS transistors.<br />Sega VDPs are made of NMOS transistors and require external current sinking resistor and this has some implications on what signals are like. The higher overall output level gets the less the resistor is able to sink current away and the more output flattens out, you do not get equal spacing of summed channels as current is running out. The resistor value used in SMS and MDs is 2.2Kohm, exception is SMS2 which uses an additional resistor to VCC on the output which really destroys 3 top levels of a channel causing totally messed up output :<br /><!-- m --><a class="postlink" href="http://www.tmeeco.eu/SMS/PSGbadLevels.jpg">http://www.tmeeco.eu/SMS/PSGbadLevels.jpg</a><!-- m --><br />this has 3 channels playing at the same time doing a volume ramp. The pic was taken a long time ago, my current digital scope is unable to show as clear result unfortunately as it has relatively low sample rate and things are full of aliasing artifacts. My other nice analog scope managed to develop dead tube. Normal, unmessed up output looks like this (just 2.2k resistor): <!-- m --><a class="postlink" href="http://www.tmeeco.eu/SMS/PSGgoodLevels.jpg">http://www.tmeeco.eu/SMS/PSGgoodLevels.jpg</a><!-- m --><br />There is still some non linearity but it is much smaller. By using a lower value resistor (under 470ohm) you start getting output that starts reaching the ideal (like TI chip). NES for example uses 100ohm resistors on its audio outputs to get best possible linearity (albeit it still has problems due to varying DC offsets on different channels). TI, SMS1, SMS2 and MD chips all got differing DC offsets and peak-to-peak output levels. I will do accurate measuerements of all the levels in near future once I write out a good test program for that. It should be noted that while MD2 ASIC is CMOS, the PSG output is still NMOS based and requires sink resistor to function, while YM output is full CMOS based and will not function with sinking resistor in place (which are required for YM2612 which is NMOS).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>byuu</b> [ Tue Mar 07, 2017 12:37 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: SN76489 (Master System, Mega Drive PSG)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Fantastic information, thank you! I've made a few corrections, such as flipping bit 0 of the noise channel output now.<br /><br />One last significant question ...<br /><br />When it comes to the output bits from each channel, should they behave like this?<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; int output = 0;<br />&nbsp; if(tone0.output) output += levels&#91;tone0.volume&#93;;<br />&nbsp; if(tone1.output) output += levels&#91;tone1.volume&#93;;<br />&nbsp; if(tone2.output) output += levels&#91;tone2.volume&#93;;<br />&nbsp; if(noise.output) output += levels&#91;noise.volume&#93;;</div><br /><br />Or like this?<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; int output = 0;<br />&nbsp; output += levels&#91;tone0.volume&#93; * (tone0.output ? +1 : -1);<br />&nbsp; output += levels&#91;tone1.volume&#93; * (tone1.output ? +1 : -1);<br />&nbsp; output += levels&#91;tone2.volume&#93; * (tone2.output ? +1 : -1);<br />&nbsp; output += levels&#91;noise.volume&#93; * (noise.output ? +1 : -1);</div><br /><br />In other words, if the bit is low on the output for a channel, should we just not adjust the total output volume at all, or should we subtract from it by the volume level for said channel?<br /><br />The former has a significant problem in that it produdes a strictly unsigned waveform. We can try to center the channel. Say the total maximum value for all channels is 0x3fff, then we can subtract 0x2000 to turn the range from 0000 - 3fff into -2000 - +1fff. But this is tricky as well, because total silence now ends up being -0x2000 instead of 0, and when mixing with the YM2612, it can lead to faster audio distortion.<br /><br />The latter avoids this problem, but is very different in terms of operation. It also means the only way to produce silent output for a channel is to set the volume register to 0xf. And obviously it doubles the range of output, so we'd have to halve the volume levels[], or use +0.5 and -0.5 instead.<br /><br />The thing is ... I've tried both, and while the latter sounds <em>slightly</em> better to my ears, I'd like to know definitively which one is the correct behavior.<br /><br />So ... does anyone know for sure which way the PSG should work?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Tue Mar 07, 2017 1:24 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: SN76489 (Master System, Mega Drive PSG)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><a href="https://en.wikipedia.org/wiki/Texas_Instruments_SN76489" class="postlink">Wikipedia</a> links to <a href="ftp://ftp.whtech.com/datasheets%20and%20manuals/Datasheets%20-%20TI/SN76489.pdf" class="postlink">this datasheet</a> which says ... honestly, something kinda funny.<br /><br />On page 7, there's the following schematic:<div class="attachtitle">Attachment:</div><div class="attachcontent">
+			<a href="./download/file.php?id=8256&amp;mode=view"><img src="./download/file.php?id=8256&amp;t=1" alt="TI-Engineering-Staff-SN76489AN-p7-top.png" /></a><br />
+			<span class="gensmall">TI-Engineering-Staff-SN76489AN-p7-top.png [ 12.51 KiB | Viewed 3167 times ]</span>
+		
+
+		<br />
+	</div><br />Indicating that the output is 'unsigned' (&quot;Internally Generated Sound Signal -160µA ≤ I<sub>INT</sub> ≤ 0&quot;), <em>but</em> with a offset (&quot;+1.5V (typical)&quot;).<br /><br />In any case, almost all instantiations of this hardware will follow it with an analog highpass filter, so &quot;just&quot; emitting unsigned values isn't entirely accurate.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>TmEE</b> [ Tue Mar 07, 2017 2:10 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: SN76489 (Master System, Mega Drive PSG)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />The output of the chip is all &quot;unsigned&quot;, going above some DC offset (never below), but there's always a highpass filter on the chip output which will give you &quot;signed&quot; result that swings around some voltage reference given later in the circuit.<br /><br />Ideally you would implement a highpass filter in software, but you can cheat and make the chip output swing around 0 rather than always above. Technically it would be inaccurate but there's no audible difference and it takes less CPU too.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Tue Mar 07, 2017 6:43 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: SN76489 (Master System, Mega Drive PSG)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Games using PCM, such as the &quot;Say-Gah&quot; sample before the titlescreen in some <em>Sonic</em> games, expect the unsigned behavior. Otherwise, they'll be inaudible or nearly so. For both 2A03 and SN76489 family, use unsigned output followed by a software band-pass filter.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>byuu</b> [ Tue Mar 07, 2017 10:40 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: SN76489 (Master System, Mega Drive PSG)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />&gt; Ideally you would implement a highpass filter in software<br /><br />I can easily add a highpass filter, but the million dollar question there is ... what cutoff frequency should it use?<br /><br />I already have a lowpass filter with a 20KHz cutoff frequency (I output at &gt;= 44100hz), in order to erase audio aliasing on resampling. I could go higher, but nobody would hear it anyway.<br /><br />&gt; you can cheat and make the chip output swing around 0 rather than always above.<br /><br />How would I do that? Even if I do things per channel:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; int output = 0;<br />&nbsp; if(tone0.output) output += center(levels&#91;tone0.volume&#93;);<br />&nbsp; if(tone1.output) output += center(levels&#91;tone1.volume&#93;);<br />&nbsp; if(tone2.output) output += center(levels&#91;tone2.volume&#93;);<br />&nbsp; if(noise.output) output += center(levels&#91;noise.volume&#93;);</div><br /><br />Where center() would be something like subtracting levels[0]&gt;&gt;1 (half the maximum range).<br /><br />Then even still, it's not going to maintain a signed 0x0000 position for silent audio.<br /><br />I don't see how we can keep 0x0000 the center unless we do the output += volume * +1/-1 per channel hack.<br /><br />&gt; Games using PCM, such as the &quot;Say-Gah&quot; sample before the titlescreen in some Sonic games, expect the unsigned behavior.<br /><br />Of course I forgot to test the Sonic Game Gear version &gt;_&lt;<br />Thanks, I'll try that one with whatever I come up with next.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Tue Mar 07, 2017 11:30 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: SN76489 (Master System, Mega Drive PSG)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />To simulate the Game Gear's internal speaker, you could pretend it's the same as a Game Boy Advance's speaker, which I've modeled as a third-order Butterworth highpass with corner frequency 800 Hz.<br /><br />For general use with TV or headphones, you could use a filter that's more or less transparent in the audible band. Try a 20 Hz corner frequency because that's the canonical lower limit of human hearing.<br /><br />Or you can use half the PSG's minimum continuous output frequency as the corner frequency so that it's essentially flat in the desired band. For the SN76489 family, the lowest frequency is close to 39375000/11/32768 = 109.2 Hz, so you can set the corner frequency at 54.6 Hz.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>TmEE</b> [ Tue Mar 07, 2017 12:30 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: SN76489 (Master System, Mega Drive PSG)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />HPF cutoff freq is subsonic, like 10Hz or something (10µF caps and relatively weak loading on subsequent stages in the circuit). <br />LPFs are all cutting well into audible range, under 10KHz even on some hardware models (! ). I will experimentally determine the cutoff points later on when I make some freq sweep tests on various hardware. <br /><br />Anyway this is what happens in the hardware : <!-- m --><a class="postlink" href="http://www.tmeeco.eu/SMD/AnalogSoundStuff.png">http://www.tmeeco.eu/SMD/AnalogSoundStuff.png</a><!-- m --><br />Simulating the analog effects is going to be a bit ugly on the dynamic range side of things, full scale 16bit output will not fit in 16bit datatype after HPF, due to half of Vpp signal going below GND at that point (not a problem if you use floats).<br /><br />As far as cheating with PSG output goes, I jsut created a volume table with + values for high states and - values for low states and I sum stuff up. It is dirty but approximates output after the HPF well enough for just music (which is all I need in my music tool) but it should break down for PCM playback stuff. Doing it the proper way will work best there. Bear in mind that most games using PCM on SMS/GG sound very bad (like playing 4bit PCM without taking account the log scale of the chip). <br />Here's one PSG PCM test ROM I made a while ago : <!-- m --><a class="postlink" href="http://www.tmeeco.eu/BitShit/SMSPCM.SMS">http://www.tmeeco.eu/BitShit/SMSPCM.SMS</a><!-- m --><br />Original track used : <!-- m --><a class="postlink" href="http://www.tmeeco.eu/BitShit/GreenHillsXGremixLOOP.flac">http://www.tmeeco.eu/BitShit/GreenHillsXGremixLOOP.flac</a><!-- m -->
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

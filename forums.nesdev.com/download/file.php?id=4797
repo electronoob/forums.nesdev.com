@@ -1,0 +1,182 @@
+; PBJ unpacker
+; Copyright (c) 2015  Johnathan Roatch
+;
+; Copying and distribution of this file, with or without
+; modification, are permitted in any medium without royalty provided
+; the copyright notice and this notice are preserved in all source
+; code copies.  This file is offered as-is, without any warranty.
+;
+; Version History:
+;   2015-12-31: Initial release. (bytes: 159 ROM, 5 RAM)
+;
+; ## Stream format:
+;   Initially starts in PB8 mode.
+;   In PB8 mode:
+;     00000000        : 0x00 8 times.
+;     01111111        : 0xff 8 times.
+;     0nnnnnnn ...    : For each bit in the PB8 control byte,
+;                       0 is a new byte, 1 is the previous byte.
+;   In BG mode:
+;     0nnnnnnn        : 128-N Run of BG
+;   In both modes:
+;     10011111 xx     : Switch to BG mode and set BG to X.
+;     100nnnnn xx     : 32-N incrementing run starting at X.
+;     10111111        : Switch to PB8 mode.
+;     10111110 xx yy  : Set PPU_ADDR to yyxx
+;     101nnnnn xx yy  : For 32-N times, emit alternately X and Y.
+;     110nnnnn ...    : 32-N literal bytes.
+;     11111111        : End stream.
+;     111nnnnn xx     : 32-N run of X.
+
+.include "nes.inc"
+
+.importzp temp
+.export pbj_unpack
+.export pbj_example
+.export pbj_data_ptr
+
+.segment "CODE"
+
+;;
+; unpacks a PBJ stream to the PPU
+;
+; Input: start of stream pointer (via data stack). PPU_ADDR is set by
+;     stream if there are $3e commands, otherwise PPU_ADDR is assumed set.
+; Trashes: A,Y, temp 0 ~ 4.
+.proc pbj_unpack
+pbj_data_ptr    = temp+0  ; two bytes
+pbj_data_ptr_lo = temp+0
+pbj_data_ptr_hi = temp+1
+current_action  = temp+2
+dbl_byte        = temp+2  ; dbl_byte can share with current_action
+pb8_ctrl        = temp+2  ; pb8_ctrl can also share with current_action
+bg_byte         = temp+3
+bgrun_mode      = temp+4
+  ldx #$00
+  ldy pbj_data_ptr_lo
+  stx pbj_data_ptr_lo
+@set_pb8_mode:
+  ;,; ldx #$00
+  stx bgrun_mode
+  @input_loop:
+    jsr read_byte
+    cpx #$00
+    beq @decode_control_byte
+      bit current_action  ;N = b7, V = b6
+      bpl @dbl_or_inc
+        bvs @do_run
+        @do_lit:  ; 110nnnnn
+          sta PPU_DATA
+          inx
+        jmp @input_loop
+      @dbl_or_inc:
+        bvs @do_dbl
+        @do_inc: ; 100nnnnn
+          cpx #$ff
+          beq @set_bg_mode
+          @inc_loop:
+            sta PPU_DATA
+            clc
+            adc #$01
+            inx
+          bne @inc_loop
+        beq @input_loop   ; bra
+        @do_dbl:  ; 101nnnnn
+          eor (pbj_data_ptr), y
+          sta dbl_byte
+          jsr read_byte
+          cpx #$fe
+          beq @set_ppu_addr
+          @dbl_loop:
+            eor dbl_byte
+            sta PPU_DATA
+            inx
+          bne @dbl_loop
+        beq @input_loop   ; bra
+          @set_ppu_addr:
+            sta PPU_ADDR
+            eor dbl_byte
+            inx
+          bne @set_ppu_addr
+        beq @input_loop   ; bra
+          @set_bg_mode:
+            sta bg_byte
+            ;,; ldx #ff
+            stx bgrun_mode
+            inx
+          beq @input_loop   ; bra
+        @do_bgrun:  ; 0nnnnnnn
+          ora #%10000000
+          tax
+          lda bg_byte
+        @do_run:  ; 111nnnnn
+          @run_loop:
+            sta PPU_DATA
+            inx
+          bne @run_loop
+        beq @input_loop   ; bra
+    @decode_control_byte:
+      cmp #%10111111
+      beq @set_pb8_mode
+      sta current_action
+      asl current_action
+      bcs @not_bgrun_or_pb8plane
+        cpx bgrun_mode
+        bcc @do_bgrun
+        @do_pb8_plane:
+          ldx #$100-8
+          ora #%10000000
+          cmp #$ff
+          beq @do_run  ;,; beq @do_8_255
+          ;,; clc
+          and #%01111111
+          beq @do_run  ;,; beq @do_8_zeros
+          @pb8_loop:
+            bcs @pb8_noNewByte
+              jsr read_byte
+            @pb8_noNewByte:
+            asl pb8_ctrl
+            sta PPU_DATA
+            inx
+          bne @pb8_loop
+        jmp @input_loop  ; this missed being a bra by 2 bytes :(
+      @not_bgrun_or_pb8plane:
+      cmp #%11111111
+      beq @end
+      ora #%11100000
+      tax
+    jmp @input_loop
+  @end:
+  sty pbj_data_ptr_lo
+rts
+
+read_byte:
+  lda (pbj_data_ptr), y
+  iny
+  bne @__skip1
+    inc pbj_data_ptr_hi
+  @__skip1:
+rts
+.endproc
+
+.segment "RODATA"
+
+pbj_example:
+; load black into all palette entries
+  .byte $be
+  .word $3fe0
+  .byte $20-32 | %11100000, $0f
+; As a side effect of starting at $3fe0
+;   the PPU address has now warped to $0000.
+; set to BG mode with byte 0 becasue We'll be writing a lot of them.
+  .byte %10011111, $00
+; Set tile 0 to all color 0
+  .byte $80-16
+; Set all nametable $2000 entries and attributes to 0
+  .byte $be
+  .word $2000
+  .byte $80-128, $80-128, $80-128, $80-128, $80-128, $80-128, $80-128, $80-128
+; Optionally leave the PPU address at 0.
+  ;.byte $be
+  ;.word $0000
+  .byte $ff

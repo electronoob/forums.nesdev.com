@@ -1,0 +1,442 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Shadow of the Beast (port)</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Shadow of the Beast (port)</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=22&amp;t=17286">http://forums.nesdev.com/viewtopic.php?f=22&amp;t=17286</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>5</strong> of <strong>5</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Fri Jul 20, 2018 7:05 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Shadow of the Beast (port)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Ah, I see the problem. Wasn't quite where I was suggesting, though related:<br /><br />You set up your first IRQ here in your main thread code. This happens directly after the NMI returns:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp;00:9BB8: 20 C0 E3&nbsp; JSR $E3C0 ; wait for NMI<br />&gt;00:9BBB: A9 01&nbsp; &nbsp; &nbsp;LDA #$01 ; setup first interrupt<br />&nbsp;00:9BBD: 8D 00 E0&nbsp; STA $E000<br />&nbsp;00:9BC0: 8D 00 C0&nbsp; STA $C000<br />&nbsp;00:9BC3: A9 00&nbsp; &nbsp; &nbsp;LDA #$00<br />&nbsp;00:9BC5: 8D 01 C0&nbsp; STA $C001<br />&nbsp;00:9BC8: A9 01&nbsp; &nbsp; &nbsp;LDA #$01<br />&nbsp;00:9BCA: 8D 01 E0&nbsp; STA $E001<br />&nbsp;00:9BCD: A9 00&nbsp; &nbsp; &nbsp;LDA #$00<br />&nbsp;00:9BCF: 85 74&nbsp; &nbsp; &nbsp;STA $74</div><br /><br />The problem is that the music routine delays when you will return from NMI. On PAL there is plenty of time for it to execute before rendering begins, but on NTSC it will overlap the beginning of the frame sometimes. If this first IRQ setup doesn't happen before scanline 0, the whole screen is thrown off. (Seems to be about 10-15 scanlines late on every other frame.)<br /><br />The solution should be to put this inside your NMI handler. See my last suggestion from my previous post, you should still add that CLI and RTI, but right there above the suggested CLI do this first IRQ setup right there, when you know you're still in vblank (i.e. before scanline 0) and you haven't yet run the music routine. This will allow that first IRQ to fire on scanline 0 (which will sometimes be within the music routine, but it is perfectly okay to interrupt that).<br /><br /><br />Alternative option is to put the music playback call in your main thread just after that STA $74. This will get your NMI handler returning earlier again.<br /><br />Ideally both of these things should be within the NMI, though. Having the IRQs set off by the NMI will prevent them from failling if your main thread ever runs too long (slowdown), and similar with music having it in the NMI makes it slowdown resitant. However, if you can guarantee the main thread will never run long it doesn't matter either way.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Diskover</b> [ Sun Jul 22, 2018 7:45 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Shadow of the Beast (port)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">rainwarrior wrote:</div><div class="quotecontent">My assumption is that you're running your music within the NMI.<br /><br />The reason this is a problem is that NMI implicitly does a SEI (cleared by the RTI popping the processor flags). So if your music update happens in your NMI routine, it will overlap and block your interrupts if it takes too long, which it does on NTSC.<br /><br />Easy fix: just put a CLI in the NMI routine just before it calls the music playback (assuming it is the last thing that happens in your NMI handler). Otherwise if that's not feasible, you can just move the music playback outside of the NMI. It doesn't really matter too much where it gets called as long as it's once per frame, preferably at a consistent time (which is why NMI is usually convenient).<br /><br /><br />Edit: Actually, peeking at it in a debugger, it looks like your NMI is missing an RTI at the end? It seems to roll right into the IRQ handler after finishing. So in this case, I'd recommend putting a CLI before the music playback there, and also an RTI before the IRQ handler begins.<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp;03:E224: A9 00&nbsp; &nbsp; &nbsp;LDA #$00<br />&nbsp;03:E226: 85 02&nbsp; &nbsp; &nbsp;STA $02 = #$03<br />&nbsp;03:E228: 20 4C E8&nbsp; JSR $E84C ; music playback? place a CLI right before this line<br />&nbsp;03:E22B: 68&nbsp; &nbsp; &nbsp; &nbsp; PLA<br />&nbsp;03:E22C: A8&nbsp; &nbsp; &nbsp; &nbsp; TAY<br />&nbsp;03:E22D: 68&nbsp; &nbsp; &nbsp; &nbsp; PLA<br />&nbsp;03:E22E: AA&nbsp; &nbsp; &nbsp; &nbsp; TAX<br />&nbsp;03:E22F: 68&nbsp; &nbsp; &nbsp; &nbsp; PLA ; shouldn't an RTI follow this line?<br />&gt;03:E230: 48&nbsp; &nbsp; &nbsp; &nbsp; PHA ; IRQ handler starts here<br />&nbsp;03:E231: 8A&nbsp; &nbsp; &nbsp; &nbsp; TXA<br />&nbsp;03:E232: 48&nbsp; &nbsp; &nbsp; &nbsp; PHA<br />&nbsp;03:E233: 98&nbsp; &nbsp; &nbsp; &nbsp; TYA<br />&nbsp;03:E234: 48&nbsp; &nbsp; &nbsp; &nbsp; PHA<br />...<br />&nbsp;03:E260: 40&nbsp; &nbsp; &nbsp; &nbsp; RTI</div></div><br /><br /><div class="quotetitle">rainwarrior wrote:</div><div class="quotecontent">Ah, I see the problem. Wasn't quite where I was suggesting, though related:<br /><br />You set up your first IRQ here in your main thread code. This happens directly after the NMI returns:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp;00:9BB8: 20 C0 E3&nbsp; JSR $E3C0 ; wait for NMI<br />&gt;00:9BBB: A9 01&nbsp; &nbsp; &nbsp;LDA #$01 ; setup first interrupt<br />&nbsp;00:9BBD: 8D 00 E0&nbsp; STA $E000<br />&nbsp;00:9BC0: 8D 00 C0&nbsp; STA $C000<br />&nbsp;00:9BC3: A9 00&nbsp; &nbsp; &nbsp;LDA #$00<br />&nbsp;00:9BC5: 8D 01 C0&nbsp; STA $C001<br />&nbsp;00:9BC8: A9 01&nbsp; &nbsp; &nbsp;LDA #$01<br />&nbsp;00:9BCA: 8D 01 E0&nbsp; STA $E001<br />&nbsp;00:9BCD: A9 00&nbsp; &nbsp; &nbsp;LDA #$00<br />&nbsp;00:9BCF: 85 74&nbsp; &nbsp; &nbsp;STA $74</div><br /><br />The problem is that the music routine delays when you will return from NMI. On PAL there is plenty of time for it to execute before rendering begins, but on NTSC it will overlap the beginning of the frame sometimes. If this first IRQ setup doesn't happen before scanline 0, the whole screen is thrown off. (Seems to be about 10-15 scanlines late on every other frame.)<br /><br />The solution should be to put this inside your NMI handler. See my last suggestion from my previous post, you should still add that CLI and RTI, but right there above the suggested CLI do this first IRQ setup right there, when you know you're still in vblank (i.e. before scanline 0) and you haven't yet run the music routine. This will allow that first IRQ to fire on scanline 0 (which will sometimes be within the music routine, but it is perfectly okay to interrupt that).<br /><br /><br />Alternative option is to put the music playback call in your main thread just after that STA $74. This will get your NMI handler returning earlier again.<br /><br />Ideally both of these things should be within the NMI, though. Having the IRQs set off by the NMI will prevent them from failling if your main thread ever runs too long (slowdown), and similar with music having it in the NMI makes it slowdown resitant. However, if you can guarantee the main thread will never run long it doesn't matter either way.</div><br /><br /><br />Sorry for taking a long time to answer. Busy.<br /><br />We'll see. I do not have much idea of ​​assembler, but let's see if I can fix this.<br /><br />The routine that NMI controls is part of the NESlib library. According to the instructions that you indicate, I should put a CLI control before the JSR FamiToneUpdate line and it would look like this:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent"><br />;NMI handler<br /><br />nmi:<br /><br />...<br />...<br />...<br /><br />@skipNtsc:<br /><br />&nbsp; &nbsp;cli<br />&nbsp; &nbsp;jsr FamiToneUpdate<br /><br />&nbsp; &nbsp;<br />&nbsp; &nbsp;pla<br />&nbsp; &nbsp;tay<br />&nbsp; &nbsp;pla<br />&nbsp; &nbsp;tax<br />&nbsp; &nbsp;pla<br /></div><br /><br />This is correct?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Sun Jul 22, 2018 9:13 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Shadow of the Beast (port)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Well, there are three things:<br /><br />1. Put the IRQ setup in your NMI handler before <strong>jsr FamitomeUpdate</strong> so that it is guaranteed to happen before the end of vblank.<br />2. Right after the IRQ setup, put <strong>cli</strong> (also before <strong>jsr FamitoneUpdate</strong>) so that if an IRQ happens during the music routine it won't be blocked.<br />3. Put <strong>rti</strong> on the end of your NMI handler (after that ...<strong>tax, pla</strong>). Without this, the code just keeps running into the IRQ handler directly below.<br /><br />The main thing I'm not entirely certain of, without looking at much more of the code, is whether it's appropriate to set up the IRQ <em>every</em> NMI or just on screens that need it. Maybe it should have a flag that turns it on and off? (When I say IRQ setup I mean that code including lines $9BBB to $9BCF in that disassembly.)<br /><br />As an alternative, just as a quick test, you could just take <strong>jsr FamitomeUpdate</strong> and move it just under the IRQ setup where it is right now. (Just after where it stores a #0 to your IRQ counter variable at $74.) That would also solve the problem you're having that this music update is happening <em>before</em> you've prepared your IRQs to fire. I wouldn't recommend this as a permanent solution, though, because it's usually appropriate to do music in the NMI handler. If it's not in the NMI handler, music will tend to skip during scene transitions, and also you would need to manually call <strong>jsr FamitoneUpdate</strong> in <em>each</em> main thread frame loop if there are more than one.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Diskover</b> [ Mon Jul 23, 2018 1:22 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Shadow of the Beast (port)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Ok, let's see. Right now this is like this:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">;NMI handler<br /><br />nmi:<br /><br />...<br />...<br />...<br /><br />@skipNtsc:&nbsp; &nbsp;<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;LDA #$01 &nbsp; &nbsp;; turn off MMC3 IRQ<br />&nbsp; &nbsp;STA $E000<br />&nbsp; &nbsp;STA $C000&nbsp; &nbsp;; count 20 scanlines, then IRQ<br />&nbsp; &nbsp;LDA #$00<br />&nbsp; &nbsp;STA $C001<br />&nbsp; &nbsp;LDA #$01<br />&nbsp; &nbsp;STA $E001&nbsp; &nbsp;;turn on MMC3 IRQ<br />&nbsp; &nbsp;LDA #$00<br />&nbsp; &nbsp;STA $74<br /><br />&nbsp; &nbsp;cli<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;jsr FamiToneUpdate<br /><br />&nbsp; &nbsp;<br />&nbsp; &nbsp;pla<br />&nbsp; &nbsp;tay<br />&nbsp; &nbsp;pla<br />&nbsp; &nbsp;tax<br />&nbsp; &nbsp;pla<br /><br />&nbsp; &nbsp;rti<br /><br /><br /><br />irq:<br />&nbsp; &nbsp;pha<br />&nbsp; &nbsp;txa<br />&nbsp; &nbsp;pha<br />&nbsp; &nbsp;tya<br />&nbsp; &nbsp;pha<br />&nbsp; &nbsp;ldy #15&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<br />:&nbsp; &nbsp;dey&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<br />&nbsp; &nbsp;bne :- &nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<br /><br />&nbsp; &nbsp;ldx _Scroll_Index &nbsp; &nbsp;<br />&nbsp; &nbsp;lda _Scroll, x<br />&nbsp; &nbsp;sta $2005&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<br />&nbsp; &nbsp;lda _scrollY &nbsp; &nbsp;&nbsp; &nbsp;<br />&nbsp; &nbsp;sta $2005&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<br />&nbsp; &nbsp;inc _Scroll_Index<br /><br />&nbsp; &nbsp;lda #1<br />&nbsp; &nbsp;sta $e000 &nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<br />&nbsp; &nbsp;lda #14&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<br />&nbsp; &nbsp;sta $c000 &nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<br />&nbsp; &nbsp;sta $c001<br />&nbsp; &nbsp;lda #1<br />&nbsp; &nbsp;sta $e001 &nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;pla<br />&nbsp; &nbsp;tay<br />&nbsp; &nbsp;pla<br />&nbsp; &nbsp;tax<br />&nbsp; &nbsp;pla<br />&nbsp; &nbsp;rti<br /><br /></div><br /><br />I share the rom. It works in NES PAL and in the emulated NEStopia but now it gives problems in FCEUx and VirtuaNES.
+
+		
+			<br clear="all" /><br />
+
+			<table class="tablebg" width="100%" cellspacing="1">
+			<tr>
+				<td><b class="genmed">Attachments: </b></td>
+			</tr>
+			
+				<tr>
+					<td>
+			<span class="genmed">
+				<img src="./styles/subsilver2/imageset/icon_topic_attach.gif" width="14" height="18" alt="" title="" /> 
+				<a href="./download/file.php?id=13145">Shadow of the Beast (alpha 0.31) [HB].nes</a> [128.02 KiB]
+			</span><br />
+			<span class="gensmall">Downloaded 23 times</span>
+		
+
+		<br />
+	</td>
+				</tr>
+			
+			</table>
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Mon Jul 23, 2018 9:28 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Shadow of the Beast (port)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I think the problem is right here:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp;00:9BB9: 20 D8 E3&nbsp; JSR $E3D8 ; wait for NMI to finish<br />&nbsp;00:9BBC: A9 00&nbsp; &nbsp; &nbsp;LDA #$00<br />&gt;00:9BBE: 85 74&nbsp; &nbsp; &nbsp;STA $74 = #$00 ; reset raster split index<br />&nbsp;00:9BC0: AD C3 04&nbsp; LDA $04C3 = #$04<br /></div><br /><br />You moved the IRQ setup into the NMI (before that CLI) but you left this reset of $74 to 0 in the main loop as soon as it returns from the NMI. I don't know what you call the variable at $74 but it appears to be an index into your table of how many scanlines to skip per split. Leaving this extra $74 = 0 in there causes the splits to start over in the middle of the screen.<br /><br />Doesn't cause a problem in PAL or without music on NTSC because if NMI finishes before vblank it hasn't run any IRQs yet (resets 0 back to 0). Once you add music in, some IRQs will happen before the music is finished, and this reset ends up mid-screen.<br /><br />(If I replace that STA $74 with two NOPs it seems to run as correctly as the other modes.)<br /><br /><br />Edit: Oh, you called $74 <strong>_Scroll_Index</strong> in your IRQ code, you should use that at <strong>@skipNtsc</strong> too just in case the variable ever moves. I was only calling it $74 because I was looking at it through a disassembly.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Diskover</b> [ Mon Jul 23, 2018 2:06 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Shadow of the Beast (port)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">rainwarrior wrote:</div><div class="quotecontent">Oh, you called $74 <strong>_Scroll_Index</strong> in your IRQ code, you should use that at <strong>@skipNtsc</strong> too just in case the variable ever moves. I was only calling it $74 because I was looking at it through a disassembly.</div><br /><br />Ok, now I have understood.<br /><br />According to the dougeff tutorial everything that corresponds to the IRQ configuration, etc ... is written in C, even the variable Scroll_Index I put it to 0 from there.<br /><br /><!-- m --><a class="postlink" href="https://nesdoug.com/2016/01/15/24-mmc3-bank-switching-irqs/">https://nesdoug.com/2016/01/15/24-mmc3- ... hing-irqs/</a><!-- m --><br /><br />When you have indicated the faults that you see from assembler, I have not understood very well, but I let myself be guided by you until I understood it.<br /><br />Well, what I have done next has been to change those two lines and put them in this way:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp;LDA #$00<br />&nbsp; &nbsp;STA _Scroll_Index ; ponemos Scroll_Index a 0<br /></div><br /><br />Now the rom seems to work well in the emulators VirtuaNES, NEStopia, FCEU, etc ...<br /><br />I just need to know if it works well now in an NTSC NES.
+
+		
+			<br clear="all" /><br />
+
+			<table class="tablebg" width="100%" cellspacing="1">
+			<tr>
+				<td><b class="genmed">Attachments: </b></td>
+			</tr>
+			
+				<tr>
+					<td>
+			<span class="genmed">
+				<img src="./styles/subsilver2/imageset/icon_topic_attach.gif" width="14" height="18" alt="" title="" /> 
+				<a href="./download/file.php?id=13149">Shadow of the Beast (alpha 0.32) [HB].nes</a> [128.02 KiB]
+			</span><br />
+			<span class="gensmall">Downloaded 26 times</span>
+		
+
+		<br />
+	</td>
+				</tr>
+			
+			</table>
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Mon Jul 23, 2018 3:42 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Shadow of the Beast (port)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />That looks better in terms of scrolling.<br /><br />One more issue though: you haven't set up 4 of the CHR banking registers. You can see the problem using Mesen, but it appears the same way on my PowerPak (i.e. the character sprite and moon sprite are using the wrong tiles). This isn't NTSC / PAL related, it is only about fully initializing the MMC3 (would look the same on PAL PowerPak/Mesen).<br /><br />Of the 8 bank settings on the MMC3 (selected through $8000) I see setup for: 0, 1, 6, 7 (PPU first page, and CPU banks). You are missing any setup for 2, 3, 4, 5 (PPU second page, i.e. all your sprites).<br /><br />Some emulators, and apparently the Everdrive, pre-initialize these with default values, but on the real MMC3 these are &quot;random&quot; when powered on. (You can see what <a href="https://github.com/TASVideos/fceux/blob/5be92d3ee50fcdc04ec4d727cef5201fa8fba378/src/boards/mmc3.cpp#L107" class="postlink">FCEUX uses instead of randomness</a>, for example. This seems to be a common setup pattern for emulators, Everdrive must have borrowed it.)<br /><br />Anyhow, really easy to fix, just send 4,5,6,7 to the uninitialized banks 2,3,4,5 in your startup code:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">lda #2<br />sta $8000<br />lda #4<br />sta $8001<br />lda #3<br />sta $8000<br />lda #5<br />sta $8001<br />lda #4<br />sta $8000<br />lda #6<br />sta $8001<br />lda #5<br />sta $8000<br />lda #7<br />sta $8001</div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Mon Jul 23, 2018 3:47 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Shadow of the Beast (port)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />The 0, 2, 4, 5, 6, 7, 0, 1 pattern seen in FCEUX <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">MMC3RegReset&#40;&#41;</tt> sets up an identity mapping: PPU $0000-$1FFF = CHR ROM $00000-$01FFF. It's also what <a href="https://forums.nesdev.com/viewtopic.php?p=116636#p116636" class="postlink">my stock MMC3 init code</a> sets up.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Diskover</b> [ Tue Jul 24, 2018 6:19 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Shadow of the Beast (port)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">rainwarrior wrote:</div><div class="quotecontent">That looks better in terms of scrolling.<br /><br />One more issue though: you haven't set up 4 of the CHR banking registers. You can see the problem using Mesen, but it appears the same way on my PowerPak (i.e. the character sprite and moon sprite are using the wrong tiles). This isn't NTSC / PAL related, it is only about fully initializing the MMC3 (would look the same on PAL PowerPak/Mesen).<br /><br />Of the 8 bank settings on the MMC3 (selected through $8000) I see setup for: 0, 1, 6, 7 (PPU first page, and CPU banks). You are missing any setup for 2, 3, 4, 5 (PPU second page, i.e. all your sprites).<br /><br />Some emulators, and apparently the Everdrive, pre-initialize these with default values, but on the real MMC3 these are &quot;random&quot; when powered on. (You can see what <a href="https://github.com/TASVideos/fceux/blob/5be92d3ee50fcdc04ec4d727cef5201fa8fba378/src/boards/mmc3.cpp#L107" class="postlink">FCEUX uses instead of randomness</a>, for example. This seems to be a common setup pattern for emulators, Everdrive must have borrowed it.)<br /><br />Anyhow, really easy to fix, just send 4,5,6,7 to the uninitialized banks 2,3,4,5 in your startup code:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">lda #2<br />sta $8000<br />lda #4<br />sta $8001<br />lda #3<br />sta $8000<br />lda #5<br />sta $8001<br />lda #4<br />sta $8000<br />lda #6<br />sta $8001<br />lda #5<br />sta $8000<br />lda #7<br />sta $8001</div></div><br /><br />I have not understood what this really does, but I have tried to fix it.<br /><br />Is it right now?
+
+		
+			<br clear="all" /><br />
+
+			<table class="tablebg" width="100%" cellspacing="1">
+			<tr>
+				<td><b class="genmed">Attachments: </b></td>
+			</tr>
+			
+				<tr>
+					<td>
+			<span class="genmed">
+				<img src="./styles/subsilver2/imageset/icon_topic_attach.gif" width="14" height="18" alt="" title="" /> 
+				<a href="./download/file.php?id=13158">Shadow of the Beast (alpha 0.33) [HB].nes</a> [128.02 KiB]
+			</span><br />
+			<span class="gensmall">Downloaded 24 times</span>
+		
+
+		<br />
+	</td>
+				</tr>
+			
+			</table>
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Tue Jul 24, 2018 8:49 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Shadow of the Beast (port)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Yes, this one now works on PowerPak on my (NTSC) NES with music. It also works in Mesen. The only emulator that seems to fail with it now is Nintendulator, but I'm not sure why that is.<br /><br />There are smaller glitches still, I'm sure you've seen, but the main stuff is working. This is good!!
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Tue Jul 24, 2018 9:41 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Shadow of the Beast (port)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />The problem this Nintendulator is the same kind of issue as with the sprites, just this time with PRG banking. You haven't initialized the bank at $8000-9FFF (banking register 6) before you use it. Apparently almost all emulators initialize this to 0, and even the PowerPak and Everdrive seem to do this too, but again this would be random on the real MMC3 cart.<br /><br />Your startup code:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp;03:E005: A9 40&nbsp; &nbsp; &nbsp;LDA #$40 ; reset begins here<br />&nbsp;03:E007: 8D 17 40&nbsp; STA $4017 = #$00<br />&nbsp;03:E00A: 78&nbsp; &nbsp; &nbsp; &nbsp; SEI<br />&nbsp;03:E00B: A2 FF&nbsp; &nbsp; &nbsp;LDX #$FF<br />&nbsp;03:E00D: 9A&nbsp; &nbsp; &nbsp; &nbsp; TXS<br />&nbsp;03:E00E: E8&nbsp; &nbsp; &nbsp; &nbsp; INX<br />&nbsp;03:E00F: 8E 01 20&nbsp; STX $2001 = #$00<br />&nbsp;03:E012: 8E 10 40&nbsp; STX $4010 = #$00<br />&nbsp;03:E015: 8E 00 20&nbsp; STX $2000 = #$00<br />&nbsp;03:E018: 2C 02 20&nbsp; BIT $2002 = #$00<br />&nbsp;03:E01B: 2C 02 20&nbsp; BIT $2002 = #$00<br />&nbsp;03:E01E: 10 FB&nbsp; &nbsp; &nbsp;BPL $E01B<br />&nbsp;03:E020: 2C 02 20&nbsp; BIT $2002 = #$00<br />&nbsp;03:E023: 10 FB&nbsp; &nbsp; &nbsp;BPL $E020<br />&nbsp;03:E025: A9 3F&nbsp; &nbsp; &nbsp;LDA #$3F<br />&nbsp;03:E027: 8D 06 20&nbsp; STA $2006 = #$00<br />&nbsp;03:E02A: 8E 06 20&nbsp; STX $2006 = #$00<br />&nbsp;03:E02D: A9 0F&nbsp; &nbsp; &nbsp;LDA #$0F<br />&nbsp;03:E02F: A2 20&nbsp; &nbsp; &nbsp;LDX #$20<br />&nbsp;03:E031: 8D 07 20&nbsp; STA $2007 = #$00<br />&nbsp;03:E034: CA&nbsp; &nbsp; &nbsp; &nbsp; DEX<br />&nbsp;03:E035: D0 FA&nbsp; &nbsp; &nbsp;BNE $E031<br />&nbsp;03:E037: 8A&nbsp; &nbsp; &nbsp; &nbsp; TXA<br />&nbsp;03:E038: A0 20&nbsp; &nbsp; &nbsp;LDY #$20<br />&nbsp;03:E03A: 8C 06 20&nbsp; STY $2006 = #$00<br />&nbsp;03:E03D: 8D 06 20&nbsp; STA $2006 = #$00<br />&nbsp;03:E040: A0 10&nbsp; &nbsp; &nbsp;LDY #$10<br />&nbsp;03:E042: 8D 07 20&nbsp; STA $2007 = #$00<br />&nbsp;03:E045: E8&nbsp; &nbsp; &nbsp; &nbsp; INX<br />&nbsp;03:E046: D0 FA&nbsp; &nbsp; &nbsp;BNE $E042<br />&nbsp;03:E048: 88&nbsp; &nbsp; &nbsp; &nbsp; DEY<br />&nbsp;03:E049: D0 F7&nbsp; &nbsp; &nbsp;BNE $E042<br />&nbsp;03:E04B: 8A&nbsp; &nbsp; &nbsp; &nbsp; TXA<br />&nbsp;03:E04C: 95 00&nbsp; &nbsp; &nbsp;STA $00,X @ $0000 = #$F7<br />&nbsp;03:E04E: 9D 00 01&nbsp; STA $0100,X @ $0100 = #$52<br />&nbsp;03:E051: 9D 00 02&nbsp; STA $0200,X @ $0200 = #$B6<br />&nbsp;03:E054: 9D 00 03&nbsp; STA $0300,X @ $0300 = #$B6<br />&nbsp;03:E057: 9D 00 04&nbsp; STA $0400,X @ $0400 = #$4E<br />&nbsp;03:E05A: 9D 00 05&nbsp; STA $0500,X @ $0500 = #$2A<br />&nbsp;03:E05D: 9D 00 06&nbsp; STA $0600,X @ $0600 = #$84<br />&nbsp;03:E060: 9D 00 07&nbsp; STA $0700,X @ $0700 = #$2A<br />&nbsp;03:E063: E8&nbsp; &nbsp; &nbsp; &nbsp; INX<br />&nbsp;03:E064: D0 E6&nbsp; &nbsp; &nbsp;BNE $E04C<br />&nbsp;03:E066: A9 04&nbsp; &nbsp; &nbsp;LDA #$04<br />&nbsp;03:E068: 20 0E E3&nbsp; JSR $E30E<br />&nbsp;03:E06B: 20 E3 E2&nbsp; JSR $E2E3<br />&nbsp;03:E06E: 20 39 E3&nbsp; JSR $E339<br />&gt;03:E071: 20 91 9F&nbsp; JSR $9F91 ; crash occurs here!<br />&nbsp;03:E074: 20 FD 9E&nbsp; JSR $9EFD</div><br /><br />You need to initialize banking register 6 before that line is reached. These 4 lines would do it:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">lda #6<br />sta $8000<br />lda #0<br />sta $8001</div><br /><br />However, it's probably a good idea to initialize all 8 MMC3 bank registers very early on in your startup code. Like I see that you've added the CHR banking initialization that I suggested but it takes place a long time after this startup routine. Might as well do all 8 in here at once. Tepples posted a suggested initial set of values to load earlier on (it's the same as FCEUX and some other emulators use, probably the same as Everdrive's initialization too).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Diskover</b> [ Tue Jul 24, 2018 4:20 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Shadow of the Beast (port)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">rainwarrior wrote:</div><div class="quotecontent">The problem this Nintendulator is the same kind of issue as with the sprites, just this time with PRG banking. You haven't initialized the bank at $8000-9FFF (banking register 6) before you use it. Apparently almost all emulators initialize this to 0, and even the PowerPak and Everdrive seem to do this too, but again this would be random on the real MMC3 cart.<br /><br />You need to initialize banking register 6 before that line is reached. These 4 lines would do it:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">lda #6<br />sta $8000<br />lda #0<br />sta $8001</div><br /><br />However, it's probably a good idea to initialize all 8 MMC3 bank registers very early on in your startup code. Like I see that you've added the CHR banking initialization that I suggested but it takes place a long time after this startup routine. Might as well do all 8 in here at once. Tepples posted a suggested initial set of values to load earlier on (it's the same as FCEUX and some other emulators use, probably the same as Everdrive's initialization too).</div><br /><br />Ok, it seems that now it works correctly in Nintendulator.<br /><br />Yes, this technical demo contains minor errors about the scroll and the nametables.
+
+		
+			<br clear="all" /><br />
+
+			<table class="tablebg" width="100%" cellspacing="1">
+			<tr>
+				<td><b class="genmed">Attachments: </b></td>
+			</tr>
+			
+				<tr>
+					<td>
+			<span class="genmed">
+				<img src="./styles/subsilver2/imageset/icon_topic_attach.gif" width="14" height="18" alt="" title="" /> 
+				<a href="./download/file.php?id=13166">Shadow of the Beast (alpha 0.34) [HB].nes</a> [128.02 KiB]
+			</span><br />
+			<span class="gensmall">Downloaded 36 times</span>
+		
+
+		<br />
+	</td>
+				</tr>
+			
+			</table>
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>5</strong> of <strong>5</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

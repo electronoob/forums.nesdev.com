@@ -1,0 +1,317 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Planning a test for BRK and IRQ concurrency glitch</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Planning a test for BRK and IRQ concurrency glitch</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=3&amp;t=8757">http://forums.nesdev.com/viewtopic.php?f=3&amp;t=8757</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>2</strong> of <strong>2</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Zepper</b> [ Tue Mar 27, 2012 2:17 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Bisqwit wrote:</div><div class="quotecontent">At no point do I write to $4015 in this test, not even in Blargg's library code (except in the end thereof).</div><br /><br />My bad, I mean read from $4015.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">I do write to $4017 whenever I want to toggle IRQ enable / disable, and/or to force IRQ to be happen at a certain time. I may read $4015 even when IRQ is not being triggered.</div>
+<br />
+<br />Hmm... but you could count how many cycles were elapsed since $4017 write and right before $4015 read (I remember of blargg counting cycles this way), so I can search for timing errors here.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bisqwit</b> [ Tue Mar 27, 2012 2:26 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Unrelated to previous questions:
+<br />
+<br />Hmm, I tried to make the test automatically find the proper timings for the APU IRQ timing, so it works not only on both NTSC and PAL, but on any broken emulator that might not have its timings right (since the focus of the test is not at accurate timings, but in the BRK-IRQ overriding effect that I have dubbed Higgs boson for its observation evading nature).
+<br />
+<br />But turns out that blargg's sync_apu function actually relies on hard-coded NTSC timings, which makes the whole synchronization loop ("IRQ timing") pointless. If the emulator does not have accurate NTSC timings, the loop may yield random values.
+<br />
+<br />I tried discarding the sync_apu function and instead, making my own synchronization code (still relying on the binary search), but it does not work nicely. I tried for example, delay N cycles, read IRQ status (clearing it), delay N cycles again, read IRQ status, and see if IRQ status was set on both times. (Two times necessary to overcome the unknown jitter factor.) I tried looping ten times and checking if IRQ status was set each time. Or ANDing the statuses of individual loops together.
+<br />None of these produced anything that would not produce completely random results (that were right sometimes, but often off by 1 or off by 40).
+<br />
+<br />Any ideas? Here is the (partial) source code of one of these attempts.<div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp; &nbsp; &nbsp; sei<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; ; Disable IRQ<br />&nbsp; &nbsp; &nbsp; &nbsp; delay 8<br />&nbsp; &nbsp; &nbsp; &nbsp; setb SNDMODE, $40<br />&nbsp; &nbsp; &nbsp; &nbsp; delay 8<br />&nbsp; &nbsp; &nbsp; &nbsp; lda SNDCHN<br />&nbsp; &nbsp; &nbsp; &nbsp; delay 8&nbsp; &nbsp;<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; ; Run one IRQ.<br />&nbsp; &nbsp; &nbsp; &nbsp; setb SNDMODE, 0 ; Enable IRQ &#40;but the CPU will still block them&#41;<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; ; Wait<br />&nbsp; &nbsp; &nbsp; &nbsp; lda num_cycles_plan+0&nbsp; &nbsp; &nbsp; ; 3 cycles<br />&nbsp; &nbsp; &nbsp; &nbsp; sec&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; 2 cycles<br />&nbsp; &nbsp; &nbsp; &nbsp; sbc #40&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; 2 cycles<br />&nbsp; &nbsp; &nbsp; &nbsp; tax&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; 2 cycles<br />&nbsp; &nbsp; &nbsp; &nbsp; lda num_cycles_plan+1&nbsp; &nbsp; &nbsp; ; 3 cycles<br />&nbsp; &nbsp; &nbsp; &nbsp; sbc #0&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; 2 cycles<br />&nbsp; &nbsp; &nbsp; &nbsp; jsr delay_256a_x_26_clocks ; OVERHEAD: 3+2+2+2+3+2+26<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; ; Check whether APU is ready to trigger an IRQ<br />&nbsp; &nbsp; &nbsp; &nbsp; lda SNDCHN&nbsp; &nbsp; &nbsp; ; 4 cycles<br />&nbsp; &nbsp; &nbsp; &nbsp; sta somewhere&nbsp; &nbsp;; 3 cycles<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; ; Do it again to counteract the odd/even frames effect. Subtract those 7&nbsp; cycles.<br />&nbsp; &nbsp; &nbsp; &nbsp; lda num_cycles_plan+0&nbsp; &nbsp; &nbsp; ; 3 cycles<br />&nbsp; &nbsp; &nbsp; &nbsp; sec&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; 2 cycles<br />&nbsp; &nbsp; &nbsp; &nbsp; sbc #&#40;40-7&#41;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; 2 cycles<br />&nbsp; &nbsp; &nbsp; &nbsp; tax&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; 2 cycles<br />&nbsp; &nbsp; &nbsp; &nbsp; lda num_cycles_plan+1&nbsp; &nbsp; &nbsp; ; 3 cycles<br />&nbsp; &nbsp; &nbsp; &nbsp; sbc #0&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; 2 cycles<br />&nbsp; &nbsp; &nbsp; &nbsp; jsr delay_256a_x_26_clocks ; OVERHEAD: 3+2+2+2+3+2+26<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; lda SNDCHN<br />&nbsp; &nbsp; &nbsp; &nbsp; and somewhere<br />&nbsp; &nbsp; &nbsp; &nbsp; ; The bits now tell if the IRQ happened on both times.<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; and #$40<br />&nbsp; &nbsp; &nbsp; &nbsp; ; Binary search condition: A = nonzero.</div><br /><br />The code below gets 29820 cycles in Nintendulator, 29813 cycles in Nestopia.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp;sei<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;; Disable IRQ<br />&nbsp; &nbsp;delay 8<br />&nbsp; &nbsp;setb SNDMODE, $40<br />&nbsp; &nbsp;delay 8<br />&nbsp; &nbsp;lda SNDCHN<br />&nbsp; &nbsp;delay 8<br /><br />&nbsp; &nbsp;; Run one IRQ.<br />&nbsp; &nbsp;setb SNDMODE, 0 ; Enable IRQ &#40;but block them at CPU&#41;<br /><br />&nbsp; &nbsp;; Wait<br />&nbsp; &nbsp;lda num_cycles_plan+0&nbsp; &nbsp;&nbsp; &nbsp;; 3 cycles<br />&nbsp; &nbsp;sec&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;; 2 cycles<br />&nbsp; &nbsp;sbc #40&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;; 2 cycles<br />&nbsp; &nbsp;tax&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;; 2 cycles<br />&nbsp; &nbsp;lda num_cycles_plan+1&nbsp; &nbsp;&nbsp; &nbsp;; 3 cycles<br />&nbsp; &nbsp;sbc #0&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;; 2 cycles<br />&nbsp; &nbsp;jsr delay_256a_x_26_clocks ; OVERHEAD: 3+2+2+2+3+2+26<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;ldx SNDCHN&nbsp; &nbsp;&nbsp; &nbsp;; 4 cycles<br />&nbsp; &nbsp;lda SNDCHN&nbsp; &nbsp;&nbsp; &nbsp;; 4 cycles<br />&nbsp; &nbsp;; X should be #$00, A should be #$40.<br />&nbsp; &nbsp;and #$40&nbsp; &nbsp;&nbsp; &nbsp;; 2 cycles<br />&nbsp; &nbsp;sta timing_temp_1&nbsp; &nbsp;; 3 cycles<br />&nbsp; &nbsp;txa&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;; 2 cycles<br />&nbsp; &nbsp;and #$40&nbsp; &nbsp;&nbsp; &nbsp;; 2 cycles<br />&nbsp; &nbsp;sec&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;; 2 cycles<br />&nbsp; &nbsp;sbc timing_temp_1&nbsp; &nbsp;; 3 cycles<br />&nbsp; &nbsp;sta timing_temp_1&nbsp; &nbsp;; 3 cycles --total: 4+4+2+3+2+2+2+3+3 =&nbsp; 25 cycles<br />&nbsp; &nbsp;; X=$00, A=$00 &#40;too early&#41;&nbsp; &nbsp;result: $00<br />&nbsp; &nbsp;; X=$00, A=$40 &#40;right time&#41;&nbsp; result: $C0<br />&nbsp; &nbsp;; X=$40, A=$00 &#40;too late&#41;&nbsp; &nbsp; result: $40<br />&nbsp; &nbsp;; X=$40, A=$40 &#40;impossible&#41;&nbsp; result: $00<br />&nbsp; &nbsp;; Do it again to counteract the odd/even frames effect. Subtract those 25 cycles.<br />&nbsp; &nbsp;lda num_cycles_plan+0&nbsp; &nbsp;&nbsp; &nbsp;; 3 cycles<br />&nbsp; &nbsp;sec&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;; 2 cycles<br />&nbsp; &nbsp;sbc #&#40;40-25&#41;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;; 2 cycles<br />&nbsp; &nbsp;tax&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;; 2 cycles<br />&nbsp; &nbsp;lda num_cycles_plan+1&nbsp; &nbsp;&nbsp; &nbsp;; 3 cycles<br />&nbsp; &nbsp;sbc #0&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;; 2 cycles<br />&nbsp; &nbsp;jsr delay_256a_x_26_clocks ; OVERHEAD: 3+2+2+2+3+2+26<br /><br />&nbsp; &nbsp;ldx SNDCHN<br />&nbsp; &nbsp;lda SNDCHN<br />&nbsp; &nbsp;and #$40&nbsp; &nbsp;&nbsp; &nbsp;; 2 cycles<br />&nbsp; &nbsp;sta timing_temp_2&nbsp; &nbsp;; 3 cycles<br />&nbsp; &nbsp;txa&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;; 2 cycles<br />&nbsp; &nbsp;and #$40&nbsp; &nbsp;&nbsp; &nbsp;; 2 cycles<br />&nbsp; &nbsp;sec&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;; 2 cycles<br />&nbsp; &nbsp;sbc timing_temp_2&nbsp; &nbsp;; 3 cycles<br />&nbsp; &nbsp;sta timing_temp_2&nbsp; &nbsp;; 3 cycles<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;; Now:<br />&nbsp; &nbsp;;&nbsp; &nbsp;timing_temp_1 timing_temp_2<br />&nbsp; &nbsp;;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;$00&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;$00 too early&nbsp; &#40;1&#41;<br />&nbsp; &nbsp;;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;$00&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;$40 too early&nbsp; &#40;1&#41;<br />&nbsp; &nbsp;;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;$00&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;$C0 too early&nbsp; &#40;1&#41;<br />&nbsp; &nbsp;;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;$40&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;$00 too late&nbsp; &nbsp;&#40;0&#41;<br />&nbsp; &nbsp;;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;$40&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;$40 too late&nbsp; &nbsp;&#40;0&#41;<br />&nbsp; &nbsp;;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;$40&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;$C0 too late&nbsp; &nbsp;&#40;0&#41;<br />&nbsp; &nbsp;;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;$C0&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;$00 too early&nbsp; &#40;1&#41;<br />&nbsp; &nbsp;;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;$C0&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;$40 too late&nbsp; &nbsp;&#40;0&#41;<br />&nbsp; &nbsp;;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;$C0&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;$C0 RIGHT TIME &#40;0&#41;<br />&nbsp; &nbsp;ldx #0<br />&nbsp; &nbsp;lda timing_temp_1<br />&nbsp; &nbsp;beq @make_1<br />&nbsp; &nbsp;cmp #$40<br />&nbsp; &nbsp;beq @make_0<br />&nbsp; &nbsp;lda timing_temp_2<br />&nbsp; &nbsp;beq @make_1<br />@make_0:<br />&nbsp; &nbsp;.byte $A9 ; lda #imm<br />@make_1:<br />&nbsp; &nbsp;inx<br /><br />&nbsp; &nbsp;; Translate the 0/1 value into carry flag for function return.<br />&nbsp; &nbsp;cpx #$01<br />&nbsp; &nbsp;rts</div>
+<br />I'll have to doublecheck whether my delay function works as intended, too.
+<br />EDIT: Yeah, I had a bug in the delay code. (Which means that all previous test results may have been bogus!) But I'm still getting differences of 0/1 cycles in this loop.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Zepper</b> [ Tue Mar 27, 2012 3:32 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Sorry. I was drifting your focus... <img src="./images/smilies/icon_sad.gif" alt=":(" title="Sad" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>crudelios</b> [ Thu Mar 29, 2012 3:28 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />My result:
+<br />
+<br /><img src="http://dl.dropbox.com/u/15465721/nes_irq_brk.png" alt="Image" />
+<br />
+<br />It's off by one instruction at the end it seems, now I need to understand what all these numbers mean so I can get it to pass <img src="./images/smilies/icon_razz.gif" alt=":P" title="Razz" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bisqwit</b> [ Thu Mar 29, 2012 3:38 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Just to repeat for clarity, this is not a pass/fail test (aside from the flags bit in the beginning).
+<br />
+<br />This was an attempt to collect information to make a BRK-IRQ overriding test.
+<br />The actual pass/fail test will be coming later when/if the means to implement the test are devised and proven reliable.
+<br />
+<br />I suggest everyone disregard these test results for now.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>crudelios</b> [ Thu Mar 29, 2012 3:41 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Oh ok, I was simply comparing to the expected NES output, which is different. Thanks!
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Zepper</b> [ Tue Apr 03, 2012 8:35 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />It's all about how welcome/magnificent the test ROMs are here... <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>infiniteneslives</b> [ Tue May 08, 2012 1:14 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Well thanks to the spam I didn't completely miss this post.  I'm guessing you didn't see this: <a href="http://nesdev.com/bbs/viewtopic.php?t=8688" class="postlink">http://nesdev.com/bbs/viewtopic.php?t=8688</a> based on your attempts to find out how this actually works on the 6502.  They actually discuss why the BRK/IRQ concurrency issue exists, as a hardware design.  Just thought I'd make sure you saw that, sorry if you already had.
+<br />
+<br />EDIT:  The whole thing's worth watching but it's specifically discussed around 19:30
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bisqwit</b> [ Tue May 08, 2012 2:54 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">infiniteneslives wrote:</div><div class="quotecontent">I'm guessing you didn't see this: <a href="http://nesdev.com/bbs/viewtopic.php?t=8688" class="postlink">http://nesdev.com/bbs/viewtopic.php?t=8688</a> based on your attempts to find out how this actually works on the 6502.  They actually discuss why the BRK/IRQ concurrency issue exists, as a hardware design.  Just thought I'd make sure you saw that, sorry if you already had.<br /><br />EDIT:  The whole thing's worth watching but it's specifically discussed around 19:30</div>
+<br />I have seen it in its entirety.
+<br />And I still don't know exact means to do the test. And yes, a moderator do please notice the spamming account &amp; posts of "lanshan75".
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>2</strong> of <strong>2</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

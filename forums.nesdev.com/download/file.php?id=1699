@@ -1,0 +1,587 @@
+  .inesprg $1
+  .ineschr $2
+  .inesmap $01 
+  .inesmir 0 
+
+  .bank 1
+  .org $FFFA
+  .dw VBlank_Routine
+  .dw Start
+  .dw 0
+
+  .bank 0
+  .org 0000
+VBlankOrNo  .db 1
+animationCounter  .db 0
+multi .db 0
+
+  .org $8000
+VBlank_Routine:
+  inc VBlankOrNo
+  rti
+
+Start:
+  bit $2002   ;; clear the VBL flag if it was set at reset time
+vwait1:
+  bit $2002
+  bpl vwait1  ;; at this point, about 27384 cycles have passed
+vwait2:
+  bit $2002
+  bpl vwait2  ;; at this point, about 57165 cycles have passed
+
+  lda #%10000000
+  sta $2000
+  lda #%00011110
+  sta $2001
+
+  lda #$01
+  sta VBlankOrNo
+  lda #$00
+  sta animationCounter
+  sta multi
+
+  jsr initMMC1Mapper
+
+  lda #$01
+  jsr setPRGBank
+
+  lda #$3F  ;palette loading address
+  sta $2006
+  lda #$00
+  sta $2006
+
+  ldx #$00
+loadpal:
+  lda ourpal, x
+  sta $2007
+  inx
+  cpx #32
+  bne loadpal
+
+WaitForVBlank:
+  lda VBlankOrNo ; A = VBlankOrNO
+  cmp #1         ; if A == 1 then is VBlank
+  beq WaitForVBlank ; if not VBlank, then loop and do again
+  dec VBlankOrNo ; 1-- or VBlankOrNO - 1 . VBlankOrNo will be 0 again.
+
+LoadSprites:
+  LDX #$FF
+LoadSpritesLoop:
+  INX
+  LDA sprites, x
+  STA $0200, x
+  CPX #$FF
+  BNE LoadSpritesLoop
+  lda #$02
+  sta $4014
+
+infin:
+  inc animationCounter
+  ldx animationCounter
+  cpx #$0C
+  bne checkFrame2
+
+  LDA #$06
+  JSR setCHRPage0000
+  LDA #$07
+  JSR setCHRPage1000
+  LDA #$04
+  JSR setCHRPage0000
+  LDA #$05
+  JSR setCHRPage1000
+  ldy #$00
+  jsr changeSpritePalette
+
+  ldx #$FF
+updateFrame1:
+  inx
+  lda frame1, x
+  stx multi
+  asl multi
+  asl multi
+  ldy multi
+  sta $0201, y
+  cpx #$40
+  bne updateFrame1
+  lda #$02
+  sta $4014
+
+checkFrame2:
+  ldx animationCounter
+  cpx #$18
+  bne checkFrame3
+  ldx #$FF
+updateFrame2:
+  inx
+  lda frame2, x
+  stx multi
+  asl multi
+  asl multi
+  ldy multi
+  sta $0201, y
+  cpx #$40
+  bne updateFrame2
+  lda #$02
+  sta $4014
+
+checkFrame3:
+  ldx animationCounter
+  cpx #$24
+  bne checkFrame4
+  ldx #$FF
+updateFrame3:
+  inx
+  lda frame3, x
+  stx multi
+  asl multi
+  asl multi
+  ldy multi
+  sta $0201, y
+  cpx #$40
+  bne updateFrame3
+  lda #$02
+  sta $4014
+
+checkFrame4:
+  ldx animationCounter
+  cpx #$30
+  bne checkFrame5
+  ldx #$FF
+updateFrame4:
+  inx
+  lda frame4, x
+  stx multi
+  asl multi
+  asl multi
+  ldy multi
+  sta $0201, y
+  cpx #$40
+  bne updateFrame4
+  lda #$02
+  sta $4014
+
+checkFrame5:
+  ldx animationCounter
+  cpx #$3C
+  bne checkFrame6
+  ldx #$FF
+updateFrame5:
+  inx
+  lda frame5, x
+  stx multi
+  asl multi
+  asl multi
+  ldy multi
+  sta $0201, y
+  cpx #$40
+  bne updateFrame5
+  lda #$02
+  sta $4014
+
+checkFrame6:
+  ldx animationCounter
+  cpx #$48
+  bne checkFrame7
+  ldx #$FF
+updateFrame6:
+  inx
+  lda frame6, x
+  stx multi
+  asl multi
+  asl multi
+  ldy multi
+  sta $0201, y
+  cpx #$40
+  bne updateFrame6
+  lda #$02
+  sta $4014
+bankswitch:
+  LDA #$06
+  JSR setCHRPage0000
+
+  LDA #$07
+  JSR setCHRPage1000
+
+  LDY #$01
+  JSR changeSpritePalette
+
+
+checkFrame7:
+  ldx animationCounter
+  cpx #$54
+  bne checkFrame8
+  ldx #$FF
+updateFrame7:
+  inx
+  lda frame7, x
+  stx multi
+  asl multi
+  asl multi
+  ldy multi
+  sta $0201, y
+  cpx #$40
+  bne updateFrame7
+  lda #$02
+  sta $4014
+checkFrame8:
+  ldx animationCounter
+  cpx #$60
+  bne checkFrame9
+  ldx #$FF
+updateFrame8:
+  inx
+  lda frame8, x
+  stx multi
+  asl multi
+  asl multi
+  ldy multi
+  sta $0201, y
+  cpx #$40
+  bne updateFrame8
+  lda #$02
+  sta $4014
+checkFrame9:
+  ldx animationCounter
+  cpx #$6C
+  bne checkFramesDone
+  ldx #$FF
+updateFrame9:
+  inx
+  lda frame9, x
+  stx multi
+  asl multi
+  asl multi
+  ldy multi
+  sta $0201, y
+  cpx #$40
+  bne updateFrame9
+  lda #$02
+  sta $4014
+checkFrame10:
+  ldx animationCounter
+  cpx #$78
+  bne checkFramesDone
+  ldx #$FF
+updateFrame10:
+  inx
+  lda frame10, x
+  stx multi
+  asl multi
+  asl multi
+  ldy multi
+  sta $0201, y
+  cpx #$40
+  bne updateFrame10
+  ldx #$00
+  stx animationCounter
+  lda #$02
+  sta $4014
+checkFramesDone:
+  jsr spinWheels
+  JMP infin
+
+initMMC1Mapper:
+  LDA #$80
+  STA $8000
+
+  lda #%00011000
+  jsr setMMC1ControlMode
+
+  LDA #$0
+  JSR setPRGBank
+
+  LDA #$04
+  JSR setCHRPage0000
+
+  LDA #$05
+  JSR setCHRPage1000
+
+  RTS
+
+setMMC1ControlMode:
+  STA $8000
+  LSR A
+  STA $8000
+  LSR A
+  STA $8000
+  LSR A
+  STA $8000
+  LSR A
+  STA $8000
+  RTS
+
+setCHRPage0000:
+  STA $A000
+  LSR A
+  STA $A000
+  LSR A
+  STA $A000
+  LSR A
+  STA $A000
+  LSR A
+  STA $A000
+  RTS
+
+setCHRPage1000:
+  STA $C000
+  LSR A
+  STA $C000
+  LSR A
+  STA $C000
+  LSR A
+  STA $C000
+  LSR A
+  STA $C000 
+  RTS 
+ 
+setPRGBank:
+  STA $E000 
+  LSR A 
+  STA $E000 
+  LSR A 
+  STA $E000 
+  LSR A 
+  STA $E000 
+  LSR A 
+  STA $E000 
+  RTS
+
+spinWheels:
+  ldx #50
+  ldy #0
+spinloop1:
+  spinloop2:
+  nop
+ ; nop
+  dey
+  bne spinloop2
+  dex
+  bne spinloop1
+  rts
+
+changeSpritePalette
+  LDX #$00
+loadSpritePalette:
+  LDA sprites, x
+  STA $0200, x
+  INX
+  LDA #$00
+  STA $0200,x
+  INX
+  TYA
+  STA $0200,x
+  INX
+  LDA sprites, x
+  STA $0200, x
+  INX
+  CPX #$00
+  BNE loadSpritePalette
+  RTS
+
+NMI:
+  lda #$00
+  sta $2003
+  lda #2
+  sta $4014
+
+  rti
+
+ourpal: incbin "eclipse.pal"
+
+  .bank 1
+  .org $E000
+sprites:
+  .db $40, $00, $00, $40
+  .db $40, $02, $00, $48
+  .db $40, $03, $00, $50
+  .db $40, $04, $00, $58
+  .db $40, $05, $00, $60
+  .db $40, $06, $00, $68
+  .db $40, $07, $00, $70
+  .db $40, $00, $00, $78
+
+  .db $48, $08, $00, $40
+  .db $48, $09, $00, $48
+  .db $48, $0A, $00, $50
+  .db $48, $0B, $00, $58
+  .db $48, $0C, $00, $60
+  .db $48, $0D, $00, $68
+  .db $48, $0E, $00, $70
+  .db $48, $0F, $00, $78
+
+  .db $50, $10, $00, $40
+  .db $50, $11, $00, $48
+  .db $50, $12, $00, $50
+  .db $50, $13, $00, $58
+  .db $50, $14, $00, $60
+  .db $50, $15, $00, $68
+  .db $50, $16, $00, $70
+  .db $50, $17, $00, $78
+
+  .db $58, $18, $00, $40
+  .db $58, $19, $00, $48
+  .db $58, $1A, $00, $50
+  .db $58, $1B, $00, $58
+  .db $58, $1C, $00, $60
+  .db $58, $1D, $00, $68
+  .db $58, $1E, $00, $70
+  .db $58, $1F, $00, $78
+
+  .db $60, $20, $00, $40
+  .db $60, $21, $00, $48
+  .db $60, $22, $00, $50
+  .db $60, $23, $00, $58
+  .db $60, $24, $00, $60
+  .db $60, $25, $00, $68
+  .db $60, $26, $00, $70
+  .db $60, $27, $00, $78
+
+  .db $68, $28, $00, $40
+  .db $68, $29, $00, $48
+  .db $68, $2A, $00, $50
+  .db $68, $2B, $00, $58
+  .db $68, $2C, $00, $60
+  .db $68, $2D, $00, $68
+  .db $68, $2E, $00, $70
+  .db $68, $2F, $00, $78
+
+  .db $70, $30, $00, $40
+  .db $70, $31, $00, $48
+  .db $70, $32, $00, $50
+  .db $70, $33, $00, $58
+  .db $70, $34, $00, $60
+  .db $70, $35, $00, $68
+  .db $70, $36, $00, $70
+  .db $70, $37, $00, $78
+
+  .db $78, $00, $00, $40
+  .db $78, $38, $00, $48
+  .db $78, $39, $00, $50
+  .db $78, $3A, $00, $58
+  .db $78, $3B, $00, $60
+  .db $78, $3C, $00, $68
+  .db $78, $3D, $00, $70
+  .db $78, $00, $00, $78
+
+
+
+
+
+frame1:
+  .db $00, $02, $03, $04, $05, $06, $07, $00
+  .db $08, $09, $0A, $0B, $0C, $0D, $0E, $0F
+  .db $10, $11, $12, $13, $14, $15, $16, $17
+  .db $18, $19, $1A, $1B, $1C, $1D, $1E, $1F
+  .db $20, $21, $22, $23, $24, $25, $26, $27
+  .db $28, $29, $2A, $2B, $2C, $2D, $2E, $2F
+  .db $30, $31, $32, $33, $34, $35, $36, $37
+  .db $00, $38, $39, $3A, $3B, $3C, $3D, $00
+
+frame2:
+  .db $00, $3E, $3F, $40, $41, $42, $43, $00
+  .db $44, $45, $46, $47, $48, $49, $4A, $4B
+  .db $4C, $4D, $4E, $4F, $50, $51, $52, $53
+  .db $54, $55, $56, $57, $58, $59, $5A, $5B
+  .db $5C, $5D, $5E, $5F, $60, $61, $62, $63
+  .db $64, $65, $66, $67, $68, $69, $6A, $6B
+  .db $6C, $6D, $6E, $6F, $70, $71, $72, $73
+  .db $00, $74, $75, $76, $77, $78, $79, $00
+
+frame3:
+  .db $00, $00, $00, $7A, $7B, $7C, $7D, $00
+  .db $00, $00, $00, $7E, $7F, $80, $81, $82
+  .db $00, $00, $00, $83, $84, $85, $86, $87
+  .db $00, $00, $00, $88, $89, $8A, $8B, $8C
+  .db $00, $00, $00, $8D, $8E, $8F, $90, $91
+  .db $00, $00, $00, $92, $93, $94, $95, $96
+  .db $00, $00, $00, $97, $98, $99, $9A, $9B
+  .db $00, $00, $00, $9C, $9D, $9E, $9F, $00
+
+frame4:
+  .db $00, $00, $00, $00, $A0, $A1, $A2, $00
+  .db $00, $00, $00, $00, $A3, $A4, $A5, $A6
+  .db $00, $00, $00, $00, $A7, $A8, $A9, $AA
+  .db $00, $00, $00, $00, $AB, $AC, $AD, $AE
+  .db $00, $00, $00, $00, $00, $AF, $B0, $B1
+  .db $00, $00, $00, $00, $00, $B2, $B3, $B4
+  .db $00, $00, $00, $00, $00, $B5, $B6, $B7
+  .db $00, $00, $00, $00, $00, $B8, $B9, $00
+
+frame5:
+  .db $00, $00, $00, $00, $00, $00, $BA, $00
+  .db $00, $00, $00, $00, $00, $00, $BB, $BC
+  .db $00, $00, $00, $00, $00, $00, $BD, $BE
+  .db $00, $00, $00, $00, $00, $00, $BF, $C0
+  .db $00, $00, $00, $00, $00, $00, $C1, $C2
+  .db $00, $00, $00, $00, $00, $00, $C3, $C4
+  .db $00, $00, $00, $00, $00, $00, $C5, $C6
+  .db $00, $00, $00, $00, $00, $00, $C7, $00
+
+frame6:
+  .db $00, $00, $00, $00, $00, $00, $00, $00
+  .db $00, $00, $00, $00, $00, $00, $00, $00
+  .db $00, $00, $00, $00, $00, $00, $00, $00
+  .db $00, $00, $00, $00, $00, $00, $00, $00
+  .db $00, $00, $00, $00, $00, $00, $00, $00
+  .db $00, $00, $00, $00, $00, $00, $00, $00
+  .db $00, $00, $00, $00, $00, $00, $00, $00
+  .db $00, $00, $00, $00, $00, $00, $00, $00
+
+frame7:
+  .db $00, $01, $02, $03, $04, $05, $06, $00
+  .db $07, $08, $09, $0A, $0B, $0C, $0D, $0E
+  .db $0F, $10, $11, $12, $13, $14, $15, $16
+  .db $17, $18, $19, $1A, $1B, $1C, $1D, $1E
+  .db $1F, $20, $21, $22, $23, $24, $25, $26
+  .db $27, $28, $29, $2A, $2B, $2C, $2D, $2E
+  .db $2F, $30, $31, $32, $33, $34, $35, $36
+  .db $00, $37, $38, $39, $3A, $3B, $3C, $00
+
+frame8:
+  .db $00, $3D, $3E, $3F, $40, $41, $42, $00
+  .db $43, $44, $45, $46, $47, $48, $49, $4A
+  .db $4B, $4C, $4D, $4E, $4F, $50, $51, $52
+  .db $53, $54, $55, $56, $57, $58, $59, $5A
+  .db $5B, $5C, $5D, $5E, $5F, $60, $61, $62
+  .db $63, $64, $65, $66, $67, $68, $69, $6A
+  .db $6B, $6C, $6D, $6E, $6F, $70, $71, $72
+  .db $00, $73, $74, $75, $76, $77, $78, $00
+
+frame9:
+  .db $00, $79, $7A, $7B, $7C, $7D, $7E, $00
+  .db $7F, $80, $81, $82, $83, $84, $85, $86
+  .db $87, $88, $89, $8A, $8B, $8C, $8D, $8E
+  .db $8F, $90, $91, $92, $93, $94, $95, $96
+  .db $97, $98, $99, $9A, $9B, $9C, $9D, $9E
+  .db $9F, $A0, $A1, $A2, $A3, $A4, $A5, $A6
+  .db $A7, $A8, $A9, $AA, $AB, $AC, $AD, $AE
+  .db $00, $AF, $B0, $B1, $B2, $B3, $B4, $00
+
+frame10:
+  .db $00, $B5, $B6, $B7, $B8, $B9, $BA, $00
+  .db $BB, $BC, $BD, $BE, $BF, $C0, $C1, $C2
+  .db $C3, $C4, $C5, $C6, $C7, $C8, $C9, $CA
+  .db $CB, $CC, $CD, $CE, $CF, $D0, $D1, $D2
+  .db $D3, $D4, $D5, $D6, $D7, $D8, $D9, $DA
+  .db $DB, $DC, $DD, $DE, $DF, $E0, $E1, $E2
+  .db $E3, $E4, $E5, $E6, $E7, $E8, $E9, $EA
+  .db $00, $EB, $EC, $ED, $EE, $EF, $F0, $00
+
+
+  .org $FFFA
+  .dw NMI
+  .dw Start
+  .dw 0
+
+  .bank 2
+  .org $0000
+
+  .incbin "eclipse7.chr"
+  .incbin "eclipse7b.chr"
+
+  .org $FFFA     ;first of the three vectors starts here
+  .dw NMI          ;when an NMI happens (once per frame if enabled) the 
+                          ;processor will jump to the label NMI:
+  .dw Start    ;when the processor first turns on or is reset, it will jump
+                           ;to the label RESET:
+  .dw 0               ;external interrupt IRQ is not used in this tutorial

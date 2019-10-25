@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=10&amp;t=10770" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2014-01-03T13:05:43-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=10&amp;t=10770</id>
+<entry>
+<author><name><![CDATA[SoleGooseProductions]]></name></author>
+<updated>2014-01-03T13:05:43-07:00</updated>
+<published>2014-01-03T13:05:43-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10770&amp;p=123213#p123213</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10770&amp;p=123213#p123213"/>
+<title type="html"><![CDATA[Re: Torches, Darkness, and Backgrounds?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10770&amp;p=123213#p123213"><![CDATA[
+Thanks! There is still a long way to go, but I already have it up and running with a little spotlight (4x4 tiles). I'll play around with it for a while and see what I can figure out on my own, but thanks again. I would guess that next up is adjusting it to player movement, buffering, loading real data instead of blank tiles, and who knows what else. If anyone has any advice regarding those different things, or helpful links, feel free to post in the meantime.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6252">SoleGooseProductions</a> — Fri Jan 03, 2014 1:05 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tokumaru]]></name></author>
+<updated>2014-01-03T11:49:29-07:00</updated>
+<published>2014-01-03T11:49:29-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10770&amp;p=123207#p123207</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10770&amp;p=123207#p123207"/>
+<title type="html"><![CDATA[Re: Torches, Darkness, and Backgrounds?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10770&amp;p=123207#p123207"><![CDATA[
+You have to use the full formula I gave you:<br /><br />A: TileX = SpriteX / 8;<br />B: TileY = SpriteY / 8;<br />C: Address = Base + (TileY * 32) + TileX;<br /><br />The 6502 code would be something similar to this:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">   ;TileX = SpriteX / 8<br />   lda spriteX<br />   lsr<br />   lsr<br />   lsr<br />   sta TileX<br /><br />   ;TileY = SpriteY / 8<br />   lda SpriteY<br />   lsr<br />   lsr<br />   lsr<br />   sta TileY<br /><br />   ;Address = $2000 + (TileY * 32) + TileX<br />   lda #$00<br />   sta Address+1<br />   lda TileY<br />   asl<br />   rol Address+1<br />   asl<br />   rol Address+1<br />   asl<br />   rol Address+1<br />   asl<br />   rol Address+1<br />   asl<br />   rol Address+1<br />   adc TileX<br />   sta Address+0<br />   lda Address+1<br />   adc #$20<br />   sta Address+1<br /><br />   ;use the address<br />   lda Address+1<br />   sta $2006<br />   lda Address+0<br />   sta $2006<br />   lda Tile<br />   sta $2007</div><br />There are obvious optimizations you can do (for example, instead of shifting TileY right 3 times and left 5 times, you can take a shortcut and shift it left twice if you clear the lower 3 bits), but I wanted the code to be easy to understand.<br /><br />Also, you don't need to perform this conversion several times for several tiles, you can easily generate other addresses from the first one: to move left, subtract 1, to move right, add 1, to move up, subtract 32, to move down, add 32. You should perform some some boundary checks when doing this, to make sure you don't go out of the name table you're in.<br /><br />Another important point is that you shouldn't be doing these slow calculations during VBlank. The correct thing to do would be to compute all this stuff beforehand and buffer the addresses and data you'll be using, so that during VBlank you can just perform the actual PPU writes, instead of wasting precious VBlank time with operations that could have been performed before.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=95">tokumaru</a> — Fri Jan 03, 2014 11:49 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[SoleGooseProductions]]></name></author>
+<updated>2014-01-03T09:46:51-07:00</updated>
+<published>2014-01-03T09:46:51-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10770&amp;p=123202#p123202</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10770&amp;p=123202#p123202"/>
+<title type="html"><![CDATA[Re: Torches, Darkness, and Backgrounds?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10770&amp;p=123202#p123202"><![CDATA[
+I have done a few things beyond the tutorials (no scrolling projects, though my current one is up and, uh, running), and am learning as I go. This task may be a bit beyond me, however, we will see. Someone was nice enough to share his collision code with me a while back, and from this I have the X and Y locations, following the procedure that you mentioned. However, I am having trouble figuring out the following, since I have not had to do too much multiplication and combining of values:<br /><br /><div class="quotetitle">tokumaru wrote:</div><div class="quotecontent"><br />Then, once you have the X and Y coordinates of the player converted to tile units, you have to combine them using the following formula: NTADDRESS = BASE + Y * 32 + X. BASE is the base address of the name table... for example, $2000 is the first name table. You multiply Y by 32 because each row has 32 tiles, and you add X because that's how far into the row the tile is.<br /></div><br /><br />I have gotten the X coordinate to work, doing two writes to $2006, but I cannot figure out the Y cordinate/base address part. I have looked around online regarding how to do this, but no luck since most of it is not 6502 specific. So far my routine looks like this:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">Illuminate:<br />;<br />; I have tried putting various things here, which affects the location of the Y coordinate, but not based off of player position.<br />; Instead, it seems to be based off of the first two digits, with the options being at 20, 21, 22, and 23, which is consistent<br />; with the previous way that I was writing to the background by writing two hex numbers and storing them each at $2006.<br />;<br />  STA $2006<br /><br />  LDA SpriteXPos<br />  CLC<br />  ADC #$03              ; Changing this, as you said, changes the relationship of the tile to the player<br />  STA $2006<br /><br />  LDA Tile                 ; A light tile<br />  STA $2007<br />IlluminateDone:<br />  RTS</div><br /><br />This may not be at all the correct way to do things, but it is partially working which gives me hope. Thanks again for any help!<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6252">SoleGooseProductions</a> — Fri Jan 03, 2014 9:46 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tokumaru]]></name></author>
+<updated>2014-01-02T20:56:56-07:00</updated>
+<published>2014-01-02T20:56:56-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10770&amp;p=123185#p123185</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10770&amp;p=123185#p123185"/>
+<title type="html"><![CDATA[Re: Torches, Darkness, and Backgrounds?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10770&amp;p=123185#p123185"><![CDATA[
+I haven't looked at the files yet (it's late and I'm about to go to sleep), but I can assure you that this will be somewhat hard if all your experience so far is replicating what you saw in tutorials. I assume you're not dealing with scrolling yet, right?<br /><br />Well, you said that you couldn't think of a way to do this other than manually writing the addresses of the tiles you want to change, and surprisingly, that's not too far off. You will be making lots of small updates, writing several different addresses to $2006 to update all the tiles you need, but the addresses won't be hardcoded, you'll calculate them from the player's coordinates. Physics and drawing game objects are all about coordinates. All objects have coordinates, tiles have coordinates, the camera (you'll need one if you're making a scrolling game) has coordinates. Sometimes you need to convert coordinates of one kind to another, and this is basically what you need to do here.<br /><br />You can probably keep treating the attribute tables like you have so far (load it once and forget about it, I'm guessing), since the technique is based on blanking/revealing name table data.<br /><br />The first thing to do is detect WHEN to draw/clear tiles. Since you're dealing with 8x8 tiles here, it's reasonable to assume that you'll need to update the name table everytime your character moves 8 pixels, no matter the direction. To do this you can compare his old coordinates to his new coordinates everytime he moves. 8 in binary is 00001000, so whenever the 4th bit of a coordinate changes, that coordinate has crossed an 8-pixel boundary. Say that the X coordinate was 23 before he walked right, and it became 25 afterwards. If you look at those numbers in binary (23 = 00010111, 25 = 00011001) you'll see that the 4th bit was 0 and became a one, meaning that an 8-pixel boundary was crossed and it's time to update tiles. BTW, a good way to check if bits changed is to XOR (EOR in 6502 assembly) the values together: whatever bits are different will become 1's while bits that haven't changed will become 0s. Then you can isolate the bit of interest with AND #%00001000 and use BEQ (bit didn't change) or BNE (bit changed) to make a decision.<br /><br />Once you know you have to update tile, it's a matter of calculating the coordinates of the tiles you'll need to change. Sprite/object coordinates are measured in pixels, background coordinates are measured in tiles, so you'll have to divide the sprite coordinates by 8. You probably know you can do this by shifting the values right 3 times. Then, once you have the X and Y coordinates of the player converted to tile units, you have to combine them using the following formula: NTADDRESS = BASE + Y * 32 + X. BASE is the base address of the name table... for example, $2000 is the first name table. You multiply Y by 32 because each row has 32 tiles, and you add X because that's how far into the row the tile is. This is all you have to do in order to find the address of the tile immediately behind your character. I know this is not the tile you want (you need the edges), but if you know the center you can surely add/subtract from it to find the edges.<br /><br />Now, if your lit area is reasonably small, I would advise you to completely erase it and redraw it every frame, because the logic would be easier than detecting the direction of the movement in order to know which edges to update... I mean, if you can simply keep a copy of the old player coordinates and use those to clear all tiles around the player, and then use the new coordinates to draw the lit tiles, that would be much simpler.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=95">tokumaru</a> — Thu Jan 02, 2014 8:56 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[SoleGooseProductions]]></name></author>
+<updated>2014-01-02T19:50:49-07:00</updated>
+<published>2014-01-02T19:50:49-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10770&amp;p=123182#p123182</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10770&amp;p=123182#p123182"/>
+<title type="html"><![CDATA[Re: Torches, Darkness, and Backgrounds?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10770&amp;p=123182#p123182"><![CDATA[
+I spent a lot of time messing around with this over the last few days, and am plain stuck. I managed to figure out how to do a spotlight with sprites, but what I would like to do is to accomplish a similar feature with the nametable or attribute method. To give some concreteness to the problem, I would like to create a light around the player that moves as he moves. In order to keep this as widely applicable as possible, let us say a 3x3 area, with him in the center. What type of routine would need to be written? The only experience that I have with updating background tiles on the fly is what was covered in the Nerdy Nights lesson on drawing a score to a few background tiles, one at a time (Week 9, I believe). To do a spotlight, I would imagine that a more complex routine would be needed since it will need to adjust to player movement. It will need to check player position, “turn on” the necessary tiles, and then wait for further movement. Once this occurs, the same steps will be repeated, but with the addition of “turning off” the tiles that no longer need to be lit. This seems pretty straight forward, but I do not know of a way to decide what needs to be turned on next without inputting each individual nametable address (and this would only work if the player moved exactly as I wanted him or her to move; not likely!). Additionally, how should the background data be written? Does it follow the same format that I have at the bottom of the file, or is it done differently since it is written on the fly. Initially I had a regular background that I was trying to darken, but it seemed to make more sense to start with a black background and then lighten the needed areas. If that is incorrect, please let me know. I can see it working either way, to be honest. Also, based on how to do these things, another question that comes up is if the method of drawing columns as found in the attached file is the best method (for those that feel like taking a look). Should columns instead be drawn directly onto the present nametable? I am guessing not, but I have no clue at this point. Hopefully this make sense, if not, just let me know. I have gone through several conceptual hurdles to get here, and there may be more in store. Helpful correction is always welcome. To summarize, the big questions are:<br /><br />-What type of routine to use to update background data?<br />-How to write background data to the lit areas?<br />-Where to write background data?<br /><br />Oh, and let me state that the code is mostly from BunnyBoy’s Advanced NN lesson on horizontal scrolling. I have rearranged it to be more structurally like an actual game (at least as I understand it). I have also replaced the Mario tiles with those done by Drag. Yes it is sloppy (on my part, not BunnyBoy’s), and not how I generally o things, but I wanted to keep it as trim as possible for those that feel like taking a look. If either of these files should not be posted, please let me know and I will figure out a different way to ask my questions. Sorry that there are so many questions, but I am guessing that they are all linked, so hopefully they fall into place. Pardon too the Matrix at the top of the screen, I had to make sure that it was not skipping columns (and it has been known to in other revisions). Thanks a ton for anyone willing to give me a hand with this <img src="http://forums.nesdev.com/images/smilies/icon_smile.gif" alt=":)" title="Smile" />.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6252">SoleGooseProductions</a> — Thu Jan 02, 2014 7:50 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tokumaru]]></name></author>
+<updated>2013-12-31T09:40:40-07:00</updated>
+<published>2013-12-31T09:40:40-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10770&amp;p=123105#p123105</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10770&amp;p=123105#p123105"/>
+<title type="html"><![CDATA[Re: Torches, Darkness, and Backgrounds?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10770&amp;p=123105#p123105"><![CDATA[
+<div class="quotetitle">SoleGooseProductions wrote:</div><div class="quotecontent"><br />How does one change a great quantity of tiles like that on the fly, either using the nametable method or the attribute table method (the NN tutorials seemed to say that only a few could be changed this way without issue).<br /></div><br />Do you mean when changing from normal view to spotlight mode and vice versa? I didn't look at all the examples mentioned, but for the most part there seems to be a delay long enough for the necessary updates.<br /><br />In Bucky O'Hare for example, the flashing can be achieved by disabling background rendering (while leaving sprites enabled), which is practically instantaneous. Then later, before the spotlights appear, there's a good second or so where the background remains black, and that's enough time to progressively update the entire background in columns across several VBlanks like normal (you don't see it because background rendering is disabled). I assume the other games will have similar delays if they have to switch between modes on the fly.<br /><br />Or do you mean updating several small areas (or one big area) of lit tiles? That shouldn't be a problem, because you only have to update the edges of the spotlights, that's not such a large amount of tiles and should fit under normal VBlank time.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=95">tokumaru</a> — Tue Dec 31, 2013 9:40 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[SoleGooseProductions]]></name></author>
+<updated>2013-12-31T05:34:52-07:00</updated>
+<published>2013-12-31T05:34:52-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10770&amp;p=123104#p123104</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10770&amp;p=123104#p123104"/>
+<title type="html"><![CDATA[Re: Torches, Darkness, and Backgrounds?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10770&amp;p=123104#p123104"><![CDATA[
+All right. I have had a chance to look into some of these examples a bit more thoroughly and figure out <em>what</em> they are doing, but I am still a bit fuzzy on <em>how</em> they are doing it. How does one change a great quantity of tiles like that on the fly, either using the nametable method or the attribute table method (the NN tutorials seemed to say that only a few could be changed this way without issue). Any help or nudges in the right direction would be great, and thanks again for the examples!<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6252">SoleGooseProductions</a> — Tue Dec 31, 2013 5:34 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[SoleGooseProductions]]></name></author>
+<updated>2013-12-10T04:55:23-07:00</updated>
+<published>2013-12-10T04:55:23-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10770&amp;p=122204#p122204</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10770&amp;p=122204#p122204"/>
+<title type="html"><![CDATA[Re: Torches, Darkness, and Backgrounds?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10770&amp;p=122204#p122204"><![CDATA[
+Thanks! Those examples really help to get an idea of what can be done. I had forgotten about many of them, since they seem to be those difficult parts of games that I have tried to block from my mind   <img src="http://forums.nesdev.com/images/smilies/icon_biggrin.gif" alt=":D" title="Very Happy" /> . I will post further questions as I try to get something similar to the nametable/rounded-sprites system working.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6252">SoleGooseProductions</a> — Tue Dec 10, 2013 4:55 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Denine]]></name></author>
+<updated>2013-12-09T09:34:55-07:00</updated>
+<published>2013-12-09T09:34:55-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10770&amp;p=122167#p122167</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10770&amp;p=122167#p122167"/>
+<title type="html"><![CDATA[Re: Torches, Darkness, and Backgrounds?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10770&amp;p=122167#p122167"><![CDATA[
+<a href="http://youtu.be/zPhxAIKsim4?t=13m11s" class="postlink">Linus Spacehead's Cosmis Crusade</a> also do this, but the circle is smaller than examples above. Also, the operation in Linus is pretty simple-there's two palettes, one black and one with blue shades. the game updates attributes of name tables and uses sprites to smooth circle appearance(which is a technique explained by tepples in his first post in this thread)<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4239">Denine</a> — Mon Dec 09, 2013 9:34 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Gilbert]]></name></author>
+<updated>2013-12-08T23:35:39-07:00</updated>
+<published>2013-12-08T23:35:39-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10770&amp;p=122155#p122155</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10770&amp;p=122155#p122155"/>
+<title type="html"><![CDATA[Re: Torches, Darkness, and Backgrounds?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10770&amp;p=122155#p122155"><![CDATA[
+I haven't really checked how it's really done, but I think Ys did this with the sprite thing too:<br /><a href="http://www.youtube.com/watch?v=hgL4RK8rRxo" class="postlink">Skip to 1:00 and beyond.</a><br />The LP clip sucks because of those hi-res filters, but I didn't have time to search for better clips.<br />There are better screenshots <a href="http://lparchive.org/Ys-Ancient-Ys-Vanished/Update%209/" class="postlink">here</a> though.<br /><br />One way to check how stuff are done is to use an emulator that you can toggle between displaying the sprite layer(i.e. pretty much every popular emulator).<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4653">Gilbert</a> — Sun Dec 08, 2013 11:35 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tokumaru]]></name></author>
+<updated>2013-12-08T21:23:11-07:00</updated>
+<published>2013-12-08T21:23:11-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10770&amp;p=122152#p122152</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10770&amp;p=122152#p122152"/>
+<title type="html"><![CDATA[Re: Torches, Darkness, and Backgrounds?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10770&amp;p=122152#p122152"><![CDATA[
+<a href="http://www.youtube.com/watch?v=DwZAnc3o6xg" class="postlink">Chip 'n Dale 2</a> does it right before the title screen, and a level in <a href="http://youtu.be/dWHPNnrTmKs?t=34m27s" class="postlink">Bucky O'Hare</a> has the effect as well (BTW, this game is full of these neat little effects/tricks, check the rest of it if you're interested).<br /><br />Chip 'n Dale uses an interesting (i.e. simple to implement) approach, but it only really works for silhouettes/1bpp images: the brick outlines and the silhouettes are black, but so is color 0, so you can't see anything until the spotlight, which is drawn behind the background (i.e. low priority sprites) overlaps color 0.<br /><br />Bucky O'Hare is doing exactly the expected (which is harder to program than the trick above): name table stuff with sprites to smooth it out.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=95">tokumaru</a> — Sun Dec 08, 2013 9:23 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2013-12-08T20:53:14-07:00</updated>
+<published>2013-12-08T20:53:14-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10770&amp;p=122148#p122148</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10770&amp;p=122148#p122148"/>
+<title type="html"><![CDATA[Re: Torches, Darkness, and Backgrounds?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10770&amp;p=122148#p122148"><![CDATA[
+Super Mario Bros. 3, world 8, world map 3 (screen containing 8-1, 8-2, and the fortress)<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Sun Dec 08, 2013 8:53 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[SoleGooseProductions]]></name></author>
+<updated>2013-12-08T19:33:19-07:00</updated>
+<published>2013-12-08T19:33:19-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10770&amp;p=122145#p122145</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10770&amp;p=122145#p122145"/>
+<title type="html"><![CDATA[Re: Torches, Darkness, and Backgrounds?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10770&amp;p=122145#p122145"><![CDATA[
+Oh yeah, if anybody knows of any other examples to study I would be more than appreciative. A nice technical explanation is simply an added bonus (thanks Dwedit!).<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6252">SoleGooseProductions</a> — Sun Dec 08, 2013 7:33 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Dwedit]]></name></author>
+<updated>2013-12-08T19:11:36-07:00</updated>
+<published>2013-12-08T19:11:36-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10770&amp;p=122144#p122144</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10770&amp;p=122144#p122144"/>
+<title type="html"><![CDATA[Re: Torches, Darkness, and Backgrounds?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10770&amp;p=122144#p122144"><![CDATA[
+Ultima IV combines nametable updates with sprites to mask off everything except the 3x3 block area in the middle of the screen.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=53">Dwedit</a> — Sun Dec 08, 2013 7:11 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[SoleGooseProductions]]></name></author>
+<updated>2013-12-08T16:39:40-07:00</updated>
+<published>2013-12-08T16:39:40-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10770&amp;p=122139#p122139</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10770&amp;p=122139#p122139"/>
+<title type="html"><![CDATA[Re: Torches, Darkness, and Backgrounds?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10770&amp;p=122139#p122139"><![CDATA[
+Thanks for the help! I did not know if there might be some trick to doing this effect. I had not thought of using rounded sprites to smooth things out, thanks for the tip.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6252">SoleGooseProductions</a> — Sun Dec 08, 2013 4:39 pm</p><hr />
+]]></content>
+</entry>
+</feed>

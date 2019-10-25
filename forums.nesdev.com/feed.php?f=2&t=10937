@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=2&amp;t=10937" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2015-09-19T13:29:01-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=2&amp;t=10937</id>
+<entry>
+<author><name><![CDATA[BenoitRen]]></name></author>
+<updated>2015-09-19T13:29:01-07:00</updated>
+<published>2015-09-19T13:29:01-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10937&amp;p=155646#p155646</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10937&amp;p=155646#p155646"/>
+<title type="html"><![CDATA[Re: Reverse engineering Mega Man]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10937&amp;p=155646#p155646"><![CDATA[
+AnalyzeCurrentTile isn't so hard. Basically, it iterates over the sequentially stored tile types, and if the current value is a ladder (0x02), it ORs with a value of the CurrentTileStateBits table table.<br /><br />If the tile at Y + 0x0B is a ladder, OR 0x02<br />If the tile at Y + 0xFC is a ladder, OR 0x04<br />If the tile at Y + 0xF4 is a ladder, OR 0x08<br /><br />Putting all of this info together, CurrentTileState consists of the following bits:<br />Bit 1: ladder at (but not under) Mega Man's feet (+11 from origin)<br />Bit 2: ladder at Mega Man's eyes (-4 from origin)<br />Bit 3: ladder at top of Mega Man's head/bounding box (-12 from origin)<br /><br />Bit 0 and bit 4 are set afterwards in the rest of the UpdateCurrentTileState routine. YSpeed is subtracted from Mega Man's Y position (but not stored), and based on Mega Man's vertical direction, half of Mega Man's height (12) is added or subtracted from his Y position. The game then checks if a ladder tile is at those coordinates, and if there is, sets bit 0 if Mega Man is moving down, or bit 4 if Mega Man is moving up. It's basically testing if there will be a ladder tile at Mega Man's top or below his feet in the next frame. Because Mega Man's YSpeed is always negative while grounded, this also conveniently tells it if there's a ladder tile to climb down to below Mega Man's feet.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6367">BenoitRen</a> — Sat Sep 19, 2015 1:29 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[BenoitRen]]></name></author>
+<updated>2015-09-19T12:20:43-07:00</updated>
+<published>2015-09-19T12:20:43-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10937&amp;p=155638#p155638</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10937&amp;p=155638#p155638"/>
+<title type="html"><![CDATA[Re: Reverse engineering Mega Man]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10937&amp;p=155638#p155638"><![CDATA[
+Made another attempt at reading it, and I've got it almost all figured out. The Y coordinates of the relevant tiles are retrieved in ObjectVerifyBackgroundCollision:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">0001CB6F: 20 9C C3  jsr SwitchBankStage                             ; $C39C<br />0001CB72: A5 01     lda $01<br />0001CB74: 85 0C     sta $0C<br />0001CB76: A5 00     lda $00<br />0001CB78: 85 0D     sta $0D<br />0001CB7A: A6 2F     ldx RefObjectNumber<br />0001CB7C: D0 1B     bne +                                           ; $CB99</div><br />This copies the coordinates to the memory locations used by ReadCurrentStageMap and branches if the object is not Mega Man (RefObjectNumber is set to 0 at the start of MegaManAI).<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">0001CB7E: A2 02     ldx #$02<br />-<br />0001CB80: 18        clc<br />0001CB81: A5 03     lda $03<br />0001CB83: 7D 96 CB  adc CB96_table,x<br />0001CB86: 85 0E     sta $0E<br />0001CB88: 20 B7 CC  jsr ReadCurrentStageMap<br /><br />0001CB8B: 95 2A     sta $2A,x<br />0001CB8D: CA        dex<br />0001CB8E: 10 F0     bpl -</div><br />The x register is set to 2 because it'll be counting down for each tile that is checked. Then it enters a loop that it will only branch out of when the register is 0. The Y coordinate is loaded into the accumulator, then a value from a table is added to it. The value retrieved from the table depends on the x register. The table consists of the following values: $F4, $FC, $0B. Advantage is taken of 8-bit overflow to simplify the code. The value is stored where ReadCurrentStageMap expects it, and then the subroutine is called. ReadCurrentStageMap will store the tile type found at the coordinate in the accumulator. Those tile types are stored sequentially in memory. Next AnalyzeCurrentTile is called, which I haven't looked at in detail yet.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6367">BenoitRen</a> — Sat Sep 19, 2015 12:20 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[BenoitRen]]></name></author>
+<updated>2015-09-19T06:37:13-07:00</updated>
+<published>2015-09-19T06:37:13-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10937&amp;p=155619#p155619</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10937&amp;p=155619#p155619"/>
+<title type="html"><![CDATA[Re: Reverse engineering Mega Man]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10937&amp;p=155619#p155619"><![CDATA[
+Trying to read the ladder climbing subroutines.<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">Ladder_ClimbUp                       ;well, up is pressed.<br />$97F7&gt; A0 00:   LDY #$00             ;XSpeed<br />$97F9&gt; A2 C0:   LDX #$c0             ;XSpeedFraction (speed is +0.75)<br />$97FB&gt; A5 30:   LDA CurrentTileState         <br />$97FD&gt; 29 0C:   AND #$0c        <br />$97FF&gt; D0 0E:   BNE +</div><br />0x02 &amp; 0x0C = 0x00<br />0x06 &amp; 0x0C = 0x04<br />0x0E &amp; 0x0C = 0x0C<br />0x1E &amp; 0x0C = 0x0C<br /><br />CurrentTileState is 2 right before he gets off the ladder, so in that case it branches to this:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">; Adjust Rockman's position above the ladder so that he'll not fall<br />; If he's little too high, this may place him in ceiling. -Bisqwit<br />$9801&gt; AD 0006: LDA ObjectPosY+0      <br />$9804&gt; 29 F0:   AND #$f0        <br />$9806&gt; 38:      SEC             <br />$9807&gt; E9 0C:   SBC #$0c        <br />$9809&gt; 8D 0006: STA ObjectPosY+0      <br />$980C&gt; 4C 6E98: JMP Ladder_Release</div><br />At this point, during my testing, Y is either 99 or 98. ANDing either with 0xF0 (240, the screen height) results in 96, the coordinate of the top ladder tile. Then 96 is subtracted with 0x0C (12, half of Mega Man's height), resulting in 84, which places him right above the ladder. Then it jumps to code that exits the climbing state.<br /><br />If he wasn't about to get off the ladder, this code is executed:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">$980F&gt; 29 08:   AND #$08        <br />$9811&gt; D0 25:   BNE Ladder_Climb</div><br />If CurrentTileState was 6, which meant that he was climbing the top of the ladder, ANDing it with 0x0C resulted in 4. In the other cases, it resulted in 0x0C.<br /><br />0x06 &amp; 0x08 = 0x00<br />0x0E &amp; 0x08 = 0x08<br />0x1E &amp; 0x08 = 0x08<br /><br />So if he is climbing the top of the ladder, it doesn't branch, and we get to:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">$9833&gt; A9 17:   LDA #$17  ;getting off the ladder<br />$9835&gt; 8D 0004: STA ObjectSpriteNum+0</div><br />This sets the ladder top climbing animation, as 0x17 is its ID.<br /><br />Now the issue remains that Mega Man only switches to this animation the second frame that CurrentTileState is 6. However, reading further:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">Ladder_Climb<br />$9838&gt; AD 4006: LDA ObjectFireDelay+0       <br />$983B&gt; F0 04:   BEQ +     ;don't climb if weapon fire delay is active<br />$983D&gt; A2 00:   LDX #$00<br />$983F&gt; A0 00:   LDY #$00        <br />+<br />$9841&gt; 8C 8006: STY ObjectYSpeed+0<br />$9844&gt; 8E 6006: STX ObjectYSpeedFraction+0       <br />$9847&gt; 20 DECB: JSR UpdateCurrentTileState       <br />$984A&gt; A5 30:   LDA CurrentTileState         <br />$984C&gt; F0 20:   BEQ Ladder_Release               <br />$984E&gt; 20 C49B: JSR ObjectDoCollisionChecksAndAvoidWalls       <br />$9851&gt; B0 1B:   BCS Ladder_Release               <br />$9853&gt; 60:      RTS</div><br />We see that CurrentTileState is updated right after Mega Man has climbed up or down. So, when CurrentTileState is first set to 6, the ladder climbing subroutine has already been run. It's only on the next frame that it'll notice that he's climbing the top.<br /><br />Things are starting to make sense!<br /><br />Figuring out how CurrentTileState is updated is the final piece of the puzzle. Yesterday evening I tried to read the UpdateCurrentTileState routine, but I wasn't able to figure it out.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6367">BenoitRen</a> — Sat Sep 19, 2015 6:37 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[BenoitRen]]></name></author>
+<updated>2015-09-18T12:32:39-07:00</updated>
+<published>2015-09-18T12:32:39-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10937&amp;p=155574#p155574</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10937&amp;p=155574#p155574"/>
+<title type="html"><![CDATA[Re: Reverse engineering Mega Man]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10937&amp;p=155574#p155574"><![CDATA[
+The value of CurrentTileStateBits is always 8. What the heck?<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6367">BenoitRen</a> — Fri Sep 18, 2015 12:32 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[BenoitRen]]></name></author>
+<updated>2015-09-18T05:22:07-07:00</updated>
+<published>2015-09-18T05:22:07-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10937&amp;p=155545#p155545</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10937&amp;p=155545#p155545"/>
+<title type="html"><![CDATA[Re: Reverse engineering Mega Man]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10937&amp;p=155545#p155545"><![CDATA[
+Further complicating matters is that there's also such a thing as CurrentTileStateBits, which is defined as follows:<br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent"><br />.byte $08 ;ladder here<br />.byte $04 ;ladder above<br />.byte $02 ;ladder above that<br /></div><br />It only gets used once, for updating CurrentTileState:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">0001D7C6: A5 30     lda CurrentTileState<br />0001D7C8: 1D DB D7  ora CurrentTileStateBits,x<br />0001D7CB: 85 30     sta CurrentTileState</div><br />Looks like I'll have to check out address $D7DB, because that address is mapper-controlled and there doesn't seem to be any specific information about it.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6367">BenoitRen</a> — Fri Sep 18, 2015 5:22 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[BenoitRen]]></name></author>
+<updated>2015-09-18T00:34:36-07:00</updated>
+<published>2015-09-18T00:34:36-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10937&amp;p=155539#p155539</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10937&amp;p=155539#p155539"/>
+<title type="html"><![CDATA[Re: Reverse engineering Mega Man]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10937&amp;p=155539#p155539"><![CDATA[
+<div class="quotetitle">BenoitRen wrote:</div><div class="quotecontent"><br />And finally, when Mega Man is standing below that low-hanging ladder in Elec Man's stage that makes him dance when holding down, CurrentTileState is 008, which means that bit 3 is set, which means there's a ladder above him, but not above that (which is incorrect).<br /></div><br />This is true if I make the assumption that bit 4 should be set when the top of Mega Man's bounding box touches a ladder tile. But according to the disassembly it means there's a ladder tile above &quot;that&quot;, but not right above.<br /><br />When I think about it, bit 4 isn't set either when standing in front of a ladder, so perhaps it's only used while Mega Man is in a vertical movement state (by jumping or climbing).<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6367">BenoitRen</a> — Fri Sep 18, 2015 12:34 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[BenoitRen]]></name></author>
+<updated>2015-09-17T14:01:34-07:00</updated>
+<published>2015-09-17T14:01:34-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10937&amp;p=155517#p155517</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10937&amp;p=155517#p155517"/>
+<title type="html"><![CDATA[Re: Reverse engineering Mega Man]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10937&amp;p=155517#p155517"><![CDATA[
+CurrentTileState is definitely linked to ladders, but I don't fully understand it yet.<br /><br /><br />While Mega Man is climbing, CurrentTileState is 030, which means that all bits are set except for bit 0. As soon as the top of Mega Man's bounding box touches a tile that isn't a ladder, bit 4 is unset, resulting in 014. According to the disassembly, this would mean that the game no longer consider Mega Man to be climing.<br /><br />But it gets weirder. The next frame, CurrentTileState is set to 006, which means that bit 2 and 1 are set. The strange thing is that this doesn't seem to depend on Mega Man's position, as I've observed this change can happen even though the integer part of the Y coordinate hasn't changed.<br /><br />On the second frame that the value is 006, Mega Man's animation changes.<br /><br />The frame before Mega Man stands on top of the ladder, CurrentTileState becomes 002. This means that only bit 1 is set, which means there's a ladder &quot;here&quot;.<br /><br />When Mega Man is standing on top of the ladder, the value is 001, which means bit 0 is set, which means that there's a ladder below.<br /><br />While Mega Man is jumping in front of a ladder, CurrentTileState is 030, which means that all bits are set except for bit 0. Yet he isn't climbing. I've also tried jumping below a hanging ladder, and it in combination with a previous observation seems to suggest that bit 4 is set when the top of Mega Man's bounding box touches a ladder tile.<br /><br />One frame after Y speed becoming negative, CurrentTileState becomes 015 and stays that way until Mega Man lands. This means that all bits are set except for bit 4. This suggests that checking for a ladder below is only done when Mega Man is falling. A quick test climbing down a ladder confirms this, as it yields odd-numbered values of 003, 007 and 015.<br /><br />And finally, when Mega Man is standing below that low-hanging ladder in Elec Man's stage that makes him dance when holding down, CurrentTileState is 008, which means that bit 3 is set, which means there's a ladder above him, but not above that (which is incorrect).<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6367">BenoitRen</a> — Thu Sep 17, 2015 2:01 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[BenoitRen]]></name></author>
+<updated>2015-09-17T00:02:15-07:00</updated>
+<published>2015-09-17T00:02:15-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10937&amp;p=155487#p155487</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10937&amp;p=155487#p155487"/>
+<title type="html"><![CDATA[Re: Reverse engineering Mega Man]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10937&amp;p=155487#p155487"><![CDATA[
+<div class="quotetitle">mikejmoffitt wrote:</div><div class="quotecontent"><br />From the choice of words I'm assuming this is best understood in the opposite order.<br /></div><br />The thought had occured to me as well, but it's weird that the list would be reversed. I guess I'll just have to test!<br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent"><br />Might be used for the &quot;putting foot on platform to step up from ladder&quot; animation frame towards the top of a climb.<br /></div><br />Indeed, that's exactly why this 'structure' interests me. <img src="http://forums.nesdev.com/images/smilies/icon_smile.gif" alt=":)" title="Smile" /><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6367">BenoitRen</a> — Thu Sep 17, 2015 12:02 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[mikejmoffitt]]></name></author>
+<updated>2015-09-16T10:38:08-07:00</updated>
+<published>2015-09-16T10:38:08-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10937&amp;p=155438#p155438</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10937&amp;p=155438#p155438"/>
+<title type="html"><![CDATA[Re: Reverse engineering Mega Man]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10937&amp;p=155438#p155438"><![CDATA[
+<div class="quotetitle">BenoitRen wrote:</div><div class="quotecontent"><br />I took a longer look at the disassembly, and found this:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">CurrentTileState        = $30<br />;CurrentTileState bits are:<br />;  #$10: (bit 4) - Rockman is climbing up<br />;  #$08: (bit 3) - Ladder above that<br />;  #$04: (bit 2) - Ladder above<br />;  #$02: (bit 1) - Ladder here<br />;  #$01: (bit 0) - there is a ladder below this tile<br />;<br />; If both bits 2,3 are clear, this is a ladder top (or not ladder)<br />; If the value is #$01, it's a ladder top</div><br />I don't understand the difference between bit 3 and bit 2. Anyone know?<br /></div><br /><br />From the choice of words I'm assuming this is best understood in the opposite order. Bit 2 could be &quot;there is a ladder right above&quot; and bit 3 could be &quot;there is a ladder right above the previous above check&quot;. Might be used for the &quot;putting foot on platform to step up from ladder&quot; animation frame towards the top of a climb.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=5314">mikejmoffitt</a> — Wed Sep 16, 2015 10:38 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[BenoitRen]]></name></author>
+<updated>2015-09-14T12:31:53-07:00</updated>
+<published>2015-09-14T12:31:53-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10937&amp;p=155286#p155286</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10937&amp;p=155286#p155286"/>
+<title type="html"><![CDATA[Re: Reverse engineering Mega Man]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10937&amp;p=155286#p155286"><![CDATA[
+I took a longer look at the disassembly, and found this:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">CurrentTileState        = $30<br />;CurrentTileState bits are:<br />;  #$10: (bit 4) - Rockman is climbing up<br />;  #$08: (bit 3) - Ladder above that<br />;  #$04: (bit 2) - Ladder above<br />;  #$02: (bit 1) - Ladder here<br />;  #$01: (bit 0) - there is a ladder below this tile<br />;<br />; If both bits 2,3 are clear, this is a ladder top (or not ladder)<br />; If the value is #$01, it's a ladder top</div><br />I don't understand the difference between bit 3 and bit 2. Anyone know?<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6367">BenoitRen</a> — Mon Sep 14, 2015 12:31 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[BenoitRen]]></name></author>
+<updated>2015-09-13T13:28:45-07:00</updated>
+<published>2015-09-13T13:28:45-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10937&amp;p=155189#p155189</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10937&amp;p=155189#p155189"/>
+<title type="html"><![CDATA[Re: Reverse engineering Mega Man]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10937&amp;p=155189#p155189"><![CDATA[
+My apologies, I was not aware of the existence of a standard notation for this. UQ8.8 fixed points coordinates are indeed what I was communicating.<br /><br />I'm aware that Mega Man has been disassembled, and did take a look, but I can't make heads or tails of it.<br /><br />While I started with the physics for the first game, the plan is to incorporate the physics for all six NES games.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6367">BenoitRen</a> — Sun Sep 13, 2015 1:28 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[kuja killer]]></name></author>
+<updated>2015-09-13T06:17:35-07:00</updated>
+<published>2015-09-13T06:17:35-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10937&amp;p=155154#p155154</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10937&amp;p=155154#p155154"/>
+<title type="html"><![CDATA[Re: Reverse engineering Mega Man]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10937&amp;p=155154#p155154"><![CDATA[
+in my opinion you should probably use megaman 3 or 4's mechanics. 1, 2, and 6 are just weird/messed up ...glitchy. <img src="http://forums.nesdev.com/images/smilies/icon_neutral.gif" alt=":|" title="Neutral" /><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3920">kuja killer</a> — Sun Sep 13, 2015 6:17 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Myask]]></name></author>
+<updated>2015-09-12T13:10:13-07:00</updated>
+<published>2015-09-12T13:10:13-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10937&amp;p=155111#p155111</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10937&amp;p=155111#p155111"/>
+<title type="html"><![CDATA[Re: Reverse engineering Mega Man]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10937&amp;p=155111#p155111"><![CDATA[
+Are you aware that Rockman had been disassembled, with a fairly good set of labels?<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6603">Myask</a> — Sat Sep 12, 2015 1:10 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[thefox]]></name></author>
+<updated>2015-09-12T12:42:04-07:00</updated>
+<published>2015-09-12T12:42:04-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10937&amp;p=155106#p155106</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10937&amp;p=155106#p155106"/>
+<title type="html"><![CDATA[Re: Reverse engineering Mega Man]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10937&amp;p=155106#p155106"><![CDATA[
+<div class="quotetitle">tepples wrote:</div><div class="quotecontent"><br />I assume the decimal point notation was a nonstandard way of indicating <a href="https://en.wikipedia.org/wiki/Q_%28number_format%29" class="postlink">UQ8.8</a> fixed point coordinates: 139+64/256, 140+0/256, and 140+192/256.<br /></div><br />Ah yeah, if so, he should definitely adopt a different notation to avoid misunderstandings.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=80">thefox</a> — Sat Sep 12, 2015 12:42 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2015-09-12T12:20:45-07:00</updated>
+<published>2015-09-12T12:20:45-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10937&amp;p=155099#p155099</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10937&amp;p=155099#p155099"/>
+<title type="html"><![CDATA[Re: Reverse engineering Mega Man]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10937&amp;p=155099#p155099"><![CDATA[
+I assume the decimal point notation was a nonstandard way of indicating <a href="https://en.wikipedia.org/wiki/Q_%28number_format%29" class="postlink">UQ8.8</a> fixed point coordinates: 139+64/256, 140+0/256, and 140+192/256.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Sat Sep 12, 2015 12:20 pm</p><hr />
+]]></content>
+</entry>
+</feed>

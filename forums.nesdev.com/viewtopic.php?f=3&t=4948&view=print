@@ -1,0 +1,251 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Nes_Snd_Emu-0.1.7 noise, test_apu_timers attn: blargg</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Nes_Snd_Emu-0.1.7 noise, test_apu_timers attn: blargg</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=3&amp;t=4948">http://forums.nesdev.com/viewtopic.php?f=3&amp;t=4948</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>mattmatteh</b> [ Fri Mar 13, 2009 1:32 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Nes_Snd_Emu-0.1.7 noise, test_apu_timers attn: blargg</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />i was testing out the noise channel on my emulator using blarggs test_apu_timers/noise_pitch.nes test.  the timer is right, all changes are at multiples of 0.00228 sec ( freq 15, look up table is 4068).  the first few pulses are the same as test_apu_timers/noise_pitch.nes, but then its different like my shifter is not right.
+<br />
+<br />then i looked at Nes_Snd_Emu-0.1.7/nes_apu/Nes_Oscs.cpp to see if i missed something with the shifter.   blargg, if i read the code right ..
+<br />
+<br />silenced:
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">// approximate noise cycling while muted, by shuffling up noise register<br />// to do: precise muted noise cycling?<br />if &#40; !&#40;regs &#91;2&#93; &amp; mode_flag&#41; &#41;<br />&#123;<br />&nbsp; &nbsp; &nbsp;int feedback = &#40;noise &lt;&lt; 13&#41; ^ &#40;noise &lt;&lt; 14&#41;;<br />&nbsp; &nbsp; &nbsp;noise = &#40;feedback &amp; 0x4000&#41; | &#40;noise &gt;&gt; 1&#41;;<br />&#125;</div>not silenced<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">const int tap = &#40;regs &#91;2&#93; &amp; mode_flag ? 8 : 13&#41;;<br /><br />do<br />&#123;<br />&nbsp; &nbsp; &nbsp;int feedback = &#40;noise &lt;&lt; tap&#41; ^ &#40;noise &lt;&lt; 14&#41;;<br />&nbsp; &nbsp; &nbsp;time += period;<br /><br />&nbsp; &nbsp; &nbsp;if &#40; &#40;noise + 1&#41; &amp; 2 &#41; &#123;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; // bits 0 and 1 of noise differ<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; delta = -delta;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; synth.offset_resampled&#40; rtime, delta, output &#41;;<br />&nbsp; &nbsp; &nbsp;&#125;<br /><br />&nbsp; &nbsp; &nbsp;rtime += rperiod;<br />&nbsp; &nbsp; &nbsp;noise = &#40;feedback &amp; 0x4000&#41; | &#40;noise &gt;&gt; 1&#41;;<br />&nbsp; &nbsp; &nbsp;&#125;<br />while &#40; time &lt; end_time &#41;;<br /></div>
+<br />if i am reading this right, you dont use the loop flag to determine the bit used, variable tap, when noise is silenced.   i thought the timer would always clock the shift register, and the loop flag would always determine which bit is used.
+<br />
+<br />above is the comment that says approximate.   seems that it would be just as easy to do the same noise shifting for silenced or not silenced.
+<br />
+<br />blargg, could you explain what you mean with "to do: precise muted noise cycling?"
+<br />
+<br />if the noise pattern is 32767 bits long, then i should see that pattern in the wave, i tried to see if i could line up my output with the timer test, but found no match when shifted in time.
+<br />
+<br />matt
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Fri Mar 13, 2009 2:00 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />That code doesn't precisely emulate the noise shift register when it's not making any sound. When it's running at maximum rate, it can take quite a bit of processing time. If you want full accuracy, ignore that optimization and do whatever the main loop does.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Wed Apr 01, 2009 5:21 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />By the way, I just wrote a function which quickly clocks the noise LFSR any number of times. At its heart, it uses algorithms which calculate the equivalent of shifting the LFSR many times in a row, found using an automated LFSR-analyzing program. For example, n ^= (n &gt;&gt; 3) ^ ((n &amp; 0xE) &lt;&lt; 11) ^ ((n &amp; 0x7) &lt;&lt; 12) is equivalent to executing n = ((n &lt;&lt; 13) ^ (n &lt;&lt; 14)) &amp; 0x4000 | (n &gt;&gt; 1) repeatedly 255 times in a row.
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">/* Clocks NES noise LFSR 'n' count times and returns new LFSR contents. */<br />int clock_lfsr&#40; int n, int mode, int count &#41;<br />&#123;<br />&nbsp; &nbsp; if &#40; mode &#41;<br />&nbsp; &nbsp; &#123;<br />&nbsp; &nbsp; &nbsp; &nbsp; count %= 93;<br />&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; for &#40; ; count &gt;= 9; count -= 9 &#41;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; n = &#40;n &gt;&gt; 9&#41; ^<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &#40;n &amp; 0x7FC0&#41; ^<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &#40;&#40;n &amp; 0x1FF&#41; &lt;&lt; 6&#41;;<br />&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; while &#40; --count &gt;= 0 &#41;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; n = &#40;&#40;n &lt;&lt; 8&#41; ^ &#40;n &lt;&lt; 14&#41;&#41; &amp; 0x4000 | &#40;n &gt;&gt; 1&#41;;<br />&nbsp; &nbsp; &#125;<br />&nbsp; &nbsp; else<br />&nbsp; &nbsp; &#123;<br />&nbsp; &nbsp; &nbsp; &nbsp; count %= 32767;<br />&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; for &#40; ; count &gt;= 255; count -= 255 &#41;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; n ^= &#40;n &gt;&gt; 3&#41; ^<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;&#40;&#40;n &amp; 0xE&#41; &lt;&lt; 11&#41; ^<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;&#40;&#40;n &amp; 0x7&#41; &lt;&lt; 12&#41;;<br />&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; for &#40; ; count &gt;= 15; count -= 15 &#41;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; n ^= &#40;n &gt;&gt; 1&#41; ^<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;&#40;&#40;n &amp; 0x2&#41; &lt;&lt; 13&#41; ^<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;&#40;&#40;n &amp; 0x1&#41; &lt;&lt; 14&#41;;<br />&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; while &#40; --count &gt;= 0 &#41;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; n = &#40;&#40;n &lt;&lt; 13&#41; ^ &#40;n &lt;&lt; 14&#41;&#41; &amp; 0x4000 | &#40;n &gt;&gt; 1&#41;;<br />&nbsp; &nbsp; &#125;<br />&nbsp; &nbsp; <br />&nbsp; &nbsp; return n;<br />&#125;</div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>hap</b> [ Wed Apr 01, 2009 2:03 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />not-completely-off-topic: any candidates for n = ((n &lt;&lt; 13) ^ (n &lt;&lt; 16)) &amp; 0x10000 | (n &gt;&gt; 1) ? (AY8910 noise LFSR)
+<br />Which program did you use?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Thu Apr 02, 2009 7:44 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Here's the program (very simple C affair): <a href="http://h1.ripway.com/blargg/temp/iterated_lfsr.zip" class="postlink">iterated_lfsr.zip</a>
+<br />
+<br />Here are a couple of equivalent expressions for that AY sound chip LFSR. Do you need really high iteration counts, like in the thousands?
+<br />n = ((n &lt;&lt; 13) ^ (n &lt;&lt; 16)) &amp; 0x10000 | (n &gt;&gt; 1); // 1 iter
+<br />n = n ^ (n &gt;&gt; 3) ^ ((n &amp; 0x38) &lt;&lt; 11) ^ ((n &amp; 0x7) &lt;&lt; 14); // 17 iter
+<br />n = n ^ (n &gt;&gt; 11) ^ (n &gt;&gt; 8) ^ ((n &amp; 0x3FF8) &lt;&lt; 3) ^ ((n &amp; 0x7) &lt;&lt; 6) ^ ((n &amp; 0xFF) &lt;&lt; 9); // 266 iter
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>hap</b> [ Fri Apr 03, 2009 4:59 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Thanks, this is a pretty smart optimization for when noise is not in use. <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" />
+<br />In the thousands: I don't think that's needed.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

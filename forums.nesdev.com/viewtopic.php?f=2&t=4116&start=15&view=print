@@ -1,0 +1,418 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - DPCM generates extra $4016 read pulse</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">DPCM generates extra $4016 read pulse</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=4116">http://forums.nesdev.com/viewtopic.php?f=2&amp;t=4116</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>2</strong> of <strong>2</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Wed May 21, 2008 8:35 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />If the loop wrote to $2007 every 13 clocks, then a DMC DMA read occurring somewhere during the loop would have a 1 in 13 chance of affecting it. If there are multiple DMA reads during the loop, then you have to do some math to find out what happens. If for example they are every 432 clocks, you must first subtract 4, since each DMA steals 4 CPU clocks normally. So every 428 non-wait-state CPU clocks the DMA will occur. 428/13 = 32 with a remainder of 12. So each time it will occur 12 clocks later than the last, or 1 clock earlier. So it would be sure to hit the critical clock after 13 iterations. Then when it hits, the DMA takes one clock less, so it would jump back an extra clock that time, resulting in it occurring every 12 iterations, or every 5184 CPU clocks. I guess I should write an actual test of this, which writes lots of data to VRAM, then verifies how often there is a glitch.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Wed May 21, 2008 9:25 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Argh, I'm being extremely sloppy today for some reason. This issue is ONLY affecting reads, not writes. $2007 READ at the critical moment results in 2-3 extra reads; $2007 write is not affected at all. So it seems this bug only impacts code which reads from hardware where the read itself has side-effects. That means PPUSTATUS ($2002), PPUDATA ($2007), SNDCHN ($4015), JOY1 ($4016), and JOY2 ($4017).
+<br />
+<br />Tests with hopefully correct conclusion comments at the top of the source files:
+<br />
+<br /><a href="http://h1.ripway.com/blargg/temp/dmc_dma_during_read4.zip" class="postlink">dmc_dma_during_read4.zip</a>
+<br />
+<br />Here's bunnyboy's scope trace for when a $2007 read is affected. The first is unaffected, the second the two different effects. The center waveform of each is the PPU's /RD line to VRAM, NOT the /RD line from the 2A03. The $4016 trace is because we were using a $4016 read to trigger the scope's capture; it had no effect on the test.
+<br />
+<br /><img src="http://www.sealiecomputing.com/images/controller4.PNG" alt="Image" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Thu May 22, 2008 4:50 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />By the time NES games started using DPCM to the fullest, they no longer had the PRG size limitations that required the NROM/CNROM typical method of stuffing data in CHR and reading it back. I guess that's why we never noticed this until now.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Thu May 22, 2008 8:02 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />But reading $2007 can proof extrememly usefull for example to modify attributes even if you don't have to worry about memory contraints.
+<br />
+<br />Also, I've seen "modern" MMC3 games read stuff from CHRROMs, like Tiny Toons Adventures 2, Earthbound proto or Batman - Return of the Jokey (okay it's not MMC3, but it's "modern" and uses DPCM).
+<br />
+<br />Hey, I think that this glitches explain a few things about why does some games use DPCM only under some circonstances. For instance, Fire Emblem uses DPCM on title screen, enemy phase music and during battle, and for all those time no accurate joypad reading is required. During player phase, DPCM is never used, and so joypad reading is accurate.
+<br />
+<br />EDIT : My theory on Fire Emblem above doesn't make sense as sometimes an alternate player phase music with DPCM plays, and input is requesed on stage start where music with DPCM plays.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>cpow</b> [ Sat Jul 10, 2010 7:41 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">blargg wrote:</div><div class="quotecontent">Tests with hopefully correct conclusion comments at the top of the source files:<br /><br /><a href="http://h1.ripway.com/blargg/temp/dmc_dma_during_read4.zip" class="postlink">dmc_dma_during_read4.zip</a><br /><br /></div>
+<br />
+<br />Has this test moved somewhere else?  Is it still available?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Sat Jul 10, 2010 8:09 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Ripway closed my old site for some reason, but I have everything that was on it. Here it is on the new, stable parodius site: <a href="http://blargg.parodius.com/nes-tests/dmc_dma_during_read4.zip" class="postlink">dmc_dma_during_read4.zip</a>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>cpow</b> [ Sat Jul 10, 2010 8:53 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">blargg wrote:</div><div class="quotecontent">Ripway closed my old site for some reason, but I have everything that was on it. Here it is on the new, stable parodius site: <a href="http://blargg.parodius.com/nes-tests/dmc_dma_during_read4.zip" class="postlink">dmc_dma_during_read4.zip</a></div>
+<br />
+<br />Ok I pass dma_2007_read.nes, dma_2007_write.nes, and read_write_2007.nes.  But, I can't seem to get dma_4016_read.nes to give me any output.  Tracing with my emulator set for a breakpoint on $4016 being anything other than $40 when read by the CPU never triggers.  I have tried all of the joypad 1 buttons...confused.  I can see it stuck in a loop looking to count how many reads of $4016 happen before it gets a 1.  It never gets a 1.  If I'm thinking straight, lda $4016 shouldn't cause a dummy read that could be throwing the 1 away.  I guess I'll next need to check that the joypad read triggering works, but it looks fairly straightforward in the test ROM code, and I *know* joypad read triggering works; I can play plenty of games...
+<br />
+<br />Off to implement the joypad inspector.   <img src="./images/smilies/icon_cool.gif" alt="8)" title="Cool" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ReaperSMS</b> [ Sat Jul 10, 2010 9:09 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Are you remembering to have your joypad emulation code switch to producing all 1's after the shift register empties?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>cpow</b> [ Sun Jul 11, 2010 5:57 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">ReaperSMS wrote:</div><div class="quotecontent">Are you remembering to have your joypad emulation code switch to producing all 1's after the shift register empties?</div>
+<br />
+<br />Hmmm.  Where is *that* behavior documented? <img src="./images/smilies/icon_surprised.gif" alt=":o" title="Surprised" />  Of course that means I'm not...so that will fix it for sure.  Thanks!
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Sun Jul 11, 2010 7:05 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I just summarized this topic on <a href="http://wiki.nesdev.com/w/index.php/Standard_controller#Hardware" class="postlink">the wiki</a>.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>nocash</b> [ Wed Sep 19, 2012 5:12 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: DPCM generates extra $4016 read pulse</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Hi, I've been trying to reproduce the double-read glitch on my PAL NES (manufactured around 1991, with RP2A07A CPU/APU and RP2C07-0 PPU), but somehow I've failed there: The glitch never occurred. Is it possible that the glitch occurs only in older NES console? Or only in NTSC consoles?<br /><br />What I've tested is: The above &quot;dmc_dma_during_read4.zip&quot; package - but I don't really understand what the program is meant to do - if it says &quot;Failed&quot; does that mean that glitch has occurred - or that the glitch has failed to occur? And, the tests seems to rely on the &quot;delay 3309+33+time-iter&quot; (in the common.inc file), which looks like hardcoded NTSC DMA delay, so I'd guess that the tests won't work on PAL.<br /><br />Then I've brewed up my own test program (can be downloaded here <!-- l --><a class="postlink-local" href="http://forums.nesdev.com/viewtopic.php?p=99773#p99773">viewtopic.php?p=99773#p99773</a><!-- l --> - &quot;pputest.zip&quot;; contains test for the DMC glitch and some other PPU related tests). The test is quite simple: Reading 2007h and 4016h many thousand times, and hoping that the reads will collide with DMC and do produce the glitch. There might be some risk that DMC occurs only in the gaps between the reads; but I've inserted an extra 1-cycle delay in the first half of each test - so timings should &quot;shift&quot; somehow, and it would very bad luck (if not impossible) if the DMC still fits into gaps.<br /><br />On my PAL NES, the DMC related results are:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">PPU READ WITH DMC&nbsp; &nbsp; &nbsp; :OK<br />JOY READ WITH DMC&nbsp; &nbsp; &nbsp; :OK<br />PPU READ WITHOUT DMC&nbsp; &nbsp;:OK<br />JOY READ WITHOUT DMC&nbsp; &nbsp;:OK<br /></div><br />With &quot;OK&quot; meaning that no glitch has occurred.<br /><br />Tepples has run the test on a NTSC NES:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">PPU READ WITH DMC&nbsp; &nbsp; &nbsp; :FAIL&nbsp; &nbsp; FAIL&nbsp; &nbsp; FAIL<br />JOY READ WITH DMC&nbsp; &nbsp; &nbsp; :OK&nbsp; &nbsp; &nbsp; OK&nbsp; &nbsp; &nbsp; OK<br />PPU READ WITHOUT DMC&nbsp; &nbsp;:OK&nbsp; &nbsp; &nbsp; OK&nbsp; &nbsp; &nbsp; OK<br />JOY READ WITHOUT DMC&nbsp; &nbsp;:OK&nbsp; &nbsp; &nbsp; OK&nbsp; &nbsp; &nbsp; OK<br /></div><br />Here, the &quot;FAIL&quot; in first line means that the PPU read has collided with DMC, and produced the glitch as expected. I don't know why the JOY read in second line passed OK, maybe I've been doing something wrong there, theoretically the 1st+2nd ones should both fail or both pass.<br /><br />Anyways, there seems to be different behaviour upon DMC reads on my PAL NES and tepples NTSC NES. The difference might be PAL-vs-NTSC related, or old-vs-new APU chip version related. Or it might be because my test program is crap.<br />Did anybody else ever notice such differences? And are there are other test programs that could be used to verify this?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>thefox</b> [ Wed Sep 19, 2012 5:26 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: DPCM generates extra $4016 read pulse</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">nocash wrote:</div><div class="quotecontent">be PAL-vs-NTSC related, or old-vs-new APU chip version related. Or it might be because my test program is crap.<br />Did anybody else ever notice such differences? And are there are other test programs that could be used to verify this?</div><br />Yes, others (me included) have verified that PAL NES doesn't have this bug (assuming none of the early ones have other chip revisions...). See <!-- l --><a class="postlink-local" href="http://forums.nesdev.com/viewtopic.php?p=36661#p36661">viewtopic.php?p=36661#p36661</a><!-- l -->
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>nocash</b> [ Wed Sep 19, 2012 6:48 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: DPCM generates extra $4016 read pulse</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Argh, if I'd have known that before then it'd have saved me some hours. Well, then it's double-checked that the DMC glitch doesn't occur on all APUs <img src="./images/smilies/icon_smile.gif" alt=":-)" title="Smile" /> Thanks for confirming that!<br />But it was never fixed for newer NTSC APUs, or was it?<br />Would be also interesting if it occurred on old PAL APUs.<br /><br />The CPU/APU itself doesn't have a clear date code, but CIC and logic chips on the mainboard have YYWW (year/week) date codes, so one can assume that the APU chip was manufactured around the same date. My DMC-glitch-free PAL console has date codes 9122, 9125, 9133.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>3gengames</b> [ Wed Sep 19, 2012 5:22 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: DPCM generates extra $4016 read pulse</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Test it on a toploader, if any system would be fixed it'd be a toploader.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>2</strong> of <strong>2</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

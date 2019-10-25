@@ -1,0 +1,484 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Function params &amp; local vars using a stack in ASM6</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Function params &amp; local vars using a stack in ASM6</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=5038">http://forums.nesdev.com/viewtopic.php?f=2&amp;t=5038</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>frantik</b> [ Thu Apr 09, 2009 8:25 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Function params &amp; local vars using a stack in ASM6</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I've been wanting to create a function framework for ASM6 for a little while now, both so I could better understand the way programming languages like C work at the low level, and also use C-like functions inside my assembly programs <img src="./images/smilies/icon_biggrin.gif" alt=":D" title="Very Happy" />  
+<br />
+<br />I did a bit of research, did some experimentation.. and ended up with a pretty decent collection of macros for  function calls in ASM6!  It seems to work pretty well, but any optimizations or bug fixes are appreciated
+<br />
+<br />The values being passed  are kept in a stack at $0500 - $05FF which is separate from the internal stack.  This stack does not contain program pointers, just data and pointers to data.  Program pointers are still handled using the internal stack.   The separation of data and internal stacks make code less error prone and also increases the level of nesting possible.
+<br />
+<br />In addition to passing parameters, you can allocate space in the stack for temporary local variables.  This is much more flexible than trying to reuse a handful of global variables as reusable temporary variables.  
+<br /><!-- m --><a class="postlink" href="http://supermariounlimited.com/wiki/C_Style_Functions">http://supermariounlimited.com/wiki/C_Style_Functions</a><!-- m -->
+<br />
+<br />and here's a test case.. nothing exciting, just writes some values to memory.  You can check out the contents of the stack at $0500 as well to see that everything is working as expected
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp;resetStack<br />&nbsp; &nbsp;<br />loop:&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;; call functions over and over to test stack<br />&nbsp; &nbsp;call foo, #$FF<br />&nbsp; &nbsp;jmp loop:<br /><br /><br />foo:<br />&nbsp; &nbsp;foo_x equ #1&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;; name the first parameter using equ<br />&nbsp; &nbsp;foo_y equ #2&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;; name local variable<br />&nbsp; &nbsp;&nbsp; &nbsp;<br />&nbsp; &nbsp;alloca #1&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;; allocate anoter byte of memory for temporary local variable<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;lda #$EE<br />&nbsp; &nbsp;staLocal foo_y&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;; assign foo_y a value<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;call bar, #$AA, #$BB&nbsp; &nbsp;; call another function<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;ldaLocal foo_x&nbsp; &nbsp;&nbsp; &nbsp;<br />&nbsp; &nbsp;sta #$10&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;; write foo_x to $10<br />&nbsp; &nbsp;ldaLocal foo_y&nbsp; &nbsp;<br />&nbsp; &nbsp;sta #$11&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;; write foo_y to $11<br />&nbsp; &nbsp;rts&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<br />&nbsp; &nbsp;<br />bar:<br /><br />&nbsp; &nbsp;bar_a = #1&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;; name the parameters<br />&nbsp; &nbsp;bar_b = #2<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;bar_c = #3&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;; and local vars<br />&nbsp; &nbsp;bar_d = #4<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;alloca #2&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;; allocate 2 bytes for local variables<br /><br />&nbsp; &nbsp;; Must prepend # onto var names&nbsp; since vars were named with = <br />&nbsp; &nbsp;<br />&nbsp; &nbsp;ldaLocal #bar_a&nbsp; &nbsp;&nbsp; &nbsp;; copy bar_a <br />&nbsp; &nbsp;staLocal #bar_c&nbsp; &nbsp;&nbsp; &nbsp;; to bar_c <br />&nbsp; &nbsp;sta #$20&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;; and to $20<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;ldaLocal #bar_b&nbsp; &nbsp;&nbsp; &nbsp;; copy bar_b<br />&nbsp; &nbsp;staLocal #bar_d&nbsp; &nbsp;&nbsp; &nbsp;; to bar_d<br />&nbsp; &nbsp;sta #$21&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;; and to $21<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;ldaLocal #bar_c&nbsp; &nbsp;&nbsp; &nbsp;; copy bar_c<br />&nbsp; &nbsp;sta #$22&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;; to $22 <br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<br />&nbsp; &nbsp;ldaLocal #bar_d&nbsp; &nbsp;&nbsp; &nbsp;; copy bar_d<br />&nbsp; &nbsp;sta #$23&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;; to $23<br /><br />&nbsp; &nbsp;rts</div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Thu Apr 09, 2009 8:39 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Wouldn't it make more sense to keep the stack pointer in x at all times? Then code could access stack variables via $500-i,x, where i is the index of the local. For example, if it has three locals, it accesses them as $500,x  $4FF,x and $4FE,x. That makes them much more convenient and efficient to use.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>frantik</b> [ Thu Apr 09, 2009 9:00 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Then you wouldn't be able to use X for anything else inside of your functions.  
+<br />
+<br />You can use the macro ldxLocalOffset to get the x offset of a particular variable from the stack location
+<br />
+<br />also the stack goes from bottom to top, not top to bottom (ie $500, $501, $502)  this would allow you to place the stack at $100 if you didn't have a lot of nesting
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Thu Apr 09, 2009 10:14 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I always tough the concept of using a parameter/local variable stack in assembly is very interesting. After all I have to admit most of the errors I had when writing my game engine in assmebly were that I had problem with my variables. Using a solid system would have spared me hours of annoying bug track.
+<br />
+<br />I've had a system where I can use 4 "temp" variables plus some others semi-temp variables, both to store temporary data and to pass parameters, but the routines calling themselves have to agree which one is using which temp variables. If more varaibles are needed then I create actual variables for this specific purpose.
+<br />
+<br />However, the resulting code is slower, and acessing the stack gets too slow it could become really limitating to work with such a system. Some improbement should be done to make this faster I guess.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Jon</b> [ Thu Apr 09, 2009 11:49 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Any reasons not to just use the same calling conventions as cc65 either the fastcall or the regular ABI?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Thu Apr 09, 2009 11:53 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">frantik wrote:</div><div class="quotecontent">Then you wouldn't be able to use X for anything else inside of your functions.</div><br />Even with your approach, you can't use X whenever you're accesing locals. The main benefit of being able to use X freely is speed, but allowing that slows access to stack variables.<br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">also the stack goes from bottom to top, not top to bottom (ie $500, $501, $502)  this would allow you to place the stack at $100 if you didn't have a lot of nesting</div>
+<br />If $100 bytes were enough for both stacks, you could just use the normal stack. That'd be faster.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>frantik</b> [ Thu Apr 09, 2009 12:16 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">blargg wrote:</div><div class="quotecontent">Even with your approach, you can't use X whenever you're accesing locals. The main benefit of being able to use X freely is speed, but allowing that slows access to stack variables.</div><br /><br />if you want you can load x with the location of the first local var.  then if you don't touch X it will work like you're talking about (i think)  but i wouldn't want to make that a rigid requirement.. if you call another function you would have to push x onto the stack anyways.  i can see the advantage to making sure X set on function load though<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">If $100 bytes were enough for both stacks, you could just use the normal stack. That'd be faster.</div>
+<br />
+<br />yeah probably, but then you'd have to implement a whole different function system <img src="./images/smilies/icon_wink.gif" alt=";)" title="Wink" />
+<br />
+<br />
+<br />the point of this collection of macros isn't to create the most efficient code possible, but rather to make developing easy as possible.  it's also kind of a "proof of concept"... though eventually I would like to create some kind of higher level language which is converted into assembly and compiled with asm6
+<br />
+<br />there's no reason why i did anything any particular way except that is the way that made sense to me.  I could make the stack work "backwards" and perhaps if i had dealt with stacks often that would a more intuitive way of working with it.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>loopy</b> [ Thu Apr 09, 2009 2:36 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">frantik wrote:</div><div class="quotecontent">the point of this collection of macros isn't to create the most efficient code possible, but rather to make developing easy as possible.  it's also kind of a "proof of concept"... though eventually I would like to create some kind of higher level language which is converted into assembly and compiled with asm6</div>
+<br />Since you're exploring HLL ideas, you might find <a href="http://neshla.sourceforge.net/" class="postlink">NESHLA</a> interesting.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>frantik</b> [ Thu Apr 09, 2009 5:16 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />yeah i've been stealing some concepts from that project along with every other one i can get my hands on <img src="./images/smilies/icon_biggrin.gif" alt=":D" title="Very Happy" />
+<br />
+<br />NESHLA one is probably closest to what I'm working on, though I like making programming languages so I'm gonna continue working on my system
+<br />
+<br />i've already simplified coding significantly.. here is the rest of the code for that test case above
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">include &quot;nes.h&quot;<br />include &quot;macros.s&quot;<br /><br />iNES_header&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;; Basic NROM header<br /><br />org $C000<br /><br />reset:<br />&nbsp; &nbsp;initNES&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;; initialize the NES<br /><br />&nbsp; &nbsp;&#91;... insert test case ...&#93;<br /><br />irq:<br />vblank:<br />&nbsp; &nbsp;rti<br /><br />vectors vblank, reset, irq</div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>frantik</b> [ Thu Apr 09, 2009 7:24 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />hey blargg i thought about what you said and I at least managed to make it so most macros expect X to be the same as stackPtr, saving a lot of ldx stackPtr.  if x is overwritten, you can just load it from stackPtr again
+<br />
+<br />stackPtr always points to a value in the stack.  That value is a pointer to the start of the local vars
+<br />
+<br />I'm gonna try to make it so Y is always the pointer to the start of local vars
+<br />
+<br />edit:  well i got Y to always be the ptr to local vars, but now i have to think of a new way to return values lol
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>frantik</b> [ Thu Apr 09, 2009 9:27 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I updated the code significantly to improve efficiency.  Register X is kept as the stack pointer and Register Y is the pointer to the Local variables.  ldaLocal uses $500+i,x instead of adc and the other stuff.
+<br />
+<br />I'm keeping the code on my wiki for now so I don't have to paste the code into the message board over and over
+<br />
+<br /><!-- m --><a class="postlink" href="http://supermariounlimited.com/wiki/C_Style_Functions">http://supermariounlimited.com/wiki/C_Style_Functions</a><!-- m -->
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Fri Apr 10, 2009 6:12 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Something that always points to the local variables for the current function is usually called the [stack] <a href="http://en.wikipedia.org/wiki/Call_stack#Structure" class="postlink">frame pointer</a>. But it's unnecessary, as you can just adjust the stack as necessary and access locals off the stack pointer. Also, it seems much better to leave Y free and have X be reserved for something, because the (zp),y addressing mode is the most important to have available to user code all the time, rather than (zp,x).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>frantik</b> [ Fri Apr 10, 2009 1:39 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />you can access variables from the stack pointer, but if you allocate more space on the stack, then the relative position of a given variable will change.     thats why i'm keeping track of both pointers in the registers.  
+<br />
+<br />i'm also keeping copies of the pointers in ZP so i can restore their values easily if either register is needed for other operations.  I only really NEED to keep track of the stack ptr since i can the frameptr from the end of the stack.. but it's faster to pull it from ZP obviously 
+<br />
+<br />i even added optional parameters to functions which expect registers to be set so that the registers can be reset if need be.  register Y is now only used when accessing local variables using macros.  
+<br />
+<br />but you could access them relative to the stack pointer if a) needed to use Y and couldn't restore it during a specific operation and b) you knew the position of the value relative to the stack pointer.
+<br />
+<br />it seems like it's pretty flexible.. the only thing I don't like is having to remember to restore X/Y (less coding friendly) but it does save some lines of code.  I could make it so the macros default to reloading the registers from the ZP values (more coding friendly but less efficient) but it's less common that they need to be reloaded
+<br />
+<br />i'm working on a "fastcall" for simple functions which just use the registers too
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>frantik</b> [ Sat Apr 11, 2009 11:43 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />something which the function structure is actually useful for:  multiplication!
+<br />
+<br />i see now X might be better off holding the frameptr since some opcodes don't have a way of accessing memory with a Y offset
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">;-----------<br />; int multiply &#40;char x, char y&#41;<br />; <br />; Multiplies two bytes in memory using Russian peasant algorithm<br />;<br />; Return value in ldaReturn 3 and ldaReturn 4<br /><br />multiply:<br /><br />&nbsp; &nbsp;defineLocalVars<br />&nbsp; &nbsp;&nbsp; &nbsp;value1ptr&nbsp; &nbsp;char<br />&nbsp; &nbsp;&nbsp; &nbsp;value2ptr&nbsp; &nbsp;char<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;&nbsp; &nbsp;ret&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;int&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;; return value<br />&nbsp; &nbsp;&nbsp; &nbsp;temp&nbsp; &nbsp; &nbsp; &nbsp; char&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;; temporary counter<br />&nbsp; &nbsp;endLocalVars<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;alloca #3&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;; allocate 3 bytes of memory for local vars<br /><br />&nbsp; &nbsp;<br />&nbsp; &nbsp;lda #$00&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; clear temporary variables<br />&nbsp; &nbsp;staLocal ret<br />&nbsp; &nbsp;staLocal ret+1<br />&nbsp; &nbsp;staLocal temp<br />&nbsp; &nbsp;tya<br />&nbsp; &nbsp;tax<br />&nbsp; &nbsp;jmp +start:<br /><br />-loop:<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;asl #&#40;stack + value1ptr&#41;, x&nbsp; &nbsp; &nbsp; ; double first value<br />&nbsp; &nbsp;rol #&#40;stack + temp&#41;, x&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; using 16bit precision<br />&nbsp; &nbsp;lsr #&#40;stack + value2ptr&#41;, x&nbsp; &nbsp; &nbsp; ; halve second vale<br />+start:<br />&nbsp; &nbsp;ldaLocal value2ptr&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;;<br />&nbsp; &nbsp;and #01&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; is new 2nd value an odd number?<br />&nbsp; &nbsp;beq -loop:&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; <br />&nbsp; &nbsp;clc&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; if so, add new 1st value to running total<br />&nbsp; &nbsp;ldaLocal ret&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;<br />&nbsp; &nbsp;adc #&#40;stack + value1ptr&#41;, x&nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp;staLocal ret&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;<br />&nbsp; &nbsp;ldaLocal ret+1&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp;adc #&#40;stack + temp&#41;, x&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp;staLocal ret+1&nbsp; &nbsp; <br />&nbsp; &nbsp;ldaLocal value2ptr&nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp;cmp #01&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; is 2nd value 1?&nbsp; if so, we're done<br />&nbsp; &nbsp;bne -loop:&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; otherwise, loop<br /><br />&nbsp; &nbsp;rts<br /></div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Sat Apr 11, 2009 12:53 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I just have a random trought, I don't know how usefull it can be.
+<br />If stack pointer is at $ff and the stack grows at $500, why not always store #$05 into $fe so that you can acess the stack 2 ways, the most optimal is choosen in function of what we want :
+<br />
+<br />ldx StackPointer
+<br />lda $500,X
+<br />
+<br />or
+<br />
+<br />ldy #$00  (or whathever other value)
+<br />lda ($fe),Y
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

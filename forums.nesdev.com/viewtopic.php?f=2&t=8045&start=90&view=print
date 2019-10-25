@@ -1,0 +1,144 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Generic compression on NES - *done*</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Generic compression on NES - *done*</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=8045">http://forums.nesdev.com/viewtopic.php?f=2&amp;t=8045</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>7</strong> of <strong>7</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>pops</b> [ Sat Aug 17, 2013 1:50 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Generic compression on NES - *done*</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Bregalad, bigs ups for releasing this suite of compression algorithms. It was very helpful to me when I was putting together my text engine.<br /><br />A few posters have asked for an example of a decompression algorithm, so I'm posting one that I'm using in my current project.<br /><br />Each compression scheme best fits a different set of use cases. This is an example of a decompression algorithm for BytePairEncoded Recursive, which is a great compression scheme for large amounts of text. I was able to reduce the entire uncompressed script of Final Fantasy 6 (~167kb) into 10 8kb banks, a 53% reduction in the original size.<br /><br />The BPE decompression routine included below is 57 bytes in rom and uses 9 bytes of ram in zero page. It can decompress the included example statement 0118 (expands 56 bytes to 105 bytes)  in ~2280 cpu cycles (a little less without active DPCM DMA).<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">; =============================================================================<br />;&nbsp; &nbsp;TextEngine_LoadString: Loads a string<br />;&nbsp; &nbsp;In:&nbsp; &nbsp; &nbsp; Pointer to text statement to load in A (lo) and Y (hi)<br />;&nbsp; &nbsp;Out:&nbsp; &nbsp; &nbsp;Writes string and list of chars used by string<br />;&nbsp; &nbsp;Notes:&nbsp; &nbsp;A,X,Y are wiped out<br />;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;9 temp bytes in zp<br />_TextEngine_LoadStringToMemory:<br />.scope<br />; temp variables in zp<br />.alias&nbsp; &nbsp;_stringLength&nbsp; &nbsp; &nbsp; &nbsp;$00<br />.alias&nbsp; &nbsp;_numChars&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; $01<br />.alias&nbsp; &nbsp;_Recursion&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;$02<br />.alias&nbsp; &nbsp;_TempA&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;$03<br />.alias&nbsp; &nbsp;_StringPtr&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;$04<br />.alias&nbsp; &nbsp;_BPE_Left&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; $06<br />.alias&nbsp; &nbsp;_BPE_Right&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;$08<br />; these constants are true for strings with characters from 0x00 - 0x60<br />.alias&nbsp; &nbsp;_HighR&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;$ff<br />.alias&nbsp; &nbsp;_LowR&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; $61<br />; Load the string and decompress it into RAM<br />&nbsp; &nbsp;sta _StringPtr&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; Save address of the string.<br />&nbsp; &nbsp;sty _StringPtr+1&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;;&nbsp; &nbsp;+<br />&nbsp; &nbsp;lda #&lt;&#91;$c000-&#91;_HighR-_LowR+1&#93;*2&#93;&nbsp; &nbsp;; Get pointer to BPE_Left<br />&nbsp; &nbsp;sta _BPE_Left&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ;&nbsp; &nbsp;|<br />&nbsp; &nbsp;lda #&gt;&#91;$c000-&#91;_HighR-_LowR+1&#93;*2&#93;&nbsp; &nbsp;;&nbsp; &nbsp;|<br />&nbsp; &nbsp;sta _BPE_Left+1&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ;&nbsp; &nbsp;+<br />&nbsp; &nbsp;lda #&lt;&#91;$c000-&#91;_HighR-_LowR+1&#93;&#93;&nbsp; &nbsp; &nbsp;; Get pointer to BPE_Right<br />&nbsp; &nbsp;sta _BPE_Right&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;;&nbsp; &nbsp;|<br />&nbsp; &nbsp;lda #&gt;&#91;$c000-&#91;_HighR-_LowR+1&#93;&#93;&nbsp; &nbsp; &nbsp;;&nbsp; &nbsp;|<br />&nbsp; &nbsp;sta _BPE_Right+1&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;;&nbsp; &nbsp;+<br />&nbsp; &nbsp;ldx #$01&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; X is index of current decoded byte<br />&nbsp; &nbsp;ldy #$00&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; Y is index of current encoded byte<br />&nbsp; &nbsp;sty _Recursion&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; Recursion = 0<br />&nbsp; &nbsp;lda (_StringPtr),y&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; Save length of encoded data<br />&nbsp; &nbsp;sta _numChars&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ;&nbsp; &nbsp;+<br />_getCode:<br />&nbsp; &nbsp;cpy _numChars&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; IF Y == Num Encoded Bytes<br />&nbsp; &nbsp;beq _return&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; THEN all data is decoded, return<br />&nbsp; &nbsp;iny&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; y++<br />&nbsp; &nbsp;lda (_StringPtr),y&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; A = an encoded byte<br />_decode:<br />&nbsp; &nbsp;cmp #_LowR&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; IF A &lt; LowR<br />&nbsp; &nbsp;bcc _writeCode&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; THEN goto WriteCode ELSE decode byte<br />&nbsp; &nbsp;sbc&nbsp; &nbsp;#_LowR&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; A = A - _LowR. Carry is already set.<br />&nbsp; &nbsp;sta _TempA&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; Save Y<br />&nbsp; &nbsp;tya&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ;&nbsp; &nbsp;|<br />&nbsp; &nbsp;pha&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ;&nbsp; &nbsp;|<br />&nbsp; &nbsp;lda _TempA&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;;&nbsp; &nbsp;+<br />&nbsp; &nbsp;pha&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; Save A<br />&nbsp; &nbsp;tay&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; Y = A<br />&nbsp; &nbsp;inc _Recursion&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; Recursion++<br />&nbsp; &nbsp;lda (_BPE_Left),y&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; A = BPE_LEFT&#91;Y&#93;<br />&nbsp; &nbsp;jsr _decode&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; Decode this byte<br />&nbsp; &nbsp;pla&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; Restore A<br />&nbsp; &nbsp;tay&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; Y = A<br />&nbsp; &nbsp;lda (_BPE_Right),y&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; A = BPE_RIGHT&#91;Y&#93;<br />&nbsp; &nbsp;jsr _decode&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; Decode this byte<br />&nbsp; &nbsp;pla&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; Restore Y<br />&nbsp; &nbsp;tay&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ;&nbsp; &nbsp;+<br />&nbsp; &nbsp;dec _Recursion&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; Recursion--<br />&nbsp; &nbsp;beq _getCode&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; IF (Recursion == 0) THEN get next code<br />_return:<br />&nbsp; &nbsp;rts&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; ELSE return to recursion thread<br />_writeCode:<br />&nbsp; &nbsp;sta TEXT_String,x&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; TEXT_String&#91;x&#93; = a<br />&nbsp; &nbsp;inx&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; x++<br />&nbsp; &nbsp;lda _Recursion&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; IF (Recursion == 0)<br />&nbsp; &nbsp;beq _getCode&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; THEN get next code<br />&nbsp; &nbsp;rts&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; ELSE return to recursion thread</div>(I use <a href="http://michaelcmartin.github.io/Ophis/" class="postlink">Ophis</a> as my compiler, but I'm certain you could easily port this code to any other assembler.)<br /><br />Here is some test data to run the algorithm on. I did some pre-processing on this data before running it through Bregalad's compressor: BPE performs best when it has a large range of values to use as indexes to byte-pairs, so I took the ASCII script and reduced it to using only the first 97 characters (0x20-0x80) and then subtracted 0x20 from each character. This means that the compression scheme has 160 possible indexes for compressed byte pairs. If you're willing to get creative with reordering ASCII for your script, I'm sure it would be possible to reduce this count from 97 to 80 or 64, for even better compression results (I use character 0x7F for '...', so this text may look like it's missing ellipses).<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">; Bank 00 contains text statements 0 through 215. 8186 bytes. ; TRUNCATED for NESDEV to first 4 statements + 0118<br /><br />; Labels for statements:<br />.word Statement0000, Statement0001, Statement0002, Statement0003, Statement0118<br /><br />Statement0000:<br />; World of Balance<br />; Length: 9 (compressed) 16 (decompressed). Charcount: 12<br />&nbsp; &nbsp;.byte $09<br />&nbsp; &nbsp;.byte $37, $75, $b6, $b5, $22, $94, $69, $43, $45<br /><br />Statement0001:<br />; &quot;The ancient War of the<br />; Magi When its flames at<br />; last receded, only the<br />; charred husk of a world<br />; remained. Even the power<br />; of magic was lost In the<br />; thousand years that<br />; followed, iron, gunpowder,<br />; and steam engines took the<br />; place of magic and life<br />; slowly returned to the<br />; barren land. Yet now rises<br />; one who would reawaken<br />; magic and use its dreaded<br />; power as a means by which<br />; to conquer all the world.<br />; Could anyone truly be<br />; foolish enough to repeat<br />; that mistake?&quot;<br />; Length: 254 (compressed) 454 (decompressed). Charcount: 38<br />&nbsp; &nbsp;.byte $fe<br />&nbsp; &nbsp;.byte $02, $e4, $69, $43, $49, $76, $65, $37, $6c, $00, $82, $6e, $78, $ef, $d9, $7d, $37, $48, $de, $88, $68, $46, $fe, $a4, $68, $9e, $60, $fe, $53, $65, $52, $f5, $b3, $b3, $74, $6d, $4c, $59, $6e, $78, $ae, $6c, $52, $8e, $48, $92, $e5, $b5, $8b, $d1, $a8, $60, $52, $45, $a9, $64, $b3, $7f, $25, $56, $76, $9f, $50, $7a, $63, $60, $b5, $a9, $d9, $43, $00, $8d, $68, $4c, $4f, $86, $7d, $29, $4e, $6e, $78, $62, $66, $53, $c7, $59, $ee, $68, $62, $9e, $60, $46, $4f, $73, $7a, $b3, $74, $9a, $6d, $74, $47, $f2, $50, $7a, $44, $63, $0c, $c7, $86, $80, $c3, $76, $47, $64, $45, $68, $6b, $4f, $4b, $6e, $45, $50, $fe, $43, $61, $b5, $a9, $d9, $43, $00, $c7, $a5, $46, $78, $53, $4c, $7a, $4c, $77, $52, $99, $b9, $4e, $8e, $6b, $6e, $78, $42, $6c, $52, $de, $4c, $ce, $7f, $39, $e2, $d8, $00, $52, $9b, $6f, $6d, $61, $da, $95, $57, $66, $b6, $e0, $8d, $4b, $76, $60, $a9, $d9, $43, $00, $c7, $92, $61, $88, $68, $44, $e0, $44, $b3, $60, $50, $7a, $98, $41, $68, $8b, $a4, $69, $68, $42, $77, $da, $49, $ae, $60, $7c, $43, $6d, $51, $55, $98, $f7, $9f, $d1, $a8, $0e, $60, $23, $66, $b6, $69, $59, $6d, $61, $ba, $55, $4c, $77, $42, $78, $46, $4f, $4f, $4c, $9b, $48, $00, $76, $66, $91, $00, $7c, $52, $45, $50, $80, $d0, $62, $c1, $4d, $49, $86, $41, $4b, $45, $1f, $02<br /><br />Statement0002:<br />; Wedge:<br />; There's the city.<br />; Length: 14 (compressed) 24 (decompressed). Charcount: 17<br />&nbsp; &nbsp;.byte $0e<br />&nbsp; &nbsp;.byte $37, $b3, $47, $45, $67, $83, $63, $45, $87, $96, $43, $88, $59, $0e<br /><br />Statement0003:<br />; Biggs:<br />; Hard to believe an esper's<br />; been found frozen there a<br />; thousand years after the<br />; War of the Magi.<br />; Length: 57 (compressed) 100 (decompressed). Charcount: 29<br />&nbsp; &nbsp;.byte $39<br />&nbsp; &nbsp;.byte $22, $49, $47, $47, $53, $67, $28, $6c, $6a, $7c, $42, $7b, $49, $45, $90, $d2, $6f, $d4, $07, $53, $d5, $de, $46, $66, $4e, $6a, $46, $52, $4f, $5a, $76, $6e, $63, $61, $41, $60, $62, $66, $53, $c7, $59, $ee, $68, $41, $46, $54, $63, $6e, $78, $37, $6c, $00, $82, $9f, $ef, $d9, $0e<br /><br />Statement0118:<br />; Edgar:<br />; I hear you've been busy<br />; down south, taking over a<br />; country or three! Just<br />; what is the Empire up to?<br />; Length: 56 (compressed) 105 (decompressed). Charcount: 30<br />&nbsp; &nbsp;.byte $38<br />&nbsp; &nbsp;.byte $db, $81, $48, $ee, $00, $70, $07, $90, $d5, $de, $42, $92, $cd, $44, $7a, $4e, $00, $53, $66, $62, $74, $54, $41, $4b, $89, $4f, $56, $98, $41, $60, $43, $66, $4e, $ba, $77, $75, $6e, $52, $c0, $79, $2a, $55, $86, $60, $57, $ca, $8c, $96, $25, $b1, $9a, $61, $ed, $00, $6b, $1f<br /><br />; BPE_LEFT table<br />BPE_LEFT:<br />&nbsp; &nbsp;.byte $45, $54, $45, $49, $54, $4f, $1a, $53, $41, $44, $54, $41, $4f, $00, $45, $59, $64, $48, $4c, $0c, $4f, $45, $59, $45, $01, $4f, $45, $6b, $5f, $52, $0e, $45, $29, $4f, $34, $43, $4f, $53, $07, $49, $71, $73, $41, $49, $57, $45, $70, $56, $47, $55, $41, $41, $4f, $62, $2c, $63, $45, $49, $49, $97, $45, $41, $6e, $9c, $29, $47, $07, $4d, $4c, $52, $46, $4c, $4d, $47, $a0, $48, $39, $43, $34, $af, $4d, $57, $45, $49, $82, $4c, $1f, $4b, $55, $54, $25, $bb, $53, $2b, $23, $45, $41, $33, $4d, $be, $bf, $c2, $69, $07, $4f, $72, $4b, $53, $59, $69, $70, $54, $57, $69, $42, $50, $42, $4e, $4d, $4e, $47, $57, $bc, $45, $6b, $76, $45, $52, $c5, $45, $c8, $83, $4b, $c6, $23, $91, $92, $b0, $b2, $e7, $55, $45, $2d, $4c, $45, $55, $64, $72, $45, $54, $41, $57, $62, $6d, $c4, $54, $46, $4c, $4d<br /><br />; BPE_RIGHT table<br />BPE_RIGHT:<br />&nbsp; &nbsp;.byte $00, $48, $52, $4e, $00, $55, $60, $00, $4e, $00, $4f, $52, $4e, $62, $53, $66, $47, $41, $4c, $00, $52, $4e, $00, $60, $00, $57, $4c, $00, $00, $41, $00, $41, $00, $46, $48, $4b, $4d, $54, $68, $54, $00, $00, $00, $68, $41, $6a, $00, $61, $48, $53, $42, $4c, $00, $61, $4f, $00, $54, $52, $53, $84, $46, $54, $61, $45, $07, $4f, $65, $45, $49, $49, $75, $44, $41, $6c, $67, $63, $66, $48, $63, $7e, $50, $49, $44, $44, $00, $6a, $00, $41, $52, $52, $44, $aa, $48, $9d, $7b, $45, $65, $93, $00, $b8, $6f, $64, $6a, $52, $53, $65, $61, $60, $60, $44, $52, $60, $75, $00, $61, $63, $45, $4f, $61, $7a, $49, $48, $67, $56, $60, $00, $01, $80, $67, $65, $61, $61, $00, $67, $59, $54, $65, $67, $62, $69, $50, $6c, $41, $61, $5f, $4e, $00, $90, $43, $49, $73, $61, $45, $a3, $67, $7e, $00, $41, $77</div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>sonder</b> [ Wed Aug 21, 2013 12:51 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Generic compression on NES - *done*</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Nice, thanks for posting this.  My game may or may not use a lot of text but if it does this might be a life saver <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>7</strong> of <strong>7</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

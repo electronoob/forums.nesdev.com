@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=2&amp;t=11341" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2014-06-28T10:54:08-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=2&amp;t=11341</id>
+<entry>
+<author><name><![CDATA[Omegamatrix]]></name></author>
+<updated>2014-06-28T10:54:08-07:00</updated>
+<published>2014-06-28T10:54:08-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11341&amp;p=130363#p130363</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11341&amp;p=130363#p130363"/>
+<title type="html"><![CDATA[Re: Hex to Decimal]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11341&amp;p=130363#p130363"><![CDATA[
+I've wrote a couple more 16 bit number (0-65535) to decimal routines. My old, original routine took 258 bytes, and 150-162 cycles. That routine however was not set up for JSR. To do so would requires 3 more bytes, and 15 cycles. That brings it true cost to 261 bytes, and 165-177 cycles.<br /><br />The first new routine I made takes only 234 bytes, and 157-162 cycles (including the JSR, RTS). Its worse case time is 3 cycles faster then the old routines best case, and it saves 27 bytes. The second new routine saves even more taking only 174 bytes, but takes longer requiring 178-186 cycles to execute. Still, those cycles are not too bad, and I'm pretty happy about the overall performance of both routines.  <img src="http://forums.nesdev.com/images/smilies/icon_biggrin.gif" alt=":D" title="Very Happy" /> <br /><br />The basic approach of both new routines is different to the original. Now I'm going after the 10,000's and 1,000's digit by shifting the high byte to the 1024 value bit. This gives a pretty close approximation to an integer divide by 1000. I start with that and correct the result. The fast routine uses a multiply by 24 table to correct the result. I doubled that table up storing the high byte value (0-6) in the bits 0-2. Since the low byte value only ever uses bits 3-7 this was easy to do.<br /><br />Support has also been added for entries into the routine to do 0-999, 0-255, and 0-99 conversions. Adding support for HexToDec255 and HexToDec999 requires 9 more bytes. Ascii support is also available at a cost of 2 bytes and 2 cycles for each digit.<br /><br /><br />Stats:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">;slow routine - 174 bytes, 183 bytes with HexToDec255 and HexToDec999<br />;HexToDec99     ; 37 cycles<br />;HexToDec255    ; 52-57 cycles<br />;HexToDec999    ; 72-77 cycles<br />;HexToDec65535  ; 178-186 cycles<br /><br /><br />;Fast routine - 234 bytes, 243 bytes with HexToDec255 and HexToDec999<br />;HexToDec99     ; 37 cycles<br />;HexToDec255    ; 52-57 cycles<br />;HexToDec999    ; 72-77 cycles<br />;HexToDec65535  ; 157-162 cycles<br /><br />;-------------------------------------------------------------------------------<br /><br />;HexToDec99<br />; start in A<br />; end with A = 10's, decOnes<br /><br />;HexToDec255<br />; start in A<br />; end with Y = 100's, A = 10's, decOnes<br /><br />;HexToDec999<br />; start with A = high byte, X = low byte<br />; end with Y = 100's, A = 10's, decOnes<br />; requires 1 extra temp register on top of decOnes, could combine<br />; these two if HexToDec65535 was eliminiated...<br /><br />;HexToDec65535<br />; start with A = high byte, X = low byte<br />; end with decTenThousand, decThousand, Y = 100's, A = 10's, decOnes<br />; requires 2 extra temp registers on top of decTenThousand, decThousand, decOnes</div><br /><br /><br />Here's the fast routine:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">;Hex to Decimal (0-65535) conversion<br />;by Omegamatrix<br />;<br />;HexToDec99     ; 37 cycles<br />;HexToDec255    ; 52-57 cycles<br />;HexToDec999    ; 72-77 cycles<br />;HexToDec65535  ; 157-162 cycles<br /><br />ASCII_OFFSET = $00<br />temp         = decOnes<br />hexHigh      = temp2<br />hexLow       = temp3<br /><br /><br />Mult24Tab:<br />     .byte $00,$18,$30,$48,$60,$78,$90,$A8,$C0,$D8<br />     .byte $F0,$09,$21,$39,$51,$69,$81,$99,$B1,$C9<br />     .byte $E1,$F9,$12,$2A,$42,$5A,$72,$8A,$A2,$BA<br />     .byte $D2,$EA,$03,$1B,$33,$4B,$63,$7B,$93,$AB<br />     .byte $C3,$DB,$F3,$0C,$24,$3C,$54,$6C,$84,$9C<br />     .byte $B4,$CC,$E4,$FC,$15,$2D,$45,$5D,$75,$8D<br />     .byte $A5,$BD,$D5,$ED,$06,$1E<br /><br />Mod100Tab:<br />    .byte 0,56,12,56+12<br /><br />ShiftedBcdTab<br />    .byte $00,$01,$02,$03,$04,$08,$09,$0A,$0B,$0C<br />    .byte $10,$11,$12,$13,$14,$18,$19,$1A,$1B,$1C<br />    .byte $20,$21,$22,$23,$24,$28,$29,$2A,$2B,$2C<br />    .byte $30,$31,$32,$33,$34,$38,$39,$3A,$3B,$3C<br />    .byte $40,$41,$42,$43,$44,$48,$49,$4A,$4B,$4C<br /><br />HexToDec65535; SUBROUTINE<br />    sta    hexHigh               ;3  @9<br />    stx    hexLow                ;3  @12<br />    tax                          ;2  @14<br />    lsr                          ;2  @16<br />    lsr                          ;2  @18   integer divide 1024 (result 0-63)<br /><br />    cpx    #$A7                  ;2  @20   account for overflow of multiplying 24 from 43,000 ($A7F8) onward,<br />    adc    #0                    ;2  @22   we can just round it to $A700, and the divide by 1024 is fine...<br />    tay                          ;2  @24<br />    lda    Mult24Tab+1,Y         ;4  @28   could use LAX...<br />    tax                          ;2  @30<br />    and    #$F8                  ;2  @32<br />    adc    hexLow                ;3  @35<br />    txa                          ;2  @37<br />    and    #$07                  ;2  @39<br />    adc    hexHigh               ;3  @42<br />    ror                          ;2  @44<br />    lsr                          ;2  @46<br />    tay                          ;2  @48   integer divide 1,000 (result 0-65)<br /><br />    lsr                          ;2  @50   split the 1,000 and 10,000 digit<br />    tax                          ;2  @52<br />    lda    ShiftedBcdTab,X       ;4  @56<br />    tax                          ;2  @58<br />    rol                          ;2  @60<br />    and    #$0F                  ;2  @62<br />  IF ASCII_OFFSET<br />    ora    #ASCII_OFFSET<br />  ENDIF<br />    sta    decThousands          ;3  @65<br />    txa                          ;2  @67<br />    lsr                          ;2  @69<br />    lsr                          ;2  @71<br />    lsr                          ;2  @73<br />  IF ASCII_OFFSET<br />    ora    #ASCII_OFFSET<br />  ENDIF<br />    sta    decTenThousands       ;3  @76<br /><br /><br />    ;at this point we have a number 0-65 that we have to times by 24,<br />    ;add to original sum, and Mod 1024 to get the remainder 0-999<br /><br />    lda    Mult24Tab,Y           ;4  @80   could use LAX...<br />    tax                          ;2  @82<br />    and    #$F8                  ;2  @84<br />    clc                          ;2  @86<br />    adc    hexLow                ;3  @89<br />    sta    temp                  ;3  @92<br />    txa                          ;2  @94<br />    adc    hexHigh               ;3  @97<br />Start100s:<br />    and    #$03                  ;2  @99<br />    tax                          ;2  @101   0,1,2,3<br />    cmp    #2                    ;2  @103<br />    rol                          ;2  @105   0,2,5,7<br />  IF ASCII_OFFSET<br />    ora    #ASCII_OFFSET<br />  ENDIF<br />    tay                          ;2  @107   Y = Hundreds digit<br /><br />    lda    temp                  ;3  @110<br />    adc    Mod100Tab,X           ;4  @114  adding remainder of 256, 512, and 256+512 (all mod 100)<br />    bcs    .doSub200             ;2³ @116/117<br /><br />.try200:<br />    cmp    #200                  ;2  @118<br />    bcc    .try100               ;2³ @120/121<br />.doSub200:<br />    iny                          ;2  @122<br />    iny                          ;2  @124<br />    sbc    #200                  ;2  @126<br />.try100:<br />    cmp    #100                  ;2  @128<br />    bcc    HexToDec99            ;2³ @130/131<br />    iny                          ;2  @132<br />    sbc    #100                  ;2  @134<br />HexToDec99; SUBROUTINE<br />    lsr                          ;2  @136<br />    tax                          ;2  @138<br />    lda    ShiftedBcdTab,X       ;4  @142<br />    tax                          ;2  @144<br />    rol                          ;2  @146<br />    and    #$0F                  ;2  @148<br />  IF ASCII_OFFSET<br />    ora    #ASCII_OFFSET<br />  ENDIF<br />    sta    decOnes               ;3  @151<br />    txa                          ;2  @153<br />    lsr                          ;2  @155<br />    lsr                          ;2  @157<br />    lsr                          ;2  @159<br />  IF ASCII_OFFSET<br />    ora    #ASCII_OFFSET<br />  ENDIF<br />    rts                          ;6  @165   A = tens digit<br /><br /><br /><br />HexToDec255; SUBROUTINE<br />  IF ASCII_OFFSET<br />    ldy    #ASCII_OFFSET         ;2  @8<br />    bne    .try200               ;3  @11    always branch<br />  ELSE<br />    ldy    #0                    ;2  @8<br />    beq    .try200               ;3  @11    always branch<br />  ENDIF<br /><br />HexToDec999; SUBROUTINE<br />    stx    temp                  ;3  @9<br />    jmp    Start100s             ;3  @12</div><br /><br /><br />Here's the slower routine, which saves a lot of bytes:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">;Hex to Decimal (0-65535) conversion<br />;by Omegamatrix<br />;<br />;HexToDec99     ; 37 cycles<br />;HexToDec255    ; 52-57 cycles<br />;HexToDec999    ; 72-77 cycles<br />;HexToDec65535  ; 178-186 cycles<br /><br />ASCII_OFFSET = $00<br />temp         = decOnes<br />hexHigh      = temp2<br />hexLow       = temp3<br /><br /><br />Mod100Tab:<br />    .byte 0,56,12,56+12<br /><br />ShiftedBcdTab<br />    .byte $00,$01,$02,$03,$04,$08,$09,$0A,$0B,$0C<br />    .byte $10,$11,$12,$13,$14,$18,$19,$1A,$1B,$1C<br />    .byte $20,$21,$22,$23,$24,$28,$29,$2A,$2B,$2C<br />    .byte $30,$31,$32,$33,$34,$38,$39,$3A,$3B,$3C<br />    .byte $40,$41,$42,$43,$44,$48,$49,$4A,$4B,$4C<br /><br />HexToDec65535; SUBROUTINE<br />    sta    hexHigh               ;3  @9<br />    stx    hexLow                ;3  @12<br />    tax                          ;2  @14<br />    lsr                          ;2  @16<br />    lsr                          ;2  @18   integer divide 1024 (result 0-63)<br /><br />    cpx    #$A7                  ;2  @20   account for overflow of multiplying 24 from 43,000 ($A7F8) onward,<br />    adc    #1                    ;2  @22   we can just round it to $A700, and the divide by 1024 is fine...<br /><br />    ;at this point we have a number 1-65 that we have to times by 24,<br />    ;add to original sum, and Mod 1024 to get a remainder 0-999<br /><br /><br />    sta    temp                  ;3  @25<br />    asl                          ;2  @27<br />    adc    temp                  ;3  @30  x3<br />    tay                          ;2  @32<br />    lsr                          ;2  @34<br />    lsr                          ;2  @36<br />    lsr                          ;2  @38<br />    lsr                          ;2  @40<br />    lsr                          ;2  @42<br />    tax                          ;2  @44<br />    tya                          ;2  @46<br />    asl                          ;2  @48<br />    asl                          ;2  @50<br />    asl                          ;2  @52<br />    clc                          ;2  @54<br />    adc    hexLow                ;3  @57<br />    sta    hexLow                ;3  @60<br />    txa                          ;2  @62<br />    adc    hexHigh               ;3  @65<br />    sta    hexHigh               ;3  @68<br />    ror                          ;2  @70<br />    lsr                          ;2  @72<br />    tay                          ;2  @74    integer divide 1,000 (result 0-65)<br /><br />    lsr                          ;2  @76    split the 1,000 and 10,000 digit<br />    tax                          ;2  @78<br />    lda    ShiftedBcdTab,X       ;4  @82<br />    tax                          ;2  @84<br />    rol                          ;2  @86<br />    and    #$0F                  ;2  @88<br />  IF ASCII_OFFSET<br />    ora    #ASCII_OFFSET<br />  ENDIF<br />    sta    decThousands          ;3  @91<br />    txa                          ;2  @93<br />    lsr                          ;2  @95<br />    lsr                          ;2  @97<br />    lsr                          ;2  @99<br />  IF ASCII_OFFSET<br />    ora    #ASCII_OFFSET<br />  ENDIF<br />    sta    decTenThousands       ;3  @102<br /><br />    lda    hexLow                ;3  @105<br />    cpy    temp                  ;3  @108<br />    bmi    .doSubtract           ;2³ @110/111<br />    beq    useZero               ;2³ @112/113<br />    adc    #23 + 24              ;2  @114<br />.doSubtract:<br />    sbc    #23                   ;2  @116<br />    sta    hexLow                ;3  @119<br />useZero:<br />    lda    hexHigh               ;3  @122<br />    sbc    #0                    ;2  @124<br /><br />Start100s:<br />    and    #$03                  ;2  @126<br />    tax                          ;2  @128   0,1,2,3<br />    cmp    #2                    ;2  @130<br />    rol                          ;2  @132   0,2,5,7<br />  IF ASCII_OFFSET<br />    ora    #ASCII_OFFSET<br />  ENDIF<br />    tay                          ;2  @134   Y = Hundreds digit<br /><br />    lda    hexLow                ;3  @137<br />    adc    Mod100Tab,X           ;4  @141    adding remainder of 256, 512, and 256+512 (all mod 100)<br />    bcs    .doSub200             ;2³ @143/144<br /><br />.try200:<br />    cmp    #200                  ;2  @145<br />    bcc    .try100               ;2³ @147/148<br />.doSub200:<br />    iny                          ;2  @149<br />    iny                          ;2  @151<br />    sbc    #200                  ;2  @153<br />.try100:<br />    cmp    #100                  ;2  @155<br />    bcc    HexToDec99            ;2³ @157/158<br />    iny                          ;2  @159<br />    sbc    #100                  ;2  @161<br /><br />HexToDec99; SUBROUTINE<br />    lsr                          ;2  @163<br />    tax                          ;2  @165<br />    lda    ShiftedBcdTab,X       ;4  @169<br />    tax                          ;2  @171<br />    rol                          ;2  @173<br />    and    #$0F                  ;2  @175<br />  IF ASCII_OFFSET<br />    ora    #ASCII_OFFSET<br />  ENDIF<br />    sta    decOnes               ;3  @178<br />    txa                          ;2  @180<br />    lsr                          ;2  @182<br />    lsr                          ;2  @184<br />    lsr                          ;2  @186<br />  IF ASCII_OFFSET<br />    ora    #ASCII_OFFSET<br />  ENDIF<br />    rts                          ;6  @192   A = tens digit<br /><br /><br />HexToDec255; SUBROUTINE<br />  IF ASCII_OFFSET<br />    ldy    #ASCII_OFFSET         ;2  @8<br />    bne    .try200               ;3  @11    always branch<br />  ELSE<br />    ldy    #0                    ;2  @8<br />    beq    .try200               ;3  @11    always branch<br />  ENDIF<br /><br />HexToDec999; SUBROUTINE<br />    stx    hexLow                ;3  @9<br />    jmp    Start100s             ;3  @12</div><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6558">Omegamatrix</a> — Sat Jun 28, 2014 10:54 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Omegamatrix]]></name></author>
+<updated>2014-06-18T23:00:32-07:00</updated>
+<published>2014-06-18T23:00:32-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11341&amp;p=130004#p130004</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11341&amp;p=130004#p130004"/>
+<title type="html"><![CDATA[Re: Hex to Decimal]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11341&amp;p=130004#p130004"><![CDATA[
+I took a look and realized there is a easy way to chop another couple of bytes out of the routine by eliminating a branch. This will bring the total size down to 41 bytes, which is not too bad. The downside is that doing so will add an extra 3 cycles to some cases, including the worst case. To me that seemed like no gain at all. In the end I decided to to leave the routine as is and just post the changes here for user to make their own decision.<br /><br /><br />Old:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">HexToDec99; SUBROUTINE<br />    ldx    #0 + ASCII_OFFSET<br />    cmp    #50                   ; A = 0-99<br />    bcc    .try20<br />    sbc    #50<br />    ldx    #5 + ASCII_OFFSET<br />    bne    .try20                ;always branch<br /><br />.div20:<br />    inx<br />    inx<br />    sbc    #20<br />.try20:</div><br /><br />New (save 2 bytes by eliminating branch, but add 3 more cycles):<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">HexToDec99; SUBROUTINE<br />    ldx    #0 + ASCII_OFFSET<br />    cmp    #50                   ; A = 0-99<br />    bcc    .try20<br />    sbc    #30<br />    ldx    #3 + ASCII_OFFSET<br />.div20:<br />    inx<br />    inx<br />    sbc    #20<br />.try20:</div><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6558">Omegamatrix</a> — Wed Jun 18, 2014 11:00 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Omegamatrix]]></name></author>
+<updated>2014-06-17T21:54:56-07:00</updated>
+<published>2014-06-17T21:54:56-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11341&amp;p=129976#p129976</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11341&amp;p=129976#p129976"/>
+<title type="html"><![CDATA[Re: Hex to Decimal]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11341&amp;p=129976#p129976"><![CDATA[
+<div class="quotetitle">zzo38 wrote:</div><div class="quotecontent"><br />Maybe you can put a comment explaining it; if needed, it can then be changed between ADD #100 or SBC #-101 or a branch instead of BIT, depending on the mapper, if it is necessary to do so.<br /></div><br /><br />Good idea. I added in the comment with some choices.<br /><br />I also added some ASCII support. Cost was just 2 bytes and 2 cycles. <img src="http://forums.nesdev.com/images/smilies/icon_smile.gif" alt=":)" title="Smile" /><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6558">Omegamatrix</a> — Tue Jun 17, 2014 9:54 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[zzo38]]></name></author>
+<updated>2014-06-17T21:30:09-07:00</updated>
+<published>2014-06-17T21:30:09-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11341&amp;p=129974#p129974</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11341&amp;p=129974#p129974"/>
+<title type="html"><![CDATA[Re: Hex to Decimal]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11341&amp;p=129974#p129974"><![CDATA[
+<div class="quotetitle">thefox wrote:</div><div class="quotecontent"><br />In fact, all of $4020..$FFFF. It could be RAM, ROM, mapper registers or nothing (= open bus).<br /></div>Actually, I think it could even map things to the rest of the address space too if it wanted to (I have discussed deliberately interfering with mirrors of RAM and PPU registers, in order to allow writes to write two things at once; for example, a mapper may be designed to mirrors its write-only registers at $1xxx, $3xxx, $5xxx, $7xxx, $9xxx, $Bxxx, $Dxxx, $Fxxx).<br /><br />Even if such a thing existed it still won't interfere with using BIT here (which only reads), although changing it to SBC #-101 like you have would in fact fix it with whatever mapper you might want to use (probably; I don't know if there are other cases).<br /><br />Like they said there are some mappers that have side-effects on read from some registers, but $9BE9 is not in that range, and I am not sure why anyone would make one where there are side-effects on read at that address.<br /><br />Maybe you can put a comment explaining it; if needed, it can then be changed between ADD #100 or SBC #-101 or a branch instead of BIT, depending on the mapper, if it is necessary to do so.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4734">zzo38</a> — Tue Jun 17, 2014 9:30 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[lidnariq]]></name></author>
+<updated>2014-06-17T20:22:33-07:00</updated>
+<published>2014-06-17T20:22:33-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11341&amp;p=129973#p129973</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11341&amp;p=129973#p129973"/>
+<title type="html"><![CDATA[Re: Hex to Decimal]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11341&amp;p=129973#p129973"><![CDATA[
+<div class="quotetitle">tepples wrote:</div><div class="quotecontent"><br />read side effects in $8000-$FFFF<br /></div> Mapper 234 triggers bankswitches on reads from $FF80-$FFF7. (This doesn't pose a problem with using BIT here)<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3512">lidnariq</a> — Tue Jun 17, 2014 8:22 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2014-06-17T20:07:56-07:00</updated>
+<published>2014-06-17T20:07:56-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11341&amp;p=129972#p129972</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11341&amp;p=129972#p129972"/>
+<title type="html"><![CDATA[Re: Hex to Decimal]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11341&amp;p=129972#p129972"><![CDATA[
+I don't think any NES mapper has read side effects in $8000-$FFFF because that's where the program itself is, except perhaps for really freaking complicated copy protection schemes.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Tue Jun 17, 2014 8:07 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Omegamatrix]]></name></author>
+<updated>2014-06-17T20:02:35-07:00</updated>
+<published>2014-06-17T20:02:35-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11341&amp;p=129971#p129971</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11341&amp;p=129971#p129971"/>
+<title type="html"><![CDATA[Re: Hex to Decimal]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11341&amp;p=129971#p129971"><![CDATA[
+<div class="quotetitle">tepples wrote:</div><div class="quotecontent"><br />But so long as the cart doesn't put something with read side effects into $6xxx, BIT $6469 should work. (The addresses with read side effects on the NES are $2002, $2007, $4015-$4017, and $4020-$5FFF for the Vs. System's credit acknowledge.) The only mapper that I can think of that has read side effects there is <a href="http://wiki.nesdev.com/w/index.php/Bandai_FCG_board" class="postlink">Bandai boards with an I²C EEPROM</a>.<br /></div><br /><br /><br />I have another option I could try. If I substitute:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">    .byte $2C                    ; BIT $6469<br />.use100<br />    adc    #100<br />.done</div><br /><br />With this:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">    .byte $2C                    ; BIT $9BE9<br />.use100<br />    sbc    #-101<br />.done</div><br /><br />The function is the same. It's a little more convoluted and certainly harder to read, but if it doesn't conflict with anything I would certainly switch over to it.<br /><br />If that still potentially breaks something I'm going to stick a branch in there with some comments that a byte can be saved with BIT, but the user must check for these odd cases.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6558">Omegamatrix</a> — Tue Jun 17, 2014 8:02 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Movax12]]></name></author>
+<updated>2014-06-17T19:59:08-07:00</updated>
+<published>2014-06-17T19:59:08-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11341&amp;p=129969#p129969</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11341&amp;p=129969#p129969"/>
+<title type="html"><![CDATA[Re: Hex to Decimal]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11341&amp;p=129969#p129969"><![CDATA[
+<div class="quotetitle">tepples wrote:</div><div class="quotecontent"><br />Anything like Leushenko's <a href="http://forums.nesdev.com/viewtopic.php?p=127177#p127177" class="postlink">x86-to-C static recompiler</a>?.<br /></div><br /><br />I considered that idea, but i want to be able to use actual ca65 compatible source, so I am going to load the binary output of ca65 into an open-source 6502 emulator's RAM and hook back to C code when needed.<br /><br />Omegamatrix, interesting solution. I am going to have to look at that more than once to really get what you are doing.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4680">Movax12</a> — Tue Jun 17, 2014 7:59 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2014-06-17T19:54:30-07:00</updated>
+<published>2014-06-17T19:54:30-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11341&amp;p=129968#p129968</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11341&amp;p=129968#p129968"/>
+<title type="html"><![CDATA[Re: Hex to Decimal]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11341&amp;p=129968#p129968"><![CDATA[
+<div class="quotetitle">Movax12 wrote:</div><div class="quotecontent"><br /><div class="quotetitle">tepples wrote:</div><div class="quotecontent">I wrote a 6502 simulator in Python so that I could run automated <a href="https://en.wikipedia.org/wiki/Unit_testing" class="postlink">unit tests</a> on 6502 code. [...] Want to see my simulator?<br /></div><br />Sure, tepples.</div><br />Download <a href="http://pineight.com/cookieclicker/" class="postlink">my work-in-progress Cookie Clicker clone</a> and look in the &quot;float&quot; folder.<br /><br /><div class="quotetitle">Movax12 wrote:</div><div class="quotecontent"><br />Right now I am (slowly) working on something in C that will combine 6502 assembly and C in the same source file and call ca65 to build the assembly. I think my idea will work, but I would be interested to see how others solved this problem.<br /></div><br />Anything like Leushenko's <a href="http://forums.nesdev.com/viewtopic.php?p=127177#p127177" class="postlink">x86-to-C static recompiler</a>?<br /><br /><div class="quotetitle">Omegamatrix wrote:</div><div class="quotecontent"><br />I'm running a 2600 program I wrote [describes unit test harness]<br /></div><br />Neat. It'd be harder to do that on an NES without mapper support.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Tue Jun 17, 2014 7:54 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Omegamatrix]]></name></author>
+<updated>2014-06-17T19:48:53-07:00</updated>
+<published>2014-06-17T19:48:53-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11341&amp;p=129967#p129967</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11341&amp;p=129967#p129967"/>
+<title type="html"><![CDATA[Re: Hex to Decimal]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11341&amp;p=129967#p129967"><![CDATA[
+<div class="quotetitle">Movax12 wrote:</div><div class="quotecontent"><br />Omegamatrix, nice code, but what I am more interested in at the moment is how you determine the following:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">;--------------------------------<br />;0-99 conversion stats<br />;--------------------------------<br />  ;cycles  occurances<br />    ;28  -  10<br />    ;31  -  10<br />    ;34  -  10<br />    ;37  -  10<br />    ;39  -  10<br />    ;42  -  10<br />    ;45  -  10<br />    ;48  -  10<br />    ;50  -  10<br />    ;56  -  10<br /><br />  ;average execution is 41 cycles<br /></div><br /><br />What method/tools do you use to create that information?<br /></div><br /><br />I'm running a 2600 program I wrote, because I don't know much about the NES yet. The 2600 has a 1 cycle timer which I'm loading before the subroutine and checking afterward. From there I run some code to check for the best times and worst times. The difference between best and worse times is small enough that I can use some zero page ram to record how many times each cycle scenario occurs. I subtract the best time to offset it to zero, and also 4 cycles for loading the 2600 timer, and an additional 3 cycles for saving the value left in A at the end of the routine (I do that before I load the timer in A).<br /><br /><br />The program I'm using scrolls through all possible values, and checks if they are all correct. If it's good I get a green passed screen, or a red fail screen. Here's some of the code:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">.innerLoop:<br />    dec    hexValue<br />    lda    hexValue              ; A = 0-255<br /><br />  IF DETERMINE_BEST_WORSE_TIME<br />    ldy    #255<br />    sty    TIM1T<br />  ENDIF<br />    jsr    HexToDec255<br /><br />;... routine runs here<br /><br />    sta    decOnes              ; save routine value<br />    lda    INTIM                ; get timer value<br />    sty    decHundreds<br />    stx    decTens<br /><br />    eor    #$FF<br />    sec<br />    sbc    #4+3                 ; take away 3 cycles for STA decOnes, and 4 cycles for LDA INTIM<br />    cmp    worstTime            ; save best/worse time<br />    bcc    .lessThen<br />    sta    worstTime            ; worseTime begins the routine loaded with 0, and bestTime begins with $FF<br />.lessThen:<br />    cmp    bestTime<br />    bcs    .moreThen<br />    sta    bestTime<br />.moreThen:<br /><br />    sec<br />    sbc    #35                   ; You have run the routine once to get the best time (35 in this case),<br />    tax                          ; and run the routine again afterward with that value.<br />    clc<br />    lda   #1<br />    adc   occurances,X           ; update count for each routine time occurance...<br />    sta   occurances,X<br /><br /><br /><br />    ldy    hexValue              ; verify routine values against tables stored in rom<br />    lda    decOnes<br />    cmp    OnesTab,Y<br />    bne    .setBadFlag<br />    lda    decTens<br />    cmp    TensTab,Y<br />    bne    .setBadFlag<br />    lda    decHundreds<br />    cmp    HundredsTab,Y<br />    beq    .skipMarkBadResult<br /><br />.setBadFlag:<br />    lda    #$FF<br />    sta    badValueFlag<br />    lda    firstBadValue<br />    bne    .skipMarkBadResult<br />    sty    firstBadValue<br /><br />.skipMarkBadResult:<br />    dey<br />    cpy    #$FF<br />    bne    .innerLoop</div><br /><br />Here in Stella's debugger you can see the cycles cases begin at $B0 and continues from there. This snapshot is for the results of 0-255.<br />DebuggerValues.jpg<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6558">Omegamatrix</a> — Tue Jun 17, 2014 7:48 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Movax12]]></name></author>
+<updated>2014-06-17T19:25:52-07:00</updated>
+<published>2014-06-17T19:25:52-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11341&amp;p=129965#p129965</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11341&amp;p=129965#p129965"/>
+<title type="html"><![CDATA[Re: Hex to Decimal]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11341&amp;p=129965#p129965"><![CDATA[
+Sure, tepples. Right now I am (slowly) working on something in C that will combine 6502 assembly and C in the same source file and call ca65 to build the assembly. I think my idea will work, but I would be interested to see how others solved this problem.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4680">Movax12</a> — Tue Jun 17, 2014 7:25 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2014-06-17T17:46:26-07:00</updated>
+<published>2014-06-17T17:46:26-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11341&amp;p=129960#p129960</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11341&amp;p=129960#p129960"/>
+<title type="html"><![CDATA[Re: Hex to Decimal]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11341&amp;p=129960#p129960"><![CDATA[
+I can't speak for the OP's methodology, but I wrote a 6502 simulator in Python so that I could run automated <a href="https://en.wikipedia.org/wiki/Unit_testing" class="postlink">unit tests</a> on 6502 code. With <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">peek&#40;&#41;</tt>, <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">poke&#40;&#41;</tt>, and <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">jsr&#40;&#41;</tt> functions, I can determine whether a subroutine returns a correct result and how long it takes. Combining such a simulator with <a href="https://docs.python.org/2/library/collections.html#collections.Counter" class="postlink">collections.Counter</a> makes it easy to test all combinations of parameters and produce a cycle count histogram.<br /><br />Want to see my simulator?<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Tue Jun 17, 2014 5:46 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Movax12]]></name></author>
+<updated>2014-06-17T17:24:54-07:00</updated>
+<published>2014-06-17T17:24:54-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11341&amp;p=129959#p129959</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11341&amp;p=129959#p129959"/>
+<title type="html"><![CDATA[Re: Hex to Decimal]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11341&amp;p=129959#p129959"><![CDATA[
+Omegamatrix, nice code, but what I am more interested in at the moment is how you determine the following:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">;--------------------------------<br />;0-99 conversion stats<br />;--------------------------------<br />  ;cycles  occurances<br />    ;28  -  10<br />    ;31  -  10<br />    ;34  -  10<br />    ;37  -  10<br />    ;39  -  10<br />    ;42  -  10<br />    ;45  -  10<br />    ;48  -  10<br />    ;50  -  10<br />    ;56  -  10<br /><br />  ;average execution is 41 cycles<br /></div><br /><br />What method/tools do you use to create that information?<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4680">Movax12</a> — Tue Jun 17, 2014 5:24 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2014-06-17T06:53:08-07:00</updated>
+<published>2014-06-17T06:53:08-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11341&amp;p=129942#p129942</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11341&amp;p=129942#p129942"/>
+<title type="html"><![CDATA[Re: Hex to Decimal]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11341&amp;p=129942#p129942"><![CDATA[
+But so long as the cart doesn't put something with read side effects into $6xxx, BIT $6469 should work. (The addresses with read side effects on the NES are $2002, $2007, $4015-$4017, and $4020-$5FFF for the Vs. System's credit acknowledge.) The only mapper that I can think of that has read side effects there is <a href="http://wiki.nesdev.com/w/index.php/Bandai_FCG_board" class="postlink">Bandai boards with an I²C EEPROM</a>.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Tue Jun 17, 2014 6:53 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[thefox]]></name></author>
+<updated>2014-06-17T02:25:36-07:00</updated>
+<published>2014-06-17T02:25:36-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11341&amp;p=129940#p129940</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11341&amp;p=129940#p129940"/>
+<title type="html"><![CDATA[Re: Hex to Decimal]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11341&amp;p=129940#p129940"><![CDATA[
+<div class="quotetitle">Omegamatrix wrote:</div><div class="quotecontent"><br />I'm doing BIT $6469 to skip over the ADC #100. From what I've seen of the NES memory map $6469 is just SRAM so reading there should be no problem...<br /></div><br />The cartridge is free to map whatever it wants at $6469. In fact, all of $4020..$FFFF. It could be RAM, ROM, mapper registers or nothing (= open bus). Most of the time it's (S)RAM or nothing, though.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=80">thefox</a> — Tue Jun 17, 2014 2:25 am</p><hr />
+]]></content>
+</entry>
+</feed>

@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=12&amp;t=12331" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2015-02-03T23:21:02-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=12&amp;t=12331</id>
+<entry>
+<author><name><![CDATA[jwdonal]]></name></author>
+<updated>2015-02-03T23:21:02-07:00</updated>
+<published>2015-02-03T23:21:02-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=12331&amp;p=140559#p140559</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=12331&amp;p=140559#p140559"/>
+<title type="html"><![CDATA[Re: t_dir_addr in snes_spc-0.9.0 and Voice steps V1 and V2]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=12331&amp;p=140559#p140559"><![CDATA[
+<strong><span style="text-decoration: underline">!!!EUREKA!!!</span></strong> It was like 10 light bulbs all lit up at once in my head after reading your answer. I _never_ would have figured that out on my own. This sheds <strong>sooooooooo</strong> much light on so many other things in Anomie's apudsp.txt document too.<br /><br />Thank you so much Blargg!  <img src="http://forums.nesdev.com/images/smilies/icon_biggrin.gif" alt=":D" title="Very Happy" />  <img src="http://forums.nesdev.com/images/smilies/icon_biggrin.gif" alt=":D" title="Very Happy" />  <img src="http://forums.nesdev.com/images/smilies/icon_biggrin.gif" alt=":D" title="Very Happy" /><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3962">jwdonal</a> — Tue Feb 03, 2015 11:21 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[blargg]]></name></author>
+<updated>2015-02-03T20:42:10-07:00</updated>
+<published>2015-02-03T20:42:10-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=12331&amp;p=140546#p140546</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=12331&amp;p=140546#p140546"/>
+<title type="html"><![CDATA[Re: t_dir_addr in snes_spc-0.9.0 and Voice steps V1 and V2]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=12331&amp;p=140546#p140546"><![CDATA[
+It looked broken and I was about to be amazed at such a basic bug I missed, but I think I made sense of it. There is a pipeline in effect so V1 processes some things from the *previous* voice. V1 sets t_dir_addr based on t_dir and t_srcn. t_srcn is the value from the *previous* execution of V1, so t_srcn is for the previous voice. Then it reads the current voice's srcn. V2 uses t_dir_addr. <br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">8. read srcn into t_srcn for voice 5 in V1<br />11. calculate t_dir_addr for voice 5 using t_srcn then read srcn for voice 6 into t_srcn<br />12. use t_dir_addr for voice 5<br />14. calculate t_dir_addr for voice 6 using t_srcn then read srcn from voice 7 into t_srcn<br />15. use t_dir_addr for voice 6<br /></div><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=17">blargg</a> — Tue Feb 03, 2015 8:42 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[jwdonal]]></name></author>
+<updated>2015-02-03T02:53:49-07:00</updated>
+<published>2015-02-03T02:53:49-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=12331&amp;p=140478#p140478</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=12331&amp;p=140478#p140478"/>
+<title type="html"><![CDATA[t_dir_addr in snes_spc-0.9.0 and Voice steps V1 and V2]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=12331&amp;p=140478#p140478"><![CDATA[
+Can someone please help me understand how the 't_dir_addr' variable is working in Blargg's SNES SPC emulator? The variable is declared in SPC_DSP.h as part of the DSP's state struct and then used in SPC_DSP.cpp.<br /><br />The 't_dir_addr' variable holds the pointer to the audio source directory and is the result of taking the contents of the DSP's 'DIR' register and the specific voice's 'SRCN' register. Blargg calls these t_dir and t_srcn, respectively. In Blargg's code it correctly calculates the value of 't_dir_addr' as follows in voice processing step 1:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">m.t_dir_addr = m.t_dir * 0x100 + m.t_srcn * 4;</div><br />But I don't understand how it can possibly work right because there is only a <strong><span style="text-decoration: underline">single</span></strong> t_dir_addr variable for the entire DSP state (i.e. there is only a single t_dir_addr variable to be used by all 8 voices). The problem that I see is that a t_dir_addr value that was calculated for voice N in step V1 can be clobbered by another voice M before it is used in step V2.<br /><br />A perfect example of this is voice's 6 and 7. If we look in Anomie's apudsp.txt we see (I removed the irrelevant voices to make it clearer):<br /> <div class="codetitle"><b>Code:</b></div><div class="codecontent"> 11. Voice steps: 6:V1<br /> 12. Voice steps: <br /> 13. Voice steps: <br /> 14. Voice steps:       7:V1<br /> 15. Voice steps: 6:V2</div><br />From the above, in DSP cycle 11 we run voice processing step V1 for voice #6. In this step we calculate the 't_dir_addr' value. And then in DSP cycle 15 we need to use this 't_dir_addr' value in order to get the correct sample pointer.  But................in DSP cycle 14 we clobbered the 't_dir_addr' value we needed for voice 6 with the value needed for voice 7. And I have actually confirmed by running the emulator with some debug output enabled that the voice 6 step V1 t_dir_addr assignment really does get clobbered by the assignment in voice 7 step 1.<br /><br />How can this possibly work right? It seems like you would have to have a separate 't_dir_addr' for <strong><span style="text-decoration: underline">each</span></strong> voice in order to ensure that they don't clobber each other.<br /><br />But obviously the current way that it's coded is correct since Blargg's emulator is extremely accurate. And if I modify the code to have a separate t_dir_addr for each voice then the resulting audio doesn't sound right at all. I really want (need) to understand how/why it works with the t_dir_addr getting clobbered throughout the voice processing steps.<br /><br />The way I'm thinking about it at a high level is that each voice channel has a separate &quot;directory&quot; of audio data with each DIR+SRCN pair pointing to a unique set of BRR samples. Like so...<br /><br />DIR+V0SRCN = Pointer to Voice 0 BRR Data<br />DIR+V1SRCN = Pointer to Voice 1 BRR Data<br />DIR+V2SRCN = Pointer to Voice 2 BRR Data<br />...and so on...<br /><br />But seeing how the t_dir_addr variable gets clobbered across different voices in Blargg's code it doesn't seem to be that simple.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3962">jwdonal</a> — Tue Feb 03, 2015 2:53 am</p><hr />
+]]></content>
+</entry>
+</feed>

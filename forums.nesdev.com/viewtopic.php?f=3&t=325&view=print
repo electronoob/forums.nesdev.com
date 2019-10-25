@@ -1,0 +1,635 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - sound question</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">sound question</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=3&amp;t=325">http://forums.nesdev.com/viewtopic.php?f=3&amp;t=325</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Anes</b> [ Sat May 28, 2005 7:53 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>sound question</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />i know this is not an emulation question, but which is the best way of daling with directsound, cos i create soundbuffers (not primary) i lock, copymemory to the buffer pointer, unlock and play..
+<br />
+<br />it seems this give me problems sound has glitches..
+<br />
+<br />any help?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Sat May 28, 2005 9:11 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />basic step-by-step:
+<br />
+<br />1)  DirectSoundCreate
+<br />2)  SetCooperativeLevel
+<br />3)  CreateSoundBuffer (primary buffer)
+<br />4)  SetFormat (primary buffer)
+<br />5)  CreateSoundBuffer (secondary buffer)
+<br />6)  Flush Secondary buffer (lock, clear, unlock)
+<br />7)  Fill Secondary buffer (lock, write sound data, unlock)
+<br />8)  Play  (secondary buffer -- with DSBPLAY_LOOPING)
+<br />9)  Constantly poll play cursor with GetCurrentPosition and track how much of the buffer is emptied.  When you have enough empty space to write more sound data:
+<br />10)  Write new sound data to secondary buffer (lock, write, unlock)
+<br />11)  Repeat steps 9 and 10 for as long as you want sound playing
+<br />12)  Stop  (secondary buffer)
+<br />13)  Release (secondary buffer)
+<br />14)  Release (primary buffer)
+<br />15)  Release (Direct Sound object)
+<br />
+<br />
+<br />you will have to keep track of where in the buffer you want to write to (step 10).  You do not have to stop the buffer to lock it (and you shouldn't if you want flowing sound).
+<br />
+<br />Flushing the buffer (step 6) is optional -- if you fill it with sound data before you play it, you don't need to flush it.  You can skip step 7 and just start playing the secondary buffer (but if you do this you will have to flush the buffer or it will make a god awful noise).
+<br />
+<br />Always be sure to check for the DSERR_BUFFERLOST return value and call Restore when needed.  If the user switches to another app and causes your DirectSound to collapse on itself and you don't correct it, the user will be forced to restart your emu to get sound back.
+<br />
+<br />I made a C++ wrapper class which does a decent job of fronting all this stuff -- only thing is it always assumes 16-bit sound (no 8-bit).  You can use it if you please, or you can just use it as an example:
+<br />
+<br /><!-- m --><a class="postlink" href="http://www.geocities.com/disch_/SoundOut.zip">http://www.geocities.com/disch_/SoundOut.zip</a><!-- m -->
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Anes</b> [ Sat May 28, 2005 10:11 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />OK i understand nearly all the steps, but what do you mean with flush?
+<br />does it mean that i have to clear (set to 0) the sound buffer?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Zepper</b> [ Sun May 29, 2005 8:27 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Quite interesting, Disch. I'm looking for a decent sound driver to replace Allegro... I'm going to give a try too... <img src="./images/smilies/icon_wink.gif" alt=";)" title="Wink" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Sun May 29, 2005 9:19 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Anes:  yeah, you'd fill the sound buffer with silence (for 16-bit sound this would be 0, but for 8-bit sound this would be $80)
+<br />
+<br />
+<br />Fx3:  Feel free to use.  It's Windows-only though (DirectSound), and it only does 16-bit sound in mono or stereo (you could add 8-bit sound easily enough though -- just have to make minor changes to SetFormat and Flush).
+<br />
+<br />I probably should have made a readme or something for that thing... anyway:
+<br />
+<br />1)  Initialize
+<br />2)  SetFormat
+<br />3)  Start
+<br />4)  continually call CanWrite to see how many bytes of sound you can write to the buffer
+<br />5)  call Lock;   'len' is the number of bytes you want to lock, -1 will lock as much as possible (will use what's returned from CanWrite)
+<br />6)  write to sound buffers
+<br />7)  call Unlock, and tell it how many bytes you actually wrote to the buffer(s).
+<br />8)  Repeat steps 4-7 to stream sound
+<br />9)  Stop
+<br />10)  Destroy
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Zepper</b> [ Sun May 29, 2005 9:22 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />It's been a long time since I switched to 16-bit output... <img src="./images/smilies/icon_wink.gif" alt=";)" title="Wink" /> No 8-bit sound is required. I'll let you know anything new..
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Anes</b> [ Sun May 29, 2005 11:38 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />More question on you step-by-step:
+<br />
+<br />step 9: should i do dwWriteCursor - dwPlayCursor
+<br />step 10: lock it with DSBLOCK_FROMWRITECURSOR?
+<br />
+<br />i make you all these question cos im a beginner in DSound and i really dont know how to handle it.
+<br />
+<br />Thanks in advance
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Drag</b> [ Sun May 29, 2005 1:34 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />When you lock, should you always use -1, or what? When you lock, what does that do? If I locked 3 bytes, would they be the first 3 free samples in the buffer and I'd only be able to write 3 samples?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Guest</b> [ Sun May 29, 2005 2:45 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><!-- m --><a class="postlink" href="http://nintencer.fobby.net/sexyal-29may2005.zip">http://nintencer.fobby.net/sexyal-29may2005.zip</a><!-- m -->
+<br />
+<br />You can use this small library to help you if you'd like.
+<br />
+<br />Instruct your C compiler to define HAVE_DIRECTSOUND.  Compile sexyal.c, smallc.c, convert.c, and drivers/dsound.c.
+<br />
+<br />You will need to write floating-point PCM audio data, in the range of [0:1](0.0000... through 1.0000..., inclusive).
+<br />
+<br />You can have 1 channel(mono) or 2 channels(stereo, interleaved).
+<br />
+<br />Example code:
+<br />
+<br />#include "sexyal/sexyal.h"
+<br />
+<br />static SexyAL *Interface;
+<br />static SexyAL_device *Output;
+<br />static SexyAL_format format;
+<br />static SexyAL_buffering buffering;
+<br />static SexyAL_enumtype *DriverTypes;
+<br />static int CurDriverIndex = 0;
+<br />
+<br />uint32 GetMaxSound(void)
+<br />{
+<br /> return(buffering.totalsize);
+<br />}
+<br />
+<br />uint32 GetWriteSound(void)
+<br />{
+<br /> return(Output-&gt;CanWrite(Output));
+<br />}
+<br />
+<br />void WriteSound(float *Buffer, int Count)
+<br />{
+<br /> //printf("%d\n",Output-&gt;CanWrite(Output));
+<br /> Output-&gt;Write(Output, Buffer, Count);
+<br />}
+<br />
+<br />int InitSound(int *rate, int channels)
+<br />{
+<br /> memset(&amp;format,0,sizeof(format));
+<br /> memset(&amp;buffering,0,sizeof(buffering));
+<br />
+<br /> Interface = (SexyAL *)SexyAL_Init(0);
+<br /> DriverTypes = Interface-&gt;EnumerateTypes(Interface);
+<br />
+<br /> format.sampformat=SEXYAL_FMT_PCMFLOAT;
+<br /> format.channels=channels;
+<br /> format.rate=*rate;
+<br /> buffering.fragcount=buffering.fragsize=0;
+<br /> buffering.ms=soundbufsize;
+<br />
+<br /> if(!(Output=Interface-&gt;Open(Interface,NULL,&amp;format,&amp;buffering, DriverTypes[CurDriverIndex].type)))
+<br /> {
+<br />  Interface-&gt;Destroy(Interface);
+<br />  Interface=0;
+<br />  return(0);
+<br /> }
+<br />
+<br /> format.sampformat=SEXYAL_FMT_PCMFLOAT;
+<br /> format.channels=channels;
+<br /> format.byteorder=0;
+<br />
+<br /> Output-&gt;SetConvert(Output,&amp;format);
+<br />
+<br /> *rate = format.rate
+<br /> return(1);
+<br />}
+<br />
+<br />int KillSound(void)
+<br />{
+<br /> if(Output)
+<br />  Output-&gt;Close(Output);
+<br /> if(Interface)
+<br />  Interface-&gt;Destroy(Interface);
+<br /> Interface=0;
+<br /> if(!Output) return(0);
+<br /> Output=0;
+<br /> return(1);
+<br />}
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Sun May 29, 2005 3:27 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Anes:
+<br />
+<br />The DirectSound buffer is conceptually circular.  DSound will start from a point on the buffer and move slowly around the cirlcle playing the sound data if finds.  That point is marked as the Play Cursor.  The Write Cursor is always just a little bit ahead of the Play Cursor -- its purpose is to signal where it's safe to write.  The area between the Play and Write cursors is 'unsafe' to write to when the surface is playing (although that's hard to avoid sometimes -- like if your program is running behind or if your latency is too low.  Worst thing that will happen is the sound will crackle or get distorted -- which would happen anyway under those circumstances.  So yeah try to avoid writing between the cursors, but it isn't the end of the world if you do.)
+<br />
+<br />Your job is to follow the Play cursor so that as it plays the sound data, you write new sound data to the buffer, so that when the play cursor makes it around full circle, it won't play data it already played -- it will play new sound data (streaming the sound smoothly)
+<br />
+<br />I made an example in paint which outlines the concept:
+<br />
+<br /><!-- m --><a class="postlink" href="http://www.geocities.com/disch_/ds.png">http://www.geocities.com/disch_/ds.png</a><!-- m -->
+<br />
+<br />P = is the Play Cursor
+<br />W = is the Write Cursor
+<br />X = is where your program will want to write to next (DSound does not track this!  You will have to track it on your own)
+<br />
+<br />The green area of the circle is sound data that is ready to play.  The red area is what you should avoid writing to, and the yellow area is sound data that has already played and should be replaced (if the Play Cursor hits the yellow portion it will play sound it already played, which will make your computer sound like a very fast broken record)
+<br />
+<br />
+<br />Drag:
+<br />
+<br />Already answered this on IRC, but yeah.  When you lock 3 samples, you can only write to those 3 samples on the buffer.  In my example code when you specify -1 for the length to lock, it will lock as much as can be written (it will call CanWrite to see how many byte to lock).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Zepper</b> [ Mon May 30, 2005 5:26 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Disch, you didn't answer about the parameters of:
+<br />void CSoundOut::Lock(int len, void** bufa,DWORD* siza,void** bufb,DWORD* sizb)
+<br />
+<br />Two buffers... Could you clarify it?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Mon May 30, 2005 7:20 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Assume you have a sound buffer that's 1000 bytes in size.  And let's say you lock 200 bytes starting at the 900'th byte in the buffer.  That would go past the end of the buffer -- but since the buffer is conceptually circular, you would want it to wrap around to the start of the buffer.  When this happens, something kind of like the following would happen:
+<br />
+<br /><!-- m --><a class="postlink" href="http://www.geocities.com/disch_/ds2.png">http://www.geocities.com/disch_/ds2.png</a><!-- m -->
+<br />
+<br />The green area of the bottom figure represents which area you're trying to lock with the above example numbers -- as you can see, it is two seperate areas of the buffer.  Because it's two seperate areas, you need two seperate pointers.
+<br />
+<br />bufa is the pointer to the first section to fill (labeled A on that figure)
+<br />siza is the number of bytes you can write to bufa
+<br />bufb is the pointer to the second section (labeled B on that figure)
+<br />sizb is the number of bytes you write to bufb
+<br />
+<br />fill bufa first, then bufb (if it needs filling).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Anes</b> [ Mon May 30, 2005 10:44 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Disch:
+<br />
+<br />well tell me if what im doing is right (cos i wanna write my own interface, thats cos im not using yours, althought it help me a lot <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" /> )
+<br />
+<br />when the buffer is "wrapped" i write to where to points write cursor (W) until the end of buffer, and then i write the remainder (its well written? i mean in english) bytes at the beginning of the buffer the size it left.
+<br />
+<br />I always check if write buffer + buffersize to write will not split, if not split i write all the buffersize (pointer 1 as you defined) and if its wraped i split the buffer and write to, you know what i mentioned above.
+<br />
+<br />The sound its better for me now, but it still have some glitches.
+<br />
+<br />One Question: 
+<br />DX docs says that one should not write between the play and write cursors
+<br />
+<br />could be that my problem?
+<br />
+<br />by the way.. do you have a basic step-by-step on how to apply synth band limit for people like me dont doesnt understand to much (and dont wanna to read an entire book about the topic and.. dont understand what blargg says in his page?)
+<br />
+<br />thanks..
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Zepper</b> [ Mon May 30, 2005 11:08 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Anes, look at this example:
+<br />
+<br />Buffer size = 1024 bytes (your sound buffer, okay?)
+<br />
+<br />The 1st update needs 200 bytes (or samples), and the current pointer to buffer is at 900. It will overflow 1024, agree? So, you take bufferA as 900 (size=124), then bufferB as 0 (beginning, size=100). Got it? <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" /> Anyway, contact me by msn.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Mon May 30, 2005 11:35 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I can't really follow what you're doing so I can't say what you're doing wrong -- although maybe I could try to explain things a little clearer.
+<br />
+<br />I refer once again to this diagram:
+<br /><!-- m --><a class="postlink" href="http://www.geocities.com/disch_/ds.png">http://www.geocities.com/disch_/ds.png</a><!-- m -->
+<br />
+<br />
+<br />You should not be writing your sound at the write cursor.  If that's what you're doing you'll have underrun problems.  The write cursor is always placed just a bit ahead of the play cursor -- which means the data you write to the write cursor will be played almost immediately! (bad)
+<br />
+<br />You want to keep as much distance between the play cursor and the sound you're writing as possible.  If the play cursor ever catches up to where you're writing (X in above diagram... <strong>NOT W</strong>), you'll suffer from what's known as buffer underrun -- and what will happen is that sound which already has played will play again (making your app sound like a broken record)
+<br />
+<br />The write cursor has ABSOLUTLY NO VALUE other than letting you know where you shouldn't write (you shouldn't write between the play and write cursors -- the red highlighted portion in my above diagram).  It should not be any indicator of where you're writing sound data -- you should be writing your sound data WELL AHEAD of the write cursor.
+<br />
+<br />Lemme try and explain the diagram a little better:
+<br />
+<br />Green Area on circle = fresh sound data (what is ready to play)
+<br />Yellow Area on circle = stale sound data (has already played -- you don't want it to play again)
+<br />Red Area of circle = "off limits" area -- don't write here (just the area between P and W).
+<br />
+<br />Circle 1 shows how things should look when you first start playing your buffer.  It's completely filled with sound, and ready to play.
+<br />
+<br />After you start playing the buffer, P and W will start moving clockwise around the circle, playing the sound data (turning green to yellow).  This is shown by Circle 2.
+<br />
+<br /><strong>Your program's</strong> job is to keep an eye on how much of that sound has turned yellow, and to keep replacing the yellow with green (writing new sound data up to the play cursor).  The 'X' mark on the circle is the point you last wrote you (DirectSound does not keep track of this!!  You will have to do it yourself!  This is not the write cursor!).  You will end up sort of having 'X' follow 'P' around the circle, replacing the stale yellow sound data with fresh new green sound data.  This is shown by Circle 3
+<br />
+<br />As you can see from the diagram, there should always be a decent amount of green space between P and X.  If P ever hits a yellow portion, your sound will distort.
+<br />
+<br />As for the buffer wrapping, this just happens (it's not shown in that diagram).  All you have to do to manage this is use both pointers you get from DSound.  First you fill the buffer1 pointer you get from Lock, then buffer2.
+<br />
+<br />The wrapping doesn't have to have any affect on which areas you lock!  Just lock with a starting point and a length like you would for any other lock -- and if you get two pointers, so be it.  Just write to both of them.
+<br />
+<br />
+<br />As for BL-synth, I'm not really in the mood to try and explain it right now.  Though I understand that Blargg's docs can be a little difficult to understand when you're new to the topic.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

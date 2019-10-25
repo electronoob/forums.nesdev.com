@@ -1,0 +1,178 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Dissecting Super Mario Bros.</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Dissecting Super Mario Bros.</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=8925">http://forums.nesdev.com/viewtopic.php?f=2&amp;t=8925</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>noattack</b> [ Tue May 22, 2012 10:38 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Dissecting Super Mario Bros.</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />As the topic indicates, I've been looking through the Super Mario Bros. source code (and some related posts) to better understand how it works. A few questions:
+<br />
+<br />- Sprite 0's tile is the bottom sliver of the status bar coin, which appears to sit <em>behind</em> the coin tile that color cycles. However, when Mario breaks through the upper boundary (e.g. 1-2) and stands in front of the coin, that small sliver appears in <em>front</em> of his leg. What is the priority of sprite 0 and what exactly is showing through? It seems to be the only portion of the status bar that Mario doesn't obscure. I am not clear on tile priorities in this case. Does sprite 0's collision still work if it is behind BG tiles? 
+<br />
+<br />- When I load the ROM in FCEUX and watch the name tables, the scroll bar never moves. In most other scrolling games, it tracks along the name tables as expected. Is this a FCEUX anomaly or something else I'm missing?
+<br />
+<br />- tepples has mentioned previously that SMB uses a 32x13 metatile sliding window in RAM for collision purposes. In certain cases, Mario can kick a Koopa shell offscreen and follow it until it rebounds from a nearby obstacle but without colliding with enemies directly offscreen. Are enemy objects spawned in a tighter perimeter than the collision buffer so that a ricocheting shell can miss them on the way out but collide on the way back (once they are visible)? 
+<br />
+<br />- I'm not very experienced with debugging tools. How could I experiment with repositioning sprite 0 (e.g. move it further down the screen)?
+<br />
+<br />- I understand how the coins/question blocks use palette cycling to 'shimmer' but I can't figure out how the fire flower works. In Nintendulator it looks like the sprites are quickly changing, but I don't see any palette changes.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Tue May 22, 2012 11:42 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Dissecting Super Mario Bros.</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">noattack wrote:</div><div class="quotecontent">- Sprite 0's tile is the bottom sliver of the status bar coin, which appears to sit <em>behind</em> the coin tile that color cycles. However, when Mario breaks through the upper boundary (e.g. 1-2) and stands in front of the coin, that small sliver appears in <em>front</em> of his leg. What is the priority of sprite 0 and what exactly is showing through?</div><br />That's the triple overlap condition. Sprite 0 is in front of everything else. The priority bit in each OAM entry doesn't really mean "put this sprite in back"; it means "replace pixels in this sprite with pixels from the background if they aren't transparent". So because sprite 0 is in front of Mario, and its pixels have been replaced with the background pixels that it overlaps, it brings the background pixels in front of Mario.<br /><br />Super Mario Bros. 3 uses this on purpose in order to cover up items sprouting from blocks. It can't just turn on the item's priority bit because sometimes the space above the block might not be completely flat background color. Notice that when you get something out of a note block, the note block turns squarish. That square is the mask sprite placed "behind" the note block but in front of the item, so that the mask sprite can bring background pixels to the front.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Does sprite 0's collision still work if it is behind BG tiles?</div><br />Yes, the PPU still detects the overlap. The priority flag just tells which pixel to use in case they do overlap.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">- When I load the ROM in FCEUX and watch the name tables, the scroll bar never moves. In most other scrolling games, it tracks along the name tables as expected. Is this a FCEUX anomaly or something else I'm missing?</div><br />I can't use the Name Table Viewer myself because my laptop's screen isn't tall enough. But does FCEUX let you tell which scanline to watch for the map display? If so, perhaps it's set to watch line 0 and base the scroll bar on that. If not, perhaps it's hardcoded to line 0.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">In certain cases, Mario can kick a Koopa shell offscreen and follow it until it rebounds from a nearby obstacle but without colliding with enemies directly offscreen. Are enemy objects spawned in a tighter perimeter than the collision buffer so that a ricocheting shell can miss them on the way out but collide on the way back (once they are visible)? </div><br />Perhaps the enemy-to-enemy collision detection is just programmed differently from the enemy-to-background collision detection.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">- I understand how the coins/question blocks use palette cycling to 'shimmer' but I can't figure out how the fire flower works. In Nintendulator it looks like the sprites are quickly changing, but I don't see any palette changes.</div>
+<br />Does it change what palette number (0 through 3) is written to bits 1-0 of attribute 2?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>noattack</b> [ Tue May 22, 2012 12:02 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Dissecting Super Mario Bros.</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tepples wrote:</div><div class="quotecontent">That's the triple overlap condition. Sprite 0 is in front of everything else. The priority bit in each OAM entry doesn't really mean "put this sprite in back"; it means "replace pixels in this sprite with pixels from the background if they aren't transparent". So because sprite 0 is in front of Mario, and its pixels have been replaced with the background pixels that it overlaps, it brings the background pixels in front of Mario.<br /><br />Super Mario Bros. 3 uses this on purpose in order to cover up items sprouting from blocks. It can't just turn on the item's priority bit because sometimes the space above the block might not be completely flat background color. Notice that when you get something out of a note block, the note block turns squarish. That square is the mask sprite placed "behind" the note block but in front of the item, so that the mask sprite can bring background pixels to the front.</div><br /><br />That's fascinating - never knew it worked that way. Thanks!<br /><br /><div class="quotetitle">tepples wrote:</div><div class="quotecontent">I can't use the Name Table Viewer myself because my laptop's screen isn't tall enough. But does FCEUX let you tell which scanline to watch for the map display? If so, perhaps it's set to watch line 0 and base the scroll bar on that. If not, perhaps it's hardcoded to line 0.</div><br /><br />Yep, that was the problem. Once I set it to scanline 32, it worked as expected.<br /><br /><br /><div class="quotetitle">tepples wrote:</div><div class="quotecontent">Does it change what palette number (0 through 3) is written to bits 1-0 of attribute 2?</div>
+<br />
+<br />I'm not sure how to check that. Still grappling with understanding attributes...
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

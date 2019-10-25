@@ -1,0 +1,144 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Analysis on NTSC signal gen. by the PPU, including vblanks</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Analysis on NTSC signal gen. by the PPU, including vblanks</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=11237">http://forums.nesdev.com/viewtopic.php?f=2&amp;t=11237</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bisqwit</b> [ Sun May 11, 2014 9:47 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Analysis on NTSC signal gen. by the PPU, including vblanks</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I took the time and used the venerable <a href="http://www.qmtpro.com/~nes/chipimages/visual2c02/" class="postlink">Visual2C02</a> to trace through 1.2 complete frames and see what kind of signal the PPU pushes out at all times.<br /><br />Here's my results.<br /><br />First, some terminology.<br />There are twelve signals that the PPU can produce. Some of those are identical. I will call them by the name that Visual2C02 uses.<br /><br /><ul><li>vid_sync_l  and vid_sync_h:  aka. Sync and Black.</li><li>vid_burst_l and vid_burst_h:  Colorburst low and high.</li><li>vid_luma0_l and vid_luma0_h:  Signal levels equivalent to colors 0D and 00 respectively.</li><li>vid_luma1_l and vid_luma1_h:  Signal levels equivalent to colors 1D and 10 respectively.</li><li>vid_luma2_l and vid_luma2_h:  Signal levels equivalent to colors 2D and 20 respectively.</li><li>vid_luma3_l and vid_luma3_h:  Signal levels equivalent to colors 3D and 30 respectively.</li><li>vid_luma3_h is identical to vid_luma2_h.</li><li>vid_sync_h is identical to vid_luma1_l.</li></ul>Additionally, there is a vid_emph which can vary the vid_luma* signal output.<br /><br />So here's a scanline-by-scanline analysis of what the PPU produces.<br /><br /><ul><li>hpos=4: On lines 0―239, the PPU starts producing color image (or grayscale image if $2001.0 was set).</li><li>hpos=257: On lines 245―247, the PPU switches to vid_sync_h here. (Equalization pulses)</li><li>hpos=260: On lines 0―239, the PPU starts producing background color again. (As on hpos=330.)</li><li>hpos=271: On lines 0―241,   the PPU switches to vid_sync_h here. (Front porch)</li><li>hpos=280: On every line,    the PPU switches to vid_sync_l here. (Horizontal sync)</li><li>hpos=305: On lines 0―243 and 247―261, the PPU switches back to vid_sync_h here. (Begin of back porch)</li><li>hpos=309: On lines 0―243 and 247―261, the PPU starts producing colorburst signal.</li><li>hpos=324: On lines 0―243 and 247―261, the PPU switches back to vid_sync_h here. (End of back porch)</li><li>hpos=329: On lines 0―240 and 261, the PPU starts producing background color in grayscale as if $2001.0 was set. This serves as the &quot;pulse&quot; that signifies the beginning of the image, as it is always different from the vid_sync_h in back porch.</li><li>hpos=330: On lines 0―240 and 261, the PPU starts producing background color normally.</li></ul>The signal switches always happen exactly 4 half-cycles after the horizontal position (hpos) has been incremented.<br /><br />Corollaries:<br /><ul><li>On scanlines 0―241, the PPU produces color image. This means <em>242</em> lines of image. The palette background color is rendered on all of them.</li><li> On lines 242―244 and 248―261, the PPU produces long black lines (297 columns worth vid_sync_h). These black lines include the colorburst and sync as normal visible lines do, but they do not include the &quot;pulse&quot;.</li><li> On lines 245―247, the PPU produces very long sync pulses (318 columns).</li></ul><br />Colorburst signal is signal that toggles vid_burst_l and vid_burst_h after every 6 half-cycles.<br />Colors are produced as such (this is just a rehash of the information on <a href="http://wiki.nesdev.com/w/index.php/NTSC_video" class="postlink">http://wiki.nesdev.com/w/index.php/NTSC_video</a>):<br /><ul><li> For colors $00,$10,$20,$30 (i.e. $X0), only vid_lumaX_h is produced.</li><li> For colors $0D,$1D,$2D,$3D (i.e. $XD), only vid_lumaX_l is produced.</li><li> For colors $XE and $XF, only vid_luma1_l is produced (i.e. treated as $1D; X is ignored).</li><li> When grayscale is active, any color $XY is treated as if $X0, even if Y=D.</li><li> For any other color $XY, vid_lumaX_l and vid_lumaX_h are alternated every 6 half-cycles with starting phase Y relative to colorburst.</li></ul><br />Missing tests:<br /><ul><li>I did not test whether the emphasis bits affect the background color or any other signals.</li></ul><br />Source material:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">Making the golden log:<br /><br />http://www.qmtpro.com/~nes/chipimages/visual2c02/<br /><br />Find &quot;vid&quot;<br />Select Post-render scanline, odd frame<br />Unclick Show sprite RAM contents<br />Unclick Animate during simulation<br />Trace these too: vid,vid_sync_l,vid_sync_h,vid_burst_l,vid_burst_h,vid_luma0_l,vid_luma0_h,vid_luma3_l,vid_luma3_h<br />Click RESET<br />Hide Chip Layout<br />Poke at 3F00: 3D (this causes SPIKE to be vid_luma3_h, BORDER to be vid_luma3_l, and GAME to be vid_luma0_h)<br />Poke at 0000: 16 * FF (ensures that game view will be rendered at color 00 rather than 3D)<br />&nbsp; &nbsp; &nbsp; &nbsp; NEXT SCANLINE<br />After every 3 scanlines or so, CTRL-A to mark everything, and paste it into a text file.<br />Clear log AND DON'T FORGET TO CLICK &quot;Trace These Too&quot; again!<br />The simulator becomes linearly slower and slower the longer the log is, so you have to clear it periodically.<br />Note: If you have to reset, you MUST poke the palette value again!<br /><br />---<br />Signalwise summary:<br />&nbsp; vid_luma0_h (Game) at x=&nbsp; 4 on lines 0-239<br />&nbsp;vid_sync_h&nbsp; (Black) at x=257 on lines 245-247<br />vid_luma3_l (Border) at x=260 on lines 0-239<br />&nbsp;vid_sync_h&nbsp; (Black) at x=271 on lines 0-241<br />&nbsp; vid_sync_l&nbsp; (Sync) at x=280 on lines 0-261<br />&nbsp;vid_sync_h&nbsp; (Black) at x=305 on lines 0-243, 247-261<br />&nbsp;vid_burst_* (Burst) at x=309 on lines 0-243, 247-261<br />&nbsp;vid_sync_h&nbsp; (Black) at x=324 on lines 0-243, 247-261<br />&nbsp;vid_luma3_h (Pulse) at x=329 on lines 0-240, 261-261<br />vid_luma3_l (Border) at x=330 on lines 0-240, 261-261<br />---<br />Linewise summary (each &quot;line&quot; begins at column 280 on _previous_ scanline):<br />&nbsp; Line 240<br />&nbsp; &nbsp; &#91;&#91; These six lines are manual simulation; extrapolation from next frame. &#93;&#93;<br />&nbsp; &nbsp; row 239, column 280, half-cycle 4:&nbsp; &nbsp;vid_sync_l&nbsp; (Sync)&nbsp; &nbsp; (25 columns) - cycle -242<br />&nbsp; &nbsp; row 239, column 305, half-cycle 4:&nbsp; &nbsp;vid_sync_h&nbsp; (Black)&nbsp; &nbsp; (4 columns) - cycle -142<br />&nbsp; &nbsp; row 239, column 309, half-cycle 4:&nbsp; &nbsp;vid_burst_* (Burst)&nbsp; &nbsp;(15 columns) - cycle -126<br />&nbsp; &nbsp; row 239, column 324, half-cycle 4:&nbsp; &nbsp;vid_sync_h&nbsp; (Black)&nbsp; &nbsp; (5 columns) - cycle -66<br />&nbsp; &nbsp; row 239, column 329, half-cycle 4:&nbsp; &nbsp;vid_luma3_h (Pulse)&nbsp; &nbsp; (1 columns) - cycle -46<br />&nbsp; &nbsp; row 239, column 330, half-cycle 4:&nbsp; &nbsp;vid_luma3_l (Border) (282 columns) - cycle -42<br />&nbsp; &nbsp; <br />&nbsp; &nbsp; &#91;&#91;Simulation begins here, using the &quot;Post-render scanline, odd frame&quot; option in Visual2c02.<br />&nbsp; &nbsp; &nbsp; These two first lines are garbage.&#93;&#93;<br />&nbsp; &nbsp; row 240, column&nbsp; &nbsp;0, half-cycle 0:&nbsp; &nbsp;vid_sync_h&nbsp; (Black)&nbsp; (1.5 columns) - cycle 0<br />&nbsp; &nbsp; row 240, column&nbsp; &nbsp;1, half-cycle 4:&nbsp; &nbsp;vid_luma3_l (Border) (270 columns) - cycle 6<br /><br />&nbsp; &nbsp; row 240, column 271, half-cycle 4:&nbsp; &nbsp;vid_sync_h&nbsp; (Black)&nbsp; &nbsp; (9 columns) - cycle 1086<br />&nbsp; &nbsp; (341 cycles)<br />&nbsp; Line 241<br />&nbsp; &nbsp; row 240, column 280, half-cycle 4:&nbsp; &nbsp;vid_sync_l&nbsp; (Sync)&nbsp; &nbsp; (25 columns) - cycle 1122<br />&nbsp; &nbsp; row 240, column 305, half-cycle 4:&nbsp; &nbsp;vid_sync_h&nbsp; (Black)&nbsp; &nbsp; (4 columns) - cycle 1222<br />&nbsp; &nbsp; row 240, column 309, half-cycle 4:&nbsp; &nbsp;vid_burst_* (Burst)&nbsp; &nbsp;(15 columns) - cycle 1238<br />&nbsp; &nbsp; row 240, column 324, half-cycle 4:&nbsp; &nbsp;vid_sync_h&nbsp; (Black)&nbsp; &nbsp; (5 columns) - cycle 1298<br />&nbsp; &nbsp; row 240, column 329, half-cycle 4:&nbsp; &nbsp;vid_luma3_h (Pulse)&nbsp; &nbsp; (1 columns) - cycle 1318<br />&nbsp; &nbsp; row 240, column 330, half-cycle 4:&nbsp; &nbsp;vid_luma3_l (Border) (282 columns) - cycle 1322<br />&nbsp; &nbsp; row 241, column 271, half-cycle 4:&nbsp; &nbsp;vid_sync_h&nbsp; (Black)&nbsp; &nbsp; (9 columns) - cycle 2450<br />&nbsp; &nbsp; (341 cycles)<br />&nbsp; Lines 242-244<br />&nbsp; &nbsp; row 241, column 280, half-cycle 4:&nbsp; &nbsp;vid_sync_l&nbsp; (Sync)&nbsp; &nbsp; (25 columns) - cycle 2486<br />&nbsp; &nbsp; row 241, column 305, half-cycle 4:&nbsp; &nbsp;vid_sync_h&nbsp; (Black)&nbsp; &nbsp; (4 columns) - cycle 2586<br />&nbsp; &nbsp; row 241, column 309, half-cycle 4:&nbsp; &nbsp;vid_burst_* (Burst)&nbsp; &nbsp;(15 columns) - cycle 2602<br />&nbsp; &nbsp; row 241, column 324, half-cycle 4:&nbsp; &nbsp;vid_sync_h&nbsp; (Black)&nbsp; (297 columns) - cycle 2662<br />&nbsp; &nbsp; (341 cycles)<br />&nbsp; Lines 245-247<br />&nbsp; &nbsp; row 244, column 280, half-cycle 4:&nbsp; &nbsp;vid_sync_l&nbsp; (Sync)&nbsp; &nbsp;(318 columns) - cycle 6578<br />&nbsp; &nbsp; row 245, column 257, half-cycle 4:&nbsp; &nbsp;vid_sync_h&nbsp; (Black)&nbsp; &nbsp;(23 columns) - cycle 7850<br />&nbsp; &nbsp; (341 cycles)<br />&nbsp; Lines 248-261<br />&nbsp; &nbsp; row 247, column 280, half-cycle 4:&nbsp; &nbsp;vid_sync_l&nbsp; (Sync)&nbsp; &nbsp; (25 columns) - cycle 10670<br />&nbsp; &nbsp; row 247, column 305, half-cycle 4:&nbsp; &nbsp;vid_sync_h&nbsp; (Black)&nbsp; &nbsp; (4 columns) - cycle 10770<br />&nbsp; &nbsp; row 247, column 309, half-cycle 4:&nbsp; &nbsp;vid_burst_* (Burst)&nbsp; &nbsp;(15 columns) - cycle 10786<br />&nbsp; &nbsp; row 247, column 324, half-cycle 4:&nbsp; &nbsp;vid_sync_h&nbsp; (Black)&nbsp; (297 columns) - cycle 10846<br />&nbsp; &nbsp; (341 cycles)<br />&nbsp; Line 0<br />&nbsp; &nbsp; row 261, column 280, half-cycle 4:&nbsp; &nbsp;vid_sync_l&nbsp; (Sync)&nbsp; &nbsp; (25 columns) - cycle 29766<br />&nbsp; &nbsp; row 261, column 305, half-cycle 4:&nbsp; &nbsp;vid_sync_h&nbsp; (Black)&nbsp; &nbsp; (4 columns) - cycle 29866<br />&nbsp; &nbsp; row 261, column 309, half-cycle 4:&nbsp; &nbsp;vid_burst_* (Burst)&nbsp; &nbsp;(15 columns) - cycle 29882<br />&nbsp; &nbsp; row 261, column 324, half-cycle 4:&nbsp; &nbsp;vid_sync_h&nbsp; (Black)&nbsp; &nbsp; (5 columns) - cycle 29942<br />&nbsp; &nbsp; row 261, column 329, half-cycle 4:&nbsp; &nbsp;vid_luma3_h (Pulse)&nbsp; &nbsp; (1 columns) - cycle 29962<br />&nbsp; &nbsp; row 261, column 330, half-cycle 4:&nbsp; &nbsp;vid_luma3_l (Border)&nbsp; (14 columns) - cycle 29966<br />&nbsp; &nbsp; row&nbsp; &nbsp;0, column&nbsp; &nbsp;4, half-cycle 4:&nbsp; &nbsp;vid_luma0_h (Game)&nbsp; &nbsp;(256 columns) - cycle 30022<br />&nbsp; &nbsp; row&nbsp; &nbsp;0, column 260, half-cycle 4:&nbsp; &nbsp;vid_luma3_l (Border)&nbsp; (11 columns) - cycle 31046<br />&nbsp; &nbsp; row&nbsp; &nbsp;0, column 271, half-cycle 4:&nbsp; &nbsp;vid_sync_h&nbsp; (Black)&nbsp; &nbsp; (9 columns) - cycle 31090<br />&nbsp; &nbsp; (340 cycles; column 0 was skipped)<br />&nbsp; Lines 1-239<br />&nbsp; &nbsp; row&nbsp; &nbsp;0, column 280, half-cycle 4:&nbsp; &nbsp;vid_sync_l&nbsp; (Sync)&nbsp; &nbsp; (25 columns) - cycle 31126<br />&nbsp; &nbsp; row&nbsp; &nbsp;0, column 305, half-cycle 4:&nbsp; &nbsp;vid_sync_h&nbsp; (Black)&nbsp; &nbsp; (4 columns) - cycle 31226<br />&nbsp; &nbsp; row&nbsp; &nbsp;0, column 309, half-cycle 4:&nbsp; &nbsp;vid_burst_* (Burst)&nbsp; &nbsp;(15 columns) - cycle 31242<br />&nbsp; &nbsp; row&nbsp; &nbsp;0, column 324, half-cycle 4:&nbsp; &nbsp;vid_sync_h&nbsp; (Black)&nbsp; &nbsp; (5 columns) - cycle 31302<br />&nbsp; &nbsp; row&nbsp; &nbsp;0, column 329, half-cycle 4:&nbsp; &nbsp;vid_luma3_h (Pulse)&nbsp; &nbsp; (1 columns) - cycle 31322<br />&nbsp; &nbsp; row&nbsp; &nbsp;0, column 330, half-cycle 4:&nbsp; &nbsp;vid_luma3_l (Border)&nbsp; (15 columns) - cycle 31326<br />&nbsp; &nbsp; row&nbsp; &nbsp;1, column&nbsp; &nbsp;4, half-cycle 4:&nbsp; &nbsp;vid_luma0_h (Game)&nbsp; &nbsp;(256 columns) - cycle 31386<br />&nbsp; &nbsp; row&nbsp; &nbsp;1, column 260, half-cycle 4:&nbsp; &nbsp;vid_luma3_l (Border)&nbsp; (11 columns) - cycle 32410<br />&nbsp; &nbsp; row&nbsp; &nbsp;1, column 271, half-cycle 4:&nbsp; &nbsp;vid_sync_h&nbsp; (Black)&nbsp; &nbsp; (9 columns) - cycle 32454<br />&nbsp; &nbsp; (341 cycles)<br />&nbsp; Line 240-241<br />&nbsp; &nbsp; row 239, column 280, half-cycle 4:&nbsp; &nbsp;vid_sync_l&nbsp; (Sync)&nbsp; &nbsp; (25 columns) - cycle 357122<br />&nbsp; &nbsp; row 239, column 305, half-cycle 4:&nbsp; &nbsp;vid_sync_h&nbsp; (Black)&nbsp; &nbsp; (4 columns) - cycle 357222<br />&nbsp; &nbsp; row 239, column 309, half-cycle 4:&nbsp; &nbsp;vid_burst_* (Burst)&nbsp; &nbsp;(15 columns) - cycle 357238<br />&nbsp; &nbsp; row 239, column 324, half-cycle 4:&nbsp; &nbsp;vid_sync_h&nbsp; (Black)&nbsp; &nbsp; (5 columns) - cycle 357298<br />&nbsp; &nbsp; row 239, column 329, half-cycle 4:&nbsp; &nbsp;vid_luma3_h (Pulse)&nbsp; &nbsp; (1 columns) - cycle 357318<br />&nbsp; &nbsp; row 239, column 330, half-cycle 4:&nbsp; &nbsp;vid_luma3_l (Border) (282 columns) - cycle 357322<br />&nbsp; &nbsp; row 240, column 271, half-cycle 4:&nbsp; &nbsp;vid_sync_h&nbsp; (Black)&nbsp; &nbsp; (9 columns) - cycle 358450<br />&nbsp; &nbsp; (341 cycles)<br />&nbsp; Lines 242-244<br />&nbsp; &nbsp; row 241, column 280, half-cycle 4:&nbsp; &nbsp;vid_sync_l&nbsp; (Sync)&nbsp; &nbsp; (25 columns) - cycle<br />&nbsp; &nbsp; row 241, column 305, half-cycle 4:&nbsp; &nbsp;vid_sync_h&nbsp; (Black)&nbsp; &nbsp; (4 columns) - cycle<br />&nbsp; &nbsp; row 241, column 309, half-cycle 4:&nbsp; &nbsp;vid_burst_* (Burst)&nbsp; &nbsp;(15 columns) - cycle<br />&nbsp; &nbsp; row 241, column 324, half-cycle 4:&nbsp; &nbsp;vid_sync_h&nbsp; (Black)&nbsp; (297 columns) - cycle<br />&nbsp; &nbsp; (341 cycles)<br />&nbsp; Lines 245-247<br />&nbsp; &nbsp; row 244, column 280, half-cycle 4:&nbsp; &nbsp;vid_sync_l&nbsp; (Sync)&nbsp; &nbsp;(318 columns) - cycle<br />&nbsp; &nbsp; row 245, column 257, half-cycle 4:&nbsp; &nbsp;vid_sync_h&nbsp; (Black)&nbsp; &nbsp;(23 columns) - cycle<br />&nbsp; &nbsp; (341 cycles)<br />&nbsp; Lines 248-261<br />&nbsp; &nbsp; row 247, column 280, half-cycle 4:&nbsp; &nbsp;vid_sync_l&nbsp; (Sync)&nbsp; &nbsp; (25 columns) - cycle 368034<br />&nbsp; &nbsp; row 247, column 305, half-cycle 4:&nbsp; &nbsp;vid_sync_h&nbsp; (Black)&nbsp; &nbsp; (4 columns) - cycle 368134<br />&nbsp; &nbsp; row 247, column 309, half-cycle 4:&nbsp; &nbsp;vid_burst_* (Burst)&nbsp; &nbsp;(15 columns) - cycle 368150<br />&nbsp; &nbsp; row 247, column 324, half-cycle 4:&nbsp; &nbsp;vid_sync_h&nbsp; (Black)&nbsp; (297 columns) - cycle 368210<br />&nbsp; &nbsp; (341 cycles)<br />&nbsp; Lines 0-239<br />&nbsp; &nbsp; row 261, column 280, half-cycle 4:&nbsp; &nbsp;vid_sync_l&nbsp; (Sync)&nbsp; &nbsp; (25 columns) - cycle 387130<br />&nbsp; &nbsp; row 261, column 305, half-cycle 4:&nbsp; &nbsp;vid_sync_h&nbsp; (Black)&nbsp; &nbsp; (4 columns) - cycle 387230<br />&nbsp; &nbsp; row 261, column 309, half-cycle 4:&nbsp; &nbsp;vid_burst_* (Burst)&nbsp; &nbsp;(15 columns) - cycle 387246<br />&nbsp; &nbsp; row 261, column 324, half-cycle 4:&nbsp; &nbsp;vid_sync_h&nbsp; (Black)&nbsp; &nbsp; (5 columns) - cycle 387306<br />&nbsp; &nbsp; row 261, column 329, half-cycle 4:&nbsp; &nbsp;vid_luma3_h (Pulse)&nbsp; &nbsp; (1 columns) - cycle 387326<br />&nbsp; &nbsp; row 261, column 330, half-cycle 4:&nbsp; &nbsp;vid_luma3_l (Border)&nbsp; (15 columns) - cycle 387330<br />&nbsp; &nbsp; row&nbsp; &nbsp;0, column&nbsp; &nbsp;4, half-cycle 4:&nbsp; &nbsp;vid_luma0_h (Game)&nbsp; &nbsp;(256 columns) - cycle 387390<br />&nbsp; &nbsp; row&nbsp; &nbsp;0, column 260, half-cycle 4:&nbsp; &nbsp;vid_luma3_l (Border)&nbsp; (11 columns) - cycle 388414<br />&nbsp; &nbsp; row&nbsp; &nbsp;0, column 271, half-cycle 4:&nbsp; &nbsp;vid_sync_h&nbsp; (Black)&nbsp; &nbsp; (9 columns) - cycle 388458<br />&nbsp; &nbsp; (341 cycles)</div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bisqwit</b> [ Wed May 21, 2014 3:38 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Analysis on NTSC signal gen. by the PPU, including vblan</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I updated the previous post, now including double-checked content based on tracing through an entire frame and a little more.<br /><br />Additional notes:<br /><br />- If rendering is disabled ($2001 is $00), the cycle skipping (column 0 of row 0) does not happen. Then line 0 is always 341 columns long.<br /><br />- If sprite rendering is enabled, even though background rendering is not ($2001 is $10), the skipped cycle still happens.<br /><br />- If background rendering is disabled, background color (Border) will be rendered instead of Game content where applicable. Practically these scanlines will be rendered the same way as scanline 240.<br /><br />- The 8-pix border flags do not have any effect if the corresponding rendering-enable flag is disabled. This means that $2001.1 is only checked if $2001.3 is set, and $2001.2 is only checked if $2001.4 is set. This also means that if $2001 is $06, it is the same as if $2001 was $00.<br /><br />- None of these bits change the vblank region in any manner (except for the skipped cycle).<br /><br />- The grayscale bit is always honored, regardless of the other enable-disable flags. It affects the rendering of border, even on scanlines 240-241. (The Pulse will always be generated as if grayscale was enabled, regardless of its actual state.) I assume that the de-emphasis bits are always honored too. I have not tested it though.<br /><br />Testing the different rendering enable/disable flags was done by adding an option &quot;?c=2100&quot; into the URL; where 21 stands for port $2001 and 00 stands for the value $00 to be written into that port.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

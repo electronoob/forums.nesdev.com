@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=10&amp;t=5958" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2010-01-19T16:34:24-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=10&amp;t=5958</id>
+<entry>
+<author><name><![CDATA[A_Rival]]></name></author>
+<updated>2010-01-19T16:34:24-07:00</updated>
+<published>2010-01-19T16:34:24-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=5958&amp;p=55395#p55395</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=5958&amp;p=55395#p55395"/>
+<title type="html"><![CDATA[Reading from addresses not working like expected.]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=5958&amp;p=55395#p55395"><![CDATA[
+Thank you for your help!  You taught me to use a debugger much more like a real man.<br /><br />With a little help, I figured out the issue.  I had an RTS command on a routine that isn't a subroutine (specifically on line 143).  Removed that, and everything works!<br /><br />Thanks for your help.<br /><br />-A<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4201">A_Rival</a> — Tue Jan 19, 2010 4:34 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[koitsu]]></name></author>
+<updated>2010-01-19T16:07:19-07:00</updated>
+<published>2010-01-19T16:07:19-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=5958&amp;p=55392#p55392</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=5958&amp;p=55392#p55392"/>
+<title type="html"><![CDATA[Reading from addresses not working like expected.]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=5958&amp;p=55392#p55392"><![CDATA[
+Your code is a little confusing to understand, and it doesn't help that I'm not familiar with the pseudo-ops and assembler directives you're using (.byte and enum specifically).<br /><br />You do seem to understand the difference between something like LDA #P1Velocity and LDA P1Velocity, but I'm not sure what the assembler is actually doing with either of those cases due to said pseudo-ops above.<br /><br />This is where generating an assembler listing would be helpful (to you).  You could see exactly what your code assembles to, opcode and operand-wise, and work out what's going on and why -- or at least rule out assembler bugs or misunderstandings.<br /><br />Anyway, all that said, based on your code, I can tell the following:<br /><br />1) RESET vector points to address of label Reset (e.g. $8000)<br /><br />2) ClearMemory routine does something I don't quite understand, specifically: STA 0,X.  I believe this should be STA $0000,X, and the assembler is probably doing that for you.  I recommend using 4-digit addresses if possible (it's easy to confuse $300 and $30).<br /><br />3) Right after ClearMemory loop finishes, you do LDA P2Velocity / STA P1Velocity.  Since I don't quite understand the enum pseudo-op, I have to assume that these are basically equates, e.g. all of these are identical to doing:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">P1Direction  = $00   ; ZP address $00<br />P1State      = $01   ; ZP address $01<br />P1Position   = $02   ; ZP address $02<br />P1Velocity   = $03   ; ZP address $03<br />...<br />.org $8000<br />...<br />other code here<br />...<br />P2Velocity   .db $02 ; Somewhere up in PRG-ROM range &#40;$8xxx likely&#41;<br /></div><br /><br />And so on.<br /><br />If that's the case, the LDA/STA pair above should translate to, opcode/operand-wise:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">xxxx: AD LL HH     LDA P2Velocity    ; Accumulator should now hold $02 &#40;based on .db value&#41;<br />                                     ; LL and HH = low byte and high byte<br />                                     ; of 16-bit address of P2Velocity<br />xxxx: 85 03        STA P1Velocity    ; ZP address $03 should now contain value $02<br /></div><br /><br />Then in your MoveP1Loop (which is the only other place which accesses P1Velocity), you have:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">xxxx: BD 00 05     LDA $500, x     ; Accumulator loaded with value from $0500 + X offset<br />xxxx: 18           CLC             ; Clear carry before addition<br />xxxx: 65 03        ADC P1Velocity  ; Add contents of ZP address $03 to the accumulator.<br />                                   ; Based on code further up, this should add value $02<br />                                   ; to whatever the accum is at this time.<br /></div><br /><br />So, ultimately I don't see any reason your code shouldn't work -- but that's based entirely on my assumption of how the pseudo-ops work.<br /><br />Quite honestly, I prefer to use equates (e.g. EQU or =) to match labels to zero page, and manage the values by hand.  You know, like the code at the top of your program which you have commented out?  :-)<br /><br />You should be able to work out what's going on by looking at an assembly listing of your code.  A good assembler will allow you to generate this.<br /><br />Otherwise, if it's something going haywire in real-time, you're going to need a real-time debugger (in an emulator or via CopyNES) to assist with things.  Set breakpoints at $8000 and whatever address your LDA P2Velocity statement maps to (somewhere in the $8xxx range), as well as whatever address MoveP1Loop gets mapped to.  You should be able to watch the accumulator and examine RAM ($0500 to $05FF looks to be of focus here) at the same time.<br /><br />Hope I didn't confuse you in the process.  I just worked through the lines of what you'd written.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3">koitsu</a> — Tue Jan 19, 2010 4:07 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[A_Rival]]></name></author>
+<updated>2010-01-19T14:21:15-07:00</updated>
+<published>2010-01-19T14:21:15-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=5958&amp;p=55380#p55380</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=5958&amp;p=55380#p55380"/>
+<title type="html"><![CDATA[Reading from addresses not working like expected.]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=5958&amp;p=55380#p55380"><![CDATA[
+Hey guys.  First time poster, 6502 newb.<br /><br />I wrote out a little program here:<br /><!-- m --><a class="postlink" href="http://pastebin.ca/1758079">http://pastebin.ca/1758079</a><!-- m --><br /><br />What I'm trying to do is load a value from a constant (P2Velocity in this case) and store that value into an address with a label (P1Velocity).<br /><br />What happens is, if I put the value #$02 into P1Velocity, and then load it into my MoveP1Loop routine, where I add it to the current position with ADC, the sprites just don't draw to the screen, whereas if I use ADC with a literal #$02, it works perfectly.  There's a bunch of weirdness like that happening whenever I use those labels I defined at the beginning of the program.  Using values like #$01 and #$03 do just fine!<br /><br />I've seen lots of examples doing things this way and they seem to work.  I'm stumped and to newb to get down to the nitty gritty.  FCEUX shows that the correct values are being stored in the correct addresses.  I'm turning to you pros to help me out. <img src="http://forums.nesdev.com/images/smilies/icon_smile.gif" alt=":-)" title="Smile" /><br /><br />If you want, I can zip up all of the assets and post them somewhere, too, if you think that'll help you guys troubleshoot.  Thanks!<br /><br />UPDATE:<br />If I move around the order that I store values into addresses starting on line 93, things will start/stop working (like values other than #$01).  Any idea why this is?<br /><br />-A<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4201">A_Rival</a> — Tue Jan 19, 2010 2:21 pm</p><hr />
+]]></content>
+</entry>
+</feed>

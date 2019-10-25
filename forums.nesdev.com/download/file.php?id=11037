@@ -1,0 +1,311 @@
+#include "..\DLL\d_iNES.h"
+#include "DIPConfig.h"
+
+namespace {
+uint8	DIPSwitch, EnableFK23C;
+int	PRGBase, PRGInitialBase, CHRBase;
+uint8	PRGMode, PRGFlip;
+uint8	CHRMode, CHRType, CHRRAMInFirst8K, CHRFlip, RestrictCHRBank, CNROMMode, CNROMLatch;
+uint8	WRAMMode, WRAMEnabled, ProtectWRAM, WRAMBank;
+uint8	MMC3Pointer, MMC3Reg[12], MMC3ExtendedMode, MMC3PointerAnomaly, Scrolling;
+uint8	IRQLatch, IRQCounter, IRQReload, IRQEnabled, IRQLatency;
+FCPUWrite _Write5;
+
+#define	CHRTYPE_ROM 0
+#define	CHRTYPE_RAM 1
+	
+void	SetCHRBank1(int Bank, int Val) {
+	if (CHRType == CHRTYPE_RAM || CHRRAMInFirst8K && Val <8)
+		EMU->SetCHR_RAM1(Bank, Val);
+	else
+		EMU->SetCHR_ROM1(Bank, Val);
+}
+
+void	SetCHRBank8(int Val) {
+	if (CHRType == CHRTYPE_RAM || CHRRAMInFirst8K && Val <1)
+		EMU->SetCHR_RAM8(0, Val);
+	else
+		EMU->SetCHR_ROM8(0, Val);
+}
+
+void	Sync() {
+	static const unsigned int WRAMBankRemap[4] = {2, 0, 3, 1};
+	int	MMC3BankMask, FK23CBank;
+
+	if (ROM->INES_CHRSize ==0)
+		CHRType = CHRTYPE_RAM;	// CHRType must be RAM if there is no CHR-ROM
+	else if (ROM->INES_Version >1 && ROM->INES2_CHRRAM ==0 || ROM->INES_Version <2 && ROM->INES_CHRSize >0)
+		CHRType = CHRTYPE_ROM;	// CHRType must be ROM if there is no CHR-RAM
+
+	switch (PRGMode) {
+		case 0:
+		case 1:
+		case 2:	MMC3BankMask = 0x3F >>PRGMode;
+			FK23CBank    = (PRGBase <<1) &~MMC3BankMask;
+			EMU->SetPRG_ROM8(0x8 ^PRGFlip, MMC3Reg[6] & MMC3BankMask | FK23CBank);
+			EMU->SetPRG_ROM8(0xA         , MMC3Reg[7] & MMC3BankMask | FK23CBank);
+			EMU->SetPRG_ROM8(0xC ^PRGFlip, (MMC3ExtendedMode? MMC3Reg[8]: 0xFE & MMC3BankMask) | FK23CBank);
+			EMU->SetPRG_ROM8(0xE         , (MMC3ExtendedMode? MMC3Reg[9]: 0xFF & MMC3BankMask) | FK23CBank);
+			break;
+		case 3:	EMU->SetPRG_ROM16(0x8, PRGBase);
+			EMU->SetPRG_ROM16(0xC, PRGBase);
+			break;
+		case 4: EMU->SetPRG_ROM32(0x8, PRGBase >>1);
+			break;
+		default:EMU->DbgOut(_TEXT("Invalid FK23C PRG Mode %u"), PRGMode);
+			break;
+	}
+	switch (CHRMode) {
+		case 0:	MMC3BankMask = (RestrictCHRBank? 0x1FF >>PRGMode: 0xFF) &0xFF;
+			FK23CBank    = (CHRBase <<3) &~MMC3BankMask;
+			if (MMC3ExtendedMode) {
+				SetCHRBank1(0 ^CHRFlip, MMC3Reg[ 0] | (CHRBase <<3));
+				SetCHRBank1(1 ^CHRFlip, MMC3Reg[10] | (CHRBase <<3));
+				SetCHRBank1(2 ^CHRFlip, MMC3Reg[ 1] | (CHRBase <<3));
+				SetCHRBank1(3 ^CHRFlip, MMC3Reg[11] | (CHRBase <<3));
+			} else {
+				SetCHRBank1(0 ^CHRFlip, MMC3Reg[ 0] & 0xFE & MMC3BankMask | FK23CBank);
+				SetCHRBank1(1 ^CHRFlip, MMC3Reg[ 0] | 0x01 & MMC3BankMask | FK23CBank);
+				SetCHRBank1(2 ^CHRFlip, MMC3Reg[ 1] & 0xFE & MMC3BankMask | FK23CBank);
+				SetCHRBank1(3 ^CHRFlip, MMC3Reg[ 1] | 0x01 & MMC3BankMask | FK23CBank);
+			}
+			SetCHRBank1(4 ^CHRFlip, MMC3Reg[2] & MMC3BankMask | FK23CBank);
+			SetCHRBank1(5 ^CHRFlip, MMC3Reg[3] & MMC3BankMask | FK23CBank);
+			SetCHRBank1(6 ^CHRFlip, MMC3Reg[4] & MMC3BankMask | FK23CBank);
+			SetCHRBank1(7 ^CHRFlip, MMC3Reg[5] & MMC3BankMask | FK23CBank);
+			break;
+		case 1:	FK23CBank = CHRBase;
+			if (CNROMMode)
+				FK23CBank |= CNROMLatch & (RestrictCHRBank? 1: 3);
+			SetCHRBank8(FK23CBank);
+			break;
+	}
+	switch (WRAMMode) {
+		case 0: if (WRAMEnabled) {
+				EMU->SetPRG_RAM8(6, 0);
+				if (ProtectWRAM) {
+					EMU->SetPRG_Ptr4(6, EMU->GetPRG_Ptr4(6), FALSE);
+					EMU->SetPRG_Ptr4(7, EMU->GetPRG_Ptr4(7), FALSE);
+				}
+			} else {
+				EMU->SetPRG_OB4(6);
+				EMU->SetPRG_OB4(7);
+			}
+			EMU->SetPRG_OB4(5);				// Disable WRAM in 5xxx range
+			break;
+		case 1:	EMU->SetPRG_RAM4(5, WRAMBankRemap[2]*2 +1);	// If FK23C registers are disabled, 5xxx range points to second half of WRAM bank 2 (unremapped)
+			EMU->SetPRG_RAM8(6, WRAMBankRemap[WRAMBank]);	// Remap WRAM bank number so that battery-backed banks 1 and 3 appear in front
+			break;
+	}
+	switch (Scrolling) {
+		case 0:	EMU->Mirror_V(); break;
+		case 1: EMU->Mirror_H(); break;
+	}
+}
+
+void	MAPINT	WriteFK23C (int Bank, int Addr, int Val) {
+	if (EnableFK23C && Addr & 1<<(DIPSwitch +4)) switch (Addr &0xF) {
+		case 0:	PRGMode = Val &0x07;
+			CHRMode = (Val &0x40)? 1: 0;
+			CHRType = (Val &0x20)? 1: 0;
+			RestrictCHRBank = (Val &0x10)? 1: 0;
+			PRGBase = PRGBase &~0x180 | ((Val &0x08)? 0x080: 0x000) | ((Val &0x80)? 0x100: 0x00);
+			break;
+		case 1:	PRGBase = PRGBase &~0x07F | (Val &0x7F);
+			break;
+		case 2:	CHRBase = Val;
+			CNROMLatch =0;
+			PRGBase = PRGBase &~0x200 | ((Val &0x40)? 0x200: 0x000);
+			break;
+		case 3:	MMC3ExtendedMode = (Val &0x02)? 1: 0;
+			CNROMMode = (Val &0x04)? 1: 0;
+			break;
+	} else		// FK23C registers are disabled
+		_Write5(Bank, Addr, Val);
+	Sync();
+}
+
+void	MAPINT	WriteBankRegister (int Bank, int Addr, int Val) {
+	switch (Addr &1) {
+		case 0:	if (MMC3PointerAnomaly) if (Val ==0x46 || Val ==0x47) Val ^=1;
+			PRGFlip = (Val &0x40)? 4: 0;
+			CHRFlip = (Val &0x80)? 4: 0;
+			MMC3Pointer = Val &(MMC3ExtendedMode? 0xF: 0x7);
+			break;
+		case 1: if (MMC3Pointer <12) MMC3Reg[MMC3Pointer] = Val;
+			break;
+	}
+	if (CNROMMode)
+		CNROMLatch = Val &3;
+	Sync();
+}
+
+void	MAPINT	WriteScrollingWRAM (int Bank, int Addr, int Val) {
+	switch (Addr &1) {
+		case 0: Scrolling = Val;
+			break;
+		case 1:	WRAMMode = (Val &0x20)? 1: 0;
+			switch(WRAMMode) {
+				case 0:	WRAMEnabled = (Val &0x80)? 1: 0;
+					ProtectWRAM = (Val &0x40)? 1: 0;
+					WRAMBank = 0;
+					CHRRAMInFirst8K = 0;
+					EnableFK23C = 1;
+					break;
+				case 1: WRAMEnabled = 1;
+					ProtectWRAM = 0;
+					WRAMBank = Val &3;
+					CHRRAMInFirst8K = (Val &0x04)? 1: 0;
+					EnableFK23C = (Val &0x40)? 1: 0;
+					break;
+			}
+			break;
+	}
+	Sync();
+}
+
+void	MAPINT	WriteIRQSetup (int Bank, int Addr, int Val) {
+	switch (Addr &1) {
+		case 0:	IRQLatch = Val;
+			break;
+		case 1: IRQReload = TRUE;
+			break;
+	}
+
+	if (CNROMMode) {
+		CNROMLatch = Val &3;
+		Sync();
+	}
+}
+
+void	MAPINT	WriteIRQEnable (int Bank, int Addr, int Val) {
+	IRQEnabled = Addr &1;
+	if (!IRQEnabled) EMU->SetIRQ(1);
+
+	if (CNROMMode) {
+		CNROMLatch = Val &3;
+		Sync();
+	}
+}
+
+BOOL	MAPINT	Load (void) {
+	iNES_SetSRAM();
+	DIPSwitch =DIPConfig::Init();
+	
+	// ROM images with 16 MiB PRG-ROM flip the $46 and $47 MMC3 register numbers.
+	MMC3PointerAnomaly = ROM->INES_PRGSize ==16384/16;
+	
+	// ROM images with 1 MiB PRG-ROM and 1 MiB CHR-ROM start at bank 7E/7F; all others initially behave like a normal MMC3 and start at bank 3E/3F.
+	PRGInitialBase = (ROM->INES_PRGSize ==1024/16 && ROM->INES_CHRSize ==1024/8)? 0x20: 0x00;
+	
+	return TRUE;
+}
+
+void	MAPINT	Unload (void) { }
+
+void	MAPINT	Reset (RESET_TYPE ResetType) {
+	DIPConfig::Reset(ResetType);
+	if (ResetType ==RESET_HARD) {
+		PRGMode =PRGFlip =CHRMode =CHRBase =CHRType =CHRRAMInFirst8K =CHRFlip =RestrictCHRBank =CNROMMode =CNROMLatch =WRAMMode =WRAMEnabled =ProtectWRAM =WRAMBank =0;
+		MMC3Pointer =MMC3ExtendedMode =Scrolling =IRQLatch =IRQCounter =IRQReload =IRQEnabled =IRQLatency =0;
+		
+		PRGBase =PRGInitialBase;
+		EnableFK23C =TRUE;
+		MMC3Reg[0] = 0; MMC3Reg[1] = 2; MMC3Reg[2] = 4; MMC3Reg[3] = 5; MMC3Reg[4] = 6; MMC3Reg[5] = 7;
+		MMC3Reg[6] = 0; MMC3Reg[7] = 1;
+		MMC3Reg[8] =0xFF; MMC3Reg[9] =0xFF; MMC3Reg[10]=0xFF; MMC3Reg[11]=0xFF;
+		EMU->SetIRQ(1);
+	}
+	_Write5 =EMU->GetCPUWriteHandler(5);
+	EMU->SetCPUWriteHandler(0x5, WriteFK23C);
+	EMU->SetCPUWriteHandler(0x8, WriteBankRegister);
+	EMU->SetCPUWriteHandler(0x9, WriteBankRegister);
+	EMU->SetCPUWriteHandler(0xA, WriteScrollingWRAM);
+	EMU->SetCPUWriteHandler(0xB, WriteScrollingWRAM);
+	EMU->SetCPUWriteHandler(0xC, WriteIRQSetup);
+	EMU->SetCPUWriteHandler(0xD, WriteIRQSetup);
+	EMU->SetCPUWriteHandler(0xE, WriteIRQEnable);
+	EMU->SetCPUWriteHandler(0xF, WriteIRQEnable);
+	Sync();
+}
+
+int	MAPINT	SaveLoad (STATE_TYPE mode, int offset, unsigned char *data) {
+	SAVELOAD_BYTE(mode, offset, data, DIPSwitch);
+	SAVELOAD_BYTE(mode, offset, data, EnableFK23C);
+	SAVELOAD_LONG(mode, offset, data, PRGBase);
+	SAVELOAD_LONG(mode, offset, data, CHRBase);
+	SAVELOAD_BYTE(mode, offset, data, PRGMode);
+	SAVELOAD_BYTE(mode, offset, data, PRGFlip);
+	SAVELOAD_BYTE(mode, offset, data, CHRMode);
+	SAVELOAD_BYTE(mode, offset, data, CHRFlip);
+	SAVELOAD_BYTE(mode, offset, data, CHRType);
+	SAVELOAD_BYTE(mode, offset, data, CHRRAMInFirst8K);
+	SAVELOAD_BYTE(mode, offset, data, RestrictCHRBank);
+	SAVELOAD_BYTE(mode, offset, data, CNROMMode);
+	SAVELOAD_BYTE(mode, offset, data, CNROMLatch);
+	SAVELOAD_BYTE(mode, offset, data, WRAMMode);
+	SAVELOAD_BYTE(mode, offset, data, WRAMEnabled);
+	SAVELOAD_BYTE(mode, offset, data, ProtectWRAM);
+	SAVELOAD_BYTE(mode, offset, data, WRAMBank);
+	SAVELOAD_BYTE(mode, offset, data, MMC3Pointer);
+	SAVELOAD_BYTE(mode, offset, data, Scrolling);
+	SAVELOAD_BYTE(mode, offset, data, IRQLatch);
+	SAVELOAD_BYTE(mode, offset, data, IRQCounter);
+	SAVELOAD_BYTE(mode, offset, data, IRQReload);
+	SAVELOAD_BYTE(mode, offset, data, IRQEnabled);
+	SAVELOAD_BYTE(mode, offset, data, IRQLatency);
+	for (int i =0; i <12; i++)
+		SAVELOAD_BYTE(mode, offset, data, MMC3Reg[i]);
+	SAVELOAD_BYTE(mode, offset, data, MMC3ExtendedMode);
+	// PRGInitialBase and MMC3PointerAnomaly are not saved, as they are derived from the ROM size instead.
+	if (mode == STATE_LOAD)	Sync();
+	return offset;
+}
+
+void	MAPINT	PPUCycle (int Addr, int Scanline, int Cycle, int IsRendering) {
+	if (IRQLatency) IRQLatency--;
+	if (Addr &0x1000) {
+		if (!IRQLatency) {
+			if (IRQCounter ==0 || IRQReload) {
+				IRQCounter = IRQLatch;
+				IRQReload = FALSE;
+			} else
+				IRQCounter--;
+			if (IRQCounter ==0 && IRQEnabled) EMU->SetIRQ(0);
+		}
+		IRQLatency = 8;
+	}
+}	
+
+unsigned char	MAPINT	Config (CFG_TYPE mode, unsigned char data) {
+	switch (mode) {
+		case CFG_WINDOW:
+			DIPSwitch =DIPConfig::Window(DIPSwitch);
+			return TRUE;
+			break;
+		case CFG_QUERY:
+			return DIPSwitch;
+			break;
+		case CFG_CMD:
+			DIPSwitch =data;
+			break;
+	}
+	return FALSE;
+}
+
+uint16 MapperNum = 176;
+} // namespace
+
+const MapperInfo MapperInfo_176 = {
+	&MapperNum,
+	_T("FK23C/FK23CA"),
+	COMPAT_FULL,
+	Load,
+	Reset,
+	Unload,
+	NULL,
+	PPUCycle,
+	SaveLoad,
+	NULL,
+	Config
+};

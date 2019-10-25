@@ -1,0 +1,186 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Game Boy Color PPU emulation [solved]</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Game Boy Color PPU emulation [solved]</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=20&amp;t=10763">http://forums.nesdev.com/viewtopic.php?f=20&amp;t=10763</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>byuu</b> [ Fri Dec 06, 2013 3:39 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Game Boy Color PPU emulation [solved]</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />So, I've tried following pandocs to the best of my ability, but graphics seem completely broken on the Zelda Oracle games.<br /><br /><img src="http://i.imgur.com/HVVjaoU.png" alt="Image" />  <img src="http://i.imgur.com/BkU3rL3.png" alt="Image" />  <img src="http://i.imgur.com/BeqIatE.png" alt="Image" /><br /><br />I'm going to keep digging at it myself, but if anyone here is familiar with how GBC rendering works, could you please take a look at my emulation below and point out any potential issues? Would greatly appreciate any help!<br /><br />(Possible it's not a PPU bug, of course. But it seems the logical place to start.)<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">void PPU::cgb_render() {<br />&nbsp; for(auto&amp; pixel : pixels) {<br />&nbsp; &nbsp; pixel.color = 0x7fff;<br />&nbsp; &nbsp; pixel.palette = 0;<br />&nbsp; &nbsp; pixel.origin = Pixel::Origin::None;<br />&nbsp; }<br /><br />&nbsp; if(status.display_enable) {<br />&nbsp; &nbsp; cgb_render_bg();<br />&nbsp; &nbsp; if(status.window_display_enable) cgb_render_window();<br />&nbsp; &nbsp; if(status.ob_enable) cgb_render_ob();<br />&nbsp; }<br /><br />&nbsp; uint32* output = screen + status.ly * 160;<br />&nbsp; for(unsigned n = 0; n &lt; 160; n++) output&#91;n&#93; = video.palette&#91;pixels&#91;n&#93;.color&#93;;<br />&nbsp; interface-&gt;lcdScanline();<br />}<br /><br />//Attributes:<br />//0x80: 0 = OAM priority, 1 = BG priority<br />//0x40: vertical flip<br />//0x20: horizontal flip<br />//0x08: VRAM bank#<br />//0x07: palette#<br />void PPU::cgb_read_tile(bool select, unsigned x, unsigned y, unsigned&amp; tile, unsigned&amp; attr, unsigned&amp; data) {<br />&nbsp; unsigned tmaddr = 0x1800 + (select &lt;&lt; 10);<br />&nbsp; tmaddr += (((y &gt;&gt; 3) &lt;&lt; 5) + (x &gt;&gt; 3)) &amp; 0x03ff;<br /><br />&nbsp; tile = vram&#91;0x0000 + tmaddr&#93;;<br />&nbsp; attr = vram&#91;0x2000 + tmaddr&#93;;<br /><br />&nbsp; unsigned tdaddr = attr &amp; 0x08 ? 0x2000 : 0x0000;<br />&nbsp; if(status.bg_tiledata_select == 0) {<br />&nbsp; &nbsp; tdaddr += 0x1000 + ((int8)tile &lt;&lt; 4);<br />&nbsp; } else {<br />&nbsp; &nbsp; tdaddr += 0x0000 + (tile &lt;&lt; 4);<br />&nbsp; }<br /><br />&nbsp; y &amp;= 7;<br />&nbsp; if(attr &amp; 0x40) y ^= 7;<br />&nbsp; tdaddr += y &lt;&lt; 1;<br /><br />&nbsp; data&nbsp; = vram&#91;tdaddr++&#93; &lt;&lt; 0;<br />&nbsp; data |= vram&#91;tdaddr++&#93; &lt;&lt; 8;<br />&nbsp; if(attr &amp; 0x20) data = hflip(data);<br />}<br /><br />void PPU::cgb_render_bg() {<br />&nbsp; unsigned iy = (status.ly + status.scy) &amp; 255;<br />&nbsp; unsigned ix = status.scx, tx = ix &amp; 7;<br /><br />&nbsp; unsigned tile, attr, data;<br />&nbsp; cgb_read_tile(status.bg_tilemap_select, ix, iy, tile, attr, data);<br /><br />&nbsp; for(unsigned ox = 0; ox &lt; 160; ox++) {<br />&nbsp; &nbsp; unsigned index = ((data &amp; (0x0080 &gt;&gt; tx)) ? 1 : 0)<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;| ((data &amp; (0x8000 &gt;&gt; tx)) ? 2 : 0);<br />&nbsp; &nbsp; unsigned palette = ((attr &amp; 0x07) &lt;&lt; 2) + index;<br />&nbsp; &nbsp; unsigned color = 0;<br />&nbsp; &nbsp; color |= bgpd&#91;(palette &lt;&lt; 1) + 0&#93; &lt;&lt; 0;<br />&nbsp; &nbsp; color |= bgpd&#91;(palette &lt;&lt; 1) + 1&#93; &lt;&lt; 8;<br />&nbsp; &nbsp; color &amp;= 0x7fff;<br /><br />&nbsp; &nbsp; pixels&#91;ox&#93;.color = color;<br />&nbsp; &nbsp; pixels&#91;ox&#93;.palette = index;<br />&nbsp; &nbsp; pixels&#91;ox&#93;.origin = (attr &amp; 0x80 ? Pixel::Origin::BGP : Pixel::Origin::BG);<br /><br />&nbsp; &nbsp; ix = (ix + 1) &amp; 255;<br />&nbsp; &nbsp; tx = (tx + 1) &amp; 7;<br />&nbsp; &nbsp; if(tx == 0) cgb_read_tile(status.bg_tilemap_select, ix, iy, tile, attr, data);<br />&nbsp; }<br />}<br /><br />void PPU::cgb_render_window() {<br />&nbsp; if(status.ly - status.wy &gt;= 144u) return;<br />&nbsp; if(status.wx &gt;= 167u) return;<br />&nbsp; unsigned iy = status.wyc++;<br />&nbsp; unsigned ix = (7 - status.wx) &amp; 255, tx = ix &amp; 7;<br /><br />&nbsp; unsigned tile, attr, data;<br />&nbsp; cgb_read_tile(status.window_tilemap_select, ix, iy, tile, attr, data);<br /><br />&nbsp; for(unsigned ox = 0; ox &lt; 160; ox++) {<br />&nbsp; &nbsp; unsigned index = ((data &amp; (0x0080 &gt;&gt; tx)) ? 1 : 0)<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;| ((data &amp; (0x8000 &gt;&gt; tx)) ? 2 : 0);<br />&nbsp; &nbsp; unsigned palette = ((attr &amp; 0x07) &lt;&lt; 2) + index;<br />&nbsp; &nbsp; unsigned color = 0;<br />&nbsp; &nbsp; color |= bgpd&#91;(palette &lt;&lt; 1) + 0&#93; &lt;&lt; 0;<br />&nbsp; &nbsp; color |= bgpd&#91;(palette &lt;&lt; 1) + 1&#93; &lt;&lt; 8;<br />&nbsp; &nbsp; color &amp;= 0x7fff;<br /><br />&nbsp; &nbsp; if(ox - (status.wx - 7) &lt; 160u) {<br />&nbsp; &nbsp; &nbsp; pixels&#91;ox&#93;.color = color;<br />&nbsp; &nbsp; &nbsp; pixels&#91;ox&#93;.palette = index;<br />&nbsp; &nbsp; &nbsp; pixels&#91;ox&#93;.origin = (attr &amp; 0x80 ? Pixel::Origin::BGP : Pixel::Origin::BG);<br />&nbsp; &nbsp; }<br /><br />&nbsp; &nbsp; ix = (ix + 1) &amp; 255;<br />&nbsp; &nbsp; tx = (tx + 1) &amp; 7;<br />&nbsp; &nbsp; if(tx == 0) cgb_read_tile(status.window_tilemap_select, ix, iy, tile, attr, data);<br />&nbsp; }<br />}<br /><br />//Attributes:<br />//0x80: 0 = OBJ above BG, 1 = BG above OBJ<br />//0x40: vertical flip<br />//0x20: horizontal flip<br />//0x08: VRAM bank#<br />//0x07: palette#<br />void PPU::cgb_render_ob() {<br />&nbsp; const unsigned Height = (status.ob_size == 0 ? 8 : 16);<br />&nbsp; unsigned sprite&#91;10&#93;, sprites = 0;<br /><br />&nbsp; //find first ten sprites on this scanline<br />&nbsp; for(unsigned s = 0; s &lt; 40; s++) {<br />&nbsp; &nbsp; unsigned sy = oam&#91;(s &lt;&lt; 2) + 0&#93; - 16;<br />&nbsp; &nbsp; unsigned sx = oam&#91;(s &lt;&lt; 2) + 1&#93; -&nbsp; 8;<br /><br />&nbsp; &nbsp; sy = status.ly - sy;<br />&nbsp; &nbsp; if(sy &gt;= Height) continue;<br /><br />&nbsp; &nbsp; sprite&#91;sprites++&#93; = s;<br />&nbsp; &nbsp; if(sprites == 10) break;<br />&nbsp; }<br /><br />&nbsp; //sort by X-coordinate, when equal, lower address comes first<br />&nbsp; for(unsigned x = 0; x &lt; sprites; x++) {<br />&nbsp; &nbsp; for(unsigned y = x + 1; y &lt; sprites; y++) {<br />&nbsp; &nbsp; &nbsp; signed sx = oam&#91;(sprite&#91;x&#93; &lt;&lt; 2) + 1&#93; - 8;<br />&nbsp; &nbsp; &nbsp; signed sy = oam&#91;(sprite&#91;y&#93; &lt;&lt; 2) + 1&#93; - 8;<br />&nbsp; &nbsp; &nbsp; if(sy &lt; sx) {<br />&nbsp; &nbsp; &nbsp; &nbsp; sprite&#91;x&#93; ^= sprite&#91;y&#93;;<br />&nbsp; &nbsp; &nbsp; &nbsp; sprite&#91;y&#93; ^= sprite&#91;x&#93;;<br />&nbsp; &nbsp; &nbsp; &nbsp; sprite&#91;x&#93; ^= sprite&#91;y&#93;;<br />&nbsp; &nbsp; &nbsp; }<br />&nbsp; &nbsp; }<br />&nbsp; }<br /><br />&nbsp; //render backwards, so that first sprite has highest priority<br />&nbsp; for(signed s = sprites - 1; s &gt;= 0; s--) {<br />&nbsp; &nbsp; unsigned n = sprite&#91;s&#93; &lt;&lt; 2;<br />&nbsp; &nbsp; unsigned sy = oam&#91;n + 0&#93; - 16;<br />&nbsp; &nbsp; unsigned sx = oam&#91;n + 1&#93; -&nbsp; 8;<br />&nbsp; &nbsp; unsigned tile = oam&#91;n + 2&#93; &amp; ~status.ob_size;<br />&nbsp; &nbsp; unsigned attr = oam&#91;n + 3&#93;;<br /><br />&nbsp; &nbsp; sy = status.ly - sy;<br />&nbsp; &nbsp; if(sy &gt;= Height) continue;<br />&nbsp; &nbsp; if(attr &amp; 0x40) sy ^= (Height - 1);<br /><br />&nbsp; &nbsp; unsigned tdaddr = (attr &amp; 0x08 ? 0x2000 : 0x0000) + (tile &lt;&lt; 4) + (sy &lt;&lt; 1), data = 0;<br />&nbsp; &nbsp; data |= vram&#91;tdaddr++&#93; &lt;&lt; 0;<br />&nbsp; &nbsp; data |= vram&#91;tdaddr++&#93; &lt;&lt; 8;<br />&nbsp; &nbsp; if(attr &amp; 0x20) data = hflip(data);<br /><br />&nbsp; &nbsp; for(unsigned tx = 0; tx &lt; 8; tx++) {<br />&nbsp; &nbsp; &nbsp; unsigned index = ((data &amp; (0x0080 &gt;&gt; tx)) ? 1 : 0)<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;| ((data &amp; (0x8000 &gt;&gt; tx)) ? 2 : 0);<br />&nbsp; &nbsp; &nbsp; if(index == 0) continue;<br /><br />&nbsp; &nbsp; &nbsp; unsigned palette = ((attr &amp; 0x07) &lt;&lt; 2) + index;<br />&nbsp; &nbsp; &nbsp; unsigned color = 0;<br />&nbsp; &nbsp; &nbsp; color |= obpd&#91;(palette &lt;&lt; 1) + 0&#93; &lt;&lt; 0;<br />&nbsp; &nbsp; &nbsp; color |= obpd&#91;(palette &lt;&lt; 1) + 1&#93; &lt;&lt; 8;<br />&nbsp; &nbsp; &nbsp; color &amp;= 0x7fff;<br /><br />&nbsp; &nbsp; &nbsp; unsigned ox = sx + tx;<br />&nbsp; &nbsp; &nbsp; if(ox &lt; 160) {<br />&nbsp; &nbsp; &nbsp; &nbsp; //When LCDC.D0 (BG enable) is off, OB is always rendered above BG+Window<br />&nbsp; &nbsp; &nbsp; &nbsp; if(status.bg_enable) {<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if(pixels&#91;ox&#93;.origin == Pixel::Origin::BGP) continue;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if(attr &amp; 0x80) {<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if(pixels&#91;ox&#93;.origin == Pixel::Origin::BG) {<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if(pixels&#91;ox&#93;.palette &gt; 0) continue;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />&nbsp; &nbsp; &nbsp; &nbsp; }<br />&nbsp; &nbsp; &nbsp; &nbsp; pixels&#91;ox&#93;.color = color;<br />&nbsp; &nbsp; &nbsp; &nbsp; pixels&#91;ox&#93;.palette = index;<br />&nbsp; &nbsp; &nbsp; &nbsp; pixels&#91;ox&#93;.origin = Pixel::Origin::OB;<br />&nbsp; &nbsp; &nbsp; }<br />&nbsp; &nbsp; }<br />&nbsp; }<br />}</div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>nitro2k01</b> [ Sat Dec 07, 2013 12:47 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Game Boy Color PPU emulation</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />This looks like an off-by-one error in reading the GBC's secondary VRAM map, ie the attribute map. The attribute for each tile is read taken from the previous tile. Another possible, less obvious source for this error is the GBC VRAM DMA transfer, which Oo* is using to transfer data to VRAM.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>byuu</b> [ Sat Dec 07, 2013 8:19 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Game Boy Color PPU emulation</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Oh wow, you are really good. Thank you so very much.<br /><br /><img src="http://i.imgur.com/fAUNigW.png" alt="Image" /><br /><br />&gt; This looks like an off-by-one error in reading the GBC's secondary VRAM map, ie the attribute map. The attribute for each tile is read taken from the previous tile.<br /><br />Really? My code doesn't do this at all.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">void PPU::cgb_read_tile(bool select, unsigned x, unsigned y, unsigned&amp; tile, unsigned&amp; attr, unsigned&amp; data) {<br />&nbsp; unsigned tmaddr = 0x1800 + (select &lt;&lt; 10);<br />&nbsp; tmaddr += (((y &gt;&gt; 3) &lt;&lt; 5) + (x &gt;&gt; 3)) &amp; 0x03ff;<br /><br />&nbsp; tile = vram&#91;0x0000 + tmaddr&#93;;<br />&nbsp; attr = vram&#91;0x2000 + tmaddr&#93;;<br /><br />&nbsp; unsigned tdaddr = attr &amp; 0x08 ? 0x2000 : 0x0000;<br />&nbsp; if(status.bg_tiledata_select == 0) {<br />&nbsp; &nbsp; tdaddr += 0x1000 + ((int8)tile &lt;&lt; 4);<br />&nbsp; } else {<br />&nbsp; &nbsp; tdaddr += 0x0000 + (tile &lt;&lt; 4);<br />&nbsp; }<br /><br />&nbsp; y &amp;= 7;<br />&nbsp; if(attr &amp; 0x40) y ^= 7;<br />&nbsp; tdaddr += y &lt;&lt; 1;<br /><br />&nbsp; data&nbsp; = vram&#91;tdaddr++&#93; &lt;&lt; 0;<br />&nbsp; data |= vram&#91;tdaddr++&#93; &lt;&lt; 8;<br />&nbsp; if(attr &amp; 0x20) data = hflip(data);<br />}</div><br /><br />If I edit attr to read from vram[0x2000 + tmaddr - 1], all of the graphics end up corrupted. Whereas everything works as it is now.<br /><br />&gt; Another possible, less obvious source for this error is the GBC VRAM DMA transfer, which Oo* is using to transfer data to VRAM.<br /><br />You nailed it.<br /><br />I wasn't masking the low 4-bits of the HDMA12 (source), HDMA34 (target) addresses. Apparently this game is setting them to 1-15, and expecting it to act as 0. Fixing that results in the game working correctly.<br /><br />Thanks so much! You saved me a lot of time pointing me in the exact right area. I've never played these games before, so it'll be fun giving them a try now!
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>nitro2k01</b> [ Mon Dec 09, 2013 11:47 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Game Boy Color PPU emulation</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">byuu wrote:</div><div class="quotecontent">If I edit attr to read from vram[0x2000 + tmaddr - 1], all of the graphics end up corrupted. Whereas everything works as it is now.</div>Not that it really matters, but that would be +1 not -1, if you wanted to fix this locally/stupidly in the Oo* games.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

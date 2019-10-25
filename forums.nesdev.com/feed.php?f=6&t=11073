@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=6&amp;t=11073" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2014-03-14T14:19:53-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=6&amp;t=11073</id>
+<entry>
+<author><name><![CDATA[yogi]]></name></author>
+<updated>2014-03-14T14:19:53-07:00</updated>
+<published>2014-03-14T14:19:53-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11073&amp;p=126804#p126804</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11073&amp;p=126804#p126804"/>
+<title type="html"><![CDATA[Re: VRC7 NSF to NES via Vegaplay]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11073&amp;p=126804#p126804"><![CDATA[
+EDIT- Yea I figured it out!! The fixed 8K bank at the end of the Bin did the trick. <img src="http://forums.nesdev.com/images/smilies/icon_smile.gif" alt=":)" title="Smile" /><br /><br />OK so vegaplay has been in my lab for a couple weeks and I have mutated it a bit. But I'm at a stumbling block.<br />I have things setup like so:<br />iNES Header<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">    <br />   .BASE $7ff0<br />   .DB &quot;NES&quot;, $1a<br />   .DB $04             ; size of PRG ROM in 16kb units<br />   .DB $00            ; size of CHR ROM in 8kb units<br />   .DB #%01010000      ; mapper 85<br />   .DB #%01010000      ; mapper 85<br />;   .DB #%00000000      ; NROM<br />;   .DB #%00000000      ; NROM      <br />   .DB $02            ; PRG Ram<br />   .DB video         ; NTSC or PAL Timming<br />   .DB $00<br />   .DB $00<br />   .DB $00<br />   .DB $00<br />   .DB $00<br />   .DB $00<br /></div><br />Then my CHR setup:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">   <br />       .BASE $8000         ; PRG build starts here<br />RAM_CHR:               ; CHR ROM into PRG<br />   .incbin &quot;geo.chr&quot;         ; default Vega Play background<br /><br />;       ----------------------------------------------------<br />Load_RAM_CHR:      ; <br />     src = 0            ; ZP Pointer<br />   lda #&lt;RAM_CHR   ; <br />   sta src<br />   lda #&gt;RAM_CHR   ; Hi byte of RAM_CHR lable val<br />   sta src+1<br /> <br />   ldy #0             ; starting index into the first page<br />   sty PPUMASK        ; turn off rendering just in case<br />   sty PPUADDR        ; load the destination address into the PPU<br />   sty PPUADDR<br />   ldx #32            ; number of 256-byte pages to copy<br />loop:<br />   lda (src),y        ; copy one byte<br />   sta PPUDATA<br />   iny<br />   bne loop        ; repeat until we finish the page<br />   inc src+1        ; go to the next page<br />   dex<br />   bne loop        ; repeat until we've copied enough pages<br />   rts<br /></div><br />The NSF data loads @ $A64A, the NSF header load address<br />The Reset and NMI code continues @ $FA00. This works fine with no bank switching in a 32K bin. Just init the VRC7 PRG regs with $00 - $02<br />   <br />If I move the  above CHR code to @$10000 in a 64K bin with a .BASE $8000 and try to bank it in over the NSF data only during Reset by writing $04-$06 to the VRC7 PRG registers @ $8000, $8100 and $9000, NO GO. So I don't have my Bin organized correct, right? <br /><br />What order should I use: <br />1. The fixed 8K bank ( .BASE $E000 .PAD $10000) as the first block in the bin, follower by bank 0, bank 1 .....to the end of 64K?<br />2. Or the fixed reset bank at the end of the 64K bin?<br />3. Of  like I've been trying Banks $00-$02, then the fixed 8K, then bank $03 and above?<br /><br />Here is my banking code:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">   LDX #$03   ; bank in $03-$05 Load CHR Ram<br />   STX $8000   ; Reset the 3 PRG banks <br />   INX<br />   STX $8010<br />   INX<br />   STX $9000<br />   JSR Load_RAM_CHR      ; Load 8K CHR into CHR Ram  <br />   JSR DrawScreen          ; draw initial nametable<br />   JSR InitSprites<br />   LDX #$00     <br />   STX $8000   ; Reset the 3 PRG banks to default<br />   INX<br />   STX $8010<br />   INX<br />   STX $9000</div><br />Thanks for any help,<br />Yogi<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6258">yogi</a> — Fri Mar 14, 2014 2:19 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[yogi]]></name></author>
+<updated>2014-03-05T22:45:12-07:00</updated>
+<published>2014-03-05T22:45:12-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11073&amp;p=126443#p126443</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11073&amp;p=126443#p126443"/>
+<title type="html"><![CDATA[Re: VRC7 NST to NES via Vegaplay]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11073&amp;p=126443#p126443"><![CDATA[
+<div class="quotetitle">tepples wrote:</div><div class="quotecontent"><br />If you assemble the FT driver at $E000-$F7FF and the NSF player at $F800-$FFFF, everything should fit. Then you can bankswitch songs into $8000-$BFFF and samples into $C000-$DFFF.<br /></div><br />Thanks tepples. The more I think about the export asm/bin the better it sounds. Thinking of a build tool to target a large Flash with a work flow:<br />Compose in FT. Export song asm. Multi asm' sorted into a 'album'. Then processed into a standard player template and compiled into a bin to be uploaded. Far more organized and less stressful for users. <br /> This is enticing, will need to research this more.<br />Yogi<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6258">yogi</a> — Wed Mar 05, 2014 10:45 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2014-03-05T21:04:09-07:00</updated>
+<published>2014-03-05T21:04:09-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11073&amp;p=126437#p126437</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11073&amp;p=126437#p126437"/>
+<title type="html"><![CDATA[Re: VRC7 NST to NES via Vegaplay]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11073&amp;p=126437#p126437"><![CDATA[
+If you assemble the FT driver at $E000-$F7FF and the NSF player at $F800-$FFFF, everything should fit. Then you can bankswitch songs into $8000-$BFFF and samples into $C000-$DFFF.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Wed Mar 05, 2014 9:04 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[yogi]]></name></author>
+<updated>2014-03-05T19:59:34-07:00</updated>
+<published>2014-03-05T19:59:34-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11073&amp;p=126435#p126435</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11073&amp;p=126435#p126435"/>
+<title type="html"><![CDATA[Re: VRC7 NST to NES via Vegaplay]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11073&amp;p=126435#p126435"><![CDATA[
+<div class="quotetitle">rainwarrior wrote:</div><div class="quotecontent"><br />The FamiTracker driver is about 5.5k of data, as I recall. You can locate it anywhere you like if you build it from source. If you need to bankswitch DPCM, you probably want to keep it out of $C000-DFFF, but other than that there's no good or bad place for it; just depends on your other needs. The ASM or BIN export is just a block of music data, separate from the driver. It can also be located anywhere you like.<br /></div><br />  Good to know this. So the asm export is just the song data source and together with the FT driver source you can compile the core of an nsf, with freedom to arrange it as needed. To conform to the nsf spec this should be within the PRG ROM space or banked into it?<br />  OK, sorry I've confuse things. The FT driver is the song player within the nsf, right? I was trying to refer to the kernel/wrapper (the nsf player?) that calls the FT driver/song player routine. This is tripping me up a lot, because the nsf has a driver and you need a player to call that driver @ 60Hz or the songs freq. right. I'm really not getting the terminality correct.<br />  But back to a point, as I understand, the nsf player should allow the whole of the PRG 32K for banking of the nsf rip. So does the nsf player code need to be located outside of the PRG 32K space or do most nsf songs stay clear of the top most 1 or 2K? <br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent"><br />The only documentation for it is included with the driver source itself, though I did write this guide a long time ago: <a href="http://famitracker.com/forum/posts.php?page=1&amp;id=3681" class="postlink">http://famitracker.com/forum/posts.php?page=1&amp;id=3681</a><br /></div><br />Thanks much, more for my reading list <img src="http://forums.nesdev.com/images/smilies/icon_smile.gif" alt=":)" title="Smile" /><br />Yogi<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6258">yogi</a> — Wed Mar 05, 2014 7:59 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[rainwarrior]]></name></author>
+<updated>2014-03-05T17:26:15-07:00</updated>
+<published>2014-03-05T17:26:15-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11073&amp;p=126432#p126432</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11073&amp;p=126432#p126432"/>
+<title type="html"><![CDATA[Re: VRC7 NST to NES via Vegaplay]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11073&amp;p=126432#p126432"><![CDATA[
+The FamiTracker driver is about 5.5k of data, as I recall. You can locate it anywhere you like if you build it from source. If you need to bankswitch DPCM, you probably want to keep it out of $C000-DFFF, but other than that there's no good or bad place for it; just depends on your other needs. The ASM or BIN export is just a block of music data, separate from the driver. It can also be located anywhere you like.<br /><br />The only documentation for it is included with the driver source itself, though I did write this guide a long time ago: <a href="http://famitracker.com/forum/posts.php?page=1&amp;id=3681" class="postlink">http://famitracker.com/forum/posts.php?page=1&amp;id=3681</a><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=5165">rainwarrior</a> — Wed Mar 05, 2014 5:26 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[yogi]]></name></author>
+<updated>2014-03-05T16:49:23-07:00</updated>
+<published>2014-03-05T16:49:23-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11073&amp;p=126430#p126430</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11073&amp;p=126430#p126430"/>
+<title type="html"><![CDATA[Re: VRC7 NST to NES via Vegaplay]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11073&amp;p=126430#p126430"><![CDATA[
+<div class="quotetitle">rainwarrior wrote:</div><div class="quotecontent"><br />Something that may make this easier:<br /><br />FamiTracker has an ASM export option in the NSF export dialog. You can use this in combination with the FamiTracker NSF driver source to rebuild your music at whatever address you need. (You can also make any necessary modifications for banking, etc. this way.)<br /></div><br />  Grapeshot's register patch fixed the immediate problem I think. <br />  But can you point me to any relevant docs on the asm export. I exported and read through the code but I will need many more passes over the code to understand it well enough to use it ATM. <img src="http://forums.nesdev.com/images/smilies/icon_smile.gif" alt=":)" title="Smile" /><br />  What would you say is a viable location for the player code? vegaplay loads it's self into the top 2K of the PRG rom which isn't too bad but there is no guarantee that a NSF wouldn't be mapped into that space. It would result in an unplayable NFS?<br />  I was going through Loopy's PowerPak NSF source a bit and it loads low, somewhere around $40?? Which is safe but complicates mapping. <br />  I guess I'm wondering what a reasonable ROM size would be for the basic Play/driver and where to put it. Looking at the vegaplay code, Load and Init aren't very big and the Play is a simple call to the nsf play address driven by the NMI. So the bare bones seem very slight. I'm just a bad judge; don't know what I don't know.<br />Yogi<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6258">yogi</a> — Wed Mar 05, 2014 4:49 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[rainwarrior]]></name></author>
+<updated>2014-03-05T15:13:11-07:00</updated>
+<published>2014-03-05T15:13:11-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11073&amp;p=126429#p126429</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11073&amp;p=126429#p126429"/>
+<title type="html"><![CDATA[Re: VRC7 NST to NES via Vegaplay]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11073&amp;p=126429#p126429"><![CDATA[
+Something that may make this easier:<br /><br />FamiTracker has an ASM export option in the NSF export dialog. You can use this in combination with the FamiTracker NSF driver source to rebuild your music at whatever address you need. (You can also make any necessary modifications for banking, etc. this way.)<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=5165">rainwarrior</a> — Wed Mar 05, 2014 3:13 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[yogi]]></name></author>
+<updated>2014-03-05T01:13:13-07:00</updated>
+<published>2014-03-05T01:13:13-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11073&amp;p=126417#p126417</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11073&amp;p=126417#p126417"/>
+<title type="html"><![CDATA[Re: VRC7 NST to NES via Vegaplay]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11073&amp;p=126417#p126417"><![CDATA[
+<div class="quotetitle">Grapeshot wrote:</div><div class="quotecontent"><br />I guess I should finally make a new version of that Vegaplay special chip package, even if I don't really need it anymore since I implemented NSF support in my own emulator.<br /></div><br />That would be cool. <br />Just re built my test ROM, works great. Thank you again!<br />A Plus for the insight on setting the VRC7 mapper, the wiki was a not clear for me. <br />Yogi<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6258">yogi</a> — Wed Mar 05, 2014 1:13 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Grapeshot]]></name></author>
+<updated>2014-03-05T00:57:43-07:00</updated>
+<published>2014-03-05T00:57:43-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11073&amp;p=126416#p126416</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11073&amp;p=126416#p126416"/>
+<title type="html"><![CDATA[Re: VRC7 NST to NES via Vegaplay]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11073&amp;p=126416#p126416"><![CDATA[
+I guess I should finally make a new version of that Vegaplay special chip package, even if I don't really need it anymore since I implemented NSF support in my own emulator.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4844">Grapeshot</a> — Wed Mar 05, 2014 12:57 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[yogi]]></name></author>
+<updated>2014-03-05T00:51:12-07:00</updated>
+<published>2014-03-05T00:51:12-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11073&amp;p=126415#p126415</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11073&amp;p=126415#p126415"/>
+<title type="html"><![CDATA[Re: VRC7 NST to NES via Vegaplay]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11073&amp;p=126415#p126415"><![CDATA[
+@ Grapeshot Thank you very much for weighing in here. You cleared up much of my confusion. I did see that FT 4.0 was loading to $A64A but did not know it was causing the issue.<br /> Thank you for the vegaplay patch, very cool of you. <br />Yogi<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6258">yogi</a> — Wed Mar 05, 2014 12:51 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Grapeshot]]></name></author>
+<updated>2014-03-05T00:47:10-07:00</updated>
+<published>2014-03-05T00:47:10-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11073&amp;p=126414#p126414</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11073&amp;p=126414#p126414"/>
+<title type="html"><![CDATA[Re: VRC7 NST to NES via Vegaplay]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11073&amp;p=126414#p126414"><![CDATA[
+Here's what you need to add to your vegaplay.asm file to make things consistent on all emulators.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">SetVRC7:<br />   LDX #$00;set up VRC7 banks to work consistently<br />   STX $8000<br />   STX $A000<br />   INX<br />   STX $8010<br />   STX $A010<br />   INX<br />   STX $9000<br />   STX $B000<br />   INX<br />   STX $B010<br />   INX<br />   STX $C000<br />   INX <br />   STX $C010<br />   INX <br />   STX $D000<br />   INX<br />   STX $D010</div><br /><br />Add it right after the &quot;BNE ClearMemory&quot; line, and your ROM should work in all emulators and the real hardware.<br /><br />Nintendulator sets bank 0 to the second bank in the ROM, bank 1 to the first, and bank 2 to the second to last bank, for some reason.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4844">Grapeshot</a> — Wed Mar 05, 2014 12:47 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[lidnariq]]></name></author>
+<updated>2014-03-05T00:24:49-07:00</updated>
+<published>2014-03-05T00:24:49-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11073&amp;p=126412#p126412</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11073&amp;p=126412#p126412"/>
+<title type="html"><![CDATA[Re: VRC7 NST to NES via Vegaplay]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11073&amp;p=126412#p126412"><![CDATA[
+Nestopia initializes VRC7 on powerup as:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">if (hard)<br />    prg.SwapBanks&lt;SIZE_8K,0x0000&gt;(0U,0U,0U,~0U);<br /></div> Or, translated, bank 0 for the first three 8KiB slots and fixed to the last bank for the uppermost one.<br /><br />But note that it doesn't reset this on reboot.<br /><br />So, in any case, a VRC7 NES file that only uses the first and last 8KiB will work right in Nestopia. (and presumably on hardware).<br /><br />FCEUX (2.2.1) doesn't intentionally initialize anything at all. On powerup, the <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">preg</tt> array isn't initialized in code, so it instead falls back to the bit where global variables are initialized to 0. It sure looks to me like it should be the same as Nestopia...<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3512">lidnariq</a> — Wed Mar 05, 2014 12:24 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Grapeshot]]></name></author>
+<updated>2014-03-05T00:21:07-07:00</updated>
+<published>2014-03-05T00:21:07-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11073&amp;p=126411#p126411</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11073&amp;p=126411#p126411"/>
+<title type="html"><![CDATA[Re: VRC7 NST to NES via Vegaplay]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11073&amp;p=126411#p126411"><![CDATA[
+OK, there's two problems here. First of all, Famitracker 0.4 doesn't export all NSFs with a load address of 0x8000, instead it puts the load address somewhere in the 2nd or 3rd 8k. I'm not sure why this was changed, but it leads to the second issue, which is that FCEUX maps the VRC6 banks differently than Nestopia or Nintendulator do at startup, but all 3 map the first and last banks in the same place, it's the second and third that are different. <br /><br />So the result is: a NSF made by Famitracker 0.38 and compiled by Vegaplay with only the mapper bytes changed will work properly in all 3 emulators if it's less than 8k, but if it's larger it only works in FCEUX (So my previous NES files only worked coincidentally.) A NSF made by Famitracker 0.4 series then compiled by Vegaplay will only work in FCEUX, regardless of size. I'm going to write some init code for the mapper to fix this, but it'll take me a bit to test it.<br /><br />Also, does anyone know if the actual initial values for the VRC7 have been tested by anyone? It isn't listed on the wiki.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4844">Grapeshot</a> — Wed Mar 05, 2014 12:21 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Joe]]></name></author>
+<updated>2014-03-05T00:09:12-07:00</updated>
+<published>2014-03-05T00:09:12-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11073&amp;p=126409#p126409</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11073&amp;p=126409#p126409"/>
+<title type="html"><![CDATA[Re: VRC7 NST to NES via Vegaplay]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11073&amp;p=126409#p126409"><![CDATA[
+There are only two possible explanations for that video.<br /><br />A: All of the code and data is inside the fixed bank; there is no need to initialize the mapper because the fixed bank is already initialized at power-on.<br /><br />B: It only works on FCEUX, because FCEUX happened to map things the way the ROM was expecting. It will crash in most other emulators because the mapper is not initialized.<br /><br />Your ROM does not work because you aren't initializing the mapper.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=5948">Joe</a> — Wed Mar 05, 2014 12:09 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[yogi]]></name></author>
+<updated>2014-03-05T00:11:06-07:00</updated>
+<published>2014-03-04T23:53:10-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11073&amp;p=126407#p126407</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11073&amp;p=126407#p126407"/>
+<title type="html"><![CDATA[Re: VRC7 NST to NES via Vegaplay]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11073&amp;p=126407#p126407"><![CDATA[
+<div class="quotetitle">lidnariq wrote:</div><div class="quotecontent"><br />All the mappers with expansion audio require initializing their banking registers, while a plain 2A03 song won't. (Well, won't unless it's too large for an unbanked NSF)<br /></div><br />What is causing me the most confusion is the fact that the grapeshot VRC7 NES plays. <br />I think this is Grapeshot's youtube vid<br /><!-- m --><a class="postlink" href="http://www.youtube.com/watch?v=DQtR5sbADt8">http://www.youtube.com/watch?v=DQtR5sbADt8</a><!-- m --><br />He described only changing the Mapper bytes in the iNES header. <br /> Yogi<br />EDIT- Here is one of Grapshot's .NES, one has the mapper set to 0, the other has it set to 85. Song 4 Has both 2A03 and VRC7 notes. Not much of a test, as I started with the VRC and downgraded to NROM.<br />vegaplay.zip <br />So IDK<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6258">yogi</a> — Tue Mar 04, 2014 11:53 pm</p><hr />
+]]></content>
+</entry>
+</feed>

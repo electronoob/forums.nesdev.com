@@ -1,0 +1,204 @@
+/* Analyze.c
+
+   Released to public domain, or failing that, under the terms of the WTFPL.
+
+   Written in 2010 by lidnariq
+
+
+   Build using gcc -lfftw3 -lsndfile
+*/
+
+
+#include <stdlib.h>
+#include <sndfile.h>
+#include <fftw3.h>
+#include <math.h>
+
+int main (int argc, char *argv[]) {
+	int samples_per_frame,ii,jj,samples_read,best_noise,wave_total_length;
+	SNDFILE * wave_input;
+	FILE * spectrum_cache;
+	SF_INFO wave_info;
+	fftw_complex *fft_output;
+	fftw_plan fft_plan;
+	double * wave_buffer, * wave_magnitudes, * fft_input;
+	double * noiseFTs[16];
+	double RMSerror, bestRMSerror, wave_total_loudness, gain=1;
+/* The noise attenuations table is experimentally derived, but it comes
+   from the analog lowpass at 14kHz in the NES's output train, and should
+   be calculated as opposed to measured. */
+	const double noiseAttenuations[16]=
+		{0.129/0.55, 0.257/0.55, 0.449/0.55, 0.541/0.55, 1,1,1,1, 1,1,1,1, 1,1,1,1};
+
+/* the NTSC NES CPU generates all sound at 1.8MHz (39.375/22 MHz). The
+   available divisors on an NTSC NES for the LFSR are-
+   4 8 16 32 64 96 128 160 202 254 380 508 762 1016 2034 4068
+   Vsync happens every 341*262-.5 ppu clocks or every 29780.5 samples.
+
+   the PAL NES CPU generates all sound at 1.66MHz (PAL colorburst*3/8) The
+   available divisors on a PAL NES for the LFSR are-
+   4 7 14 30 60 88 118 148 188 236 354 472 708 944 1890 3778
+   Vsync happens every 341*312 ppu clocks or every 33247.5 samples.
+
+   These are the lengths of the sample-and-hold, or a FIR boxcar lowpass. */
+	const int noisePeriods[16]=
+		{4,8,16,32,64,96,128,160,202,254,380,508,762,1016,2034,4068};
+	const int AudioPeriodLength = 59561; // 30 Hz
+
+
+	switch (argc) {
+	case 3: gain = strtod(argv[2],NULL);
+	case 2:
+		printf("; using gain = %f\n",gain);
+		break;
+	default:
+		printf("usage: analyze [file.wav] [gain]\n");
+		return 1;
+	}
+
+	// Start by verifying that the audio file is usable.
+	wave_input = sf_open(argv[1], SFM_READ, &wave_info);
+	if (wave_input == NULL) {
+		printf("failed to open file %s (%s)",argv[1],sf_strerror(NULL));
+		return 2;
+	}
+
+	if (wave_info.channels > 1) {
+		printf("Audio file isn't monaural. You must downmix it first.\n");
+		return 3;
+	}
+
+	fft_input = (double *) fftw_malloc(sizeof(double) * AudioPeriodLength);
+	fft_output = (fftw_complex *) fftw_malloc(sizeof(fftw_complex) * (AudioPeriodLength/2+1));
+
+	spectrum_cache = fopen("noise_spectrum_cache.dat","r");
+	if (spectrum_cache) {
+		fseek(spectrum_cache,0,SEEK_END);
+		if (ftell(spectrum_cache) == 16*sizeof(double)*(AudioPeriodLength/2+1)) {
+			fseek(spectrum_cache,0,SEEK_SET);
+			for (ii=0;ii<16;ii++) {
+				noiseFTs[ii] = (double *) fftw_malloc(sizeof(double) * (AudioPeriodLength/2+1));
+				fread(noiseFTs[ii],sizeof(double),AudioPeriodLength/2+1,spectrum_cache);
+			}
+			fclose(spectrum_cache);
+			goto CACHE_LOADED;
+		}
+	}
+
+	fft_plan = fftw_plan_dft_r2c_1d(AudioPeriodLength,fft_input,fft_output,FFTW_ESTIMATE);
+
+	printf("Invalid or nonexistant noise spectrum cache, regenerating\n");
+
+	spectrum_cache = fopen("noise_spectrum_cache.dat","w");
+
+	// Generate our comparisons table.
+	for (ii=0;ii<16;ii++) {
+		noiseFTs[ii] = (double *) fftw_malloc(sizeof(double) * (AudioPeriodLength/2+1));
+		for (jj=0;jj<noisePeriods[ii];jj++) {
+			fft_input[jj]=1;
+		}
+		for (;jj<AudioPeriodLength;jj++) {
+			fft_input[jj]=0;
+		}
+		fftw_execute(fft_plan);
+		for (jj=0;jj<AudioPeriodLength/2+1;jj++) {
+			noiseFTs[ii][jj] = 
+				sqrt(pow(fft_output[jj][0],2)+
+				     pow(fft_output[jj][1],2))/
+				noisePeriods[ii]*noiseAttenuations[ii];
+		}
+		fwrite(noiseFTs[ii],sizeof(double),AudioPeriodLength/2+1,spectrum_cache);
+	}
+	fclose(spectrum_cache);
+
+	// We don't need the full-length plan anymore.
+	fftw_destroy_plan(fft_plan);
+
+CACHE_LOADED:
+
+	/* Ok, so element N in these arrays is equal to the *amount of power at
+	   30*N hz for the white noise channel. */
+
+#ifdef DUMPCONTENTS
+	for (jj=0;jj<AudioPeriodLength/2+1;jj++) {
+		printf("%5d ",jj);
+		for (ii=0;ii<16;ii++) {
+			printf("%5f ",noiseFTs[ii][jj]);
+		}
+		printf("\n");
+	}
+#endif
+
+	// Quantize all input audio frequencies to multiples of 60 hz.
+	// (really 60.0988 hz...)
+	samples_per_frame = (wave_info.samplerate+30) / 60;
+
+	wave_buffer = (double *)fftw_malloc(sizeof(double)*2*samples_per_frame);
+	wave_magnitudes = (double *)fftw_malloc(sizeof(double)*(samples_per_frame+1));
+	for (ii=0;ii<samples_per_frame*2;ii++) {
+		wave_buffer[ii]=0;
+	}
+
+	// Generate new FFT plan for shorter frames from audio.
+	fft_plan = fftw_plan_dft_r2c_1d(2*samples_per_frame,fft_input,fft_output,FFTW_ESTIMATE);
+
+	wave_total_length=0;
+	wave_total_loudness=0;
+	while (samples_read = sf_read_double(wave_input,&wave_buffer[samples_per_frame],samples_per_frame)) {
+		wave_total_length += samples_read;
+		for (;samples_read<samples_per_frame;samples_read++) {
+			wave_buffer[samples_per_frame+samples_read]=0;
+		} // fixup short frame at end of file.
+
+		for (ii=samples_per_frame;ii<samples_per_frame*2;ii++) {
+			wave_total_loudness += pow(wave_buffer[ii],2);
+		}
+
+		// Window the audio to be analyzed (using a hann window)
+		for (ii=0;ii<samples_per_frame*2;ii++) {
+			fft_input[ii] = wave_buffer[ii] * 
+				(1 - cos(M_PI*ii/(samples_per_frame-1)))/2;
+		}
+
+		fftw_execute(fft_plan);
+		for (ii=0;ii<samples_per_frame+1;ii++) {
+			wave_magnitudes[ii] = 
+				sqrt(pow(fft_output[ii][0],2)+
+				     pow(fft_output[ii][1],2))/
+				samples_per_frame/2;
+		}
+
+		// Now see which of the 241 (256-15 duplicates) spectra are closest.
+		bestRMSerror=1e99;
+		for (ii=15;ii<256;ii++) {
+			RMSerror = 0;
+			for (jj=1;jj<samples_per_frame+1;jj++) { // start at 1 = ignore DC component
+				RMSerror += pow((wave_magnitudes[jj]*gain)-
+				                ((ii>>4)*noiseFTs[ii&15][jj]/15),2);
+			}
+			RMSerror = sqrt(RMSerror/samples_per_frame);
+			if (RMSerror < bestRMSerror) {
+				bestRMSerror = RMSerror;
+				best_noise = ii;
+			}
+		}
+		
+		printf(".byte $%1X,$%1X ; error %f = %fdB\n",best_noise&15,best_noise>>4,
+		       bestRMSerror,20*log(bestRMSerror)/log(10));
+
+		// Prep for next frame
+		for (ii=0;ii<samples_per_frame;ii++) {
+			wave_buffer[ii]=wave_buffer[ii+samples_per_frame];
+		}
+	}
+
+	wave_total_loudness = sqrt(wave_total_loudness/wave_total_length);
+	printf("; calculated gain = %f\n",1/wave_total_loudness);
+
+	sf_close(wave_input);
+	fftw_destroy_plan(fft_plan);
+	fftw_free(wave_buffer); fftw_free(wave_magnitudes);
+	for (ii=0;ii<16;ii++)
+		fftw_free(noiseFTs[ii]);
+	fftw_free(fft_input); fftw_free(fft_output);
+}

@@ -1,0 +1,237 @@
+Video display is 256x224. Pixel clock is 12.096MHz. Hsync rate is exactly
+15750 Hz (12.096MHz÷768). Vsync rate is approximately 60Hz (hsync÷263).
+
+Visible vertical height is determined by the sync ROM; 224 seems to be the
+maximum achievable since 32V isn't connected to the sync ROM. (No larger
+number could be achieved without overlap of sprite registers and tile
+specifiers. However, the sync ROM could be modified for 49Hz operation.)
+
+
+Background tiles use half the pixel clock, 6.048MHz. Active horizontal time
+is only 67%, but display aspect ratio is 4:3, so the pixel aspect ratio is
+8:7 again.
+
+Sprites use the full pixel clock, producing a very narrow PAR (4:7).
+
+
+Color blending:
+There are four colors. These colors are
+Neutral (darker grey)
+Brighter (white)
+Darker (black)
+Both brighter and darker (lighter grey)
+
+The video hardware can only SET each of the two bits here, i.e. from
+neutral to brighter; from darker to both; from neutral to darker; from
+brighter to both. If the black car overlays the white car or the white
+playfield, or if the white car overlays the black car or black playfield,
+the resulting intersecting pixels should be the same color as CAR3/4.
+
+"Darker" is CAR2/3/4/BLACKPLAYFIELD/HBLANK/VBLANK
+"Brighter" is CAR1/3/4/WHITEPLAYFIELD
+
+MAME doesn't emulate this.
+
+
+The Sprint2 program ROMs do not use the 6502 ROR instruction. The hardware
+is old enough that it might use one of those "lucky" 6502s with a broken
+ROR. (Broken ROR: http://www.pagetable.com/?p=406 - TL;DR, it acts like ASL
+but doesn't even change C). MAME doesn't emulate this. (MAME groups the
+"Dominos" hardware (a lightcycle racing game) as compatible; that also
+doesn't use ROR)
+
+
+Contents of sync ROM:                                                                                    
+scln ad  +0 +1 +2 +3 +4 +5 +6 +7 +8 +9 ...
+ 000 00  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+ 020 00  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+ 040 20  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+ 060 20  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+ 080 40  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+ 0A0 40  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+ 0C0 60  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 10
+ 0E0 E0  10 10 10 10 10 10 10 10 10 10 10 10 10 10 10 12 12 12 13 13 13 12 12 12 12 12 12 12 12 12 12 12
+ 100 80  12 12 12 12 12 16 00 -> restart
+
+The contents of the sync rom determine what signals are asserted ON THE NEXT SCANLINE.
+Thus, on scanline 223, it's signalled that scanline 224 will start asserting VBLANK*
+Also, hence 263 scanlines -- scanline 261 specifies that scanline 262 is the final one.
+
+NMI is signalled, and tilemap concealing starts on scanline 224.
+Vertical blanking starts on scanline 240.
+Vertical sync starts on scanline 243.
+Vertical sync ends on scanline 246.
+Vertical blanking ends and tilemap reveal starts on scanline 263 = 0.
+
+
+Hpos counts from 128 to 511
+A rising edge of 32H while 64H is LOW and 256H is LOW will assert HBLANK - i.e. at Hpos=160
+A rising edge of 32H while 64H is HIGH OR if 256H is ever HIGH then HBLANK will deassert HBLANK - i.e. at Hpos=224 (or Hpos=256)
+A rising edge of 8H while 32H is HIGH if HBLANK is asserted will assert HSYNC - i.e. at Hpos=168, Hpos=184
+A rising edge of 8H while 32H is LOW OR if HBLANK is ever deasserted will deassert HSYNC - i.e. at Hpos=200, Hpos=216 (or Hpos=224)
+
+Horizontal blanking starts at cycle 20.
+Horizontal sync starts at cycle 21.
+Horizontal sync ends at cycle 25.
+Horizontal blanking ends at cycle 28.
+
+
+MAME emulates the display one frame at a time. This means the following
+things are (pedantically) wrong:
+
+Every property of all sprites are reevaluated on EVERY SCANLINE. A game
+COULD rely on raster effects to show 4 sprites on every scanline.
+
+The collision hardware is running in continuous time, without a clock. The
+moment that the CAR1 video signal is true at the same time that the CAR2,
+CAR3, CAR4, or BLACKPLAYFIELD signals, the collision is noted. (Similiarly
+for CAR1 and WHITEPLAYFIELD, CAR2 and WHITEPLAYFIELD, and CAR2 vs
+CAR1/CAR3/CAR4/BLACKPLAYFIELD). The COLLISIONn signals can be reset at any
+moment, too.
+
+
+Similar to the VIC-20 and C64, the screen memory is in the same memory
+space as the CPU. The 6502's biphase clock is used to emulate a dual-ported
+memory; during φ1 the video memory gets access, during φ2 the CPU gets
+access. The Sprint2 hardware is even slower at only 756kHz or 48cy per
+scanline. (NTSC VIC20/C64: 65cy/scanline)
+
+These 48 cycles can be numbered #16-#63. On every scanline, the video
+hardware always fetches 16 bytes from:
+ - Zeropage $10-$1F during cycles 16-31
+ - Nametable values for the current row during cycles 32-63.
+   -- e.g. $400-$41F on the top-most eight scanlines
+
+
+There is a watchdog. It will reset the 6502 after 8 NMIs since the last
+time it was acknowledged.
+
+
+There's no scrolling. There's no software-accessible NMI disable. (There's
+a hardware one, and it also disables the watchdog)
+
+
+There's 1 KiB of total RAM, of which 896 bytes are used just for the
+nametable/screen memory. Another 15 bytes are reserved for various
+parameters (Sound and sprites)
+
+Memory map:
+ - 113 bytes of memory for game state, from 0-$0F, $17, and $20-$7F.
+ - 15 bytes of memory for special registers, from $10-$16 and $18-$1F.
+ - 896 bytes of mirrors of the first 128 bytes ($080-$3FF)
+ - 896 bytes of memory for the screen memory ($400-$77F)
+ - 128 bytes of memory for one final mirror of zero page memory
+ - 4 KiB of addresses for control registers ($800-$17FF)
+ - 2 KiB of reserved space for a test ROM (using card edge connector)
+ - 8 KiB of memory for program ROM
+ - CPU A14 and A15 are not usually connected (but are available on the card edge)
+
+   -- a module could connect to the card edge to trivially provide four 8
+      KiB regions ($2000-$3FFF, $6000-$7FFF, $A000-$BFFF, $E000-$FFFF);
+      make sure to remove the ROMs from the logic board. (using NOT(A13) = /CE)
+
+   -- a ever-so-slightly more complicated module could provide four 10 KiB
+      regions ($1800-$3FFF and mirrors)
+
+ - A separate ROM (006401) is used to decode what things are in what memory
+   regions. For some reason, A9 is connected, but the encoded data ignores
+   it. The control registers memory region could be shrunk dramatically,
+   freeing up more address space for other purposes.
+
+
+There are a total of five sound generators:
+
+ - Two voltage-controlled oscillators, producing tones ranging from ≈5Hz to
+   ≈100Hz. Panned hard left and hard right. Shared mute (schematic:
+   "ATTRACT"), no volume control. Four bit DACs generate the control
+   voltage, which in turn goes through a very slow lowpass, taking more
+   than a second to go from extreme to extreme. (Schematic calls these
+   "MOTORn" and "RPM MOTORn")
+
+   The two pitches are at memory locations $14 (right, 1) and $15 (left, 2)
+
+ - One volume-controlled white noise generator, produced by a 15-bit
+   maximal-period XNOR LFSR clocked at ≈4kHz. Panned center. A separate
+   control allows the LFSR to be restarted (cleared) on
+   request. (Schematic: "CRASH", "BANG", and "NOISE RESET")
+
+   The volume is at memory location $16 (linear with count).
+
+   MAME's emulation of restarting the LFSR seems broken.
+
+ - Two pulse-wave oscillators. Separate mutes, panned hard left and
+   right. Both are frequency-modulated by the white noise
+   generator. (Schematic: "SKIDn" and "SCREECHn")
+
+
+There are a total of four sprites:
+
+The sprite hardware loads any one of 32 different 16-bit wide sprite images
+from dedicated ROMs (006398 and 006399). It then discards the left-most
+column. MAME doesn't emulate these slightly-smaller sprites.
+
+Sprite axes are the opposite of NES sprite coordinates.
+
+ - Memory locations $10-$13 hold the sprites' X coordinates.
+   -- $F8 means "touching left side"
+   -- $00 means "touching right side"
+   -- Values above $F8 will shift out the first ($100-Xpos) pairs of
+      pixels, then smear the next pixel over the next the next 248 pixels,
+      finally finishing the sprite on the right edge of the screen. MAME
+      doesn't emulate this.
+   -- These are fetched on cycles 16-19 and commited on cycles 17-20.
+
+ - Memory locations $18,1A,1C,1E hold the sprites' Y coordinates.
+   -- $F8 means "touching top side" (but don't do that, see next)
+   -- $20 means "touching bottom side"
+   -- $18 through $11 are safely entirely off the bottom of the screen
+
+   -- For the three not-black sprites:
+      -- $10 through $00 and $FF through $F2 will intefere with vertical
+         blanking. This may or may not matter.
+      -- $0D through $03 will interfere with vertical sync. This stands a
+         good chance of mattering.
+   -- These are fetched and in-range is calculated during cycles 24,26,28,30
+
+Scanlines 256-262 are treated as identical to scanlines 0-6. Sprites put at
+the very top of the screen (Ypos>0xF1) will interfere with vertical
+blanking.
+
+ - Memory locations $19,1B,1D,1F hold the sprites' tiles.
+   -- $00 through $07 means pattern 0
+   -- $08 through $0F means pattern 1 &c
+   -- These are fetched during cycles 25,27,29,31 and commited if the Y
+      value is in range.
+
+
+The tile hardware supports 64 different patterns. The six LSBs specify the
+tile; the MSB specifes whether the pattern is interpreted as white or
+black. (ROMs 006397 and 006398).
+
+The 64s bit of every single tile in the screen memory/nametable has no
+visible effect. These 896 bits could be used to hold extra state, if
+desperate.
+
+
+Control and status registers (from $0800-$17FF):
+
+Almost all readible status registers only return their status in the 128s
+and 64s bit: clearly intended for use with the BIT instruction. (There's
+precisely one exception, but it's not clear how often those other two bits
+would be used)
+
+Writable control registers ignore the value written; either only that the
+write happened is important, or the even/odd-ness of the address is what's
+latched.
+
+
+
+The steering wheels are just quadrature encoders, but they're latched
+interestingly: on a rising edge of phase B, phase A is latched and a
+"motion" bit is asserted. This means that the game can just check if the
+motion bit is true (0), and then check the direction. Resetting the motion
+bit is its own register ("STEERINGn_RESET")
+
+MAME sets the two quadrature directions every vblank while the keys are
+pressed / external joystick is moving. This isn't very accurate, and
+completely unusable for anything except the original steering input.

@@ -1,0 +1,270 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - APU behavior</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">APU behavior</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=6&amp;t=9432">http://forums.nesdev.com/viewtopic.php?f=6&amp;t=9432</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tomaitheous</b> [ Thu Oct 25, 2012 8:21 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>APU behavior</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Gah... I'm pulling my hair out trying to find bugs in my audio emulation.<br /><br /> When a channel's correspond bit is written to as zero on register $4015, the channel length counter and audio is disabled - right? Bit 1 -&gt; 0, set length counter to 0 and disable channel audio output and even handling. What about from 0 -&gt; 1, re-enabling it? Is anything re-enabled or reloaded?<br /><br /> For audio channels with envelope support, if LC = 00b and then the 4th reg of that corresponding channel is written to, then envelope volume is reset to 15 and the decay counter is reloaded as well - correct? What about writes to any other registers of such channel? As in; writing to the first register of the channel immediately resets the envelope decay counter(and volume back to max) and length counter reloaded (assuming LC=00b).<br /><br /> Between the nesdev wiki and the apu_ref.txt doc, I'm not sure I got all the behaviors down correctly :/<br /><br /> Edit: <br /><br /> Ok, one specific example: Megaman 2  Metalman stage. The noise channel gets written to every frame. $00 -&gt; $400c, $0f -&gt; $4015, and $03 -&gt; $400e. But the noise channel doesn't appear to restart the volume/audio at all per frame. About every 5 frame, $07 is written to $4015 (and then on the next frame back to $0f. So disables the channel for a frame then re-enables it next frame and waits a series of frames before doing it again). And the length counter is set to $FE ticks (LLLL L--- is $08).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Thu Oct 25, 2012 10:25 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: APU behavior</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />As I understand it:<br /><br />1. Clearing the enable bit in $4015 immediately sets the length counter to 0. Nothing gets reset or reloaded when you set the enable bit again (length counter will remain at 0). The channel will be silent for as long as the length counter remains at 0.<br /><br />2. Writing the fourth byte of the channel will reload the length counter and tell the envelope to reset when clocked next by the frame counter.<br /><br />3. Writing to the other three bytes do not have any immediate side effects on the counters. Writing to the first byte does not reset the envelope or length counter in any way.<br /><br /><br />I try to keep everything I know up to date here on the wiki: <a href="http://wiki.nesdev.com/w/index.php/APU" class="postlink">http://wiki.nesdev.com/w/index.php/APU</a><br /><br />This may or may not be a better reference than the old .txt files at the moment, but if you find any place it isn't, let me know and I can update it.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tomaitheous</b> [ Thu Oct 25, 2012 11:27 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: APU behavior</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />What about the C (contant volume) flag? If the channel was setup with an envelope setting and starting playing the waveform, then the code changes the flag on that specific channel's register and writes in a constant volume value - does this take effect immediately? Or for that matter, if the channel was already in Constant volume mode - does the fourth reg always need to be written to for the change in reg 1's new volume value to take effect?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Fri Oct 26, 2012 8:04 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: APU behavior</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I try to describe any internal state beyond the last value written to the I /O register. The only volume state is the last value written to the first register, the envelope counter, and the start flag for the envelope. Thus, switching to constant volume takes effect immediately; to behave any other way would require more internal state. I take this approach because it's  more concise than describing all of the possible situations and behaviors in them, and doing the latter is more likely to result in inconsistencies.<br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">The envelope unit's volume output depends on the constant volume flag: if set, the envelope parameter directly sets the volume, otherwise the counter's value is the current volume. </div><br />Maybe slightly clearer if it says that the envelope parameter <em>is</em> the volume.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tomaitheous</b> [ Sun Oct 28, 2012 3:54 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: APU behavior</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Thanks <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" /><br /><br /> Does this logic look correct?<br /><br /> The frame sequencer decrements the length counter. If the length counter halt flag is clear and the counter is zero, and an internal state is changed causing the waveform counter is no longer to be clocked for this channel (similarly, $4015 also sets this internal counter for the halt action as well). Else if the length counter halt flag is set, the counter is simply reloaded with the last value written to the corresponding reg (fourth reg IIRC) - giving it infinite &quot;length&quot;. At any point that the internal waveform counter is disabled (by an expired length counter or from $4015), volume or envelope or period updates do nothing as they don't reset the internal state of the waveform output counter. Well, they appear to do nothing as nothing would be heard in the change. And so writing to the fourth reg (or whatever reg holds the length counter value) resets the internal state of the waveform pointer - assuming the corresponding bit in $4015 is set (else the waveform counter remains in the current state of suspension). Halting a channel via $4015 takes place immediately, but enabling the channel through $4015 does not (again, needs fourth reg written too).<br /><br /> I don't know if L and C flags should be copied to an internal register during the write of the fourth reg, but I have it as of current that the frame sequencer checks the actual reg and not an internal copy. I.e. If the channel is originally setup with a length counter value (and length counting enabled), but then program/6502 code changes the L flag to disable it (before length counter expires in the sequencer) - that the changes take effect and the channel no longer has a length counter/expire configuration. <br /><br /> As far as the triangle channel, the linear counter and length counter both run at the same time (according to NESDEV wiki) and which ever expires first halts the channel (assuming length counter flag is cleared). <br /><br /> Also, should this be moved to the emu section?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Sun Oct 28, 2012 4:18 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: APU behavior</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Early on I learned that the APU isn't like software, where you only do necessary things; it's a bunch of parallel units, so you try to leave as much running as possible, reducing extra logic to unnecessarily disable parts. Disclaimer: I haven't done any NES stuff in a couple of years now.<br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">The frame sequencer decrements the length counter. If the length counter halt flag is clear and the counter is zero, and an internal state is changed causing the waveform counter is no longer to be clocked for this channel (similarly, $4015 also sets this internal counter for the halt action as well). Else if the length counter halt flag is set, the counter is simply reloaded with the last value written to the corresponding reg (fourth reg IIRC) - giving it infinite &quot;length&quot;.</div><br />In this case, there's a chain of things that can force the output to the mixer (DAC) to 0. If none of those are forcing it to 0, it outputs the current volume from the envelope. So the length counter being zero merely forces the output to the DAC to 0, and doesn't mess with the sequencer etc. whose timer keeps running. When the halt flag is set, the Wiki says that the counter isn't decremented (rather than decrementing and wrapping around), so that it could be cleared and resume counting down.<br /><br />Or are you attempting to get reasonably close in a way that's easy to implement?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tomaitheous</b> [ Tue Oct 30, 2012 11:57 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: APU behavior</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Heh, yeah that makes sense. I didn't think of the hardware in parallel logic.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Or are you attempting to get reasonably close in a way that's easy to implement?</div><br /><br /> Pretty much. But I did want to fully understand how everything works first. I'm in the process of re-writing the APU emulation core because it's currently in really bad shape.<br /><br /> You know, something just dawned on me today; I could just write NES test roms to observe the behavior and get all the answers I need. So with that in mind, what's a good emulator that has accurate APU emulation?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Tue Oct 30, 2012 1:04 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: APU behavior</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tomaitheous wrote:</div><div class="quotecontent">You know, something just dawned on me today; I could just write NES test roms to observe the behavior and get all the answers I need. So with that in mind, what's a good emulator that has accurate APU emulation?</div><br />If you want to run test ROMs for any aspect of NES behavior other than power-up state or mappers, the best emulator is probably a PowerPak in an NES.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

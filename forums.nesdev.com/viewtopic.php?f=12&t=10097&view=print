@@ -1,0 +1,228 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Reading MaskROM with a microcontroller</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Reading MaskROM with a microcontroller</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=12&amp;t=10097">http://forums.nesdev.com/viewtopic.php?f=12&amp;t=10097</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>qwertymodo</b> [ Tue May 14, 2013 4:11 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Reading MaskROM with a microcontroller</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I'm trying to read a MaskROM that has been removed from a cart using a Teensy++ 2.0 microcontroller board.  The Teensy++ 2.0 has a ton of I/O pins, enough for a 1:1 connection to the MaskROM.  However, I'm having issues doing the reading.  I couldn't find a timing diagram for the MaskROM I/O, so I used the diagrams from the AM29F032B datasheet, since I know they work in repros.  Here's the diagram for a read operation:<br /><br /><img src="http://i39.tinypic.com/4ilchy.jpg" alt="Image" /><br /><br />And here's my code<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">void Init()<br />{<br />&nbsp; // Address lines as outputs<br />&nbsp; A7_0_DDR&nbsp; &nbsp;= 0xFF;<br />&nbsp; A15_8_DDR&nbsp; = 0xFF;<br />&nbsp; A22_16_DDR = 0x7F;<br />&nbsp; <br />&nbsp; // Data line defaults to input (read mode)<br />&nbsp; DATA_DDR&nbsp; &nbsp;= 0x00;<br />&nbsp; <br />&nbsp; // Control lines as outputs, pulled high<br />&nbsp; CONTROL_PORT |= (CS_BIT | OE_BIT | WE_BIT | RST_BIT);<br />&nbsp; CONTROL_DDR&nbsp; |= (CS_BIT | OE_BIT | WE_BIT | RST_BIT);<br />}<br /><br />uint8_t ReadByte(uint32_t address){<br />&nbsp; CONTROL_PORT |= WE_BIT;<br />&nbsp; <br />&nbsp; A7_0_PORT&nbsp; &nbsp;= address &amp; 0xFF;<br />&nbsp; A15_8_PORT&nbsp; = (address &gt;&gt; 8) &amp; 0xFF;<br />&nbsp; A22_16_PORT = (address &gt;&gt; 16) &amp; 0x7F;<br />&nbsp; <br />&nbsp; CONTROL_PORT &amp;= ~CS_BIT;<br />&nbsp; CONTROL_PORT &amp;= ~OE_BIT;<br />&nbsp; <br />&nbsp; uint8_t data = DATA_PORT;<br /><br />&nbsp; CONTROL_PORT |= OE_BIT;<br />&nbsp; CONTROL_PORT |= CS_BIT;<br />&nbsp; CONTROL_PORT &amp;= ~WE_BIT;<br />&nbsp; <br />&nbsp; return data;<br />}</div><br /><br />Basically, my main is just calling Init(), then calling ReadByte in a loop with incrementing addresses starting at 0, then printing the result to the serial line.  All of the *_PORT and *_BIT names are #define'd in my header, and I've double-checked that the #define's match my connections.  I've even added busy waits between each command, but it doesn't help.  All I get back are 0x00 over and over.  I have a feeling I'm just doing something really stupid, but I don't know what it might be... any ideas?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Tue May 14, 2013 4:21 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Reading MaskROM with a microcontroller</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I don't think you should need to do anything with the /WE line, but that shouldn't be causing the problems you're seeing.<br /><br />At this point I'd probably resort to LED or 'scope debugging to make sure that my code does what I believe it does.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>qwertymodo</b> [ Tue May 14, 2013 4:34 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Reading MaskROM with a microcontroller</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Yeah, I'll probably have to go with LED's... that's way too many I/O lines to get anything useful from an Oscilloscope...
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>infiniteneslives</b> [ Tue May 14, 2013 7:15 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Reading MaskROM with a microcontroller</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />You can get all kinds of info from a single oscope probe.  They're really good it showing you things like conflicting data busses and such in real time.  I'm not familiar with the teensy definitions, but it looks pretty choose to the avr definitions.  With that I'd assume &quot;DATA_PORT&quot; is an output reg, and something like &quot;DATA_PIN&quot; is your input reg.  You should use the input ref for reading, looks like you're using the output reg.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>qwertymodo</b> [ Tue May 14, 2013 9:20 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Reading MaskROM with a microcontroller</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />The Teensy is an AVR.  Good call on the inputs being PIN_ rather than PORT_, I think that did it...  Now I'm getting results that look reasonable, but are wrong about 50-60% of the time.  It may be a bad socket connection or something, but hey, real results, that's a start <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" /><br /><br />Edit:  It looks like it's a single bit giving me problems (i.e. reading 0x0F when it should be 0x07, it seems to be a consistent issue with D3), so it has to be the connection.  Thanks for the tip!
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>qwertymodo</b> [ Tue May 14, 2013 11:15 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Reading MaskROM with a microcontroller</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Putting the sockets on opposite sides of the board effectively cut the PCB size in half (as well as cutting the cost in half as well).  Made the tracing a bit tricky, but I managed to do it with 0 vias <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" /><br /><br /><img src="http://i42.tinypic.com/s0wsr8.jpg" alt="Image" /><br /><img src="http://i39.tinypic.com/54jazb.jpg" alt="Image" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

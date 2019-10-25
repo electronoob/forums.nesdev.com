@@ -1,0 +1,206 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - MM9 famicom project: status</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">MM9 famicom project: status</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=22&amp;t=5574">http://forums.nesdev.com/viewtopic.php?f=22&amp;t=5574</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>4</strong> of <strong>4</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Tue Jan 19, 2010 11:59 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tokumaru wrote:</div><div class="quotecontent">I assumed it was copying because if you look at the NT viewer in FCEUXD when going up ladders in MM! you can see that the next screen is quickly loaded to the hidden NT horizontally (that's the pause before the vertical scroll), then the exact same data is written to the visible NT as the vertical scroll happens.<br /><br />Then, when the vertical scroll finishes, the scroll is set to display the previously hidden NT and the one that was used during the vertical scroll is loaded with the next screen (that's the second pause).<br /><br />Now, if it's actually copying from one NT to the other I don't know. I set up a breakpoint for $2007 reads and in fact it does happen during the vertical scroll, but it seems to be reading just 2 bytes per frame, not a lot of data, so maybe it's just doing it for the attributes or something.<br /></div>
+<br />Well, it seems MM1 only read attribute table, not the name table. I haven't tried MM2, but very likely it's exactly the same scrolling engine (and MM3-6 uses another engine).
+<br />
+<br />It's actually quite weird how MM1&amp;2 scrolling works, I admit I don't quite understand how it works ! Anyway, tokumaru's solution seems a good one for banshaku's problem in my opinion - altough I don't think it's exactly what MM1&amp;2 does (they don't shift the screen one row lower or anything). Also tokumarus animation is only for the case of scrolling up, it would have to be adapted when scrolling down.
+<br />
+<br />The following algorithm could work for Banshaku :
+<br />- Before scrolling up or down, decode the next map and write it into the invisible nametable
+<br />- While scrolling, "copy" data in real time from the invisible nametable to the visible one : Going upwards and shifting one row down when climbing up, and going downwards and shifting one row up when clibming down
+<br />- Once all scrolling is done ($e8 -&gt; $d8 when doing down, or $e8-&gt;$08 when going up), exchange which nametable is active, and decode the next screen on the inactive nametable
+<br />- Gameplay can resume
+<br />
+<br />As far I see it there is 2 ways the "copying" could be done, either by decoding the level data rows and write them to the nametable (as it would normally be done), or by reading the nametable via $2007, and write data back.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Tue Jan 19, 2010 12:19 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />You are right, I didn't think of how to scroll down. Shifting one row up, like you said, will work, but this means that the topmost row of the new screen will have to be copied over the black bar in the visible NT, and the copying continues downwards, wrapping to the top.
+<br />
+<br />IMO it works perfectly both ways. I think that the original games scroll slower than 8 scanlines per frame, but if you want to keep it glitch free I think you should use 8 anyway, even if you scroll 8 scanlines every 2 frames, to make it slower. In fact, if timing is a problem, you could use 1 frame for reading the data from the hidden NT, and the next frame for writing it to the visible NT.
+<br />
+<br />This is the easiest solution I can think of, that doesn't require modifications to your current BG rendering engine and that doesn't need special PPU tricks.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Banshaku</b> [ Tue Jan 19, 2010 3:57 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I didn't "put the dots together" and realized that once the scrolling is finished, you just switch to the normal NT.  
+<br />
+<br />Another possibility is to just decode the next map in the "scrolling" position first in the hidden NT then once the scrolling is finished, re-decode again the proper way in the hidden NT then switch but that seems over complicated.  But, hmmm...  this way may not work for scrolling down because of the black bar hmmm..
+<br />
+<br />Many good ideas I will try to test them once I find time. Thanks guys.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Tue Jan 19, 2010 4:02 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Banshaku wrote:</div><div class="quotecontent">Another possibility is to just decode the next map in the "scrolling" position first in the hidden NT then once the scrolling is finished, re-decode again the proper way in the hidden NT then switch but that seems over complicated.</div><br />Yeah, you'd have to mess with your map decoding routines, something I tried to avoid when coming up with a solution.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">this way may not work for scrolling down because of the black bar hmmm..</div>
+<br />It works with my method, you just have to copy the rows from the hidden NT from top to bottom, and on the visible side you have to start by overwriting the black bar at the bottom and wrapping back to the top. Like, rows 0 and 1 from the hidden NT will overwrite the black bar, and row 3 will replace row 0 of the visible NT.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>4</strong> of <strong>4</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

@@ -1,0 +1,258 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - It's about time to finally fix my APU!</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">It's about time to finally fix my APU!</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=3&amp;t=10373">http://forums.nesdev.com/viewtopic.php?f=3&amp;t=10373</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>miker00lz</b> [ Tue Aug 13, 2013 12:40 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>It's about time to finally fix my APU!</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I've been playing with trying to fix this on and off for a long time, but it's just really getting on my nerves and it seriously needs to get fixed. So, there are multiple issues. Right now I'm most interested in fixing the most annoying one. Sometimes my square channels continue to output a high tone when they should be silent. It's pretty rare in a game, but I've got a chiptune NSF that I converted to a NES by zanzan that demonstrates it right at the beginning, and continues for the first 20 to 25 seconds of the song. I've attached a ZIP of the current win32 build (works in WINE too) of my emulator along with that NES ROM to play it so you can see what I mean. After the first part of the song, the rest of it sounds pretty much correct compared to other emulators.<br /><br /><div class="attachtitle">Attachment:</div><div class="attachcontent">
+			<span class="genmed">
+				<img src="./styles/subsilver2/imageset/icon_topic_attach.gif" width="14" height="18" alt="" title="" /> 
+				<a href="./download/file.php?id=783">moarnes-0.13.8.13-win32.zip</a> [231.25 KiB]
+			</span><br />
+			<span class="gensmall">Downloaded 38 times</span>
+		
+
+		<br />
+	</div><br /><br />This is my APU code, some of it's a little sloppy but it's readable. I've been wrestling with this for at least a year to no avail. If anybody can spot the problem, it would be amazing. I just can't figure it out. It's probably an easy bug to spot for some of you guys. My second issue is I just can't get my damn sweeps working properly no matter what I do, but one thing at a time! I can deal with sweeps after I fix this square channel bug.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">/* MoarNES source - APU.c<br /><br />&nbsp; &nbsp;This open-source software is (c)2010-2013 Mike Chambers, and is released<br />&nbsp; &nbsp;under the terms of the GNU GPL v2 license.<br /><br />&nbsp; &nbsp;This is my work-in-progess APU emulation code. Sweep functionality<br />&nbsp; &nbsp;isn't working yet.<br />*/<br /><br />#include &quot;config.h&quot;<br />#include &lt;stdio.h&gt;<br />#include &lt;malloc.h&gt;<br />#include &quot;moarnes.h&quot;<br /><br />uint8_t length_lookup&#91;2&#93;&#91;16&#93; = { //the first bracket value should be bit 3, second bracket bits 7 to 4<br />&nbsp; &nbsp;{ 0x0A, 0x14, 0x28, 0x50, 0xA0, 0x3C, 0x0E, 0x1A, 0x0C, 0x18, 0x30, 0x60, 0xC0, 0x48, 0x10, 0x20 },<br />&nbsp; &nbsp;{ 0xFE, 0x02, 0x04, 0x06, 0x08, 0x0A, 0x0C, 0x0E, 0x10, 0x12, 0x14, 0x16, 0x18, 0x1A, 0x1C, 0x1E}<br />};<br /><br />uint32_t noise_lookup&#91;16&#93; = {<br />&nbsp; &nbsp;0x004, 0x008, 0x010, 0x020, 0x040, 0x060, 0x080, 0x0A0,<br />&nbsp; &nbsp;0x0CA, 0x0FE, 0x17C, 0x1FC, 0x2FA, 0x3F8, 0x7F2, 0xFE4<br />};<br /><br />int8_t triangle_step&#91;32&#93; = {<br />&nbsp; &nbsp;15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0,<br />&nbsp; &nbsp;0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15<br />};<br /><br />uint32_t dmc_period&#91;16&#93; = {<br />&nbsp; &nbsp;0x1AC, 0x17C, 0x154, 0x140, 0x11E, 0x0FE, 0x0E2, 0x0D6,<br />&nbsp; &nbsp;0x0BE, 0x0A0, 0x08E, 0x080, 0x06A, 0x054, 0x048, 0x036<br />};<br /><br />uint8_t square_duty&#91;4&#93;&#91;8&#93; = {<br />&nbsp; &nbsp;{ 0, 1, 0, 0, 0, 0, 0, 0 },<br />&nbsp; &nbsp;{ 0, 1, 1, 0, 0, 0, 0, 0 },<br />&nbsp; &nbsp;{ 0, 1, 1, 1, 1, 0, 0, 0 },<br />&nbsp; &nbsp;{ 1, 0, 0, 1, 1, 1, 1, 1 }<br />};<br /><br />extern uint64_t clockticks6502;<br /><br />SDL_AudioSpec audio;<br />uint32_t buffersize, cursamplerate;<br />uint8_t buf&#91;48000&#93;;<br /><br />uint64_t seqtickgap = 0xFFFFFFFF, seqticknext = 0xFFFFFFFF;<br />uint64_t sampleticks, cursampleticks, fastsampleticks, nextsamplecycle = 0xFFFFFFFF, nextseqcycle = 0xFFFFFFFF;<br /><br />uint8_t seqstep = 0, seqmode = 4, interruptAPU = 0;<br />struct square_s square&#91;2&#93;;<br />struct triangle_s triangle;<br />struct noise_s noise;<br />struct dmc_s dmc;<br />uint8_t allowsweeps = 0; //sweep code is completely buggy right now, and really breaks a lot of stuff. allow sweeps if you want, but be prepared for extreme fail.<br /><br />int8_t channels&#91;5&#93; = { 0, 0, 0, 0, 0}; //square 1, square 2, triangle, noise, DMC<br />FILE *wavefile = NULL;<br /><br />uint8_t readAPU(uint16_t addr) {<br />&nbsp; &nbsp;uint8_t outbyte;<br />&nbsp; &nbsp;if (addr == 0x4015) {<br />&nbsp; &nbsp;&nbsp; &nbsp;if (square&#91;0&#93;.enabled &amp;&amp; square&#91;0&#93;.lengthcounter) outbyte = 1;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;else outbyte = 0;<br />&nbsp; &nbsp;&nbsp; &nbsp;if (square&#91;1&#93;.enabled &amp;&amp; square&#91;1&#93;.lengthcounter) outbyte |= 2;<br />&nbsp; &nbsp;&nbsp; &nbsp;if (triangle.enabled &amp;&amp; triangle.lengthcounter) outbyte |= 4;<br />&nbsp; &nbsp;&nbsp; &nbsp;if (noise.enabled &amp;&amp; noise.lengthcounter) outbyte |= 8;<br /><br />&nbsp; &nbsp;&nbsp; &nbsp;return(outbyte);<br />&nbsp; &nbsp;}<br />&nbsp; &nbsp;return(0);<br />}<br /><br />void writeAPU(uint16_t addr, uint8_t value) {<br />&nbsp; &nbsp;switch (addr) {<br />&nbsp; &nbsp;&nbsp; &nbsp;case 0x4000: //square 1<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;square&#91;0&#93;.duty = value &gt;&gt; 6;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (value &amp; 0x20) square&#91;0&#93;.lengthhalt = 1;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;else square&#91;0&#93;.lengthhalt = 0;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (value &amp; 0x10) square&#91;0&#93;.constant = 1;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;else square&#91;0&#93;.constant = 0;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;square&#91;0&#93;.envelope = value &amp; 0x0F;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;break;<br />&nbsp; &nbsp;&nbsp; &nbsp;case 0x4001:<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (value &amp; 0x80) { square&#91;0&#93;.sweepenable = 1; square&#91;0&#93;.sweepresult = square&#91;0&#93;.period; }<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;else { square&#91;0&#93;.sweepenable = 0; square&#91;0&#93;.sweepresult = square&#91;0&#93;.period; }<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;square&#91;0&#93;.sweepperiod = ((value &gt;&gt; 4) &amp; 7) + 1;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (value &amp; 0x08) square&#91;0&#93;.negate = 1;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;else square&#91;0&#93;.negate = 0;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;square&#91;0&#93;.sweep = value &amp; 7;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;square&#91;0&#93;.sweepreload = 1;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;break;<br />&nbsp; &nbsp;&nbsp; &nbsp;case 0x4002:<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;square&#91;0&#93;.period &amp;= 0xFF00;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;square&#91;0&#93;.period += (uint32_t)value + 1;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;square&#91;0&#93;.sweepresult = square&#91;0&#93;.period;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;break;<br />&nbsp; &nbsp;&nbsp; &nbsp;case 0x4003:<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;square&#91;0&#93;.lengthindex = value &gt;&gt; 3;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;square&#91;0&#93;.period &amp;= 0xFF;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;square&#91;0&#93;.period += (uint32_t)(value &amp; 7) &lt;&lt; 8;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;square&#91;0&#93;.dutypos = 0;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;squarereload(0);<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;square&#91;0&#93;.wrotebit4 = 1;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;square&#91;0&#93;.sweepresult = square&#91;0&#93;.period;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;break;<br /><br />&nbsp; &nbsp;&nbsp; &nbsp;case 0x4004: //square 2<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;square&#91;1&#93;.duty = value &gt;&gt; 6;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (value &amp; 0x20) square&#91;1&#93;.lengthhalt = 1;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;else square&#91;1&#93;.lengthhalt = 0;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (value &amp; 0x10) square&#91;1&#93;.constant = 1;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;else square&#91;1&#93;.constant = 0;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;square&#91;1&#93;.envelope = value &amp; 0x0F;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;break;<br />&nbsp; &nbsp;&nbsp; &nbsp;case 0x4005:<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (value &amp; 0x80) { square&#91;1&#93;.sweepenable = 1; square&#91;1&#93;.sweepresult = square&#91;0&#93;.period; }<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;else { square&#91;1&#93;.sweepenable = 0; square&#91;1&#93;.sweepresult = square&#91;0&#93;.period; }<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;square&#91;1&#93;.sweepperiod = ((value &gt;&gt; 4) &amp; 7) + 1;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (value &amp; 0x08) square&#91;1&#93;.negate = 1;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;else square&#91;0&#93;.negate = 0;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;square&#91;1&#93;.sweep = value &amp; 7;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;square&#91;1&#93;.sweepreload = 1;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;break;<br />&nbsp; &nbsp;&nbsp; &nbsp;case 0x4006:<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;square&#91;1&#93;.period &amp;= 0xFF00;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;square&#91;1&#93;.period += (uint32_t)value;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;square&#91;1&#93;.sweepresult = square&#91;1&#93;.period;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;break;<br />&nbsp; &nbsp;&nbsp; &nbsp;case 0x4007:<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;square&#91;1&#93;.lengthindex = value &gt;&gt; 3;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;square&#91;1&#93;.period &amp;= 0xFF;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;square&#91;1&#93;.period += (uint32_t)(value &amp; 7) &lt;&lt; 8;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;square&#91;1&#93;.dutypos = 0;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;squarereload(1);<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;square&#91;1&#93;.wrotebit4 = 1;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;square&#91;1&#93;.sweepresult = square&#91;1&#93;.period;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;break;<br /><br />&nbsp; &nbsp;&nbsp; &nbsp;case 0x4008: //triangle<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (value &amp; 0x80) triangle.lengthhalt = 1;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;else triangle.lengthhalt = 0;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;triangle.linearreload = value &amp; 0x7F;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;break;<br />&nbsp; &nbsp;&nbsp; &nbsp;case 0x400A:<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;triangle.period &amp;= 0xFF00;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;triangle.period += value + 1;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;break;<br />&nbsp; &nbsp;&nbsp; &nbsp;case 0x400B:<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;triangle.lengthindex = value &gt;&gt; 3;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;triangle.period &amp;= 0xFF;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;triangle.period += (uint32_t)(value &amp; 7) &lt;&lt; 8;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;//if (triangle.lengthhalt == 0)<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;triangle.lengthcounter = length_lookup&#91;triangle.lengthindex &amp; 1&#93;&#91;triangle.lengthindex &gt;&gt; 1&#93;;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;break;<br /><br />&nbsp; &nbsp;&nbsp; &nbsp;case 0x400C: //noise<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (value &amp; 0x20) noise.lengthhalt = 1;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;else noise.lengthhalt = 0;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (value &amp; 0x10) noise.constant = 1;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;else noise.constant = 0;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;noise.envreload = value &amp; 0x0F;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;noise.envelope = noise.envreload;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;break;<br />&nbsp; &nbsp;&nbsp; &nbsp;case 0x400E:<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;noise.mode = value &gt;&gt; 7;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; noise.period = noise_lookup&#91;value &amp; 0x0F&#93;;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;break;<br />&nbsp; &nbsp;&nbsp; &nbsp;case 0x400F:<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;noise.lengthindex = value &gt;&gt; 3;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;noise.lengthcounter = length_lookup&#91;noise.lengthindex &amp; 1&#93;&#91;noise.lengthindex &gt;&gt; 1&#93;;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;noise.wrotebit4 = 1;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;break;<br /><br />&nbsp; &nbsp;&nbsp; &nbsp;case 0x4010: //DMC<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (value &amp; 0x40) dmc.loopmode = 1;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;else dmc.loopmode = 0;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;dmc.period = dmc_period&#91;value &amp; 0x0F&#93; &gt;&gt; 3;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;break;<br />&nbsp; &nbsp;&nbsp; &nbsp;case 0x4011:<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;channels&#91;4&#93; = value &amp; 0x7F;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;break;<br />&nbsp; &nbsp;&nbsp; &nbsp;case 0x4012:<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;dmc.addressreg = value;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;dmc.address = ((uint16_t)value &lt;&lt; 6) | 0xC000;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;break;<br />&nbsp; &nbsp;&nbsp; &nbsp;case 0x4013:<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;dmc.lengthreg = value;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;dmc.bytesremain = ((uint16_t)value &lt;&lt; 4) + 1;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;break;<br /><br />&nbsp; &nbsp;&nbsp; &nbsp;case 0x4015:<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (value &amp; 1) {<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;square&#91;0&#93;.enabled = 1;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;} else {<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;square&#91;0&#93;.enabled = 0;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;square&#91;0&#93;.lengthcounter = 0;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (value &amp; 2) {<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;square&#91;1&#93;.enabled = 1;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;} else {<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;square&#91;1&#93;.enabled = 0;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;square&#91;1&#93;.lengthcounter = 0;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (value &amp; 4) {<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;triangle.enabled = 1;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;} else {<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;triangle.enabled = 0;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;triangle.lengthcounter = 0;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (value &amp; 8) noise.enabled = 1;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;else noise.enabled = 0;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (value &amp; 16) { dmc.enabled = 1; dmc.lasttick = clockticks6502; }<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;else dmc.enabled = 0;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;break;<br /><br />&nbsp; &nbsp;&nbsp; &nbsp;case 0x4017:<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (value &amp; 0x80) seqmode = 5;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;else seqmode = 4;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;break;<br />&nbsp; &nbsp;}<br />&nbsp; &nbsp;if (square&#91;0&#93;.enabled == 0) square&#91;0&#93;.lengthcounter = 0;<br />&nbsp; &nbsp;if (square&#91;1&#93;.enabled == 0) square&#91;1&#93;.lengthcounter = 0;<br />&nbsp; &nbsp;if (triangle.enabled == 0) {<br />&nbsp; &nbsp;&nbsp; &nbsp;triangle.lengthcounter = 0;<br />&nbsp; &nbsp;&nbsp; &nbsp;triangle.linearcounter = 0;<br />&nbsp; &nbsp;}<br />&nbsp; &nbsp;if (noise.enabled == 0) noise.lengthcounter = 0;<br />}<br /><br />void squarereload(uint8_t channel) {<br />&nbsp; &nbsp;square&#91;channel&#93;.lengthcounter = length_lookup&#91;square&#91;channel&#93;.lengthindex &amp; 1&#93;&#91;square&#91;channel&#93;.lengthindex &gt;&gt; 1&#93;;<br />}<br /><br />void envclock() {<br />&nbsp; &nbsp;if (square&#91;0&#93;.constant == 0) {<br />&nbsp; &nbsp;&nbsp; &nbsp;if (square&#91;0&#93;.wrotebit4) {<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;square&#91;0&#93;.envelope = 15;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;square&#91;0&#93;.wrotebit4 = 0;<br />&nbsp; &nbsp;&nbsp; &nbsp;} else {<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (square&#91;0&#93;.envelope &gt; 0) square&#91;0&#93;.envelope--;<br />&nbsp; &nbsp;&nbsp; &nbsp;}<br />&nbsp; &nbsp;&nbsp; &nbsp;if ((square&#91;0&#93;.envelope == 0) &amp;&amp; square&#91;0&#93;.envloop) {<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;square&#91;0&#93;.envelope = 15;<br />&nbsp; &nbsp;&nbsp; &nbsp;}<br />&nbsp; &nbsp;}<br /><br />&nbsp; &nbsp;if (square&#91;1&#93;.constant == 0) {<br />&nbsp; &nbsp;&nbsp; &nbsp;if (square&#91;1&#93;.wrotebit4) {<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;square&#91;1&#93;.envelope = 15;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;square&#91;1&#93;.wrotebit4 = 0;<br />&nbsp; &nbsp;&nbsp; &nbsp;} else {<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (square&#91;1&#93;.envelope &gt; 0) square&#91;1&#93;.envelope--;<br />&nbsp; &nbsp;&nbsp; &nbsp;}<br />&nbsp; &nbsp;&nbsp; &nbsp;if ((square&#91;1&#93;.envelope == 0) &amp;&amp; square&#91;1&#93;.envloop) {<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;square&#91;1&#93;.envelope = 15;<br />&nbsp; &nbsp;&nbsp; &nbsp;}<br />&nbsp; &nbsp;}<br /><br />&nbsp; &nbsp;if (noise.constant == 0) {<br />&nbsp; &nbsp;&nbsp; &nbsp;if (noise.wrotebit4) {<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;noise.envelope = 15;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;noise.wrotebit4 = 0;<br />&nbsp; &nbsp;&nbsp; &nbsp;} else {<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (noise.envelope &gt; 0) noise.envelope--;<br />&nbsp; &nbsp;&nbsp; &nbsp;}<br />&nbsp; &nbsp;&nbsp; &nbsp;if ((noise.envelope == 0) &amp;&amp; noise.lengthhalt) {<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;noise.envelope = 15;<br />&nbsp; &nbsp;&nbsp; &nbsp;}<br />&nbsp; &nbsp;}<br />}<br /><br />void linearclock() {<br />&nbsp; &nbsp;if (triangle.lengthhalt == 0) {<br />&nbsp; &nbsp;&nbsp; &nbsp;if (triangle.linearcounter &gt; 0) triangle.linearcounter--;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;else triangle.linearcounter = triangle.linearreload;<br />&nbsp; &nbsp;} else {<br />&nbsp; &nbsp;&nbsp; &nbsp;triangle.linearcounter = triangle.linearreload;<br />&nbsp; &nbsp;}<br />}<br /><br />void lengthclock() {<br />&nbsp; &nbsp;if (square&#91;0&#93;.lengthhalt == 0) {<br />&nbsp; &nbsp;&nbsp; &nbsp;if (square&#91;0&#93;.lengthcounter &gt; 0) square&#91;0&#93;.lengthcounter--;<br />&nbsp; &nbsp;}<br /><br />&nbsp; &nbsp;if (square&#91;1&#93;.lengthhalt == 0) {<br />&nbsp; &nbsp;&nbsp; &nbsp;if (square&#91;1&#93;.lengthcounter &gt; 0) square&#91;1&#93;.lengthcounter--;<br />&nbsp; &nbsp;}<br /><br />&nbsp; &nbsp;if (triangle.lengthhalt == 0) {<br /><br />&nbsp; &nbsp;&nbsp; &nbsp;if (triangle.lengthcounter &gt; 0) triangle.lengthcounter--;<br />&nbsp; &nbsp;}<br /><br />&nbsp; &nbsp;if (noise.lengthhalt == 0) {<br />&nbsp; &nbsp;&nbsp; &nbsp;if (noise.lengthcounter &gt; 0) noise.lengthcounter--;<br />&nbsp; &nbsp;}<br />}<br /><br />void sweepclock() {<br />&nbsp; &nbsp;int32_t s, wl, d&#91;4&#93;;<br />&nbsp; &nbsp;uint8_t chan;<br /><br />&nbsp; &nbsp;for (chan=0; chan&lt;2; chan++) {<br />&nbsp; &nbsp;&nbsp; &nbsp;if ((--square&#91;chan&#93;.sweep == 0) || square&#91;chan&#93;.sweepreload) square&#91;chan&#93;.sweep = square&#91;chan&#93;.sweepperiod;<br />&nbsp; &nbsp;&nbsp; &nbsp;if ((square&#91;chan&#93;.period &gt;= 8) &amp;&amp; square&#91;chan&#93;.sweepenable &amp;&amp; square&#91;chan&#93;.sweep) {<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;wl = square&#91;chan&#93;.period;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;s = wl &gt;&gt; square&#91;chan&#93;.sweep;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;d&#91;0&#93; = s; d&#91;1&#93; = s; d&#91;2&#93; = ~s; d&#91;3&#93; = -s;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;wl += d&#91;square&#91;chan&#93;.negate*2 + chan&#93;;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (wl &lt; 0x800) square&#91;chan&#93;.sweepresult = wl;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;else square&#91;chan&#93;.sweepresult = 0;<br />&nbsp; &nbsp;&nbsp; &nbsp;} else square&#91;chan&#93;.sweepresult = 0;<br />&nbsp; &nbsp;&nbsp; &nbsp;if (!allowsweeps) square&#91;chan&#93;.sweepresult = square&#91;chan&#93;.period;<br />&nbsp; &nbsp;}<br />}<br /><br />void setinterruptAPU() {<br />}<br /><br />void frameseqAPU() {<br />&nbsp; &nbsp; if (clockticks6502 &lt; seqticknext) return;<br />&nbsp; &nbsp;&nbsp; &nbsp;else seqticknext += seqtickgap;<br /><br />&nbsp; &nbsp;&nbsp; &nbsp;if&nbsp; (seqmode == 4) {<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;switch (seqstep) {<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;case 0:<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;envclock();<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;linearclock();<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;break;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;case 1:<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;lengthclock();<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;sweepclock();<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;envclock();<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;linearclock();<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;break;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;case 2:<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;envclock();<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;linearclock();<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;break;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;case 3:<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;setinterruptAPU();<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;lengthclock();<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;sweepclock();<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;envclock();<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;linearclock();<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;break;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;seqstep = (seqstep + 1) % seqmode;<br />&nbsp; &nbsp;&nbsp; &nbsp;} else if (seqmode == 5) {<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;switch (seqstep) {<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;case 0:<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;lengthclock();<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;sweepclock();<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;envclock();<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;linearclock();<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;break;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;case 1:<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;envclock();<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;linearclock();<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;break;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;case 2:<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;lengthclock();<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;sweepclock();<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;envclock();<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;linearclock();<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;break;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;case 3:<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;envclock();<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;linearclock();<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;break;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;case 4:<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;break;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;seqstep = (seqstep + 1) % seqmode;<br />&nbsp; &nbsp;&nbsp; &nbsp;}<br />}<br /><br />void mixerinput(uint8_t channel, uint8_t value) {<br />&nbsp; &nbsp;channels&#91;channel&#93; = value;<br />}<br /><br />int32_t bufferpos = 0, buffersync = 0, audiosync = 0, unpausebufpos;<br />int8_t last = 0;<br />int8_t mixeroutAPU() {<br />&nbsp; &nbsp;double outbyte;<br /><br />&nbsp; &nbsp;double squareout, tndout;<br />&nbsp; &nbsp;squareout = 0;<br />&nbsp; &nbsp;if (square&#91;0&#93;.enabled &amp;&amp; (square&#91;0&#93;.period &gt; 7) &amp;&amp; (square&#91;0&#93;.lengthcounter &gt; 0)) squareout += channels&#91;0&#93;;<br />&nbsp; &nbsp;if (square&#91;1&#93;.enabled &amp;&amp; (square&#91;1&#93;.period &gt; 7) &amp;&amp; (square&#91;1&#93;.lengthcounter &gt; 0)) squareout += channels&#91;1&#93;;<br />&nbsp; &nbsp;squareout *= 0.00752;<br />&nbsp; &nbsp;tndout = 0;<br />&nbsp; &nbsp;if (triangle.enabled &amp;&amp; (triangle.period &gt; 7) &amp;&amp; (triangle.lengthcounter &gt; 0) &amp;&amp; (triangle.linearcounter &gt; 0)) tndout += channels&#91;2&#93;;<br /><br />&nbsp; &nbsp;tndout = tndout * 0.00851 + 0.00494 * channels&#91;3&#93; + 0.00335 * channels&#91;4&#93;;<br />&nbsp; &nbsp;outbyte = (int16_t)(127 * squareout);<br />&nbsp; &nbsp;outbyte += (int16_t)(127 * tndout);<br />&nbsp; &nbsp;<br /><br />&nbsp; &nbsp;return(outbyte);<br />}<br /><br />void buffersampleAPU() {<br />&nbsp; &nbsp;if ((uint32_t)bufferpos &lt; buffersize) {<br />&nbsp; &nbsp;&nbsp; &nbsp;buf&#91;bufferpos++&#93; = mixeroutAPU();<br />&nbsp; &nbsp;} else {<br />&nbsp; &nbsp;&nbsp; &nbsp;SDL_PauseAudio(0);<br />&nbsp; &nbsp;}<br />}<br /><br />void tickchannelsAPU() {<br />&nbsp; &nbsp;int16_t tmpbit, feedback;<br />&nbsp; &nbsp;uint32_t squaretarget;<br /><br />&nbsp; &nbsp;if (clockticks6502 &gt;= nextsamplecycle) {<br />&nbsp; &nbsp;&nbsp; &nbsp;buffersampleAPU();<br />&nbsp; &nbsp;&nbsp; &nbsp;nextsamplecycle += fastsampleticks;<br />&nbsp; &nbsp;}<br /><br />&nbsp; &nbsp;if ((uint32_t)bufferpos &gt;= buffersize) { //if sample buffer is full, postpone channel ticks<br />&nbsp; &nbsp;&nbsp; &nbsp;square&#91;0&#93;.lasttick = square&#91;1&#93;.lasttick = triangle.lasttick = noise.lasttick = dmc.lasttick = clockticks6502;<br />&nbsp; &nbsp;&nbsp; &nbsp;return;<br />&nbsp; &nbsp;}<br /><br />&nbsp; &nbsp;if (clockticks6502 &gt;= nextseqcycle) {<br />&nbsp; &nbsp;&nbsp; &nbsp;frameseqAPU();<br />&nbsp; &nbsp;&nbsp; &nbsp;nextseqcycle += seqtickgap;<br />&nbsp; &nbsp;}<br /><br />&nbsp; &nbsp;if (square&#91;0&#93;.sweepenable) squaretarget = square&#91;0&#93;.sweepresult;<br />&nbsp; &nbsp;&nbsp; &nbsp;else squaretarget = square&#91;0&#93;.period;<br />&nbsp; &nbsp;if ((clockticks6502 - square&#91;0&#93;.lasttick) &gt;= (squaretarget &lt;&lt; 1)) {<br />&nbsp; &nbsp;&nbsp; &nbsp;if (square&#91;0&#93;.enabled &amp;&amp; (squaretarget &gt; 7) &amp;&amp; (square&#91;0&#93;.lengthcounter &gt; 0)) {<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;channels&#91;0&#93; = square&#91;0&#93;.envelope * square_duty&#91;square&#91;0&#93;.duty&#93;&#91;square&#91;0&#93;.dutypos&#93;;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;square&#91;0&#93;.dutypos = (square&#91;0&#93;.dutypos + 1) &amp; 7;<br />&nbsp; &nbsp;&nbsp; &nbsp;} else channels&#91;0&#93; = 0;<br />&nbsp; &nbsp;&nbsp; &nbsp;square&#91;0&#93;.lasttick = clockticks6502 - ((clockticks6502 - square&#91;0&#93;.lasttick) - (squaretarget &lt;&lt; 1));<br />&nbsp; &nbsp;}<br /><br />&nbsp; &nbsp;if (square&#91;1&#93;.sweepenable) squaretarget = square&#91;1&#93;.sweepresult;<br />&nbsp; &nbsp;&nbsp; &nbsp;else squaretarget = square&#91;1&#93;.period;<br />&nbsp; &nbsp;if ((clockticks6502 - square&#91;1&#93;.lasttick) &gt;= (squaretarget &lt;&lt; 1)) {<br />&nbsp; &nbsp;&nbsp; &nbsp;if (square&#91;1&#93;.enabled &amp;&amp; (squaretarget &gt; 7) &amp;&amp; (square&#91;1&#93;.lengthcounter &gt; 0)) {<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;channels&#91;1&#93; = square&#91;1&#93;.envelope * square_duty&#91;square&#91;1&#93;.duty&#93;&#91;square&#91;1&#93;.dutypos&#93;;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;square&#91;1&#93;.dutypos = (square&#91;1&#93;.dutypos + 1) &amp; 7;<br />&nbsp; &nbsp;&nbsp; &nbsp;} else channels&#91;1&#93; = 0;<br />&nbsp; &nbsp;&nbsp; &nbsp;square&#91;1&#93;.lasttick = clockticks6502 - ((clockticks6502 - square&#91;1&#93;.lasttick) - (squaretarget &lt;&lt; 1));<br />&nbsp; &nbsp;}<br /><br />&nbsp; &nbsp;if ((clockticks6502 - triangle.lasttick) &gt;= triangle.period) {<br />&nbsp; &nbsp;&nbsp; &nbsp;if (triangle.enabled &amp;&amp; (triangle.period &gt; 7) &amp;&amp; (triangle.lengthcounter &gt; 0) &amp;&amp; (triangle.linearcounter &gt; 0)) {<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;channels&#91;2&#93; = triangle_step&#91;triangle.seqstep&#93; - 8;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;triangle.seqstep = (triangle.seqstep + 1) &amp; 31;<br />&nbsp; &nbsp;&nbsp; &nbsp;} else channels&#91;2&#93; = 0;<br />&nbsp; &nbsp;&nbsp; &nbsp;triangle.lasttick = clockticks6502 - ((clockticks6502 - triangle.lasttick) - triangle.period);<br />&nbsp; &nbsp;}<br /><br />&nbsp; &nbsp;if ((clockticks6502 - noise.lasttick) &gt;= noise.period) {<br />&nbsp; &nbsp;&nbsp; &nbsp;if (noise.enabled) {<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (noise.mode) {<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (noise.shift &amp; 0x40) tmpbit = 1;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;else tmpbit = 0;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;} else {<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (noise.shift &amp; 0x02) tmpbit = 1;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;else tmpbit = 0;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;feedback = (noise.shift &amp; 1) ^ tmpbit;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;noise.shift = (noise.shift &gt;&gt; 1) | (feedback &lt;&lt; 13);<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if ((noise.lengthcounter &gt; 0) &amp;&amp; ((noise.shift &amp; 1) == 0) &amp;&amp; (noise.period &gt; 7)) {<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;channels&#91;3&#93; = (int8_t)noise.envelope;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;} else channels&#91;3&#93; = 0;<br />&nbsp; &nbsp;&nbsp; &nbsp;} else channels&#91;3&#93; = 0;<br />&nbsp; &nbsp;&nbsp; &nbsp;noise.lasttick = clockticks6502 - ((clockticks6502 - noise.lasttick) - noise.period);<br />&nbsp; &nbsp;}<br /><br />&nbsp; &nbsp;if ((clockticks6502 - dmc.lasttick) &gt;= (dmc.period &lt;&lt; 3)) {<br />&nbsp; &nbsp;&nbsp; &nbsp;if (dmc.enabled) {<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (dmc.sampleempty) {<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;dmc.sampleempty = 0;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;dmc.bufferbit = 0;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;dmc.samplebuffer = read6502(dmc.address++);<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (dmc.address &lt; 0x8000) dmc.address = 0x8000;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;dmc.bytesremain--;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (dmc.bytesremain == 0) {<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (!dmc.loopmode) {<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;dmc.enabled = 0;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;} else {<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;dmc.address = (dmc.addressreg &lt;&lt; 6) | 0xC000;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;dmc.bytesremain = (dmc.lengthreg &lt;&lt; 4) + 1;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br /><br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (!dmc.sampleempty) {<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if ((dmc.samplebuffer &gt;&gt; (dmc.bufferbit &amp; 7)) &amp; 1) {<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (channels&#91;4&#93; &lt;= 0x7D) channels&#91;4&#93; += 2;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;} else {<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (channels&#91;4&#93; &gt;= 2) channels&#91;4&#93; -= 2;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (++dmc.bufferbit == 8) {<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;dmc.sampleempty = 1;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />&nbsp; &nbsp;&nbsp; &nbsp;}<br /><br />&nbsp; &nbsp;&nbsp; &nbsp;dmc.lasttick = clockticks6502 - ((clockticks6502 - dmc.lasttick) - (dmc.period &lt;&lt; 3));<br />&nbsp; &nbsp;}<br />}<br /><br />double sampleratio = 1.00;<br />void rebufferAPU(void *udata, uint8_t *stream, int16_t len) {<br />&nbsp; &nbsp;memcpy(stream, &amp;buf&#91;0&#93;, len);<br />&nbsp; &nbsp;memmove(&amp;buf&#91;0&#93;, &amp;buf&#91;len&#93;, buffersize - len);<br />&nbsp; &nbsp;bufferpos -= len;<br />&nbsp; &nbsp;if (bufferpos &lt;= 0) bufferpos = 0;<br />}<br /><br />bool initAPU(uint8_t CPUmode, uint32_t samplerate) { //for CPUmode, 0 = NTSC, non-zero = PAL<br />&nbsp; &nbsp;uint32_t buflen;<br /><br />&nbsp; &nbsp;if (CPUmode) {<br />&nbsp; &nbsp;&nbsp; &nbsp;seqtickgap = CPU_PAL / 240;<br />&nbsp; &nbsp;&nbsp; &nbsp;sampleticks = CPU_PAL / samplerate;<br />&nbsp; &nbsp;} else {<br />&nbsp; &nbsp;&nbsp; &nbsp;seqtickgap = CPU_NTSC / 240;<br />&nbsp; &nbsp;&nbsp; &nbsp;sampleticks = CPU_NTSC / samplerate;<br />&nbsp; &nbsp;}<br />&nbsp; &nbsp;cursampleticks = sampleticks;<br />&nbsp; &nbsp;fastsampleticks = (uint64_t)((double)sampleticks * 1.05); //5% faster sample generation if we need to play catch-up<br /><br />&nbsp; &nbsp;seqticknext = clockticks6502 + seqtickgap;<br />&nbsp; &nbsp;seqmode = 4;<br />&nbsp; &nbsp;seqstep = 0;<br />&nbsp; &nbsp;triangle.seqstep = 0;<br />&nbsp; &nbsp;noise.shift = 1;<br /><br />&nbsp; &nbsp;buflen = (uint32_t)((float)(samplerate / 1000) * 100); //100 milliseconds is generally a safe latency period<br /><br />&nbsp; &nbsp;audio.freq = samplerate;<br />&nbsp; &nbsp;audio.samples = (uint16_t)buflen;<br />&nbsp; &nbsp;audio.channels = 1;<br />&nbsp; &nbsp;audio.format = AUDIO_S8;<br />&nbsp; &nbsp;audio.callback = (void *)rebufferAPU;<br />&nbsp; &nbsp;audio.userdata = NULL;<br /><br />&nbsp; &nbsp;if (SDL_OpenAudio(&amp;audio, NULL) &lt; 0) return(false);<br /><br />&nbsp; &nbsp; buffersize = buflen;<br />&nbsp; &nbsp;bufferpos = 0;<br />&nbsp; &nbsp;cursamplerate = samplerate;<br /><br />&nbsp; &nbsp;SDL_PauseAudio(1);<br /><br />&nbsp; &nbsp;return(true);<br />}<br /><br />void resetAPU() {<br />&nbsp; &nbsp;SDL_PauseAudio(1);<br />&nbsp; &nbsp;bufferpos = 0;<br />}<br /><br />void killAPU() {<br />&nbsp; &nbsp;SDL_CloseAudio();<br />}<br /></div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Grapeshot</b> [ Tue Aug 13, 2013 3:11 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: It's about time to finally fix my APU!</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />You're going to need to fix your sweep implementation then, because the reason the square channels keep playing is because the sweep unit isn't silencing them when it should be. Try the game Driar as well for another interesting use of the sweep unit to change octaves of the square channls without popping.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>miker00lz</b> [ Tue Aug 13, 2013 4:04 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: It's about time to finally fix my APU!</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Ah, yeah that makes sense heh. I'm going to look over the wiki doc on sweeping again, but still if anybody can see my problem help me out of you can please! The sweepclock() function is probably what needs to be looked it. It's not very long.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Grapeshot</b> [ Tue Aug 13, 2013 4:11 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: It's about time to finally fix my APU!</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Well for one, it's wrong to have a separate sweep result and square period. The sweep unit should change the period of the channel directly. Here's my code for the sweep unit (Java)<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp; private void setsweep() {<br />&nbsp; &nbsp; &nbsp; &nbsp; //System.err.println(&quot;sweep&quot;);<br />&nbsp; &nbsp; &nbsp; &nbsp; for (int i = 0; i &lt; 2; ++i) {<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; sweepsilence&#91;i&#93; = false;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (sweepreload&#91;i&#93;) {<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; sweepreload&#91;i&#93; = false;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; sweeppos&#91;i&#93; = sweepperiod&#91;i&#93;;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ++sweeppos&#91;i&#93;;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; final int rawperiod = (timers&#91;i&#93;.getperiod() &gt;&gt; 1);<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; int shiftedperiod = (rawperiod &gt;&gt; sweepshift&#91;i&#93;);<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (sweepnegate&#91;i&#93;) {<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; //invert bits of period<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; //add 1 on second channel only<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; shiftedperiod = -shiftedperiod + i;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; shiftedperiod += rawperiod;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if ((rawperiod &lt; 8) || shiftedperiod &gt; 0x7ff) {<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; // silence channel<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; sweepsilence&#91;i&#93; = true;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; } else if (sweepenable&#91;i&#93; &amp;&amp; (sweepshift&#91;i&#93; != 0) &amp;&amp; lengthctr&#91;i&#93; &gt; 0<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &amp;&amp; sweeppos&#91;i&#93; &gt; sweepperiod&#91;i&#93;) {<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; sweeppos&#91;i&#93; = 0;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; timers&#91;i&#93;.setperiod(shiftedperiod &lt;&lt; 1);<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />&nbsp; &nbsp; &nbsp; &nbsp; }<br />&nbsp; &nbsp; }</div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Tue Aug 13, 2013 6:05 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: It's about time to finally fix my APU!</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I think the reason for the separate sweep result is that if the sweep unit calculates a result too large, it silences the channel even if sweep is disabled. This is why a lot of games don't use the pulse channels' bottom octave, as writing $00 causes anything in the bottom octave to instantly silence the channel.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Grapeshot</b> [ Tue Aug 13, 2013 6:20 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: It's about time to finally fix my APU!</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Well I know that's how it works, but the sweep result shouldn't be stored between clocks of the sweep unit; it should either be applied directly to the channel's period or the result should be discarded. It could still be correct as is, but I do see this copy and paste error:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; <br />&nbsp; &nbsp; case 0x4005:<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;if (value &amp; 0x80) { square&#91;1&#93;.sweepenable = 1; square&#91;1&#93;.sweepresult = square&#91;0&#93;.period; }<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;else { square&#91;1&#93;.sweepenable = 0; square&#91;1&#93;.sweepresult = square&#91;0&#93;.period; }<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;square&#91;1&#93;.sweepperiod = ((value &gt;&gt; 4) &amp; 7) + 1;<br /></div><br /><br />and even with that corrected, the original channel period should NOT be restored if the sweep enable is turned off.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>miker00lz</b> [ Fri Aug 16, 2013 9:11 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: It's about time to finally fix my APU!</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I should have been more careful. Not sure how I missed the paste errors. That did improve things a bit. Super Mario Bros sounds a little better, but there are still problems and I guess I'm just not sweeping the frequencies properly.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

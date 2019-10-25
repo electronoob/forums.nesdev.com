@@ -1,0 +1,439 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - CPLD square wave synthesizer</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">CPLD square wave synthesizer</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=9&amp;t=9414">http://forums.nesdev.com/viewtopic.php?f=9&amp;t=9414</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Fri Oct 19, 2012 1:50 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>CPLD square wave synthesizer</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I'm thinking of a design for a synthesizer to fit in a CPLD that would work even on an NES.<br /><br />Each channel would resemble an APU channel, but without hardware envelope, length counter, or sweep. Each channel has an 11-bit divider, an 8-step PWM sequencer, and a volume control.<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">7654 3210&nbsp; $4020/$4024<br />TT&nbsp; &nbsp;VVVV<br />||&nbsp; &nbsp;++++- Volume<br />++-------- Timbre (12.5%, 25%, 37.5%, or 50% duty)<br /><br />7654 3210&nbsp; $4022/$4026<br />PPPPPPPPP<br />+++++++++- Period (bits 7-0)<br /><br />7654 3210&nbsp; $4023/$4024<br />&nbsp; &nbsp; &nbsp; PPP<br />&nbsp; &nbsp; &nbsp; +++- Period (bits 10-8)<br /></div><br />As on the 2A03 APU, the CPU frequency is pre-divided by 2 before being sent to the synthesizer as an 895 kHz clock.<br /><br />Every time a channel's waveform rises or falls, the sequencer pulls /IRQ low.<br />When $4011 is read, the channels are summed and put on the data bus, and /IRQ goes high impedance.<br />So if you have two channels playing notes at about 300 Hz, you get about 1200 IRQs per second: 300 rises and 300 falls for each channel. Each IRQ takes 19 cycles to service:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; brk $00&nbsp; &nbsp; ; 7<br />irq:<br />&nbsp; dec $4011&nbsp; ; 6<br />&nbsp; rti&nbsp; &nbsp; &nbsp; &nbsp; ; 6<br /></div><br />Thus the CPU would spend about 1.3 percent of the time servicing IRQs. This would increase with higher frequencies, and it might be best to design the music engine to play lower frequencies on the CPLD and higher on the APU.<br /><br />A CPLD needs a macrocell for each flip-flop, but it also needs a few spare macrocells for complex combinational logic. I count 64 flip-flops, meaning it might fit in a 72 macrocell CPLD, but it might not.<br /><ul><li>Divider reset values: 11 bits per channel </li><li>Volume: 4 bits per channel </li><li>Timbre:2 bits per channel: </li><li>Divider position: 11 bits per channel </li><li>Sequencer position: 3 bits per channel </li><li>Pre-scaler: 1 bit </li><li>IRQ flag: 1 bit </li></ul><br />It'd need 26 pins, some of which might be shared with the mapper on a larger CPLD:<br />Inputs: R/W, /ROMSEL, A14-A0, M2, D7<br />Input/output: D6-D0<br /><br />So would this be feasible?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Fri Oct 19, 2012 2:21 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: CPLD square wave synthesizer</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Why 11 bits and not 12? The APU squares are kinda lacking for bass (something that the VRC6 squares can do nicely with their extra octave, the 5B as well).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Dwedit</b> [ Fri Oct 19, 2012 3:23 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: CPLD square wave synthesizer</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Any latency of the IRQ would affect the sound produced, and there will always be some latency.<br />What's the worst case for IRQ latency?  Worst case is when the CPU is doing a sprite DMA transfer to the PPU (518 CPU cycles).  Otherwise, the worst case is doing a read-modify-write nnnn,X instruction for 7 cycles at the same time as a DMC fetch, so that's about 9 cycles.<br /><br />Let's say there's a sampling rate of 44100 Hz, and use Samples as the unit for measuring jitter.  One frame is 29780.66 CPU cycles, and covers 734 samples of audio.  If there was a sprite DMA delaying an interrupt response, it would jitter up to 13 samples, enough for quite an audible artifact.  The other 9 cycles jitter is about .2 samples, and probably won't matter at all.<br /><br />So you'd get crummy sound when running a game with sprites.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Fri Oct 19, 2012 4:16 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: CPLD square wave synthesizer</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">rainwarrior wrote:</div><div class="quotecontent">Why 11 bits and not 12? The APU squares are kinda lacking for bass</div><br />Mostly trying to leave a bit of wiggle room for the compiler to fit it all.<br /><br /><div class="quotetitle">Dwedit wrote:</div><div class="quotecontent">Any latency of the IRQ would affect the sound produced</div><br />True, but audibly?<br /><br /><div class="quotetitle">Dwedit wrote:</div><div class="quotecontent">at the same time as a DMC fetch</div><br />This would not be used together with DMC automatic playback due to conflict on $4011. But you have a point about sprites.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Fri Oct 19, 2012 6:32 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: CPLD square wave synthesizer</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />The sprite issue is the true deal breaker of this way of generating sound. What good are a couple of extra sound channels when you can't even use the sprites right?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Fri Oct 19, 2012 6:49 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: CPLD square wave synthesizer</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />So is there a better alternative to requiring each 72-pin console owner to solder?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Fri Oct 19, 2012 7:31 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: CPLD square wave synthesizer</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />PC's solved this in the 1980s:<br /><img src="http://i.imgur.com/yLcrF.jpg" alt="Image" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Fri Oct 19, 2012 8:14 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: CPLD square wave synthesizer</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Hahaha! Muffled sounds coming from the cart would be really cool! XD<br /><br /><div class="quotetitle">tepples wrote:</div><div class="quotecontent">So is there a better alternative to requiring each 72-pin console owner to solder?</div><br />I guess <a href="http://www.callanbrown.com/index.php?option=com_content&amp;view=article&amp;id=74:castlevania-iii-with-full-famicom-sound&amp;catid=36:home-console-projects&amp;Itemid=61" class="postlink">this</a> is the most straight forward solution so far... But people who are stuck with RF still won't be able to use it.<br /><br />If you really want a transparent, non-weird solution that will work for everyone without severely crippling the software, I guess you'll have to make your mapper a bit more complex and implement a DMA feature that can be used instead of the one in the CPU. If you can make it more general so that it can also be used with $2007, even better!
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Dwedit</b> [ Fri Oct 19, 2012 9:19 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: CPLD square wave synthesizer</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I believe it's actually possible to get around the sprite problem with software.<br />You can anticipate when the IRQs will fire, and know whether to update sprites immediately, or wait until after the interrupt.<br /><br />There are about 29780.66 cycles in a frame.  You tell the timer what the period should be in units of clock cycles.<br />Calculate the number of cycles until the next interrupt after the next vblank.  Something like period - (29780.66 - oldTimerValue) % period.  If your result is less than 518, wait until after the interrupt happens before you upload sprites, otherwise upload sprites immediately.<br /><br />Example: your audio frequency is 261.625Hz, so you need an interrupt twice as often.  The period is 3420 cycles.  You start at 0.<br />Interrupt will happen ~8.7 times before vblank happens.  ~.3 periods are remaining, which is 1000 cycles until the next interrupt.  You have more than 518 cycles left, so you can safely upload sprite data without messing the audio up.<br /><br />Once you exceed 1727.58Hz as your audio frequency, you will always be interrupted during a sprite DMA, but you can still try to lessen the effects by getting the minimum amount of jitter.<br /><br />You need to adjust for different regions, like PAL or Dendy, and need to keep track of what value the timer is expected to be at.  Also, if you reset the timer's phase, you can reset your counter to zero as well.<br /><br />So your code ends up looking like this:<br />VBLANK:<br />possibly update timer period, so you know you did it first thing during the frame.<br />check if we want to update sprites before the interrupt<br />If we do, update sprites<br />otherwise, update sprites the next time the IRQ is handled.<br />After completing all the vblank code, do the math and figure out when the next interrupt will happen for the next frame.<br /><br />And you can probably test this stuff out on any existing emulator by using Mapper #73.  You need a longer interrupt handler of course.<br /><br />edit: This is designed for a single channel.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bananmos</b> [ Sat Oct 20, 2012 5:22 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: CPLD square wave synthesizer</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">True, but audibly?</div><br /><br />That's a good question indeed... I find we often worry about things that while sounding like a showstopper in theory may have little practical consequence. But the only way to know is to try. So how about implementing this propsed wave generator in software first, and inserting those delays in your stream to hear how it will sound?...
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Dwedit</b> [ Sat Oct 20, 2012 1:36 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: CPLD square wave synthesizer</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Here's an example of what it might sound like without correcting for timing issues.<br />Little demo program that plays Twinkle Twinkle Little Star with Konami VRC3 IRQs.<br />Compatibility: Works on Nintendulator, <span style="color: #00FF00">Bizhawk</span>, and PuNES.  Fails on FCEUX, Nestopia, <s>Bizhawk</s>, and possibly everything else.<br /><br />One of the programs does no Sprite DMA at all.<br />The other program blindly does Sprite DMA every frame without trying to work around the timing issues.
+
+		
+			<br clear="all" /><br />
+
+			<table class="tablebg" width="100%" cellspacing="1">
+			<tr>
+				<td><b class="genmed">Attachments: </b></td>
+			</tr>
+			
+				<tr>
+					<td>
+			<span class="genmed">
+				<img src="./styles/subsilver2/imageset/icon_topic_attach.gif" width="14" height="18" alt="" title="" /> 
+				<a href="./download/file.php?id=88">twinkle.zip</a> [3.23 KiB]
+			</span><br />
+			<span class="gensmall">Downloaded 159 times</span>
+		
+
+		<br />
+	</td>
+				</tr>
+			
+			</table>
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bananmos</b> [ Sat Oct 20, 2012 1:49 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: CPLD square wave synthesizer</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />That was quick <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" /> <br /><br />Unfortunately, both programs sound like crap in Nintendulator on my slowish Netbook, and my Powerpak won't run it, so can't comment on how it sounds <img src="./images/smilies/icon_sad.gif" alt=":(" title="Sad" /> would love to hear a recording from real hardware...
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Sat Oct 20, 2012 2:04 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: CPLD square wave synthesizer</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><img src="http://www.retrousb.com/images/mappers1.png" alt="Image" /><br />VRC3 is blue (not yet implemented on PowerPak). Could you modify it to work on something green?<br /><br />Here's another way to simulate it:<br /><ol style="list-style-type: decimal"><li>Load a wave file of a chiptune recording in 735-sample blocks. </li><li>Set the first 13 samples of each block equal to the first sample. Or to simulate &quot;trying to work around the timing issues&quot;, set the first 13 samples equal to the seventh sample. </li><li>Write the modified wave file. </li></ol>Should I write a Python program that does this?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Dwedit</b> [ Sat Oct 20, 2012 2:07 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: CPLD square wave synthesizer</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I picked VRC3 because it was the only mapper that automatically reloaded the IRQ counter to the latch value after the counter completes.  It acts just like the timers on the GBA.  None of the other mappers do that.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Sat Oct 20, 2012 2:12 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: CPLD square wave synthesizer</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I think <a href="http://wiki.nesdev.com/w/index.php/RAMBO-1" class="postlink">RAMBO-1 (#64)</a> does that. Its counterpart to MMC3's scanline counter can count either PA12 rises (like MMC3) or M2/4.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

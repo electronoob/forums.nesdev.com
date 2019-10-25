@@ -1,0 +1,396 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Nametable =&gt; Attribute table address conversion?</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Nametable =&gt; Attribute table address conversion?</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=10&amp;t=12398">http://forums.nesdev.com/viewtopic.php?f=10&amp;t=12398</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Myask</b> [ Tue Feb 17, 2015 4:51 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Nametable =&gt; Attribute table address conversion?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Is there an efficient way that the community's already coded to efficiently perform this conversion? I'm pretty sure this naïf-approach amalgamation of shifts and carrysets is not the best way.<br />0010 TTYY YyyX XXxx (nametable byte)<br />to<br />0010 TT11 11YY YXXX (attr. table byte) <br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">;$palettedex already has the desired palette in low two bits, from figuring out what we're putting there<br />LDA $highaddressin<br />ORA #$0C<br />ASL $lowaddressin ;Y yyXX Xxx0<br />ROL A ;* ***1 1YYY<br />ASL $lowaddressin ;y yXXX xx00<br />ROL $palettedex ;* 0000 0ppy<br />ASL $lowaddressin ;y XXXx x000 (LSB discard)<br />ASL $lowaddressin ;X XXxx 0000<br />ROL A ;* **11 YYYX<br />ASL $lowaddressin ;X Xxx0 0000<br />ROL A ;* *11Y YYXX<br />ASL $lowaddressin ;X xx00 0000<br />ROL A ;* 11YY YXXX<br />STA $lowaddressout<br />ASL $lowaddressin ;x x000 0000<br />ROL $palettedex ;* 0000 ppyx<br />LDA $highaddressin<br />ORA #3 ;0010 TT11<br />STA $highaddressout<br /></div><br />Also, the lookup from the a1,a6 bits for which bit-pair of the attribute byte? It seems like for this, a 16-entry LUT (with the two palette bits also in the index) for speed would be best...<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">.db $00, $00, $00, $00, $01, $04, $10, $40, $02, $08, $20, $80, $03, $0C, $30, $C0</div><br />Though, on thinking, one could replace the &quot;ROL $patterndex&quot;es with<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">BCC +&nbsp; ;y1<br />ASL $palettedex ASL $palettedex ASL $palettedex ASL $palettedex<br />+: <br />;and<br />BCC + ;x1<br />&nbsp;ASL $palettedex ASL $palettedex<br />&nbsp;+:</div><br /> in the address conversion routine, for slower/smaller way to accomplish the same thing.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Tue Feb 17, 2015 5:52 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Nametable =&gt; Attribute table address conversion?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Only thought: for speed, at least, think about restructuring things to avoid the RMW-on-memory instructions; they're enough slower that you may find the overhead of temporarily loading and storing A to be preferable.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Tue Feb 17, 2015 7:10 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Nametable =&gt; Attribute table address conversion?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I just don't do this conversion, ever. What I do is convert a set of coordinates (9-bit X, 9-bit Y) into NT and AT addresses, but I really don't see the point in converting one address to another.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Tue Feb 17, 2015 8:33 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Nametable =&gt; Attribute table address conversion?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I don't have 6502 code to convert, but a bitwise conversion is outlined at the <a href="http://wiki.nesdev.com/w/index.php/The_skinny_on_NES_scrolling" class="postlink">skinny scrolling</a> wiki article.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp;tile address&nbsp; &nbsp; &nbsp; = 0x2000 | (v &amp; 0x0FFF)<br />&nbsp;attribute address = 0x23C0 | (v &amp; 0x0C00) | ((v &gt;&gt; 4) &amp; 0x38) | ((v &gt;&gt; 2) &amp; 0x07)</div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Tue Feb 17, 2015 8:49 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Nametable =&gt; Attribute table address conversion?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />So... this would be my naive approach:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">; tile address in:<br />; v0 = H7 H6 H5 H4 H3 H2 H1 H0<br />; v1 = L7 L6 L5 L4 L3 L2 L1 L0<br /><br />; attribute address out:<br />; a0 = 0&nbsp; 0&nbsp; 1&nbsp; 0&nbsp; H3 H2 1&nbsp; 1&nbsp; &nbsp;($23 | calculations)<br />; a1 = 1&nbsp; 1&nbsp; H1 H0 L7 L4 L3 L2&nbsp; ($C0 | calculations)<br /><br />lda v0<br />ror<br />ror<br />ror<br />ror<br />ror<br />and #$30<br />sta a1&nbsp; &nbsp; &nbsp;; a1 = 0&nbsp; 0&nbsp; H1 H0 0&nbsp; 0&nbsp; 0&nbsp; 0<br />lda v1<br />lsr<br />lsr<br />pha<br />and #$07<br />ora a1<br />sta a1&nbsp; &nbsp; &nbsp;; a1 = 0&nbsp; 0&nbsp; H1 H0 0&nbsp; L4 L3 L2<br />pla<br />lsr<br />lsr<br />and #$08<br />ora a1&nbsp; &nbsp; &nbsp;; A&nbsp; = 0&nbsp; 0&nbsp; H1 H0 L7 L4 L3 L2<br />ora #$C0<br />sta a1&nbsp; &nbsp; &nbsp;; a1 = 1&nbsp; 1&nbsp; H1 H0 L7 L4 L3 L2<br />lda v0<br />and #$0C<br />ora #$23<br />sta a0&nbsp; &nbsp; &nbsp;; a0 = 0&nbsp; 0&nbsp; 1&nbsp; 0&nbsp; H3 H2 1&nbsp; 1&nbsp; <br /></div><br />61 cycles.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Tue Feb 17, 2015 9:12 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Nametable =&gt; Attribute table address conversion?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Or, yeah, if I just modify the address in-place, I think the following would be 53 cycles.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">; v0:v1 = address in<br />; t&nbsp; &nbsp; &nbsp;= temporary<br /><br />lda v0&nbsp; &nbsp; ; A:v1 = v<br />lsr<br />ror v1<br />lsr<br />ror v1&nbsp; &nbsp; ; A:v1 = v &gt;&gt; 2<br />lda v1<br />and #$07<br />sta t&nbsp; &nbsp; &nbsp;; t&nbsp; = (v &gt;&gt; 2) &amp; $07<br />lda v1&nbsp; &nbsp; ; v1 = (v &gt;&gt; 2) &amp; $FF<br />lsr<br />lsr<br />and #$38&nbsp; ; A&nbsp; = (v &gt;&gt; 4) &amp; $38<br />ora t<br />ora #$C0<br />sta v1&nbsp; &nbsp; ; v1 = ((v &gt;&gt; 2) &amp; $07) | ((v &gt;&gt; 4) &amp; $38) | #$C0<br />lda v0<br />and #$0C<br />ora #$23<br />sta v0&nbsp; &nbsp; ; v0 = ((v &amp; $0C00) | $2300) &gt;&gt; 8</div><br /><br />Do you need to do this more than once per frame? What is use case that your original post wasn't efficient enough for?<br /><br />Another alternative: (49 cycles)<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">lda v1<br />rol&nbsp; &nbsp; &nbsp; &nbsp;; C = L7<br />lda v0<br />pha<br />and #$0C<br />ora #$23<br />sta v0&nbsp; &nbsp; ; A = 0&nbsp; 0&nbsp; 1&nbsp; 0&nbsp; H3 H2 1&nbsp; 1&nbsp; <br />pla<br />ror&nbsp; &nbsp; &nbsp; &nbsp;; A = L7 .&nbsp; .&nbsp; .&nbsp; .&nbsp; .&nbsp; .&nbsp; H1, C = H0<br />ror<br />ror&nbsp; &nbsp; &nbsp; &nbsp;; A = H1 H0 L7 .&nbsp; .&nbsp; .&nbsp; .&nbsp; .<br />ror<br />ror<br />and #$38<br />sta t&nbsp; &nbsp; &nbsp;; t = .&nbsp; .&nbsp; H1 H0 L7 .&nbsp; .&nbsp; .<br />lda v1<br />lsr<br />lsr<br />and #$07&nbsp; ; A = .&nbsp; .&nbsp; .&nbsp; .&nbsp; .&nbsp; H4 H3 H2<br />ora t<br />sta v1</div><br /><br />Pardon me coding out loud. I'm just enjoying the exercise.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Tue Feb 17, 2015 9:51 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Nametable =&gt; Attribute table address conversion?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Oh, sorry, I totally missed that you needed the palette index too. Modified that last routine, which is now 63 cycles.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">lda v1<br />rol<br />rol&nbsp; &nbsp; &nbsp; &nbsp;; A = .&nbsp; .&nbsp; .&nbsp; .&nbsp; .&nbsp; .&nbsp; .&nbsp; L7, C = L6<br />rol p&nbsp; &nbsp; &nbsp;; p = 0&nbsp; 0&nbsp; 0&nbsp; 0&nbsp; 0&nbsp; P1 P0 L6<br />ror&nbsp; &nbsp; &nbsp; &nbsp;; C = L7<br />lda v0<br />pha<br />and #$0C<br />ora #$23<br />sta v0&nbsp; &nbsp; ; A = 0&nbsp; 0&nbsp; 1&nbsp; 0&nbsp; H3 H2 1&nbsp; 1<br />pla<br />ror&nbsp; &nbsp; &nbsp; &nbsp;; A = L7 .&nbsp; .&nbsp; .&nbsp; .&nbsp; .&nbsp; .&nbsp; H1, C = H0<br />ror<br />ror&nbsp; &nbsp; &nbsp; &nbsp;; A = H1 H0 L7 .&nbsp; .&nbsp; .&nbsp; .&nbsp; .<br />ror<br />ror<br />and #$38<br />sta t&nbsp; &nbsp; &nbsp;; t = .&nbsp; .&nbsp; H1 H0 L7 .&nbsp; .&nbsp; .<br />lda v1<br />lsr&nbsp; &nbsp; &nbsp; &nbsp;; C = L0<br />rol p&nbsp; &nbsp; &nbsp;; p = 0&nbsp; 0&nbsp; 0&nbsp; 0&nbsp; P1 P0 L6 L0<br />lsr<br />and #$07&nbsp; ; A = .&nbsp; .&nbsp; .&nbsp; .&nbsp; .&nbsp; H4 H3 H2<br />ora t<br />sta v1</div><br /><br />I think your original was 68 cycles, so this isn't much of an improvement anyway. Sorry.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Myask</b> [ Tue Feb 17, 2015 10:04 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Nametable =&gt; Attribute table address conversion?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="codetitle"><b>Code:</b></div><div class="codecontent">my first<br />LDA/STA zp&nbsp; &nbsp;: 3c x 4 = 12c&nbsp; &nbsp;&nbsp; &nbsp;2b x 4 =&nbsp; 8<br />ORA #&nbsp; &nbsp;&nbsp; &nbsp;: 2c x 2 =&nbsp; 4c&nbsp; &nbsp;&nbsp; &nbsp;2b x 2 =&nbsp; 4<br />ROL A&nbsp; &nbsp;&nbsp; &nbsp;: 2c x 4 =&nbsp; 8c&nbsp; &nbsp;&nbsp; &nbsp;1b x 4 =&nbsp; 4<br />ASL/ROL zp&nbsp; &nbsp;: 5c x 9 = 45c&nbsp; &nbsp;&nbsp; &nbsp;2b x 9 = 18<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; 69 cycles, 34 bytes<br />vs (your first)<br />lda/sta zp&nbsp; &nbsp;: 4 x 6 = 24&nbsp; &nbsp;&nbsp; &nbsp;2b x 6 = 12<br />pha/pla&nbsp; &nbsp;&nbsp; &nbsp;: 2 x 4 =&nbsp; 8&nbsp; &nbsp;&nbsp; &nbsp;1b x 4 =&nbsp; 4<br />ROR/LSR A &nbsp; &nbsp;: 2 x 9 = 18&nbsp; &nbsp;&nbsp; &nbsp;1b x 9 =&nbsp; 9<br />AND/ORA #i&nbsp; &nbsp;: 2 x 6 = 12&nbsp; &nbsp;&nbsp; &nbsp;2b x 6 = 12<br />AND/ORA zp&nbsp; &nbsp;: 3 x 2 =&nbsp; 6&nbsp; &nbsp;&nbsp; &nbsp;2b x 2 =&nbsp; 4<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; 68 cycles, 41 bytes (66/40 rotating faster)<br />vs (your second)<br />LDA/STA zp: 4c x 7 = 28c&nbsp; &nbsp;2b x 7 = 14b<br />LSR/ROR A :&nbsp; &nbsp;2c x 4 =&nbsp; 8c&nbsp; &nbsp;1b x 4 =&nbsp; 4b<br />ROR/LSR zp: 5c x 2 = 10c&nbsp; &nbsp;2b x 2 =&nbsp; 4b<br />AND/OR #i : 2c x 5 = 10c&nbsp; &nbsp;2b x 5 = 10b<br />ORA zp&nbsp; &nbsp;&nbsp; : 3c x 1 =&nbsp; 3c&nbsp; &nbsp;2b x 1 =&nbsp; 2b<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;59 cycles, &nbsp; &nbsp;&nbsp; &nbsp;34 bytes<br /></div><br />Absolute commands are a byte and cycle bigger than zp: (47b,82c) vs (48b,74c) vs (44b,69c) <s>making</s> your [first] code better in both metrics.<br />(pre-post edit:)<br />(34b 52c) -&gt; 42b 62c for non-zp<br />(32b 49c) -&gt; 37b 54c if our address is not zp. (like t wouldn't be.)<br /><br /><div class="quotetitle">rainwarrior wrote:</div><div class="quotecontent">Pardon me coding out loud. I'm just enjoying the exercise.</div><br />Certainly.<br /><br />(Simple optimization to your first: ASL A x 4 instead of ROL A x 5 ,since you're already ANDing off unused bits, and you don't have to put everything through the carry.)<br /><br /><div class="quotetitle">tokumaru wrote:</div><div class="quotecontent">What I do is convert a set of coordinates (9-bit X, 9-bit Y) into NT and AT addresses</div><strong>An efficient way to do that would be just as pertinent here.</strong>..though one wonders why 9-bit and not 6 if we're dealing with tiles. (self-reply: Sprites vs BG, duh.) Of course, that makes the NT address 0010 YXyy yyyx xxxx, a bit annoying... (that is, Y8, X8, Y7-3, X7-3)<br /><br /><div class="quotetitle">rainwarrior wrote:</div><div class="quotecontent">Do you need to do this more than once per frame? What is use case that your original post wasn't efficient enough for?</div>I was mainly curious if people had code-golfed it down to a gold-standard, since it seemed like a thing that every program ever needed to do. (Though on reflection I suppose one only needs to do it once per strip pushed to the PPU, breaking strips on nametable boundaries...)<br /><br />My code is still in the theory stage. &gt;&gt;; I suspect going further would be prudent before we get too engaged in Virtua Code Golf.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">convert-coord-to-NT:<br />LDA $obj-hiY<br />ASL A<br />ORA $obj-hiX ;maybe store hiXY together and use BCC+XOR to change each<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; ; to avoid carry issues?<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; ;Nah, makes collision sizes other than 'equality' hard.<br />ORA #$08<br />STA $high-addr<br />LDA $obj-loY<br />ASL A<br />ROL $high-addr<br />ASL A<br />ROL $high-addr<br />AND $E0<br />STA $low-addr<br />LDA $obj-loX<br />LSR LSR LSR<br />ORA $low-addr<br />STA $low-addr<br /><br />convert-coord-to-AT:<br />LDA $obj-hiY ;though I suspect these might get ,x<br />ASL A<br />ORA $obj-hiX<br />ASL A&nbsp; ASL A<br />ORA #$23<br />STA $high-addr<br />LDA $obj-loX<br />ASL A<br />ROL $low-addr<br />ASL A<br />ROL $low-addr<br />ASL A<br />ROL $low-addr<br />LDA #7<br />AND $low-addr<br />STA $low-addr<br />LDA $obj-loY<br />AND #$E0<br />LSR LSR<br />ORA #$C0<br />ORA $low-addr<br />STA $low-addr<br /></div><br /><div class="quotetitle">rainwarrior wrote:</div><div class="quotecontent">(palette-index too)</div><br />But shouldn't p be getting L7 L1? The LSB of X/Y (L6, L0) for tiles is ignored within the same 16x16 palette block. L7/L1 select which pair of bits you need to set for that 16x16.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Tue Feb 17, 2015 10:20 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Nametable =&gt; Attribute table address conversion?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />As for your palette lookup conversion, comparing size and speed for what you originally posted:<br /><br />inline version: +12 bytes<br />cycles added: -4, 5, 15, 17 (8.25 average case)<br /><br />lookup version: +19 bytes (16 byte table, LDA ABS X)<br />cycles added: 4<br /><br />This is presuming LDA ZP (if inline) vs LDX ZP, LDA ABS X (lookup) when you go to use the thing.<br /><br />If you were using my last version of the code, the inline version is incompatible, I think.<br /><br /><br />However, if your goal is to do this many times per frame, optimizing these routines probably doesn't help much unless you need kinda random access to the tiles. If you're trying to update a contiguous row of tiles, you only need to do the calculation once at the start of the row, and then the thing to optimize is probably the continuation loop afterwards?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Tue Feb 17, 2015 10:25 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Nametable =&gt; Attribute table address conversion?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Oops! Yes, I misread what was going on with the palette bits. A quick revision, no change in speed.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">lda v1<br />rol<br />php<br />rol p&nbsp; &nbsp; &nbsp;; p = 0&nbsp; 0&nbsp; 0&nbsp; 0&nbsp; 0&nbsp; P1 P0 L7<br />plp&nbsp; &nbsp; &nbsp; &nbsp;; C = L7<br />lda v0<br />pha<br />and #$0C<br />ora #$23<br />sta v0&nbsp; &nbsp; ; A = 0&nbsp; 0&nbsp; 1&nbsp; 0&nbsp; H3 H2 1&nbsp; 1<br />pla<br />ror&nbsp; &nbsp; &nbsp; &nbsp;; A = L7 .&nbsp; .&nbsp; .&nbsp; .&nbsp; .&nbsp; .&nbsp; H1, C = H0<br />ror<br />ror&nbsp; &nbsp; &nbsp; &nbsp;; A = H1 H0 L7 .&nbsp; .&nbsp; .&nbsp; .&nbsp; .<br />ror<br />ror<br />and #$38<br />sta t&nbsp; &nbsp; &nbsp;; t = .&nbsp; .&nbsp; H1 H0 L7 .&nbsp; .&nbsp; .<br />lda v1<br />lsr<br />lsr&nbsp; &nbsp; &nbsp; &nbsp;; C = L1<br />rol p&nbsp; &nbsp; &nbsp;; p = 0&nbsp; 0&nbsp; 0&nbsp; 0&nbsp; P1 P0 L7 L1<br />and #$07&nbsp; ; A = .&nbsp; .&nbsp; .&nbsp; .&nbsp; .&nbsp; H4 H3 H2<br />ora t<br />sta v1</div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Myask</b> [ Tue Feb 17, 2015 10:51 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Nametable =&gt; Attribute table address conversion?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Use of X0/Y0 (your L0/L6) [technically, X3, Y3 as fine discard etc. etc.] in palettes for ExGrafx is possible but presently beyond me. Though, that would remove the need for the shift-table as they appear to always be in the uppermost two bits in ExGrafx anyway...and...one writes it DURING rendering? Weird.<br /><br />And yes, we don't need to recalculate along a line; so long as we've broken it between tables, one can just perform simple additions to the attribute address of whatever we're loading up before we send to PPU...which increments by 1 per four horizontal tiles or 8 per four vertical.<br /><br />Is it common practice to store a copy of attribute tables in CPU address space, so one doesn't have to re-read them to mask off/on palette bitpairs?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Wed Feb 18, 2015 12:41 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Nametable =&gt; Attribute table address conversion?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Yes, it's extremely common to keep attributes in RAM for updating. Reading back through $2007 probably isn't a good approach unless you're just trying to update one or two tiles in a frame.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Wed Feb 18, 2015 1:09 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Nametable =&gt; Attribute table address conversion?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Personally what I do is that I use index by 4x4 or 2x2 metatiles, and &quot;converts&quot; them to AT or NT indexes using lookup tables. Converting them using shifts is always possible but so annoying and unpractical with the 6502 instruction set.<br /><br />For example in the case of vertical mirroring it'd look like that :<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">NTLookupH_LSB<br />&nbsp; &nbsp; .db $00, $04, $08, $10, $18, ....<br /><br />NTLookupH_MSB<br />&nbsp; &nbsp; .db $20, $20, $20, $20, ....., $24, $24, $24, $24, .....<br /><br />NTLookupV_LSB<br />&nbsp; &nbsp; .db $00, $40, $80, $c0, $00, .......<br /><br />NTLookupV_MSB<br />&nbsp; &nbsp; &nbsp;.db $20, $20, $20, $20, $21, ....<br /><br />ATLookupH_LSB<br />&nbsp; &nbsp; &nbsp;.db $00, $01, $02, $03, $04, ....&nbsp; ; This table can be optimized out<br /><br />ATLookupH_MSB<br />&nbsp; &nbsp; &nbsp;.db $23, $23 ,$23, $23, $23, $23, ....., $27, $27, $27&nbsp; &nbsp;; This table can be optimized out (re-using NTLookupH_MSB and OR with #$03)<br /><br />ATLookupV_LSB<br />&nbsp; &nbsp; &nbsp; .db $00, $08, $10, $18, $20, ...<br /><br />ATLookupV_MSB<br />&nbsp; &nbsp; &nbsp; &nbsp;.db $23 ,$23, $23, $23, $23&nbsp; &nbsp; &nbsp; &nbsp; ; This table should be optimized out (i.e. constant byte)<br /></div><br /><br />In the end since I optimize out half of the table it becomes a mixing of &quot;traditional&quot; shifting/compare and lookup tables, using the best of both.<br /><br />To compute a NT or AT adress, just OR the values from the horizontal and vertical tables with the corresponding horizontal and vertical address.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Wed Feb 18, 2015 10:03 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Nametable =&gt; Attribute table address conversion?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Myask wrote:</div><div class="quotecontent"><div class="quotetitle">tokumaru wrote:</div><div class="quotecontent">What I do is convert a set of coordinates (9-bit X, 9-bit Y) into NT and AT addresses</div><strong>An efficient way to do that would be just as pertinent here.</strong>..though one wonders why 9-bit and not 6 if we're dealing with tiles. (self-reply: Sprites vs BG, duh.)</div><br />I don't have my code with me right now, but I don't think it does anything particularly clever.<br /><br />I use 9-bit coordinates because of the camera, since most of the time tiles are drawn around the edges of the camera as it scrolls through the level.<br /><br />Now that I think of it, I don't think I ever needed to calculate the address of a &quot;random&quot; AT byte, because I always buffered the attribute tables in RAM and updated entire rows or columns of them at a time (it was actually faster than updating only the part that was on screen).<br /><br />I would eventually need it when I implemented removable background objects (although some games, such as Somari, just draw blank tiles when items are collected, so there's no need to modify the attributes), but I didn't get that far.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

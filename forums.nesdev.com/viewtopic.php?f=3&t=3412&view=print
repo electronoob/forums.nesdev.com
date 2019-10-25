@@ -1,0 +1,238 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - 6502 emulation optimization</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">6502 emulation optimization</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=3&amp;t=3412">http://forums.nesdev.com/viewtopic.php?f=3&amp;t=3412</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Josh</b> [ Tue Jun 12, 2007 8:30 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>6502 emulation optimization</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I have a working 2A03 emulator, but would like to optimize it as much as possible. Blargg's website has some good information, but there are a couple of points that are still unclear.
+<br />
+<br />*The same addressing modes are re-used numerous times. For instance, LDA ($nn),Y will use the same effective address calculation as ORA ($nn),Y. In general, on an x86 platform, is it faster to inline the effective address calculation (thus minimizing CALL/RET overhead), or is it faster to use subroutines for each form of calculation (thus minimizing code size and making better use of the L1 cache)?
+<br />*One suggestion I've heard is to not calculate the N and Z flags on every opcode that sets them (almost all of them), but instead to simply keep a variable that contains the last data byte that affected N/Z, and only parse the flags when needed. Therefore, BEQ/BNE would simply check whether the last data byte was 0, and BMI/BPL would check whether bit 7 was set, and it would only be necessary to change the flags into 2A03 format for PHP or interrupts. But, if this method is used, how can the emulator handle setting N and Z simultaneously via BIT, PLP, or RTI?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>dvdmth</b> [ Tue Jun 12, 2007 8:47 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Inline is generally faster, although you might want to use a profiler to test different kinds of optimization.  If you don't know how to use a profiler, find out.
+<br />
+<br />To handle BIT, PLP, and RTI, you need a way to set N and Z arbitrarily.  One way I can think of is to use a 16-bit (or larger) variable to hold the N/Z result.  Assume the N flag set if bits 7 OR 15 are set in the variable (nz &amp; 0x8080), and assume the Z flag set if bits 0-7 are zero ((nz &amp; 0xFF) == 0).  For most opcodes, simply set the N/Z value to the operation result (making sure bit 15 never gets set accidentally), and for opcodes such as BIT, store the N result in bit 15 and the inverse of Z in bit 0, while leaving the other bits clear.  (This is not necessarily the best way to do it, but it's one way I can think of that it can be done.)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Dwedit</b> [ Wed Jun 13, 2007 12:32 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />If you're coding in assembly, your 6502 core should probably be within L1 size even after inlining everything.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>randilyn</b> [ Sat Jun 16, 2007 1:14 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />The CPU portion of the 2A03 cores used in modern emulators is easily one of the fastest components in the emulation performance-wise, and isn't likely to really impact speed enough to be worth optimizing beyond the [obvious] basics.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Zepper</b> [ Sat Jun 16, 2007 3:19 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I don't know if this method is the fastest, or even 'compiler-friendly', but I use jumps, or the <strong>goto</strong>. Firstly, I wrote my core instruction by instruction, separated by addressing mode. Later, I started to optimize them, as removing redundant code (blocks) because they could be executed using a similar block (instruction). It's something like...
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">//ADDRESSING #1 &#40;offset&#41;<br />//Parameter: offset &#40;unsigned short&#41;<br /><br />CPUOP&#40;ORA1&#41;<br />&nbsp; value = readvalue&#40;offset&#41;;<br />&nbsp; _doCPUOP&#40;ORA0&#41;;<br /><br />CPUOP&#40;ASL1&#41;<br />&nbsp; value = readvalue&#40;offset&#41;;<br />&nbsp; ASL&#40;value&#41;;<br />&nbsp; writevalue&#40;offset, value&#41;;<br />OPEND</div>
+<br />
+<br />- It starts inside a <em>case</em> statement for the addressing mode. Once the argument is done (like immediate, byte, word...), it jumps into the proper block to execute the instruction. The CPUOP() is a jump label, and OPEND is a <em>goto op_end</em>. If you're good enough, you notice this might work for a giant <em>case</em> statement, but I never tried out.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Sat Jun 16, 2007 11:12 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">randilyn wrote:</div><div class="quotecontent">The CPU portion of the 2A03 cores used in modern emulators is easily one of the fastest components in the emulation performance-wise, and isn't likely to really impact speed enough to be worth optimizing beyond the [obvious] basics.</div>
+<br />Unless your target platform contains hardware that accelerates the PPU and half the PSG. Loopy would be familiar with these.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

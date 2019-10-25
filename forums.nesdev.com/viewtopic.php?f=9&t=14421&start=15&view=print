@@ -1,0 +1,282 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Memory map and 2A03 register map</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Memory map and 2A03 register map</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=9&amp;t=14421">http://forums.nesdev.com/viewtopic.php?f=9&amp;t=14421</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>2</strong> of <strong>2</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Sun Jun 19, 2016 11:06 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: 2A03 cutting-room floormetal</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Memblers wrote:</div><div class="quotecontent">Can we be sure this for an IRQ instead of a much less interesting reset?<br /></div>Looking at the picture of the die, the trace definitely would have gone to the /IRQ polysilicon:<br /><div class="attachtitle">Attachment:</div><div class="attachcontent">
+			<a href="./download/file.php?id=6072&amp;mode=view"><img src="./download/file.php?id=6072&amp;t=1" alt="nintendo_rp2a03_mz_mit20x_irq_traces.jpg" /></a><br />
+			<span class="gensmall">nintendo_rp2a03_mz_mit20x_irq_traces.jpg [ 113.51 KiB | Viewed 2837 times ]</span>
+		
+
+		<br />
+	</div>The red line on the left is irq_internal (from the frame IRQ and DPCM IRQ); the purple X is where they excised this timer's ability to generate an IRQ. At the bottom left (where the red line ends) is where irq_internal and irq_external are combined.<br /><br /><br />My best guess is that the 24 bits is because they thought people would use it to make an RTC, by setting it to 1789773 ( = 0x1B4F4D)<br /><br />I think the bits are out of order, so I'm just going to arbitrarily reverse them. This is the opposite of the sim.<br /><br />New insights: the bit written to $401F &amp; $08 specifies whether the carry out from each bit in the counter is (Bit) or (Not bit), i.e. count up or count down. (via nodes 34 and 44)<br />the bits written to $401F &amp; $11 control a 1-of-4 multiplexer (nodes 129, 134, 139, 140, 144) that appear to choose which clock source will be used. The clock sources seem to be a lot bit bizarre. though.<br /><br />Writing to $401F with $40 high will cause an immediate reload. The value is gradually lost due to dynamic logic (really??)<br />$401F &amp; $20 seems to hold whether there should be an automatic reload.<br /><br />This seems to be a bug: the counter can't count when the value in it is nonzero: node 20 = AllBitsLow; inverted to make node 60 = AnyBitsHigh; node 60 pulls node 36 = CountEnabled low.<br /><br />edit #large:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp;$401F: &#91;ELAC DxxC&#93;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;|||| ||||<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;|||+----+-- Clock enable source (??)<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;|||&nbsp; |++--- Something as-yet undetermined<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;|||&nbsp; +----- 1:count up; 0:count down<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;||+-------- 1:automatic reload when counter reaches 0<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;|+--------- 1:reload immediately<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;+---------- 1:IRQ enabled (counts regardless)<br /></div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Myask</b> [ Tue Jun 21, 2016 3:05 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: 2A03 cutting-room floormetal</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">lidnariq wrote:</div><div class="quotecontent"><div class="quotetitle">Memblers wrote:</div><div class="quotecontent">Can we be sure this for an IRQ instead of a much less interesting reset?<br /></div>Looking at the picture of the die, the trace definitely would have gone to the /IRQ polysilicon:<br /><div class="attachtitle">Attachment:</div><div class="attachcontent"><!-- ia0 -->nintendo_rp2a03_mz_mit20x_irq_traces.jpg<!-- ia0 --></div>The red line on the left is irq_internal (from the frame IRQ and DPCM IRQ); the purple X is where they excised this timer's ability to generate an IRQ. At the bottom left (where the red line ends) is where irq_internal and irq_external are combined.<br /><br /><br />My best guess is that the 24 bits is because they thought people would use it to make an RTC, by setting it to 1789773 ( = 0x1B4F4D)<br /><br />I think the bits are out of order, so I'm just going to arbitrarily reverse them. This is the opposite of the sim.<br /><br />New insights: the bit written to $401F &amp; $08 specifies whether the carry out from each bit in the counter is (Bit) or (Not bit), i.e. count up or count down. (via nodes 34 and 44)<br />the bits written to $401F &amp; $11 control a 1-of-4 multiplexer (nodes 129, 134, 139, 140, 144) that appear to choose which clock source will be used. The clock sources seem to be a lot bit bizarre. though.<br /><br />Writing to $401F with $40 high will cause an immediate reload. The value is gradually lost due to dynamic logic (really??)<br />$401F &amp; $20 seems to hold whether there should be an automatic reload.<br /><br />This seems to be a bug: the counter can't count when the value in it is nonzero: node 20 = AllBitsLow; inverted to make node 60 = AnyBitsHigh; node 60 pulls node 36 = CountEnabled low.<br /><br />edit #large:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp;$401F: &#91;ELAC DxxC&#93;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;|||| ||||<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;|||+----+-- Clock enable source (??)<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;|||&nbsp; |++--- Something as-yet undetermined<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;|||&nbsp; +----- 1:count up; 0:count down<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;||+-------- 1:automatic reload when counter reaches 0<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;|+--------- 1:reload immediately<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;+---------- 1:IRQ enabled (counts regardless)<br /></div></div><br />So pretty much every bit is inverted and backwards from what you're expecting? Fascinating.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Tue Jun 21, 2016 12:44 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: 2A03 cutting-room floormetal</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Myask wrote:</div><div class="quotecontent">So pretty much every bit is inverted and backwards from what you're expecting?<br /></div>Backwards, yes... not inverted. (Well, spatially inverted. Not logically.)<br /><br />All 24 bits are like this:<div class="attachtitle">Attachment:</div><div class="attachcontent">
+			<img src="./download/file.php?id=6086" alt="mysterycounter.png" /><br />
+			<span class="gensmall">mysterycounter.png [ 5.23 KiB | Viewed 2773 times ]</span>
+		
+
+		<br />
+	</div> (I've erased some of the metal and polysilicon for clarity) They really liked their transmission gates in this era.<br /><br />It's a synchronous up/down counter. Carry out indicates whether the next more significant bit should toggle on the next φ0. It always flows from top to bottom; at the end of each 8 bits there's a big hook that goes to the next one. Carry out from the last bit doesn't go anywhere (node 307).<br /><br />——<br /><br />From left to right, the columns in 2a03dead are: I/O buffers to 2A03-internal data bus; 8 LSBs of counter, 8 middle bits of counter; 8 MSBs of counter; control logic; 8 bits of ... broken prescaler? I guess I can fix that:<br /><br />The control bits ($11) seem to be:<br />* $00 = 1/8th prescaler (not ÷16 ??)<br />* $01 = Count rising edges on JOY2<br />* $10 = 1/128th prescaler (not ÷256 ??)<br />* $11 = Count falling edges on JOY2<br /><br />All of these options are inscrutable:<br /> * Why is there no smaller prescaler option?<br /> * Why would we need to count 2³¹ cycles? That's 20 minutes. It seems Memblers was on to something?<br /> * JOY2 is normally an output controlled by software. But even if it was an input, why would we want to be able to count a choice of rising edges or falling edges?<br /><br />Requesting a load (either by writing to $401F with $40 set or the automatic reload) also clears the prescaler.<br /><br />Also, I don't quite trust those exact prescalers; I think they &quot;should&quot; be ÷16 and ÷256 given the number of bits in-between.<br /><br />——<br /><br />There's two places in the control logic where things were meant to be readable, but are miswired (<s>there&#39;s no &quot;read from $401F&quot; signal and</s> it incorrectly uses the &quot;write to $401F&quot; signal):<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">$401F reads: &#91;Exxx xxxI&#93;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; |||| ||||<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; |||| |||+-- Interrupt would be requested<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; |+++-+++--- special internal-timer open bus value<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; +---------- Interrupt is allowed to be requested (i.e. value written to $401F &amp; $80)<br /></div> (Look at nodes 875 and 916)<br /><br />Reads from $401F <em>are</em> detected and <em>do</em> acknowledge the interrupt.<br /><br />——<br /><br />Oh, speaking of errors, they're incorrectly generating all the &quot;read from $401C/D/E&quot; strobes ... detecting writes instead of reads.<br /><br />There's a missing polysilicon-metal junction with node 356. It should be connected to node 60, but isn't. (in hardware. Obviously the sim doesn't have it either.)<br /><br />And the $401F &amp; $06 bits <s>are still inscrutable ... but it</s> appears to be some alternate function for JOY1.<br /><br />$401F &amp; $04 = directly controls JOY1. When the count becomes 0, it causes both $06 bits to invert.<br />$401F &amp; $02 = doesn't appear to actually change anything, even though the latched value toggles.<br /><br />I have no idea what this functionality was intended to be.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>kevtris</b> [ Wed Jun 22, 2016 2:20 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Memory map and 2A03 register map</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Can we move this to hardware?  I didn't even know this thread existed until memblers told me at work yesterday.  I tried to find the thread but couldn't because it was here.  I had to ask where the thread was to be able to find it. thanx.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Wed Jun 22, 2016 2:21 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Memory map and 2A03 register map</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Maybe split <a href="http://forums.nesdev.com/viewtopic.php?p=173787#p173787" class="postlink">here</a> ... but leave <a href="http://forums.nesdev.com/viewtopic.php?p=173830#p173830" class="postlink">this post</a> behind.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>mkwong98</b> [ Thu Jul 07, 2016 8:49 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Memory map and 2A03 register map</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />So are those two pages getting fixed?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Fri Jul 08, 2016 5:38 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Memory map and 2A03 register map</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I have added information to those pages, but I fear that my addition may distract and/or confuse novices.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Fri Jul 08, 2016 11:22 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Memory map and 2A03 register map</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I added a stub article so that there's a central place to put this information on the Wiki, instead of scattering it in fragmented commentary throughout other articles:<br /><br /><!-- m --><a class="postlink" href="http://wiki.nesdev.com/w/index.php/CPU_Test_Mode">http://wiki.nesdev.com/w/index.php/CPU_Test_Mode</a><!-- m --><br /><br />I tried to link some of the threads where it's been talked about there, and wrote a very succinct summary for a stub, but I'd appreciate someone who is more knowledgable about it making more of an article out of it.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>2</strong> of <strong>2</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

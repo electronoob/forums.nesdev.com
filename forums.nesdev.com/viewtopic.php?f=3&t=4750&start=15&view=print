@@ -1,0 +1,159 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - How is this method of timing?</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">How is this method of timing?</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=3&amp;t=4750">http://forums.nesdev.com/viewtopic.php?f=3&amp;t=4750</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>2</strong> of <strong>2</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ens_leader</b> [ Sat Feb 07, 2009 12:47 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tepples wrote:</div><div class="quotecontent">Timing accuracy in an emulator is measured relatively, where one chip should execute <em>x</em> cycles for every <em>y</em> cycles of another chip. For example, the NTSC NES's PPU executes 3 cycles for each cycle of the CPU and APU. Emulators often handle this with a timestamping scheme: the CPU runs "ahead" of the other units, and any writes to PPU or APU registers are logged with a cycle count. When the CPU does anything that depends on the precise state of the PPU and APU, the emulator runs the PPU and APU to "catch up" to the number of cycles that the CPU has run. These include reading PPUSTATUS ($2002) while in range of sprite 0, or executing just before other units are expected to issue an interrupt.<br /><br />Accuracy does not depend on how many cycles of the emulated machine are executed for each cycle of the host CPU, except at one point: just before the first cycle of the "dummy" or "post-render" scanline (#240). That's when your emulator should catch up all units and then wait for DirectX (or another platform's counterpart) to make sure it's clear to send the finished pixels and samples for the frame that it just rendered.<br /><br /><span style="font-size: 75%; line-height: normal">EDIT: Disch posted while I was typing this. I'll add more:</span><br /><br />As for multiple threads, PCs have been fast enough for the past eight years that one core can handle a single NES. If you want to make your emulator thread-safe, it might be for handling multiple consoles at once, such as <a href="http://www.youtube.com/watch?v=h1vEDKr6F5Y" class="postlink">nemulator's Wii-reminiscent picker</a>.</div>
+<br />
+<br />What happens if the cpu master cycle is on the 2nd to last pixel in the frame and then executes an instruction that is 3 cycles and thus bleeds into the next frame? should the ppu 'ignore' that instruction and catch up and render the full frame 1/60th while missing the last two pixels? I ask this because the cpu wont always end on the last pixel of the frame because of variable opcode cycles and such.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Sat Feb 07, 2009 6:56 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />The PPU would run until it reaches the timestamp of the CPU write.  If the write occurs past the end of the frame, then the PPU would run through the full frame before the write is performed, and its timestamp would be into the next frame.
+<br />
+<br />The "spillover" would need to be retained by all subsystems to keep the frames the right length.  If a frame is (262*341*5) 446710 master cycles, then you would subtract 446710 from all of your timestamps at the end of the frame to adjust the timestamps for next frame.  You would not reset timestamps to zero because then you lose the spillover.
+<br />
+<br />Partly because of this, I arrange my frame like so:
+<br />
+<br />--------------------
+<br />1 'idle' scanline
+<br />20/70 VBlank scanlines
+<br />1 prerender scanline
+<br />240 rendered scanlines
+<br />--------------------
+<br />
+<br />With the idle scanline and vblank scanlines first -- this makes it easy to allow writes like the example you described.  Since the PPU is inactive for the time past the end of the frame, these writes can be allowed without disrupting rendering.  And you don't have to worry about rendering the next frame before applying the write.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>2</strong> of <strong>2</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

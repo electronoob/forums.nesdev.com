@@ -1,0 +1,417 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Midscreen scroll/parallax/character bank change glitching?</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Midscreen scroll/parallax/character bank change glitching?</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=9863">http://forums.nesdev.com/viewtopic.php?f=2&amp;t=9863</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>sdwave</b> [ Wed Feb 27, 2013 10:56 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Midscreen scroll/parallax/character bank change glitching?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I'm trying to remove the glitching I see at the edges of scanlines I see when setting scroll values <br />mid hblank in my game. I was wondering if you guys had any suggestions, I included my irq routine and an explanation of how it works.<br /><br />I included my mmc3 irq routine (multiLineIrq: is the entry point) to see if any of you could provide some pointers as to how I can fix this. <br /><br />The basic jist is that there is are 4 tables of 2006,2005,2005,2006 for the register writes that store my scroll values for each of the N mmc3 scanline irqs (indexed by the number of irqs hit so far per screen).<br /><br />IRQ_SCROLL_2006_FIRST<br />IRQ_SCROLL_2005_Y<br />IRQ_SCROLL_2005_X<br />IRQ_SCROLL_2006_SECOND<br /><br />There is a table of # line deltas between irqs:  R_MMC_IRQ_LINE0<br /><br />Nametable layout:<br />Foreground layer: page 0<br />Background layer: page 1<br />Status bar: last 2 character rows of page 1 <br /><br /><br />Here is what happens per frame:<br /><br />24 lines (status bar size) after vblank ends:<br /><br />The first irq set is change part of the palette from gray (for the status bar) to the colors used on the play screen.  Also the character set is changed to a blank page to blank the screen and remove some glitching.<br /><br />2 lines later<br /><br />The second irq sets the 2006,5,5,6 for the playscreen (can be parallaxing background or foreground), and sets the character set for the playscreen.  During the 2006,5,5,6 setting background drawing using the ppumask is disabled to ensure the scroll registers are set properly.  This is also where sprite drawing gets enabled for the first time for the screen.<br /><br />The next (N-3) irqs set 2006,5,5,6 for the different bands of scrolling foreground/background &quot;layers&quot;.  Also there is an irq for a Crystalis style single screen mirroring.  <br /><br />The final irq depends on the mode. <br />In play mode about 8 lines above the visible screen bottom, the final irq changes the character set to a blank page to blank the screen and remove some artifacts.  <br /><br />In conversation mode the final irq changes the character set to the alphanumeric font pages, the first 3 colors to grays for the font rendering, and changes the sprite bank to the portrait.<br /><br />-Sedwave / Hiatus Ward ( <a href="http://www.nesworld.com/homebrew/hiatwrd0.zip" class="postlink">http://www.nesworld.com/homebrew/hiatwrd0.zip</a>)<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">; ===============================================<br />endPaletteIrq:<br />&nbsp; &nbsp; pla<br />&nbsp; &nbsp; tay&nbsp; &nbsp;;pull y<br />&nbsp; &nbsp; pla<br />&nbsp; &nbsp; tax&nbsp; &nbsp;;pull X<br />&nbsp; &nbsp; pla&nbsp; &nbsp;;pull a<br />&nbsp; &nbsp; plp&nbsp; &nbsp;; pull flags<br />&nbsp; &nbsp; rti<br /><br />; ===============================================<br />setBlankingAndFinishIrq:<br />&nbsp; &nbsp; setMMC3ChrBankLo 0, #K_EMPTY_CHR_PAGE<br />&nbsp; &nbsp; setMMC3ChrBankLo 1, #K_EMPTY_CHR_PAGE<br />&nbsp; &nbsp; setMMC3ChrBankLo 2, #K_EMPTY_CHR_PAGE<br />&nbsp; &nbsp; setMMC3ChrBankLo 3, #K_EMPTY_CHR_PAGE<br />&nbsp; &nbsp; jmp endIrq<br /><br /><br />; ===============================================<br />setPaletteIrq:<br />&nbsp; &nbsp; lda R_MMC_IRQ_LINE0 +1&nbsp; &nbsp;; setup next irq <br />&nbsp; &nbsp; setMMC3ScanlineIrq;<br />&nbsp; &nbsp; inc R_MMC_NUM_IRQ_HIT<br /><br />&nbsp; &nbsp; nop<br />&nbsp; &nbsp; nop<br />&nbsp; &nbsp; nop <br />&nbsp; &nbsp; nop <br />&nbsp; &nbsp; nop<br /><br />&nbsp; &nbsp; jsr setPlayScreenPaletteIrq<br /><br />&nbsp; &nbsp; ;blank screen but still allow mmc3 irq counter by setting to empty character page <br />&nbsp; &nbsp; setMMC3ChrBankLo 0, #K_EMPTY_CHR_PAGE<br />&nbsp; &nbsp; setMMC3ChrBankLo 1, #K_EMPTY_CHR_PAGE<br />&nbsp; &nbsp; setMMC3ChrBankLo 2, #K_EMPTY_CHR_PAGE<br />&nbsp; &nbsp; setMMC3ChrBankLo 3, #K_EMPTY_CHR_PAGE<br /><br />&nbsp; &nbsp; lda #(PPU_MASK_SPR_VIS | PPU_MASK_BKG_VIS )<br />&nbsp; &nbsp; sta PPU_MASK<br /><br />&nbsp; &nbsp; jmp endPaletteIrq<br /><br />;note split irq does not turn off ppu<br />setSplitIrq:<br />&nbsp; &nbsp; dex<br /><br />&nbsp; &nbsp; lda IRQ_SCROLL_2006_FIRST, x <br />&nbsp; &nbsp; sta PPU_ADDR<br />&nbsp; &nbsp; lda IRQ_SCROLL_2005_Y, x<br />&nbsp; &nbsp; sta PPU_SCRL<br />&nbsp; &nbsp; lda IRQ_SCROLL_2005_X, x<br />&nbsp; &nbsp; sta PPU_SCRL<br />&nbsp; &nbsp; lda IRQ_SCROLL_2006_SECOND, x<br />&nbsp; &nbsp; sta PPU_ADDR<br />&nbsp; &nbsp; jmp endIrq<br /><br />; ===============================================<br />; Interrupt handlers<br />; ===============================================<br />irq:<br />multiLineIrq:<br />&nbsp; &nbsp; php&nbsp; &nbsp;;push flags<br />&nbsp; &nbsp; pha&nbsp; &nbsp;;push a<br />&nbsp; &nbsp; txa<br />&nbsp; &nbsp; pha&nbsp; &nbsp;;push x<br />&nbsp; &nbsp; tya<br />&nbsp; &nbsp; pha&nbsp; &nbsp;;push y<br /><br />&nbsp; &nbsp; lda #0&nbsp; &nbsp;<br />&nbsp; &nbsp; sta MMC3_IRQ_ACK<br /><br />&nbsp; &nbsp; ldx R_MMC_NUM_IRQ_HIT<br />&nbsp; &nbsp; beq setPaletteIrq<br />&nbsp; &nbsp; cpx R_CONVO_IRQ_NUM<br />&nbsp; &nbsp; bne notConvoIrq <br />&nbsp; &nbsp; jmp convoIrq<br />notConvoIrq:<br /><br />&nbsp; &nbsp; inx<br />&nbsp; &nbsp; cpx R_MMC_NUM_IRQ <br />&nbsp; &nbsp;<br />&nbsp; &nbsp; bne @notFinalIrq<br />&nbsp; &nbsp; jmp setBlankingAndFinishIrq<br />@notFinalIrq:<br /><br />&nbsp; &nbsp; lda R_MMC_IRQ_LINE0, x&nbsp; &nbsp; &nbsp; &nbsp;; accum contains number of scanlines until next irq, setup next irq <br />&nbsp; &nbsp; setMMC3ScanlineIrq;<br /><br />@noNewIrq:<br /><br />&nbsp; &nbsp; ;how many irq previously hit&nbsp; &nbsp;<br />&nbsp; &nbsp; ldx R_MMC_NUM_IRQ_HIT<br />&nbsp; &nbsp; cpx R_SPLIT_IRQ_NUM<br />&nbsp; &nbsp; beq setSplitIrq<br />&nbsp; &nbsp; dex&nbsp; ;&nbsp; irq #1 index 0, irq#2 index 1, etc...<br /><br />&nbsp; &nbsp; ; between 2 and x nops stops shaking<br />&nbsp; &nbsp; ; 2 seems best on real hardware<br />&nbsp; &nbsp; nop<br />&nbsp; &nbsp; nop<br /><br />&nbsp; &nbsp; ;note, setting scroll value to different X value midscreen requires PPU<br />&nbsp; &nbsp; ; drawing to be disabled so that internal X counter does not interfere with<br />&nbsp; &nbsp; ; setting scroll address and values<br />&nbsp; &nbsp; lda #PPU_MASK_SPR_VIS<br />&nbsp; &nbsp; sta PPU_MASK<br />postBlankIrq:<br />&nbsp; &nbsp; lda IRQ_SCROLL_2006_FIRST, x <br />&nbsp; &nbsp; sta PPU_ADDR<br />&nbsp; &nbsp; lda IRQ_SCROLL_2005_Y, x<br />&nbsp; &nbsp; sta PPU_SCRL<br />&nbsp; &nbsp; lda IRQ_SCROLL_2005_X, x<br />&nbsp; &nbsp; sta PPU_SCRL<br />&nbsp; &nbsp; lda IRQ_SCROLL_2006_SECOND, x<br />&nbsp; &nbsp; sta PPU_ADDR<br /><br />&nbsp; &nbsp; lda #(PPU_MASK_SPR_VIS | PPU_MASK_BKG_VIS )<br />&nbsp; &nbsp; sta PPU_MASK<br /><br />&nbsp; &nbsp; ldx R_MMC_NUM_IRQ_HIT<br />&nbsp; &nbsp; cpx #1<br />&nbsp; &nbsp; bne noSetupPlayscreenChar<br />&nbsp; &nbsp; setMMC3ChrBankLo 0, LEVEL_DATA_CHR_PAGE_0<br />&nbsp; &nbsp; setMMC3ChrBankLo 1, LEVEL_DATA_CHR_PAGE_1<br />&nbsp; &nbsp; setMMC3ChrBankLo 2, LEVEL_DATA_CHR_PAGE_2<br />&nbsp; &nbsp; setMMC3ChrBankLo 3, LEVEL_DATA_CHR_PAGE_3<br />&nbsp; &nbsp; nop<br />&nbsp; &nbsp; nop<br />&nbsp; &nbsp; nop<br />&nbsp; &nbsp; nop<br />&nbsp; &nbsp; nop<br /><br />noSetupPlayscreenChar:<br />endIrq:<br />&nbsp; &nbsp; inc R_MMC_NUM_IRQ_HIT<br /><br />&nbsp; &nbsp; pla<br />&nbsp; &nbsp; tay&nbsp; &nbsp;;pull y<br />&nbsp; &nbsp; pla<br />&nbsp; &nbsp; tax&nbsp; &nbsp;;pull X<br />&nbsp; &nbsp; pla&nbsp; &nbsp;;pull a<br />&nbsp; &nbsp; plp&nbsp; &nbsp;;pull flags<br /><br />&nbsp; &nbsp; rti<br /></div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>thefox</b> [ Thu Feb 28, 2013 12:33 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Midscreen scroll/parallax/character bank change glitchin</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">sdwave wrote:</div><div class="quotecontent"><div class="codetitle"><b>Code:</b></div><div class="codecontent">; ===============================================<br />; Interrupt handlers<br />; ===============================================<br />irq:<br />multiLineIrq:<br />&nbsp; &nbsp; php&nbsp; &nbsp;;push flags<br /><br />...<br /><br />&nbsp; &nbsp; plp&nbsp; &nbsp;;pull flags<br /><br />&nbsp; &nbsp; rti<br /></div></div><br />Not related to your actual question (I don't have time to go through the code right now), but a small detail: you don't need to push and restore the flags, 6502 will do that automatically.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Thu Feb 28, 2013 6:02 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Midscreen scroll/parallax/character bank change glitchin</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I haven't looked at the source, but I have something I'd like to comment:<br /><br /><div class="quotetitle">sdwave wrote:</div><div class="quotecontent">During the 2006,5,5,6 setting background drawing using the ppumask is disabled to ensure the scroll registers are set properly.</div><br />There's no need to disable background rendering if you make sure that the last $2006 write happens during HBlank. In fact, disabling rendering only increases the chances of visual glitches, since you have more instructions to execute during HBlank. When you use the $2006/5/5/6 trick for resetting the scroll, only the last 2 writes have to fall inside the horizontal blank, because the first 2 don't affect rendering at all. So get rid of the disabling/enabling of the background on scroll changes and make sure that the last 2 scroll writes take place during HBlank (that's 8 cycles to fit in a window of 28 cycles, it's not hard at all).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Thu Feb 28, 2013 6:09 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Midscreen scroll/parallax/character bank change glitchin</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Also, you should really write to <br />$2005, $2005, $2005, $2006 to make your life easier (I think). This way you only have to write 3 different values instead of 4 :<br /><br />$2005 := HScroll<br />$2005 := VScroll<br />$2005 := HScroll<br />$2006 := (VScroll &lt;&lt; 3) | ((HScroll &gt;&gt; 3) &amp; 0x7)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Thu Feb 28, 2013 6:14 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Midscreen scroll/parallax/character bank change glitchin</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />You need the first $2006 write to set the name table.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Thu Feb 28, 2013 6:17 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Midscreen scroll/parallax/character bank change glitchin</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />No - a write to $2000 can set the nametable if necessarily (and in many cases this might not be necessarily). That's what the $2000 register was originally meant for, folks.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Thu Feb 28, 2013 6:21 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Midscreen scroll/parallax/character bank change glitchin</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Bregalad wrote:</div><div class="quotecontent">No - a write to $2000 can set the nametable if necessarily (and in many cases this might not be necessarily). That's what the $2000 register was originally meant for, folks.</div><br />Sure, and during normal scroll operation I always recommend that $2000 be used, but since this is the tricky version of setting the scroll, why put an extra write that will just increase the time it takes to fully update the scroll? I mean, you can do it with 4 writes, why use 5? There's no real advantage, as forming the first $2006 isn't complicated at all... Only the name table bits need to be correct in that byte, the rest will be overwritten by the following writes.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Thu Feb 28, 2013 7:01 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Midscreen scroll/parallax/character bank change glitchin</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />There is a real advantages as the values can be precalculated in A, X, and Y and be updated in such a way that :<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp;sta $2005<br />&nbsp; &nbsp;stx $2005<br />&nbsp; &nbsp;sta $2005<br />&nbsp; &nbsp;sty $2006<br /></div><br />(for example)<br />Also, exept for the last $2006 writes, you write directly the scroll value you want and no extra calculations are required, which is a clear advantage.<br /><br />On the other way I see no point in doing a 6, 5, 5, 6 write, which is overcomplicated and has no real benefit over (0), 5, 5, 5, 6.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Thu Feb 28, 2013 7:36 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Midscreen scroll/parallax/character bank change glitchin</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Bregalad wrote:</div><div class="quotecontent">There is a real advantages as the values can be precalculated in A, X, and Y</div><br />Since only the last 2 writes are under timing constraints, this is of very little relevance. You can't preload the $2000 value just like you can't preload the first $2006 value, so you still need 4 values (of which only 3 can be preloaded), no matter the method.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Also, exept for the last $2006 writes, you write directly the scroll value you want and no extra calculations are required</div><br />The same goes for the 6/5/5/6 way. Like I said in the previous message, only the name table bits must be correct in the first $2006 write, because the rest is overwritten by the subsequent writes. The trouble of shifting the name table bits into a $2006 byte is nearly the same as that of pushing them into a $2000 byte, you just need a couple more shifts ($2000 has the name table bits at %------NN while $2006 needs them at %----NN--). That's 2 more bytes of code and 4 cycles, which is still less than the 3 bytes of the extra <strong>STA $2000</strong>, that also takes 4 cycles.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">On the other way I see no point in doing a 6, 5, 5, 6 write, which is overcomplicated</div><br />Do you really find <strong>ASL ASL</strong> complicated? It's actually simpler, since none of the other bits matter and you don't even need to clear A before shifting the name table values in. To form a proper $2000 byte on the other hand, you need to make sure that the upper bits contain correct PPU configuration values (pattern table addresses, sprite size, NMI...).<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">and has no real benefit over (0), 5, 5, 5, 6.</div><br />It's faster. Not by much, but it is. It's the 0, 5, 5, 5, 6 way that offers no benefit over the 6, 5, 5, 6 way.<br /><br />I'm not saying that you shouldn't use the longer method, if that's the one you're comfortable with, go for it! But saying that it's objectively better than the faster method and calling that one overcomplicated is bogus!
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Thu Feb 28, 2013 7:46 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Midscreen scroll/parallax/character bank change glitchin</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Perhaps, but the point is, changing the scroll value multiple times in a row and rely on the last one to be used is dirty, and usually leads to more graphical glitches than using consistent values.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Do you really find ASL ASL complicated?</div><br />Yes, it almost made my head explode ! <img src="./images/smilies/icon_mrgreen.gif" alt=":mrgreen:" title="Mr. Green" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Thu Feb 28, 2013 7:54 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Midscreen scroll/parallax/character bank change glitchin</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Writing to $2000 requires having the other bits correct (background pattern table base address, sprite size and pattern table base address if 8x8, and NMI). Writing to $2005/first needs to be done in horizontal blank if the fine X scroll ($2005/first bits 2-0) will be changing at all. So I'm with tokumaru: $2006 first is probably the best option.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Thu Feb 28, 2013 10:58 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Midscreen scroll/parallax/character bank change glitchin</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tepples wrote:</div><div class="quotecontent">Writing to $2005/first needs to be done in horizontal blank if the fine X scroll ($2005/first bits 2-0) will be changing at all.</div><br />Oh yeah, I didn't even catch that. This means that all 4 writes would have to fall within HBlank, so that's 16 cycles to fit into 28 (as opposed to just 8 with the other method)... Still doable of course, but why would you want to reduce the amount of time you have left to perform other effects (like color emphasis, for example).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bananmos</b> [ Thu Feb 28, 2013 12:39 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Midscreen scroll/parallax/character bank change glitchin</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">24 lines (status bar size) after vblank ends:<br /><br />The first irq set is change part of the palette from gray (for the status bar) to the colors used on the play screen. Also the character set is changed to a blank page to blank the screen and remove some glitching.</div><br /><br />How do you detect the end of the status bar if the first IRQ is set *after* it? <br /><br />If you're using timed code then that's likely to be the source of the jitter, as DPCM sample playback can really screw up your timing.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>sdwave</b> [ Sun Mar 03, 2013 6:07 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Midscreen scroll/parallax/character bank change glitchin</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">When you use the $2006/5/5/6 trick for resetting the scroll, only the last 2 writes have to fall inside the horizontal blank, because the first 2 don't affect rendering at all.</div><br /><br />Thank you! This right here was the magic I needed and I managed to get rid of my scanline glitches due to scrolling/ fg/bg switch on both actual hardware and Nestopia.  I still have the rare issue that a DPCM operation can affect my timing and push the writes outside of hblank, but since I now have the cycles to do turn PPU on/off around the critical section, the rare DPCM operations during my timed code don't cause a scroll jump.  Here is the change:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">; setup and writes which can occur outside hblank<br />&nbsp; lda IRQ_SCROLL_2006_FIRST, x <br />&nbsp; sta PPU_ADDR<br />&nbsp; lda IRQ_SCROLL_2005_Y, x<br />&nbsp; sta PPU_SCRL<br />&nbsp; lda IRQ_SCROLL_2005_X, x<br />&nbsp; tay<br />&nbsp; lda IRQ_SCROLL_2006_SECOND, x<br />&nbsp; tax<br /><br />; Note, setting scroll value to different X value midscreen requires PPU<br />; drawing to be disabled so that internal X counter does not interfere with<br />; setting scroll address and values. <br />; (Note this will only occur when DPCM operations interfere with timing and )<br />&nbsp; &nbsp;lda #PPU_MASK_SPR_VIS<br />&nbsp; &nbsp;sta PPU_MASK<br />&nbsp; &nbsp;sty PPU_SCRL<br />&nbsp; &nbsp;stx PPU_ADDR<br />&nbsp; &nbsp;lda #(PPU_MASK_SPR_VIS | PPU_MASK_BKG_VIS )<br />&nbsp; &nbsp;sta PPU_MASK<br /></div><br /><br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Not related to your actual question (I don't have time to go through the code right now), but a small detail: you don't need to push and restore the flags, 6502 will do that automatically.</div><br /><br />Good advice, that bought me a little more time and flexibility!<br /><br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">How do you detect the end of the status bar if the first IRQ is set *after* it? </div><br /><br />What I meant to say what when the first irq is triggered, the code within the irq sets..<br />The only timed code is within the irq for delaying until the hblank is hit.  DPCM can in fact still interfere with this timing, but its a lot more rare.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Mon Mar 04, 2013 6:41 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Midscreen scroll/parallax/character bank change glitchin</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">sdwave wrote:</div><div class="quotecontent"><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp;lda #PPU_MASK_SPR_VIS<br />&nbsp; &nbsp;sta PPU_MASK</div></div><br />You shouldn't need this (i.e. the comment about the need to disable drawing is not correct). If your scrolling breaks without this, maybe the $2005/6 writes are happening too early.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

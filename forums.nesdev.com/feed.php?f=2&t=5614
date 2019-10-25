@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=2&amp;t=5614" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2009-10-12T20:41:21-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=2&amp;t=5614</id>
+<entry>
+<author><name><![CDATA[Celius]]></name></author>
+<updated>2009-10-09T20:34:39-07:00</updated>
+<published>2009-10-09T20:34:39-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=5614&amp;p=51244#p51244</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=5614&amp;p=51244#p51244"/>
+<title type="html"><![CDATA[Multiple state for main loop]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=5614&amp;p=51244#p51244"><![CDATA[
+I have to admit, that is a really wonderful way to do it! And I guess you're right about the RTS thing. You can just have JMP $XXXX in RAM, and then have an RTS at $XXXX which will return to right after the JSR to RAM.<br /><br />Though there are advantages to using JMP $XXXX in RAM rather than using the stack manipulation trick (though they are rather minimal). JSR to RAM takes 6 cycles, JMP $XXXX takes 3, and RTS takes another 6. That's 15 cycles all together. The code to push addresses on the stack and use RTSs totals to at least 40 cycles:<br /><br />LDA Table,x = 4 * 4 = 16<br />PHA = 3 * 4 = 12<br />RTS = 6 * 2 = 12<br /><br />12 + 12 + 16 = 40<br /><br />Though this is getting a little nitpicky. I think it's worth it though if you are using lots of "indirect" JSRs, because in the long run it might save you a scanline or two.<br /><br />EDIT: Okay, my math is forgetting one thing. You have to store the address in RAM, which means if you're using a table that will take another 14 or 16 cycles. That brings the total of the JMP $XXXX method to 29 or 31 cycles. At this point it stops mattering, so I might stop talking about it now  <img src="http://forums.nesdev.com/images/smilies/icon_smile.gif" alt=":)" title="Smile" /> .<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=138">Celius</a> — Fri Oct 09, 2009 8:34 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Banshaku]]></name></author>
+<updated>2009-10-09T00:33:27-07:00</updated>
+<published>2009-10-09T00:33:27-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=5614&amp;p=51216#p51216</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=5614&amp;p=51216#p51216"/>
+<title type="html"><![CDATA[Multiple state for main loop]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=5614&amp;p=51216#p51216"><![CDATA[
+@JunoMan: I implemented the code using the way of putting the return address on the stack.  There was only one issue thought.<br /><br />This code:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">MainHandler:<br /><br />;; Push the return address onto the stack so functions can just RTS back<br />   lda #&lt;&#40;ReturnAddr-1&#41;,x<br />   pha<br />   lda #&gt;&#40;ReturnAddr-1&#41;,x<br />   pha<br /></div><br /><br />Was supposed to be this:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">MainHandler:<br /><br />;; Push the return address onto the stack so functions can just RTS back<br />   lda #&gt;&#40;ReturnAddr-1&#41;,x<br />   pha<br />   lda #&lt;&#40;ReturnAddr-1&#41;,x<br />   pha<br /></div><br /><br />The high address byte must be put first on the stack. Except for that, the concept seems to be working fine.  I will experiment a few way to handle it.<br /><br />The way I want to implement is in the reset vector, you set the default state (ex: login screen). After you finish the reset vector you enter the main loop.<br /><br />You put the address of the main loop on the stack. You jump in the state manager (different file than main). The state manager contain a reference to all state in the game (i.e. all entry point for their init/main loop).  The state manager check if it must load the current state or next state base on some flag. It will then put the address of the requested state on the stack then RTS to the right address.<br /><br />Inside a state, you could decide to call the StateManager to load another one (for example, during gameplay, the menu is called). In that case, you put the address you want to return to, set the state you want to go and call the state manager.  <br /><br />Now you are in 2 level of state: gameplay/menu. Once menu is finished, you exit that state and go back to the gameplay one. If gameplay finish  also, you exit that state, go back to the program main loop and check which state you must do next.<br /><br />Each state are in their own module (files). This way, it easier to focus only one state when you want to debug the code. This is the concept I will try to do. I will see if it goes well.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3559">Banshaku</a> — Fri Oct 09, 2009 12:33 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[JunoMan]]></name></author>
+<updated>2009-10-07T20:28:11-07:00</updated>
+<published>2009-10-07T20:28:11-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=5614&amp;p=51186#p51186</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=5614&amp;p=51186#p51186"/>
+<title type="html"><![CDATA[Multiple state for main loop]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=5614&amp;p=51186#p51186"><![CDATA[
+<div class="quotetitle">Celius wrote:</div><div class="quotecontent"><br />In RAM, you would have the opcode for "JSR" one byte before TempAddL, and "RTS" one byte after "TempAddH". Thus, it would JSR to a "JSR $XXXX" in RAM, and after that "JSR $XXXX" is executed, and then an RTS is encountered, it would return to the "RTS" after TempAddH. This basically simulates an indirect JSR, which would be completely awesome, but unfortunately we only have indirect JMPs. This works fine though.<br /></div><br /><br />Actually, the RTS is redundant. If you are running the code in ram you may as well just use a JMP in the first byte and the function would RTS back to your code.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3983">JunoMan</a> — Wed Oct 07, 2009 8:28 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[JunoMan]]></name></author>
+<updated>2009-10-12T20:41:21-07:00</updated>
+<published>2009-10-07T20:24:47-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=5614&amp;p=51184#p51184</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=5614&amp;p=51184#p51184"/>
+<title type="html"><![CDATA[Multiple state for main loop]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=5614&amp;p=51184#p51184"><![CDATA[
+Theres no need for little subroutines in ram. You can manipulate the stack yourself and put the return address there.<br /><br />Caveats is that because JSR pushes the return address-1 onto the stack, we must do so as well.<br /><br />credit to Kevtris for always telling people on IRC to do it this way <img src="http://forums.nesdev.com/images/smilies/icon_smile.gif" alt=":)" title="Smile" /><br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">MainHandler:<br /><br />;; Push the return address onto the stack so functions can just RTS back<br />   lda #&gt;&#40;ReturnAddr-1&#41;,x<br />   pha<br />   lda #&lt;&#40;ReturnAddr-1&#41;,x<br />   pha<br /><br />   ldx GameState <br />; push state function addr onto the stack<br />; Note - All functions in the table must be FunctionAddr - 1<br />   lda StateTableL,x<br />   pha<br />   lda StateTableH,x<br />   pha<br /><br />; rts to the Function<br />   rts<br /><br />ReturnAddr:<br />   blah code wait for next Vblank<br /><br />   jmp MainHandler<br /><br />; Not sure if you need &lt;&#40;TitleScreenMain-1&#41;<br /><br />StateTableL:<br />   .db &gt;TitleScreenMain-1, &gt;CutsceneMain-1, &gt;InGameMain-1, &gt;PausedMain-1<br /><br />StateTableH:<br />   .db &lt;TitleScreenMain-1, &lt;CutsceneMain-1, &lt;InGameMain-1, &lt;PausedMain-1<br /><br /><br />TitleScreenMain:<br /><br />   Do Title Screen Handling Stuff<br /><br />   rts<br /><br /><br /><br /><br />CutsceneMain:<br /><br />   Do Cutscene Handling Stuff<br /><br />   rts<br /><br /><br />InGameMain:<br /><br />   Do Main Gameplay Stuff<br /><br />   rts<br /><br /><br />PausedMain:<br /><br />   Handle for Paused Status<br /><br />   rts<br /></div><br /><br />edit: My bad. Had a 50% chance of having the &lt; &amp; &gt; the right way round. fixed for future generations of nes coders<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3983">JunoMan</a> — Wed Oct 07, 2009 8:24 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Celius]]></name></author>
+<updated>2009-10-07T10:55:56-07:00</updated>
+<published>2009-10-07T10:55:56-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=5614&amp;p=51174#p51174</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=5614&amp;p=51174#p51174"/>
+<title type="html"><![CDATA[Multiple state for main loop]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=5614&amp;p=51174#p51174"><![CDATA[
+<div class="quotetitle">Banshaku wrote:</div><div class="quotecontent"><br />There is only one thing that I don't like personally: all methods are dependents on MainHandlerReturn. This mean a specific state can only be called from the main handler or the related handler.<br /></div><br /><br />I suppose they can't be called from different locations, as they would return to the MainHandlerReturn label. However, with these "main" loops, I don't ever feel the need to call them as sub routines. My whole idea is to simulate "slots", and depending on the game state, I slide a certain main loop into that "slot". It's not meant to be accessed from anywhere else. It's like calling the NMI routine from somewhere else (Why would you want to do this?). But I suppose there are other purposes in having a relative return address. In that case, you could definitely change the code to something like this, though it would require 4 bytes of RAM:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">MainHandler:<br />   ldx GameState<br />   lda StateTableL,x<br />   sta TempAddL<br />   lda StateTableH,x<br />   sta TempAddH<br /><br />   jsr &#40;TempAddL - 1&#41;<br /><br />   blah code wait for next Vblank<br /><br />   jmp MainHandler<br /><br />StateTableL:<br />   .db &lt;TitleScreenMain, &lt;CutsceneMain, &lt;InGameMain, &lt;PausedMain<br /><br />StateTableH:<br />   .db &gt;TitleScreenMain, &gt;CutsceneMain, &gt;InGameMain, &gt;PausedMain<br /><br /><br /><br />TitleScreenMain:<br /><br />   Do Title Screen Handling Stuff<br /><br />   rts<br /><br /><br /><br /><br />CutsceneMain:<br /><br />   Do Cutscene Handling Stuff<br /><br />   rts<br /><br /><br />InGameMain:<br /><br />   Do Main Gameplay Stuff<br /><br />   rts<br /><br /><br />PausedMain:<br /><br />   Handle for Paused Status<br /><br />   rts<br /></div><br /><br />In RAM, you would have the opcode for "JSR" one byte before TempAddL, and "RTS" one byte after "TempAddH". Thus, it would JSR to a "JSR $XXXX" in RAM, and after that "JSR $XXXX" is executed, and then an RTS is encountered, it would return to the "RTS" after TempAddH. This basically simulates an indirect JSR, which would be completely awesome, but unfortunately we only have indirect JMPs. This works fine though.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=138">Celius</a> — Wed Oct 07, 2009 10:55 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tokumaru]]></name></author>
+<updated>2009-10-06T21:33:03-07:00</updated>
+<published>2009-10-06T21:33:03-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=5614&amp;p=51158#p51158</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=5614&amp;p=51158#p51158"/>
+<title type="html"><![CDATA[Multiple state for main loop]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=5614&amp;p=51158#p51158"><![CDATA[
+<div class="quotetitle">Banshaku wrote:</div><div class="quotecontent"><br />Regarding to be careful while updating the address, I guess it would make sense to first change the JMP instruction to RTI, change the address to the new one and put it back to JMP.<br /></div><br />This is exactly what I was doing when I was using a similar scheme.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=95">tokumaru</a> — Tue Oct 06, 2009 9:33 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Memblers]]></name></author>
+<updated>2009-10-06T21:29:29-07:00</updated>
+<published>2009-10-06T21:29:29-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=5614&amp;p=51157#p51157</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=5614&amp;p=51157#p51157"/>
+<title type="html"><![CDATA[Multiple state for main loop]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=5614&amp;p=51157#p51157"><![CDATA[
+<div class="quotetitle">Banshaku wrote:</div><div class="quotecontent"><br />Regarding to be careful while updating the address, I guess it would make sense to first change the JMP instruction to RTI, change the address to the new one and put it back to JMP.  Is it correct?<br /></div><br /><br />That sounds like a very safe way to do it.  The PPU control reg should work also, but I like your idea better.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=10">Memblers</a> — Tue Oct 06, 2009 9:29 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Banshaku]]></name></author>
+<updated>2009-10-06T21:17:04-07:00</updated>
+<published>2009-10-06T21:17:04-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=5614&amp;p=51156#p51156</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=5614&amp;p=51156#p51156"/>
+<title type="html"><![CDATA[Multiple state for main loop]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=5614&amp;p=51156#p51156"><![CDATA[
+@Celius:<br /><br />I like your approach with tables. It's simple and does the job. There is only one thing that I don't like personally: all methods are dependents on MainHandlerReturn. This mean a specific state can only be called from the main handler or the related handler.  <br /><br />Would it be possible to put the desired return address on the stack manually before the jmp statement? Then you could RTS at the end of the function? I think that would remove the coupling. Not really an issue, just a matter of preference.<br /><br />Edit:<br /><br />Actually it's similar to the one Sivak shown (which I like too) but done differently.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3559">Banshaku</a> — Tue Oct 06, 2009 9:17 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Celius]]></name></author>
+<updated>2009-10-06T20:31:37-07:00</updated>
+<published>2009-10-06T20:31:37-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=5614&amp;p=51154#p51154</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=5614&amp;p=51154#p51154"/>
+<title type="html"><![CDATA[Multiple state for main loop]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=5614&amp;p=51154#p51154"><![CDATA[
+For the main loop, I've always just had a "state" variable. When something happens like a button press, this variable is changed. In order for me to check that this button was pressed, I do have to use IF statements of some kind (well, I could use an LUT and use the byte which contains all button press flags as an index, but that's a horrible waste of space). I have a jump table which I index with the state variable, and I just jump to the location specified. This location contains the "main" loop for that state. So it looks kind of like this:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">MainHandler:<br />   ldx GameState<br />   lda StateTableL,x<br />   sta TempAddL<br />   lda StateTableH,x<br />   sta TempAddH<br /><br />   jmp &#40;TempAddL&#41;<br /><br />MainHandlerReturn:<br /><br />   blah code wait for next Vblank<br /><br />   jmp MainHandler<br /><br />StateTableL:<br />   .db &lt;TitleScreenMain, &lt;CutsceneMain, &lt;InGameMain, &lt;PausedMain<br /><br />StateTableH:<br />   .db &gt;TitleScreenMain, &gt;CutsceneMain, &gt;InGameMain, &gt;PausedMain<br /><br /><br /><br />TitleScreenMain:<br /><br />   Do Title Screen Handling Stuff<br /><br />   jmp MainHandlerReturn<br /><br /><br /><br /><br />CutsceneMain:<br /><br />   Do Cutscene Handling Stuff<br /><br />   jmp MainHandlerReturn<br /><br /><br />InGameMain:<br /><br />   Do Main Gameplay Stuff<br /><br />   jmp MainHandlerReturn<br /><br /><br />PausedMain:<br /><br />   Handle for Paused Status<br /><br />   jmp MainHandlerReturn<br /></div><br /><br />As you can see, there are no IF statements regarding the state of the game. The only IF statements required are to CHANGE the state of the game. And this is not necessarily required. If somehow the state can be changed without comparison, then it will be. Using Jump Tables in my mind has always been the safest, most reliable route.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=138">Celius</a> — Tue Oct 06, 2009 8:31 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Banshaku]]></name></author>
+<updated>2009-10-06T20:31:35-07:00</updated>
+<published>2009-10-06T20:31:35-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=5614&amp;p=51153#p51153</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=5614&amp;p=51153#p51153"/>
+<title type="html"><![CDATA[Multiple state for main loop]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=5614&amp;p=51153#p51153"><![CDATA[
+Thanks everyone for the reply.  I must have confused the thread talking about dynamic NMI with the current subject I brought.  <br /><br />Many concepts where brought and it will give me some ideas on how to approach things.  I'm just trying to figure out a way to avoid nesting too much state/sub state together since it will make it a mess to debug.<br /><br />I like the concept in OOP were you would make a state-able object that offer a specific interface. Then you would create a object for each state (let say I have 3 state: running, stopped, walking) and based on the state, you just change the object.  The system still call the object with the same method to intereact with it but doesn't need to do multiple if to know "is it running? Oh, I must call this method. is it Walking? arggg, another method" etc. The system is not aware of the state of the object and shouldn't be: it just interact with the object.<br /><br />Of course, in assembler you cannot do "classes" but some concept to make it easier to develop/debug can be done based on higher level concept.  <br /><br />I may still have to have some basic if block statements for some state management (especially when you change from one big state like intro to game start) but for more advanced part, I will need to make it more clever.  I'm sure that for managing the main actor, many states will happen. I don't want a huge function that can control all states, that make no sense and will be hard to debug. Making small specialized function makes more sense to me. I guess I will have to resort to some function pointers for the current state and store it in the ZP when the state change.<br /><br />@Membler:<br /><br />I'm planning to use the NMI adress in memory since I find that for 1 extra byte, I save 3 cycles per NMI, which is good for an intensive method and add flexibility. Regarding to be careful while updating the address, I guess it would make sense to first change the JMP instruction to RTI, change the address to the new one and put it back to JMP.  Is it correct?<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3559">Banshaku</a> — Tue Oct 06, 2009 8:31 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Memblers]]></name></author>
+<updated>2009-10-06T14:22:12-07:00</updated>
+<published>2009-10-06T14:22:12-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=5614&amp;p=51145#p51145</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=5614&amp;p=51145#p51145"/>
+<title type="html"><![CDATA[Multiple state for main loop]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=5614&amp;p=51145#p51145"><![CDATA[
+You could put an indirect JMP at the end of every mainloop.  But then temporary states would be limited to one per vblank (or per loop-around).<br /><br />When I've used multiple NMI vectors, I had it point to RAM and placed a JMP absolute instruction there.  It's like a fake vector address, and that is a mere 3 cycles/3 bytes overhead for full control of the NMI (just be sure it can't trigger while you've partially updated the 'vector' address, heh).  Garage Cart #1 and #2 both use a setup like this also, for the many reset and NMI vectors needed.  With IRQs as well, on Squeedo this technique was the fast way to handle the various IRQ sources (but with only one active at a time).<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=10">Memblers</a> — Tue Oct 06, 2009 2:22 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tokumaru]]></name></author>
+<updated>2009-10-06T08:15:36-07:00</updated>
+<published>2009-10-06T08:15:36-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=5614&amp;p=51134#p51134</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=5614&amp;p=51134#p51134"/>
+<title type="html"><![CDATA[Multiple state for main loop]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=5614&amp;p=51134#p51134"><![CDATA[
+Anders_A, he said he's trying to cut down on the IFs, and depending on how many states you have there could be a lot of them.<br /><br /><div class="quotetitle">Banshaku wrote:</div><div class="quotecontent"><br />One way is you have a main loop that first decide in which state it is. Then it will call a function for the current state (game intro, game menu, in game etc) . This function will do it's proper init then enter in it's own infinite loop. The only problem I see here is how do I quit that specific state without an IF statement on every loop<br /></div><br /><br />That's pretty much what I do. I don't think you can get rid of that one IF statement that will get you out of that loop though. If you are on the title screen, you have to check when start was pressed in order to move on to the next state, and that's an IF. During game play, you'll have to check if the player is out of lives in order to move on to the game over screen, and that another IF. No way out of those, they have to be checked every loop.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent"><br />and how do I enter a temporary state (ex: entering sub menu in-game for example) without again an if statement in on every loop.<br /></div><br /><br />As I see it, temporary states should be much like all other states, only they don't call the initialization of another state when they exit, they just resume the previous state.<br /><br />For example, you are in the main game loop and detect that the key that invokes the menu was pressed. You could just initialize the menu right then, activate it's own NMI routine and end up in it's main loop. The game would be effectly frozen (variables intact and all), until you got out of the menu's main loop and restored the main game NMI.<br /><br />I used to have a "state" variable and a table with the address of each state. The main loop would just save the return address and jump to the address of the active state (pretty much like Sivak did for NMIs, but I did it for the main thread). When the active state wanted to give control to some other state, it just had to change the state number and return.<br /><br />I have recently switched to a simpler scheme though. I just jump from one state to the next. Each state has it's initialization section and it's main loop. The only way to get out of a main loop is to jump to the initialization of another state.<br /><br />I had to make certain rules of what a state is to expect when it's initialization is called, such as the display must be off and no custom NMI should be set, so they must be sure to deliver the program like that to the next state. Of course you can have exceptions, such as the case with the in-game menu, you will not want to turn rendering off there, for example.<br /><br />Regarding NMIs, I decided against having one for each state. I have however a pointer to a custom NMI routine, which will be called if it points to ROM (high byte &gt;= $80), otherwise the regular NMI routine runs. This allows me to only specify a specialized NMI routine if I need to.<br /><br />EDIT: What i mean is something like this:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">game init:<br /><br />.initialize game;<br /><br />.activate game NMI;<br /><br />game loop:<br /><br />.read joypad;<br /><br />.if menu was activated:<br /><br />   menu init:<br /><br />   .draw menu;<br /><br />   .activate menu NMI;<br /><br />   menu loop:<br /><br />   .read joypad;<br /><br />   .if menu deactivated, get out of loop;<br /><br />   .update menu state;<br /><br />   .repeat menu loop;<br /><br />   .erase menu;<br /><br />   .restore game NMI;<br /><br />.update game state;<br /><br />.repeat game loop;</div><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=95">tokumaru</a> — Tue Oct 06, 2009 8:15 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Sivak]]></name></author>
+<updated>2009-10-06T07:46:38-07:00</updated>
+<published>2009-10-06T07:46:38-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=5614&amp;p=51133#p51133</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=5614&amp;p=51133#p51133"/>
+<title type="html"><![CDATA[Multiple state for main loop]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=5614&amp;p=51133#p51133"><![CDATA[
+The reply by anders seems to be my interpretation as well.  That sort of situation could be done using jump tables.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">;Then, you'd have something in your main NMI that works like this:<br />;Obviously, a real NMI would have more...<br />NMI:<br />JSR GetScreen<br />RTI<br /><br />TableOfDestinations:<br />.dw TitleScreen, GameScreen, PasswordScreen  ;Some possibles for a game<br /><br />;You'll need some memory for your desired screen.<br />GetScreen:<br />LDY screenID<br />LDA TableOfDestinations, Y<br />STA Pointer<br />LDA TableOfDestinations + 1, Y<br />STA Pointer + 1<br />JMP &#91;Pointer&#93;    ;This will jump from the selection from the list and when you RTS from there, you'll be back at the RTI of your NMI in this case...<br /></div>[/code]<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3374">Sivak</a> — Tue Oct 06, 2009 7:46 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Anders_A]]></name></author>
+<updated>2009-10-06T02:48:48-07:00</updated>
+<published>2009-10-06T02:48:48-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=5614&amp;p=51129#p51129</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=5614&amp;p=51129#p51129"/>
+<title type="html"><![CDATA[Multiple state for main loop]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=5614&amp;p=51129#p51129"><![CDATA[
+I'm not sure i understand what you mean, but couldn't you do something like this<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">main:<br />   vait for nmi to return<br /><br />   if state == menu<br />      menustuff<br />   else if state == introscreen<br />      introscreentuff<br />   else if state == game<br />      gamestuff<br /><br />   jmp main<br /></div><br /><br />And it'd be up to the *stuff to change the mainstate when they're exited.<br />introscreenstuff would set the state to levelstart or game or whatever when start is pressed and menu would set the state to game when it is exited for example.<br /><br />Have I misunderstood what you want to do?<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=1601">Anders_A</a> — Tue Oct 06, 2009 2:48 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Banshaku]]></name></author>
+<updated>2009-10-06T02:30:44-07:00</updated>
+<published>2009-10-06T02:30:44-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=5614&amp;p=51128#p51128</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=5614&amp;p=51128#p51128"/>
+<title type="html"><![CDATA[Multiple state for main loop]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=5614&amp;p=51128#p51128"><![CDATA[
+There may have been a thread in the past about this subject but I was not able to find it. Sorry if my message may not be clear since I'm recovering from a weekend battling with a stronger cold and it may affect how well I explain my issue.<br /><br />I'm investigating how to have multiple states for the main loop.  For the NMI, I decided to test today with the vector pointing in RAM so I can change the address anytime and it's working fine. This way it removes many possible if statement in the NMI and you just point to the right function for the right state.<br /><br />For the main loop, there is no such vector. So I'm trying to check how can I change the main loop state.  For now I will think out a loud to see what I could figure out. <br /><br />One way is you have a main loop that first decide in which state it is. Then it will call a function for the current state (game intro, game menu, in game etc) . This function will do it's proper init then enter in it's own infinite loop. The only problem I see here is how do I quit that specific state without an IF statement on every loop and how do I enter a temporary state (ex: entering sub menu in-game for example) without again an if statement in on every loop.<br /><br />How do people approach this problem? For now it's not yet a problem for me since I'm still developing the engine code but it will soon become an issue.<br /><br />Any comment on the subject will be appreciated.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3559">Banshaku</a> — Tue Oct 06, 2009 2:30 am</p><hr />
+]]></content>
+</entry>
+</feed>

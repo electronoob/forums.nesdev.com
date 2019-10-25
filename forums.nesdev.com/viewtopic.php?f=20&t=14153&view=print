@@ -1,0 +1,375 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Help with sound emulation</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Help with sound emulation</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=20&amp;t=14153">http://forums.nesdev.com/viewtopic.php?f=20&amp;t=14153</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>DarkMoe</b> [ Wed Apr 27, 2016 12:52 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Help with sound emulation</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Hi again, I need once more the help from you masters of emulation.<br /><br />I managed to nail GBC, I couldn't find any visual bugs with Aladdin, Tomb Raider, Rayman and some others.<br /><br />So I decided it was time to add the only major feature I was missing from my emulator (and cable link, that's still pending).<br /><br />I'm using this document, which seems very exhaustive:<br /><!-- m --><a class="postlink" href="http://gbdev.gg8.se/wiki/articles/Gameboy_sound_hardware">http://gbdev.gg8.se/wiki/articles/Gameb ... d_hardware</a><!-- m --><br /><br />I started to implement the registers behaviour only for channel 1 with the intent of playing the coin sound from the DMG bios, but then I got mentally blocked and I have tons of questions:<br /><br />1) Document: A timer generates an output clock every N input clocks, where N is the timer's period. If a timer's rate is given as a frequency, its period is 4194304/frequency in Hz. Each timer has an internal counter that is decremented on each input clock. When the counter becomes zero, it is reloaded with the period and an output clock is generated.<br />The frame sequencer generates low frequency clocks for the modulation units. It is clocked by a 512 Hz timer.<br /><br />So, my emulator runs in &quot;parallel&quot; cpu, video, dma,etc. broken down in 4 cycles, so if a instruction uses 12 cycles, my emulator updates video 3 times. That works perfectly. Now, if I hookup the sound, I created a new &quot;frame timer&quot; which starts at  4194304/ 512 hz = 8192, that would by my cicles right ? If my instruction uses 12 cycles, I would also deduce 12 cycles from those 8192 ?<br /><br />Would this also apply for the other 3 counters the doc mentions ? (Length Ctr (256 hz), Vol Env (64 hz) and Sweep (128 hz))<br /><br />2) Document: Length Counter = A length counter disables a channel when it decrements to zero. It contains an internal counter and enabled flag. Writing a byte to NRx1 loads the counter with 64-data (256-data for wave channel). The counter can be reloaded at any time.<br /><br />So, I created 2 extra variables to account to the internal counter and the internal flag, but is this internal counter just the same as the one in NR11 ? or is just a counter which reflects the same value as the one in NR11 ?<br /><br />3) Document: Each length counter is clocked at 256 Hz by the frame sequencer. When clocked while enabled by NRx4 and the counter is not zero, it is decremented. If it becomes zero, the channel is disabled.<br /><br />Disabling the channel is disabling that internal flag ? or putting a 0 in bit 0 of FF26 (NR52), or both ? If the channel is disabled, is it just muted but the audio logic keeps working, or no register for channel 1 works anymore until it somehow reactivates again ?<br /><br />4) Document: A volume envelope has a volume counter and an internal timer clocked at 64 Hz by the frame sequencer. When the timer generates a clock and the envelope period is not zero, a new volume is calculated by adding or subtracting (as set by NRx2) one from the current volume. If this new volume within the 0 to 15 range, the volume is updated, otherwise it is left unchanged and no further automatic increments/decrements are made to the volume until the channel is triggered again.<br /><br />Does this mean when the volume envelope timer reaches 0 ?<br />It says it works at 64 hz, so that would mean the timer decreases every  4194304/64 = 65536 cycles ? and when that happens it checks for the envelope period not being zero ? If that's the case, what happens when this timer reaches 0 ?<br /><br />5) Document: The first square channel has a frequency sweep unit, controlled by NR10. This has a timer, internal enabled flag, and frequency shadow register. It can periodically adjust square 1's frequency up or down.<br />During a trigger event, several things occur:<br />Square 1's frequency is copied to the shadow register.<br />The sweep timer is reloaded.<br />The internal enabled flag is set if either the sweep period or shift are non-zero, cleared otherwise.<br />If the sweep shift is non-zero, frequency calculation and the overflow check are performed immediately.<br /><br />I created again a sweep timer with 128 hz, a new enabled flag and another variable &quot;shadow register&quot;. What's the purpose of this shadow register ? It looks like a variable with the previous frequency when the frequency is updated ?<br />The sweep timer is reloadad, does this mean I need to reset this 128 hz timer ?<br />what does it mean with Overflow check ?<br /><br />6) With video, I just collect all pixels, rendering dot by dot, line by line, and when I reach VBLANK I draw them to the screen. How does this translate to sound ? Should I play whatever frequency I have when I reach VBLANK ? Or when that &quot;frame&quot; timer reaches 0 ? Not really sure about the timing of this.<br /><br />7) How does the sound output, sound like a gameboy ? I know I can have a certain frequency (like 440 hz, being the standard A), but how can I change the &quot;instrument&quot; (I think it's determined by the wave form), to sound exactly like a gameboy ?<br /><br />I know these are really beginner questions, and Im still lacking a lot of technical electronic and audio background, but Id be really grateful if you could guide me with these.<br /><br />Thanks,
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Shonumi</b> [ Wed Apr 27, 2016 8:28 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Help with sound emulation</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">DarkMoe wrote:</div><div class="quotecontent">So, my emulator runs in &quot;parallel&quot; cpu, video, dma,etc. broken down in 4 cycles, so if a instruction uses 12 cycles, my emulator updates video 3 times. That works perfectly. Now, if I hookup the sound, I created a new &quot;frame timer&quot; which starts at 4194304/ 512 hz = 8192, that would by my cicles right ? If my instruction uses 12 cycles, I would also deduce 12 cycles from those 8192 ?<br /></div><br /><br />Yes, this is generally a good way to approach the sound controller's timers. I assume you do something similar for the Game Boy's internal hardware timer (the one that generates interrupts), and it works on the same principle. FYI, so will Serial Input-Output, which runs at frequencies that divide 4194304 by a power of 2. So yeah, you've got the right idea.<br /><br /><div class="quotetitle">DarkMoe wrote:</div><div class="quotecontent">Would this also apply for the other 3 counters the doc mentions ? (Length Ctr (256 hz), Vol Env (64 hz) and Sweep (128 hz))<br /></div><br /><br />Yup. If you're doing something at XYZ hz, just divide the main CPU clock (4194304) by that number to get the amount of cycles you need to watch.<br /><br /><div class="quotetitle">DarkMoe wrote:</div><div class="quotecontent">So, I created 2 extra variables to account to the internal counter and the internal flag, but is this internal counter just the same as the one in NR11 ? or is just a counter which reflects the same value as the one in NR11 ?<br /></div><br /><br />I think what the document is saying is that the length counter is made of 2 components, a counter component and a flag component. It seems phrased a bit weirdly, like there could be two different counters. But basically, if you have those two components, that's all you need, you're good to go. What you're doing is exactly what I've done, and I have had working audio for about 2 years+  <img src="./images/smilies/icon_mrgreen.gif" alt=":mrgreen:" title="Mr. Green" /><br /><br /><div class="quotetitle">DarkMoe wrote:</div><div class="quotecontent">Disabling the channel is disabling that internal flag ? or putting a 0 in bit 0 of FF26 (NR52), or both ? If the channel is disabled, is it just muted but the audio logic keeps working, or no register for channel 1 works anymore until it somehow reactivates again ?<br /></div><br /><br />You disable the channel whenever the length counter reaches zero. Every time the length counter clocks (@ 256Hz) you decrement the counter. When you get to zero, the sound has stopped playing. At this point, for Sound 1 (Square Wave w/sweep + envelope), Bit 0 of NR52 automatically gets set to 0. Please note, Bits 0-3 of NR52 are READ ONLY. You can't write to them. They only reflect the status of current sounds, but play no role in disabling sounds. Bit 7 of NR52 disables all sounds, however, if set to 1. Be careful though, because writing 1 to Bit 7 of NR52 wipes out the rest of the NRxx registers if they hold any values.<br /><br />Anyway, when they say the sound stops, everything about it stops. You don't clock audio logic for envelopes, sweeps, or nothing. The sound is done. This is different from a sound that simply has been muted in certain scenarios (e.g. imagine a decreasing envelope still needs to be &quot;on&quot; even after the envelope volume reaches zero).<br /><br /><div class="quotetitle">DarkMoe wrote:</div><div class="quotecontent">Does this mean when the volume envelope timer reaches 0 ?<br />It says it works at 64 hz, so that would mean the timer decreases every 4194304/64 = 65536 cycles ? and when that happens it checks for the envelope period not being zero ? If that's the case, what happens when this timer reaches 0 ?<br /></div><br /><br />Yes, every 65536 cycles, the envelope timer clocks (i.e. reaches zero), which means you have to process it in your audio handling. If the envelope period (NR12, bits 0-2 for example) is non-zero, that indicates how many times the envelope timer must clock before the volume increases or decreases. Say the envelope period is 2, we have to wait 65536 * 2 cycles before deciding if the audio should increase or decrease in volume.<br /><br /><div class="quotetitle">DarkMoe wrote:</div><div class="quotecontent">I created again a sweep timer with 128 hz, a new enabled flag and another variable &quot;shadow register&quot;. What's the purpose of this shadow register ? It looks like a variable with the previous frequency when the frequency is updated ?<br /></div><br /><br />The shadow register is for internal use by the Game Boy's sound controller. It's used when sweeping. The Game Boy keeps track of the original frequency (the bits you wrote into NR13 and NR14) but in order to calculate the sweep it has to change this frequency. Rather than destroying the contents in NR13 and NR14 (this would not be helpful when programming your own sound engine...) it makes a shadow register, or in other words, a temporary variable to store the sweep frequency.<br /><br /><div class="quotetitle">DarkMoe wrote:</div><div class="quotecontent">The sweep timer is reloadad, does this mean I need to reset this 128 hz timer ?<br /></div><br /><br />Yes.<br /><br /><div class="quotetitle">DarkMoe wrote:</div><div class="quotecontent">what does it mean with Overflow check ?<br /></div><br /><br />When Sound 1's sweep is set to increase the frequency, the sound controller places a limit on the maximum allowable frequency. It may not be greater than ~131KHz. Essentially, the frequency for Sound 1 is stored as a value between 0 and 2047 (0x00 through 0x7FF). Any value greater than 0x800 causes Sound 1 to stop.<br /><br />On the other hand, when Sound 1's sweep is set to decrease, it will continue to decrease as long as the new frequency is greater than zero. However, Sound 1 will not stop when it hits this &quot;limit&quot; when decreasing; the channel still remains &quot;on&quot; just the frequency is always going to be super-low.<br /><br /><div class="quotetitle">DarkMoe wrote:</div><div class="quotecontent">With video, I just collect all pixels, rendering dot by dot, line by line, and when I reach VBLANK I draw them to the screen. How does this translate to sound ? Should I play whatever frequency I have when I reach VBLANK ? Or when that &quot;frame&quot; timer reaches 0 ? Not really sure about the timing of this.<br /></div><br /><br />The simplest, cleanest way is to render audio sample-by-sample and store it in a buffer. Once this buffer fills, you push it to the computer's audio hardware. Obviously, larger buffers take longer to process, so if you wait too long to output audio it could desync with video. Smaller buffers are preferable when applicable. Ideally, you would be updating this buffer by the smallest audio timer (the length counter's 256Hz timer).<br /><br /><div class="quotetitle">DarkMoe wrote:</div><div class="quotecontent">How does the sound output, sound like a gameboy ? I know I can have a certain frequency (like 440 hz, being the standard A), but how can I change the &quot;instrument&quot; (I think it's determined by the wave form), to sound exactly like a gameboy ?<br /></div><br /><br />Have you looked into what square waves are, mathematically speaking? If you can grasp that the waves are just different sequences of rising and falling amplitudes, you're on your way to understanding basic sound theory. Whenever you change an &quot;instrument&quot; on the Game Boy, all you're doing is changing the properties of the square wave, if we're just talking about Sound 1. You change the timbre by manipulating the duty-cycle (changing the periods between rising and falling amplitudes) and change the pitch by manipulating the frequency. For most sounds using Sound 1 on the Game Boy, altering those two properties go a long way to making different and &quot;unique&quot; sounds.<br /><br />I would very much suggest you play around with the sound channels to get a feel for how the different registers affect the output. Take a look at this Sound Test ROM -&gt; <!-- m --><a class="postlink" href="https://github.com/Emu-Docs/Emu-Docs/tree/master/Game%20Boy/test_roms/sound_test">https://github.com/Emu-Docs/Emu-Docs/tr ... sound_test</a><!-- m --><br /><br />Hope this helps. If you're still confused, let me see if I can clarify some things for you <img src="./images/smilies/icon_wink.gif" alt=";)" title="Wink" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>DarkMoe</b> [ Wed Apr 27, 2016 9:17 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Help with sound emulation</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Wow, thanks for your awesome answer !<br /><br />I will read it many times, trying to get everything. And I will try that sound rom too.<br /><br />Time to analyze and code, Thanks !! =D
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>DarkMoe</b> [ Mon May 02, 2016 11:23 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Help with sound emulation</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Well, I'm still super confused about sound,<br /><br />Here's my findings on the DMG bios rom (using BGB).<br /><br />FF26 set to 80 (internal value now is F0).<br />This is turning on the sound (in your previous post, you said putting 1 to bit 7 destroyed the sounds registers, but I think it's the other way around, right ?)<br /><br />FF11 set to 80 (internal value now is BF).<br />Here's something that I don't understand, accordint to doc:<br /><br />FF11 DDLL LLLL Duty, Length load (64-L)<br />BF:  1011 1111<br /><br />So, Bios wrote 80, and length should be 0, but BGB register is showing it to be 111111 (3F).<br />Is the length counter 0 or 3F at this point ?<br /><br />If it really is 0, that means that channel 1 is off, but the bios is not changing it again before it plays those 2 ding sounds. Does the length counter wraps itself to max value or am I missing something here ?<br /><br />Any help ? Thanks
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Shonumi</b> [ Mon May 02, 2016 10:32 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Help with sound emulation</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">DarkMoe wrote:</div><div class="quotecontent">This is turning on the sound (in your previous post, you said putting 1 to bit 7 destroyed the sounds registers, but I think it's the other way around, right ?)<br /></div><br /><br />Yeah, I meant to say flipping the bit from 1 to 0 (or High to Low if that helps make things clearer) destroys the values in the other NRxx registers<br /><br /><div class="quotetitle">DarkMoe wrote:</div><div class="quotecontent">FF11 set to 80 (internal value now is BF).<br />Here's something that I don't understand, accordint to doc:<br /><br />FF11 DDLL LLLL Duty, Length load (64-L)<br />BF: 1011 1111<br /><br />So, Bios wrote 80, and length should be 0, but BGB register is showing it to be 111111 (3F).<br />Is the length counter 0 or 3F at this point ?<br /><br />If it really is 0, that means that channel 1 is off, but the bios is not changing it again before it plays those 2 ding sounds. Does the length counter wraps itself to max value or am I missing something here ?<br /></div><br /><br />You're only looking at the first of several writes to NR10 - NR14, so you're not getting the full picture. The values you see written to NR11 are only the beginning of how the DMG boot ROM plays the sounds. This is what the register writes look like (what the code itself writes, ignoring whatever the internal values themselves really are)<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">//These are written as the logo scrolls from the top<br />NR11 -&gt; 0x80<br />NR12 -&gt; 0xf3<br /><br />//Logo scrolls some more, no sound plays because trigger events have not happened.<br /><br />//1st note<br />NR13 -&gt; 0x83<br />NR14 -&gt; 0x87 //triggered!<br /><br />//2nd note<br />NR13 -&gt; 0xc1<br />NR14 -&gt; 0x87 //triggered!<br /></div><br /><br />So let's break it down (I skipped NR10, it's not relevant to the DMG boot ROM AFAIK). NR11 sets the length to 64 during the <a href="http://gbdev.gg8.se/wiki/articles/Gameboy_sound_hardware#Trigger_Event" class="postlink">trigger event</a>. If you read the value right after you write 0x80 to it, you'll find that the length should be zero. Only if the length is zero does it switch to the maximum length (0x3F for Sound 1, 2, and 4, 0xFF for Sound 3) during a trigger event.<br /><br />For these two notes, the sound controller doesn't care about the lengths though. Bit 6 of NR14 is set to zero, so both will play until something disables the channels or mutes them. Anyway, it's pretty simple, it just sets up Volume+Envelope stuff with NR12, sits there being quiet while the logo scrolls, then changes the frequency for each not before firing a trigger event.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>DarkMoe</b> [ Tue May 03, 2016 11:57 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Help with sound emulation</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Ok, that's super helpful<br /><br />I managed to get the 2 notes playing and the second one gets the volume lowered until muted. I created a square generator sound, but the notes are super long, and they are blocking the emulator, so new questions now:<br /><br />1) I'm creating a buffer, but I really don't know which sizes should I use. I use the length clock to fill it, but how much data should I put in there ? All sound algorythms I found also use the length of the note (in ms), how much should I use, 15, 20 ms ? Or which value ? Looks like this directly affects how big the buffer is.<br /><br />2) Which amplitude should I use ? I think this directly affects volume before processing the sound, after I pass the frequency numbers to the square generator, I'm getting in bytes: 1, 127, 1, 127 and for the other phase -1, 128, -1, 128 .. (I'm using Java and the api uses bytes). Or is the amplitude something that makes no difference ?<br /><br />3) Should the output of sound be executed in a new thread so that the emulator doesn't get blocked ? Or just fixing the output of sound to whatever buffer numbers fit will fix this ?<br /><br />Thanks again, you're the best,
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Shonumi</b> [ Wed May 04, 2016 11:05 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Help with sound emulation</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Ugh, busy day, busy life. Didn't have time to respond properly to your post, so I'm a bit late. Anyway...<br /><br /><div class="quotetitle">DarkMoe wrote:</div><div class="quotecontent">1) I'm creating a buffer, but I really don't know which sizes should I use. I use the length clock to fill it, but how much data should I put in there ? All sound algorythms I found also use the length of the note (in ms), how much should I use, 15, 20 ms ? Or which value ? Looks like this directly affects how big the buffer is.<br /></div><br /><br />Well, the length of the buffer depends on several things, such as the amount of percision (i.e. number of samples) you want to make, how fast you think you can process that, and whatever best suits your emulator's audio API. For example, I let SDL determine how many samples the buffer should be whenever SDL's audio functions are called for processing, then I fill a buffer appropiately. I generally specify that the buffer should be 1024 samples long, but SDL adjusts size this when it actually requests the audio buffer data. Remember that shorter buffers are quicker to fill, but you may lose some quality or accuracy if you go too short and don't output the audio fast enough (e.g. trying to use a 256 sample internal buffer with 11KHz audio would really, really sound bad in my case). Also, if you keep an internal buffer that is a different size from your output buffer, you'll have to do additional processing to get the two to work with one another.<br /><br /><div class="quotetitle">DarkMoe wrote:</div><div class="quotecontent">2) Which amplitude should I use ? I think this directly affects volume before processing the sound, after I pass the frequency numbers to the square generator, I'm getting in bytes: 1, 127, 1, 127 and for the other phase -1, 128, -1, 128 .. (I'm using Java and the api uses bytes). Or is the amplitude something that makes no difference ?<br /></div><br /><br />So you're using signed bytes for the format (aka S8 audio)? I don't see a problem with that. That's more than enough to cover all of the different volume levels if you account for the envelope functions and the volume controls in NR50. Other than that, it doesn't matter as far as I know.<br /><br /><div class="quotetitle">DarkMoe wrote:</div><div class="quotecontent">3) Should the output of sound be executed in a new thread so that the emulator doesn't get blocked ?<br /></div><br /><br />This is generally a good idea. Most emulators I know (from a coding perspective) always make separate threads for audio. Most of the time, this is just how the API itself just works. Going back to SDL again, threaded audio processing is done automatically. You should check to see if your audio API does this for you already or not.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>DarkMoe</b> [ Mon May 09, 2016 12:27 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Help with sound emulation</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Well, I'm getting closer. Still it sounds like sh*t<br /><br />Comparing it to the real sound, my frequencies sound really low.<br /><br />According to this:<br /><!-- m --><a class="postlink" href="http://bgb.bircd.org/pandocs.htm#vramspriteattributetableoam">http://bgb.bircd.org/pandocs.htm#vramsp ... tetableoam</a><!-- m --><br /><br />Frequency = 131072/(2048-x) Hz<br /><br />So for my first note in the bios, x is 0x783. Frequency using that formula = 1048, which is lower than the actual one. Which should be the correct frequency ?<br /><br />Also still having issues with the buffer, and when to send it to the audio output.<br /><br />So if I have 44100 samples per second, that means its 735 samples per frame right ?  (60 fps)<br />I'm updating the buffer everytime the lenght counter expires (as you suggested, since it's the timer with the highest frequency), that means it's being updated 16384 times per second. No matter what algorythm I use, or buffer size, I tend to have really long notes or horrible popping sounds. My current one sounds better, but still is terrible, I'm using a 2048 buffer, and filling it with 46 samples each one of those 16384 times per second.<br /><br />Any suggestions ?<br />As always, thanks for your great help
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Shonumi</b> [ Fri May 13, 2016 6:27 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Help with sound emulation</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Super sorry for the long delay. Working a lot of hours the past two weeks (gotta make that money). Anyway...<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">So for my first note in the bios, x is 0x783. Frequency using that formula = 1048, which is lower than the actual one. Which should be the correct frequency ?<br /></div><br /><br />Using that formula, the frequency should actually be very high, so yes, ~1048Hz is correct. The hexadecimal range for the 11-bit frequency is 0x0 to 0x7FF, so 0x783 is getting close to the maximum allowable frequency. You'd calculate it as:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">131072 / (0x800 - 0x783) Hz<br />131072 / (2048 - 1923) Hz<br />131072 / (125) Hz<br />1048.576Hz<br /></div><br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">So if I have 44100 samples per second, that means its 735 samples per frame right ? (60 fps)<br />I'm updating the buffer everytime the lenght counter expires (as you suggested, since it's the timer with the highest frequency), that means it's being updated 16384 times per second. No matter what algorythm I use, or buffer size, I tend to have really long notes or horrible popping sounds. My current one sounds better, but still is terrible, I'm using a 2048 buffer, and filling it with 46 samples each one of those 16384 times per second.<br /></div><br /><br />Popping or crackling in the audio suggests you're not pushing the actual sound data (the buffer) at the correct times. In order for you to play sound correctly at 44100Hz, you have to make sure you give your audio API the data it needs in a timely fashion. For example, for every 16.667 ms, you should be giving it those 735 samples. I'd suggest running a timer in your audio processing code, and see how long each delay is between when you actually pass the audio buffer off to the audio API.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>DarkMoe</b> [ Wed Jun 15, 2016 9:29 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Help with sound emulation</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />ok, after some time, I managed to get some channel 1 and 2 working. There are still some bugs and some audio delay, but I'll have to fight with them later.<br /><br />I wanted to start implementing channel 3 and 4. After reading that document, I don't understand any of it. Channel 3 is a wave generator, so I guess instead of a square, it has a custom wave which should account for a &quot;higher quality&quot; audio ? What should I do to start emulating it ?<br /><br />Channel 4, from what I've seen has some kind of RNG but it can be manipulated to do tone (how ??), and it's generally used for drums and percussion. But again, I'm lost on how to start implementing it.<br /><br />Any help is appreciated,<br />Thanks
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Wed Jun 15, 2016 9:58 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Help with sound emulation</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Channel 3 reads amplitude levels out of a 32x4-bit wave RAM. The DAC reads the wave RAM every <em>p</em> cycles, advancing to the next step after each read, from the high nibble to the low nibble of each byte and then to the high nibble of the next byte in wave RAM. For example, if the contents of wave RAM are FE DC BA 98 76 54 32 10 01 23 45 67 89 AB CD EF,* then channel 3's output will loop among [15 14 13 12 11 10 9 8 7 6 5 4 3 2 1 0 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15]. There exist wave RAM configurations that will play two notes at once, a minor third, major third, perfect fourth, perfect fifth, or octave apart.<br /><br />To begin to understand the theory behind channel 4 in the NES and Game Boy, read <a href="https://en.wikipedia.org/wiki/Linear-feedback_shift_register" class="postlink">LFSR</a>. Every <em>p</em> cycles, you take two bits in the LFSR's state, XOR them, and shift the result through the other end of the LFSR. Different chosen bits produce a long period (32767 steps) or a short period (93 steps on NES, 127 on Game Boy). The short period can play buzzy notes, limited to pitches C, D, F, and G# (on Game Boy; NES short period noise pitches are less musically useful). But <a href="http://pics.pineight.com/nes/cheapsmb2underground.ogg" class="postlink">those pitches are enough for some kinds of bass line</a>.<br /><br /><br /><span style="font-size: 85%; line-height: normal">* This is in fact the waveform of the NES's counterpart to channel 3, which has a wave ROM (whose underlying implementation is four XNOR gates) instead of a wave RAM.</span>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>DarkMoe</b> [ Tue Jun 28, 2016 8:16 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Help with sound emulation</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Ok that's useful, I'm already getting some channel 4 noises.<br /><br />I have implemented the 15 bits linear feed register, and the 7 bits mode. Those are looking correct now.<br /><br />How about this ?<br /><br />NR43 FF22 SSSS WDDD Clock shift, Width mode of LFSR, Divisor code<br /><br />I cant understand the relation between &quot;Clock Shift&quot; and &quot;Divisor code&quot;. It looks like I need some kind of counter, that when it somehow reaches 0, it gets a new bit from the LFSR.<br /><br />Also in here it says:<br /><!-- m --><a class="postlink" href="http://problemkaputt.de/pandocs.htm#soundcontroller">http://problemkaputt.de/pandocs.htm#soundcontroller</a><!-- m --><br /><br /><br />  Bit 7-4 - Shift Clock Frequency (s)<br />  Bit 3   - Counter Step/Width (0=15 bits, 1=7 bits)<br />  Bit 2-0 - Dividing Ratio of Frequencies (r)<br />Frequency = 524288 Hz / r / 2^(s+1) ;For r=0 assume r=0.5 instead<br /><br />I'm confused by this. So, do I need some kind of counter ? Or just calculate the frequency with that formula ?<br /><br />Thanks,
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Tue Jun 28, 2016 10:15 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Help with sound emulation</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />You would use a similar counter to that used for the pulse 1 and pulse 2 channels, except it's 19 bits long.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">SSSS WDDD&nbsp; $FF22: Noise channel period and timbre<br />|||| ||||<br />|||| |+++- Mantissa of period (1, 2, 4, 6, 8, 10, 12, or 14)<br />|||| +---- 0: hiss (32767-step sequence); 1: buzz (127-step sequence)<br />++++------ Exponent of period<br /></div><br /><br />Every noise clock (524288 Hz, I think; I don't have any 8-bit Game Boy dev tools to verify this, and my GBA tools are fairly packed away), subtract 1 from the noise channel's period counter. When the period counter becomes 0, load the period counter with (mantissa &lt;&lt; exponent) and clock the LFSR.<br /><br />If the timbre is set to buzz (W on), increasing values of mantissa (D) for any given exponent (S) will play the descending notes C, C, C, F, C, A flat, F, and D.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

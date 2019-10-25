@@ -1,0 +1,423 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Digital pitch scaling without aliasing</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Digital pitch scaling without aliasing</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=5&amp;t=10580">http://forums.nesdev.com/viewtopic.php?f=5&amp;t=10580</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>2</strong> of <strong>2</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Sun Oct 13, 2013 2:13 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Digital pitch scaling without aliasing</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />The problem of this upsample/downsample approach is that it only works for rational numbers were the nominator and denominator are relatively small. If I were to resample a 1 minute long sample by, say, 10000/10001, you'd quickly understand that it's going to eat a ridiculous amount of RAM.<br />Even if RAM were infinite I still want to do it for arbitrary real numbers.<br /><br />And I'm sorry if my pseudocode is not &quot;clear code&quot;, but anyone is free to post something better (in fact I'd really like someone to post something better ^^)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Sun Oct 13, 2013 2:54 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Digital pitch scaling without aliasing</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Start with how a sampled signal ideally is converted to analog: each point generates a sinc function centered on it.<br /><br /><img src="http://i.imgur.com/lKKVL6g.png" alt="Image" /><br /><br />In continuous time, several sample points (blue, green, red, cyan, magenta) each contribute their respective sinc function, which adds up to the black waveform:<br /><br /><img src="http://i.imgur.com/0CD0xTb.png" alt="Image" /><br /><br />At each sample point, the amplitude is determined by that sample point alone, since the sinc function has zero crossings at each adjacent sample (see first picture).<br /><br />So we've just converted a sampled signal to a continuous-time analog version. To sample this at a higher rate, just take the samples from this continuous version. To sample at a lower rate, filter the original signal appropriately, then do the above conversion to continuous time and take the new samples.<br /><br />For a practical implementation, you can merge the filtering with the sinc function you use, and turn the sinc inside-out so that for a given position at some fraction between input samples, you multiply the nearby input samples by various weights and add the result for the output sample. So you generate a table of these weights for each fractional position you will be using, then run through and apply them. e.g. if you were halving the sampling rate, you'd only need two sets of weights: one for even samples, another for odd samples. If the output rate falls all over the fraction, you might take equal spacings then interpolate the weights.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Sun Oct 13, 2013 2:58 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Digital pitch scaling without aliasing</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">So you generate a table of these weights for each fractional position you will be using, then run through and apply them.</div><br />In the Super NES DSP, the Gaussian interpolation stage immediately after BRR decoding does pretty much exactly this. It has 256 sets of four weights, one for each 1/256 fractional position. (Half of those sets are reflected.) See &quot;4-Point Gaussian Interpolation&quot; in <a href="http://nocash.emubase.de/fullsnes.txt" class="postlink">fullsnes</a> for the details.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Sun Oct 13, 2013 3:33 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Digital pitch scaling without aliasing</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />1- You don't need to load the entire sample at the same time. You only need to keep in memory a length equal to the FIR length.<br />2- All I'm saying is &quot;do it the stupid way first&quot; so that you can get a proof of concept. Then you can optimize it.<br />3- You cannot upsample by a non-integral amount. It either involves another stage of filtering followed by downsampling, or smart-ass math that will produce harmonics blended down in the passband; this isn't avoidable. Here's some spectrograms that illustrate my point:<br /><div class="attachtitle">Attachment:</div><div class="attachcontent">
+			<a href="./download/file.php?id=895&amp;mode=view"><img src="./download/file.php?id=895&amp;t=1" alt="spectrograms2.png" /></a><br />
+			<span class="gensmall">spectrograms2.png [ 13.33 KiB | Viewed 763 times ]</span>
+		
+
+		<br />
+	</div><br />The tones on the 60kHz spectrograms are: 9, 12, 15, 33, 36, 39, and 57kHz. All the resultant files were generated from the first row, which was a 48kHz audio file with tones at 9 and 12 kHz.<br />You can see the noise, and you can see the incorrect signal inserted in the pass band at 15 kHz.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Sun Oct 13, 2013 5:48 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Digital pitch scaling without aliasing</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">lidnariq wrote:</div><div class="quotecontent">2- All I'm saying is &quot;do it the stupid way first&quot; so that you can get a proof of concept. Then you can optimize it.</div><br />Seconded. Explore with this and keep this around even once you start to optimize. This is an invaluable reference implementation.<br /><br /><div class="quotetitle">tepples wrote:</div><div class="quotecontent"><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">So you generate a table of these weights for each fractional position you will be using, then run through and apply them.</div><br />In the Super NES DSP, the Gaussian interpolation stage immediately after BRR decoding does pretty much exactly this. It has 256 sets of four weights, one for each 1/256 fractional position. (Half of those sets are reflected.) See &quot;4-Point Gaussian Interpolation&quot; in <a href="http://nocash.emubase.de/fullsnes.txt" class="postlink">fullsnes</a> for the details.</div><br />However because it varies the resampling ratio, you still get aliasing because to do it properly you must change the filtering when you change the ratio.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Mon Oct 14, 2013 2:23 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Digital pitch scaling without aliasing</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Thanks Blargg, I now understood the concept of &quot;sinc interpolation&quot; and in fact it's surprisingly simple.<br /><br />Now I see that the anti-aliasing filtering has basically nothing to do with the interpolation itself. In fact I could automatically test if resample is smaller than 1 and activate antialiasing prefiltering when this is the case, no matter which interpolation method is choosen.<br /><br />So the signal processing pipeline could look like this :<br />When downsampling<br />Original samplerate -&gt; Nearest neighboor interpolation -&gt; Final samplerate<br />Original samplerate -&gt; Linear interpolation -&gt; Final samplerate<br />Original samplerate -&gt; (etc...) -&gt; Final samplerate<br />Original samplerate -&gt; Sinc interpolation -&gt; Final samplerate<br /><br />When upsampling<br />Original samplerate -&gt; Antialiasing prefilter -&gt; Prefiltered signal -&gt; Nearest neighboor interpolation -&gt; Final samplerate<br />Original samplerate -&gt; Antialiasing prefilter -&gt; Prefiltered signal -&gt; Linear interpolation -&gt; Final samplerate<br />Original samplerate -&gt; Antialiasing prefilter -&gt; Prefiltered signal -&gt; etc... -&gt; Final samplerate<br />Original samplerate -&gt; Antialiasing prefilter -&gt; Prefiltered signal -&gt; Sinc interpolation -&gt; Final samplerate<br /><br />However only the sinc actually produces the &quot;theorically correct&quot; result. Other results while theroically incorrect might as well be useful in practice though (for instance, Cubic interpolation produces much crisper sounds which sounds better)<br /><br />The problem is that two sincs are potentially involved (one for the filtering, one for interpolation). From what you'd say it sounds like it could be optimized but I didn't understand at all yet. I'll just try and see if I can see any optimisation by myself. Since one sinc has a period of the original samplerate, and the other sinc has a period determined by the resampling ratio, it doesn't sound like they would bleed well, though.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Mon Oct 14, 2013 2:54 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Digital pitch scaling without aliasing</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Cubic interpolation can be interpreted as a windowed sinc. If I sat down with a computer algebra system, I could construct a plausible window function that, when multiplied by sinc, gives the impulse response of Catmull-Rom cubic spline interpolation.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Mon Oct 14, 2013 2:55 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Digital pitch scaling without aliasing</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />You don't actually want to use nearest neighbor interpolation when upsampling.<br />1- It makes any subsequent filtering harder, because you don't get all these 0s that you would otherwise be able to optimize out later<br />2- It's equivalent to &quot;proper&quot; upsampling followed by a boxcar lowpass, which AFAICT is basically the worst kind.<br />3- Better to explicitly keep the images you want when you design your filter than to take the random crap a boxcar gives you.<br /><br />These all (mostly) hold for all other interpolators, too. Obviously #2 varies by interpolator choice. (e.g. linear interpolation is convolution by an isosceles triangle)<br /><br />In any case, the reason you only need one filter in the end is because the upsample-filter-filter-downsample process allows you to combine the two filters, H(jΩ) = G(F(jΩ))
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Mon Oct 14, 2013 3:49 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Digital pitch scaling without aliasing</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Bregalad wrote:</div><div class="quotecontent">When upsampling<br />Original samplerate -&gt; Antialiasing prefilter -&gt; Prefiltered signal -&gt; Nearest neighboor interpolation -&gt; Final samplerate<br />Original samplerate -&gt; Antialiasing prefilter -&gt; Prefiltered signal -&gt; Linear interpolation -&gt; Final samplerate<br />Original samplerate -&gt; Antialiasing prefilter -&gt; Prefiltered signal -&gt; etc... -&gt; Final samplerate<br />Original samplerate -&gt; Antialiasing prefilter -&gt; Prefiltered signal -&gt; Sinc interpolation -&gt; Final samplerate</div><br />Nearest neighbor is like using a box impulse response (rather than sinc). Each sample point is expanded half a period in either direction, so you get a stair-step version in continuous time. This box impulse response introduces higher harmonics (because a stair-step waveform has really high harmonics), and thus expands the spectrum above the Nyquist limit. So you get aliasing when using this form of interpolation.<br /><br />So any interpolation method that introduces higher harmonics will add aliasing. The lower the magnitude of the harmonics, the less aliasing. Sinc adds none.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Tue Oct 15, 2013 1:48 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Digital pitch scaling without aliasing</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I think I understand what you mean. I can filter digially the input so that it doesn't contain any harmonics greater than the desired frequency (in our case half of the new sample rate), but this is only valid if the interpolation doesn't create high frequencies again.<br /><br />If you use nearest neighboor (or anything else than sinc), even if the input signal is lowpass filtered, it is represented by a continus time equivalent which has harmonics above what we want.<br /><br />I think I will now be able to code this, thank you very buch Blargg, your explainations were very helpful.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Jarhmander</b> [ Wed Oct 16, 2013 7:41 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Digital pitch scaling without aliasing</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I don't know if it is appropriate, but you can look at the sinc resampler I coded and gave to FamiTracker: download FamiTracker's sources, and look in Source/resampler. There's only 5 files. I admit it has rather terse comments. The resampler works obviously, and should be fairly fast, as the FIR only calculates the output samples without actually decimating or upsampling (I think it is called a polyphase FIR resampler). The resampler uses a 'sinc' object, which you can make as big as you want, but it'll increase processing time and memory usage. This resampler can use fractional and irrational ratios, but avoid very small or very big ratios (like, abs(log10(ratio)) &gt; 2) as it will use a ridiculously big amount of RAM. To further reduce aliasing at the expense of some bandwidth, you can even lower the corner frequency.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Fri Oct 25, 2013 2:05 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Digital pitch scaling without aliasing</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Now I got the filter working with the following portion of C code :<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&#91;...&#93;<br />case 'b':&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;// Bandlimited interpolation<br />&nbsp; &nbsp;// Antialisaing pre-filtering<br />&nbsp; &nbsp;if(ratio &gt; 1.0)<br />&nbsp; &nbsp;{<br />&nbsp; &nbsp;&nbsp; &nbsp;signed short *samples2 = malloc(2 * samples_length);<br />&nbsp; &nbsp;&nbsp; &nbsp;if(!samples2)<br />&nbsp; &nbsp;&nbsp; &nbsp;{<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;printf(&quot;Error : can't allocate 'nuf memory.\n&quot;);<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;exit(1);<br />&nbsp; &nbsp;&nbsp; &nbsp;}<br />&nbsp; &nbsp;&nbsp; &nbsp;// Apply low-pass filter of cutoff 1/ratio<br />&nbsp; &nbsp;&nbsp; &nbsp;for(int j=0; j&lt;samples_length; ++j)<br />&nbsp; &nbsp;&nbsp; &nbsp;{<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;double acc = 0.0;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;for(int k=j-8; k&lt;=j+8; ++k)<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;{<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if(k&gt;=0 &amp;&amp; k &lt; samples_length)<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;acc += samples&#91;k&#93;*sinc((j-k)/ratio);<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;samples2&#91;j&#93; = (short)acc;<br />&nbsp; &nbsp;&nbsp; &nbsp;}<br />&nbsp; &nbsp;&nbsp; &nbsp;free(samples);<br />&nbsp; &nbsp;&nbsp; &nbsp;samples = samples2;<br />&nbsp; &nbsp;}<br />&nbsp; &nbsp;// Actual resampling using sinc interpolation<br />&nbsp; &nbsp;for(int i=0; i&lt;out_length; ++i)<br />&nbsp; &nbsp;{<br />&nbsp; &nbsp;&nbsp; &nbsp;double a = i*ratio;<br />&nbsp; &nbsp;&nbsp; &nbsp;double acc = 0.0;<br />&nbsp; &nbsp;//&nbsp; &nbsp;for(int j=0; j&lt;samples_length; ++j)&nbsp; &nbsp;&nbsp; &nbsp;// No windowing (N^2 complexity :( )<br />&nbsp; &nbsp;&nbsp; &nbsp;for(int j=(int)a-8; j&lt;=(int)a+8; ++j)&nbsp; &nbsp;// Cut windowing with 9 coefficients (N complexity :) )<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if(j&gt;=0 &amp;&amp; j &lt; samples_length)<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;acc += samples&#91;j&#93;*sinc(a-j);<br /><br />&nbsp; &nbsp;&nbsp; &nbsp;out&#91;i&#93; = (short)acc;<br />&nbsp; &nbsp;}<br />&nbsp; &nbsp;break;<br />&#91;...&#93;<br /></div><br /><br />Works great, I tested it with the song &quot;Slam shuffle&quot; from FF6 which is famous for having a lot of trebbles, and it seems to cut the aliasing properly enough so it's inaudible.<br /><br />However several problems remains, namely, I have to manually shut down the volume a lot or else I get saturation all arround (the filter is also amplifying the signal apparently) and I'd like to merge both FIR filtering steps into a single step.<br />It will probably not be very hard to do those improvements.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Jarhmander</b> [ Fri Oct 25, 2013 3:03 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Digital pitch scaling without aliasing</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I think I know the 'why' of you 'gain' problem: when you filter your signal (in your <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">if &#40;ratio &gt; 1.0&#41;</tt>) your signal is convoluted with a sinc function of height '1' (that is, sinc(0) == 1, if your sinc function is behaving normally), which is not correct, because as the cutoff frequency gets lower, your filtered signal will get more and more boost. The reason is simple: your sinc should have a height of 1/ratio, so it does not have a gain different of 1 at all cutoff frequencies.<br /><br />Think of it this way: suppose you want to filter a signal with a rectangular window 4 samples long, but you want unity gain. You know intuitively that all of your coefficients should be ¼, so it sums up to 1. You know that the value of this sum is the DC gain of your filter (trivial; it is like <em>directly</em> measuring the DC response of your filter!). The same apply to your sinc filter: it should sum up to 1, when broken up into coefficients. <br /><br />So, unless I overlooked something, changing <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">acc += samples[k]*sinc&#40;&#40;j-k&#41;/ratio&#41;;</tt> to <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">acc += samples[k]*sinc&#40;&#40;j-k&#41;/ratio&#41; * 1./ratio;</tt> should correct the gain problem.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Sat Oct 26, 2013 3:01 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Digital pitch scaling without aliasing</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Thanks, I fixed that much easily. I'd have bet it was something like that.<br /><br />Finally I didn't merge both filtering steps into one but who cares. This is too complicated as the second filtering stages depends on the fractional part of &quot;a&quot; only, which is different for every sample, while the first part depends on the resampling ratio, which of course don't change. The second part also is not symetric, so the trick tepples mentioned doesn't apply.<br /><br />The new version of BRRTools including this will be released tomorrow.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Jarhmander</b> [ Sat Oct 26, 2013 7:24 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Digital pitch scaling without aliasing</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Bregalad wrote:</div><div class="quotecontent">Thanks, I fixed that much easily. I'd have bet it was something like that.</div><br />You're welcome.<br /><br /><div class="quotetitle">Bregalad wrote:</div><div class="quotecontent">Finally I didn't merge both filtering steps into one but who cares. This is too complicated as the second filtering stages depends on the fractional part of &quot;a&quot; only, which is different for every sample, while the first part depends on the resampling ratio, which of course don't change.</div><br />That's not as hard as you may think. Interpolation works as if you were &quot;walking&quot; on your original sample, with steps smaller than 1. You calculate via convolution with a sinc the values in-between the original samples. When you downsample it's almost the same thing, except you use steps higher than 1 in your original sample, and <em>steps smaller than 1</em> in your sinc function (steps of 1/ratio specifically) . This has the effect of broadening the sinc window, which mean lowering of the cutoff frequency (mind the gain problem here too!).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>2</strong> of <strong>2</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

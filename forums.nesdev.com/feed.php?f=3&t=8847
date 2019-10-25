@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="https://forums.nesdev.com/feed.php?f=3&amp;t=8847" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="https://forums.nesdev.com/index.php" />
+<updated>2012-04-30T20:16:31-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>https://forums.nesdev.com/feed.php?f=3&amp;t=8847</id>
+<entry>
+<author><name><![CDATA[Zepper]]></name></author>
+<updated>2012-04-30T20:16:31-07:00</updated>
+<published>2012-04-30T20:16:31-07:00</published>
+<id>https://forums.nesdev.com/viewtopic.php?t=8847&amp;p=93134#p93134</id>
+<link href="https://forums.nesdev.com/viewtopic.php?t=8847&amp;p=93134#p93134"/>
+<title type="html"><![CDATA[Test: ppu_read_buffer [VERIFICATION PENDING]]]></title>
+
+<content type="html" xml:base="https://forums.nesdev.com/viewtopic.php?t=8847&amp;p=93134#p93134"><![CDATA[
+Good. <img src="https://forums.nesdev.com/images/smilies/icon_smile.gif" alt=":)" title="Smile" /> I believe the behaviour you described isn't so different after 20 resets, for example.<p>Statistics: Posted by <a href="https://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=39">Zepper</a> — Mon Apr 30, 2012 8:16 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[infiniteneslives]]></name></author>
+<updated>2012-04-30T14:20:16-07:00</updated>
+<published>2012-04-30T14:20:16-07:00</published>
+<id>https://forums.nesdev.com/viewtopic.php?t=8847&amp;p=93123#p93123</id>
+<link href="https://forums.nesdev.com/viewtopic.php?t=8847&amp;p=93123#p93123"/>
+<title type="html"><![CDATA[Test: ppu_read_buffer [VERIFICATION PENDING]]]></title>
+
+<content type="html" xml:base="https://forums.nesdev.com/viewtopic.php?t=8847&amp;p=93123#p93123"><![CDATA[
+For what it's worth I tested it on my NES with the NESDEV1 and I only could get:<br /><br />Failed tests: 67<br /><br />Failed tests: 67 63<br /><br />I tried about 20 times and was never able to get the one tepples did: Failed tests: 67 52 51 50 7 <br /><br />Possible I just didn't try enough times though...<p>Statistics: Posted by <a href="https://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4832">infiniteneslives</a> — Mon Apr 30, 2012 2:20 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Bisqwit]]></name></author>
+<updated>2012-04-30T03:14:00-07:00</updated>
+<published>2012-04-30T03:14:00-07:00</published>
+<id>https://forums.nesdev.com/viewtopic.php?t=8847&amp;p=93102#p93102</id>
+<link href="https://forums.nesdev.com/viewtopic.php?t=8847&amp;p=93102#p93102"/>
+<title type="html"><![CDATA[Test: ppu_read_buffer [VERIFICATION PENDING]]]></title>
+
+<content type="html" xml:base="https://forums.nesdev.com/viewtopic.php?t=8847&amp;p=93102#p93102"><![CDATA[
+<div class="quotetitle">tepples wrote:</div><div class="quotecontent"><br />Yeah, I finally saw the Kinkade painting. With the latest ROM, I get no Untested, but I get the same failed test numbers:<br /><br />Failed tests: 67<br />Failed tests: 67 63<br />Failed tests: 67 52 51 50 7<br /><br />Feature request: Press a button to view the Kinkade painting again after test completion<br /></div><br /><br />Allright, interesting. So the read buffer indeed survives even 7 seconds of not-touching, even when rendering is enabled, and it is not overwritten by any other PPU function. That is what I wanted to find out in the first place. It's like a 8-bit register.<br /><br />I still wonder about the occassional failing of #63. (Sprite 0 hit by poking data directly into $2003/2004). I don't know how that can happen.<br />And also, why the palette-writing loop presumably sometimes fails (without would explain the cascading fails of #7, #50, #51 and #52).<br />The loop is executed as follows (immediately after waiting for a vblank):<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">        .pushseg<br />        .segment &quot;RODATA&quot;<br />        @pal:<br />        ;     0   1   2   3   4   5   6   7   8   9   A   B   C   D   E   F<br />        .byte $1b,$3B,$16,$00,$05,$16,$18,$35,$39,$0A,$2D,$1B,$26,$1D,$36,$0E<br />        .byte $13,$29,$3A,$22,$00,$35,$07,$2D,$07,$36,$2B,$3C,$2F,$2E,$12,$06<br />        .popseg<br /><br />        ; Set a completely random &#40;predefined&#41; palette<br />        ; In a conforming implementation, the writes to $3F00,$3F04 etc.<br />        ; will be overwritten by writes to $3F10,$3F14 etc.<br />        ; Set PPUADDR before every write so that this test does not depend<br />        ; on proper implementation of automatic address-incrementing.<br />        bit PPUSTATUS   ;4 clocks<br />        ldx #0          ;2 clocks<br />:       lda #$3F        ;2 clocks<br />        sta PPUADDR     ;4 clocks<br />        stx PPUADDR     ;4 clocks<br />        lda @pal,x      ;5 clocks<br />        sta PPUDATA     ;4 clocks<br />        inx             ;2 clocks<br />        cpx #32         ;2 clocks<br />        bcc :-          ;3 clocks<br />        ;               ;-1 clocks<br />        ; Total: 4+2 + &#40;2+4+4+5+4+2+2+3&#41;*32 - 1 clocks = 837 clocks.</div><br />According to my calculation, this should be in no danger of leaking outside the vblank clockwise, either. (And rendering is disabled in any case.)<br />However, the routine that waits for vblank just before this code, blanks portions of the palette. Maybe there is a random problem with rewriting the contents of the palette many times in a row on the real PPU?<br /><br />Re: The feature request, I'll see about it in a few days.<p>Statistics: Posted by <a href="https://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=5043">Bisqwit</a> — Mon Apr 30, 2012 3:14 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Drag]]></name></author>
+<updated>2012-04-30T00:47:55-07:00</updated>
+<published>2012-04-30T00:47:55-07:00</published>
+<id>https://forums.nesdev.com/viewtopic.php?t=8847&amp;p=93100#p93100</id>
+<link href="https://forums.nesdev.com/viewtopic.php?t=8847&amp;p=93100#p93100"/>
+<title type="html"><![CDATA[Test: ppu_read_buffer [VERIFICATION PENDING]]]></title>
+
+<content type="html" xml:base="https://forums.nesdev.com/viewtopic.php?t=8847&amp;p=93100#p93100"><![CDATA[
+<div class="quotetitle">tepples wrote:</div><div class="quotecontent"><br />5/8<br /></div><br />That just makes me cringe. They honestly couldn't optimize their existing code and data to fit within 4/4? Maybe I'm just old fashioned. <img src="https://forums.nesdev.com/images/smilies/icon_razz.gif" alt=":P" title="Razz" /><br /><br />Anyway, after thinking it over, a good way to pad an NES rom out to the appropriate size would be to either duplicate the last bank over and over, or insert some blank banks before the last one. That way, your "last bank" physically becomes the last bank on the ROM, and you don't need to modify any code.<p>Statistics: Posted by <a href="https://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=21">Drag</a> — Mon Apr 30, 2012 12:47 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2012-04-29T16:23:15-07:00</updated>
+<published>2012-04-29T16:23:15-07:00</published>
+<id>https://forums.nesdev.com/viewtopic.php?t=8847&amp;p=93092#p93092</id>
+<link href="https://forums.nesdev.com/viewtopic.php?t=8847&amp;p=93092#p93092"/>
+<title type="html"><![CDATA[Test: ppu_read_buffer [VERIFICATION PENDING]]]></title>
+
+<content type="html" xml:base="https://forums.nesdev.com/viewtopic.php?t=8847&amp;p=93092#p93092"><![CDATA[
+That and in the Game Boy Advance and Nintendo DS scenes, it was common for games to fill only about 5/8 to 3/4 of the ROM. GBA flash cartridge writing software would cut off zero- or FF-filled space at the end of the ROM in order to fit more games onto a 256 Mbit or 512 Mbit cartridge. So would DS patching software in order to fit more games onto a 2 GB microSD card, the biggest that would work with the older (pre-SDHC) adapters.<p>Statistics: Posted by <a href="https://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Sun Apr 29, 2012 4:23 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Drag]]></name></author>
+<updated>2012-04-29T16:01:53-07:00</updated>
+<published>2012-04-29T16:01:53-07:00</published>
+<id>https://forums.nesdev.com/viewtopic.php?t=8847&amp;p=93091#p93091</id>
+<link href="https://forums.nesdev.com/viewtopic.php?t=8847&amp;p=93091#p93091"/>
+<title type="html"><![CDATA[Test: ppu_read_buffer [VERIFICATION PENDING]]]></title>
+
+<content type="html" xml:base="https://forums.nesdev.com/viewtopic.php?t=8847&amp;p=93091#p93091"><![CDATA[
+<div class="quotetitle">tokumaru wrote:</div><div class="quotecontent"><br />I don't know why some developers insist on making non-power-of-two PRG or CHR data.<br /></div><br />Not all <em>software</em> developers are familiar with how <em>hardware</em> works, and the requirement that ROM sizes be a power of 2 is not intuitive; it needs to be explained/indicated.<br /><br />Developers who are aware of this but still refuse to abide by it are just lousy developers who only want their software to work in a couple of specific emulators. <img src="https://forums.nesdev.com/images/smilies/icon_razz.gif" alt=":P" title="Razz" /><p>Statistics: Posted by <a href="https://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=21">Drag</a> — Sun Apr 29, 2012 4:01 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2012-04-29T07:30:35-07:00</updated>
+<published>2012-04-29T07:30:35-07:00</published>
+<id>https://forums.nesdev.com/viewtopic.php?t=8847&amp;p=93072#p93072</id>
+<link href="https://forums.nesdev.com/viewtopic.php?t=8847&amp;p=93072#p93072"/>
+<title type="html"><![CDATA[Test: ppu_read_buffer [VERIFICATION PENDING]]]></title>
+
+<content type="html" xml:base="https://forums.nesdev.com/viewtopic.php?t=8847&amp;p=93072#p93072"><![CDATA[
+Yeah, I finally saw the Kinkade painting. With the latest ROM, I get no Untested, but I get the same failed test numbers:<br /><br />Failed tests: 67<br /><br />Failed tests: 67 63<br /><br />Failed tests: 67 52 51 50 7<br /><br />Feature request: Press a button to view the Kinkade painting again after test completion<p>Statistics: Posted by <a href="https://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Sun Apr 29, 2012 7:30 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Bisqwit]]></name></author>
+<updated>2012-04-28T13:21:47-07:00</updated>
+<published>2012-04-28T13:21:47-07:00</published>
+<id>https://forums.nesdev.com/viewtopic.php?t=8847&amp;p=93040#p93040</id>
+<link href="https://forums.nesdev.com/viewtopic.php?t=8847&amp;p=93040#p93040"/>
+<title type="html"><![CDATA[Test: ppu_read_buffer [VERIFICATION PENDING]]]></title>
+
+<content type="html" xml:base="https://forums.nesdev.com/viewtopic.php?t=8847&amp;p=93040#p93040"><![CDATA[
+For the record, my current WIP emulator actually passes the test. But I think it may be too large presently to be featured in that manner, with its savestate and multimapper support code. But thanks for the idea.<p>Statistics: Posted by <a href="https://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=5043">Bisqwit</a> — Sat Apr 28, 2012 1:21 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2012-04-28T13:16:39-07:00</updated>
+<published>2012-04-28T13:16:39-07:00</published>
+<id>https://forums.nesdev.com/viewtopic.php?t=8847&amp;p=93039#p93039</id>
+<link href="https://forums.nesdev.com/viewtopic.php?t=8847&amp;p=93039#p93039"/>
+<title type="html"><![CDATA[Test: ppu_read_buffer [VERIFICATION PENDING]]]></title>
+
+<content type="html" xml:base="https://forums.nesdev.com/viewtopic.php?t=8847&amp;p=93039#p93039"><![CDATA[
+Once you finish the test so that it works on an NES, and you fix your emulator so that it passes the test, you could put your emulator's source code as a zipfile in the last bank, as <a href="http://www.online-tech-tips.com/computer-tips/hide-file-in-picture/" class="postlink">one often does with images</a>. You take your emulator's source code (and that of the helper application you use for audio or whatever), zip it up, pad the zipfile to 8192 bytes at the <em>front</em>, and then append it as the final bank. (I haven't tried this.)<p>Statistics: Posted by <a href="https://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Sat Apr 28, 2012 1:16 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Bisqwit]]></name></author>
+<updated>2012-04-28T13:24:50-07:00</updated>
+<published>2012-04-28T13:06:22-07:00</published>
+<id>https://forums.nesdev.com/viewtopic.php?t=8847&amp;p=93037#p93037</id>
+<link href="https://forums.nesdev.com/viewtopic.php?t=8847&amp;p=93037#p93037"/>
+<title type="html"><![CDATA[Test: ppu_read_buffer [VERIFICATION PENDING]]]></title>
+
+<content type="html" xml:base="https://forums.nesdev.com/viewtopic.php?t=8847&amp;p=93037#p93037"><![CDATA[
+Allright.. Will do. (And will edit this post when done.) Now what do I use the extra 8k for... That's like more than enough space to fit an emulator ;-)<br /><br />EDIT: Test updated. For now, the 4th bank is just going to be empty.<br /><br /><br />Whimper, I felt particularly clever when I managed to reduce the graphics from 4 VROM pages into 3 pages a few weeks back. And now it was for nothing.<p>Statistics: Posted by <a href="https://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=5043">Bisqwit</a> — Sat Apr 28, 2012 1:06 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tokumaru]]></name></author>
+<updated>2012-04-28T12:54:39-07:00</updated>
+<published>2012-04-28T12:54:39-07:00</published>
+<id>https://forums.nesdev.com/viewtopic.php?t=8847&amp;p=93035#p93035</id>
+<link href="https://forums.nesdev.com/viewtopic.php?t=8847&amp;p=93035#p93035"/>
+<title type="html"><![CDATA[Test: ppu_read_buffer [VERIFICATION PENDING]]]></title>
+
+<content type="html" xml:base="https://forums.nesdev.com/viewtopic.php?t=8847&amp;p=93035#p93035"><![CDATA[
+I don't know why some developers insist on making non-power-of-two PRG or CHR data. Memory chips are only available in power-of-two sizes, so it's only logical that you need an image that fills the entire chip. After all, a <strong>ROM</strong> file is just a container for images of <strong>ROM</strong> chips, so if it doesn't have a power-of-two size it's not a complete image.<br /><br />And don't give me that "you can use more than 1 chip and their sizes will add up to to a non-power-of-two size" crap, because at such small sizes it would never make sense to use 2 chips instead of one, considering you'd even need some extra parts to select between the 2 chips. Not cheaper or easier in any way.<br /><br />Is it really worth giving people compatibility issues just to save a few KB in your ROM file?<br /><br />PS: Sorry for the rant.<p>Statistics: Posted by <a href="https://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=95">tokumaru</a> — Sat Apr 28, 2012 12:54 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2012-04-28T12:41:40-07:00</updated>
+<published>2012-04-28T12:41:40-07:00</published>
+<id>https://forums.nesdev.com/viewtopic.php?t=8847&amp;p=93032#p93032</id>
+<link href="https://forums.nesdev.com/viewtopic.php?t=8847&amp;p=93032#p93032"/>
+<title type="html"><![CDATA[Test: ppu_read_buffer [VERIFICATION PENDING]]]></title>
+
+<content type="html" xml:base="https://forums.nesdev.com/viewtopic.php?t=8847&amp;p=93032#p93032"><![CDATA[
+<div class="quotetitle">Bisqwit wrote:</div><div class="quotecontent"><br />So, PowerPak cannot cope with CNROM<br /></div><br />PowerPak plays every regular CNROM game I've thrown at it, and recent mapper sets even support oversize CNROM workalikes such as the board used in Bubble Bath Babes.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent"><br />or it cannot cope with three CHR-ROM banks in particular? Should I make this four-banked just to make PowerPak happy?<br /></div><br />That and make it four-banked just to make burning-it-onto-an-EPROM happy.<p>Statistics: Posted by <a href="https://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Sat Apr 28, 2012 12:41 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[thefox]]></name></author>
+<updated>2012-04-28T12:24:10-07:00</updated>
+<published>2012-04-28T12:24:10-07:00</published>
+<id>https://forums.nesdev.com/viewtopic.php?t=8847&amp;p=93030#p93030</id>
+<link href="https://forums.nesdev.com/viewtopic.php?t=8847&amp;p=93030#p93030"/>
+<title type="html"><![CDATA[Test: ppu_read_buffer [VERIFICATION PENDING]]]></title>
+
+<content type="html" xml:base="https://forums.nesdev.com/viewtopic.php?t=8847&amp;p=93030#p93030"><![CDATA[
+<div class="quotetitle">Bisqwit wrote:</div><div class="quotecontent"><br />Should I make this four-banked just to make PowerPak happy?<br /></div><br />Yes, it doesn't like non power of two bank sizes. It calculates the CHR size mask by taking the bank size and subtracting 1, that'll produce some funky results with non power of twos.<p>Statistics: Posted by <a href="https://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=80">thefox</a> — Sat Apr 28, 2012 12:24 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Bisqwit]]></name></author>
+<updated>2012-04-28T12:13:41-07:00</updated>
+<published>2012-04-28T12:13:41-07:00</published>
+<id>https://forums.nesdev.com/viewtopic.php?t=8847&amp;p=93029#p93029</id>
+<link href="https://forums.nesdev.com/viewtopic.php?t=8847&amp;p=93029#p93029"/>
+<title type="html"><![CDATA[Test: ppu_read_buffer [VERIFICATION PENDING]]]></title>
+
+<content type="html" xml:base="https://forums.nesdev.com/viewtopic.php?t=8847&amp;p=93029#p93029"><![CDATA[
+<div class="quotetitle">tepples wrote:</div><div class="quotecontent"><br />BRK executed where should not!<br />PC=1B00, AXYSP=00/00/05/FB/37<br /></div><br />So it failed immediately upon landing in the supposedly VROM-loaded code.<br /><br /><div class="quotetitle">tepples wrote:</div><div class="quotecontent"><br />You mentioned VROM. Three CHR banks are not a power of two; might that have something to do with it?<br /></div><br />I know it's not a power of two. Does PowerPak have a problem coping with that fact?<br /><br />However, before loading and executing any code from the ROM, the ROM executes test 70 (TEST_CHRROM_READ_BANKED), which verifies that each of the three VROM banks can be read pr...<br />Oh, I see. There is a possibility for a false positive. Bank 0 contains the same material in the same position that is tested from bank 2. Oops. It wasn't that way in a prior phase of the development, but became so later.<br />So, PowerPak cannot cope with CNROM, or it cannot cope with three CHR-ROM banks in particular? Should I make this four-banked just to make PowerPak happy?<p>Statistics: Posted by <a href="https://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=5043">Bisqwit</a> — Sat Apr 28, 2012 12:13 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2012-04-28T10:42:11-07:00</updated>
+<published>2012-04-28T10:42:11-07:00</published>
+<id>https://forums.nesdev.com/viewtopic.php?t=8847&amp;p=93024#p93024</id>
+<link href="https://forums.nesdev.com/viewtopic.php?t=8847&amp;p=93024#p93024"/>
+<title type="html"><![CDATA[Test: ppu_read_buffer [VERIFICATION PENDING]]]></title>
+
+<content type="html" xml:base="https://forums.nesdev.com/viewtopic.php?t=8847&amp;p=93024#p93024"><![CDATA[
+BRK executed where should not!<br />PC=1B00, AXYSP=00/00/05/FB/37<br /><br />Failed tests: 67 63 62<br />Untested: 73-79<br /><br />Failed tests: 67 62<br />Untested: 73-79<br /><br />Failed tests: 67 62 52 51 50 49<br />Untested: 8 73-79<br /><br />You mentioned VROM. Three CHR banks are not a power of two; might that have something to do with it?<p>Statistics: Posted by <a href="https://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Sat Apr 28, 2012 10:42 am</p><hr />
+]]></content>
+</entry>
+</feed>

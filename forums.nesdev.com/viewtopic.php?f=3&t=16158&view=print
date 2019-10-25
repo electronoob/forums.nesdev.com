@@ -1,0 +1,291 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - APU Pulse</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">APU Pulse</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=3&amp;t=16158">http://forums.nesdev.com/viewtopic.php?f=3&amp;t=16158</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>byuu</b> [ Wed Jun 28, 2017 3:23 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>APU Pulse</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><!-- m --><a class="postlink" href="http://wiki.nesdev.com/w/index.php/APU_Pulse">http://wiki.nesdev.com/w/index.php/APU_Pulse</a><!-- m --><br /><br />I am trying to emulate the duty cycles.<br /><br />I read this:<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Duty Cycle Sequences<br /><br />Duty	Waveform sequence<br />0	0 1 0 0 0 0 0 0 (12.5%)<br />1	0 1 1 0 0 0 0 0 (25%)<br />2	0 1 1 1 1 0 0 0 (50%)<br />3	1 0 0 1 1 1 1 1 (25% negated)<br /><br />The reason for these odd sequences is that the sequence counter is initialized to zero but counts downward rather than upward</div><br /><br />This is my approach:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">auto APU::Pulse::clock() -&gt; uint8 {<br />&nbsp; if(!sweep.checkPeriod()) return 0;<br />&nbsp; if(lengthCounter == 0) return 0;<br /><br />&nbsp; static const uint dutyTable&#91;4&#93;&#91;8&#93; = {<br />&nbsp; &nbsp; {0, 1, 0, 0, 0, 0, 0, 0},&nbsp; //12.5%<br />&nbsp; &nbsp; {0, 1, 1, 0, 0, 0, 0, 0},&nbsp; //25.0%<br />&nbsp; &nbsp; {0, 1, 1, 1, 1, 0, 0, 0},&nbsp; //50.0%<br />&nbsp; &nbsp; {1, 0, 0, 1, 1, 1, 1, 1},&nbsp; //25.0% (inverted)<br />&nbsp; };<br />&nbsp; uint8 result = dutyTable&#91;duty&#93;&#91;dutyCounter&#93; ? envelope.volume() : 0;<br />&nbsp; if(sweep.pulsePeriod &lt; 0x008) result = 0;<br /><br />&nbsp; if(--periodCounter == 0) {<br />&nbsp; &nbsp; periodCounter = (sweep.pulsePeriod + 1) * 2;<br />&nbsp; &nbsp; dutyCounter--;&nbsp; //note this is a uint3 type. If the value is zero, dutyCounter-- becomes 7.<br />&nbsp; }<br /><br />&nbsp; return result;<br />}</div><br /><br />($4003, $4007 writes set dutyCounter=7 currently.)<br /><br />By counting backward, it will effectively output:<br />00000001<br />00000011<br />00001111<br />11111100<br /><br />Which looks nice, but I'm not sure if that's the intention or not.<br /><br />But if you really mean we should be outputting LITERALLY:<br />01000000<br />01100000<br />01111000<br />10011111<br /><br />Then why mention the decrementing thing? It's just confusing. If the counter is supposed to decrement, then store the table as if you're decrementing the counter (like my first example) and say you should decrement. If the counter is supposed to increment, then store the table in that order (like the second table) and <em>don't talk about decrementing.</em> Really, it's not a great code simplification to turn a decrement into an increment, in return for making the table look like hot garbage. &gt;_&gt;<br /><br />Any help would be appreciated. I'd try to emulate this by ear but I cannot tell the difference at all between either way.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>thefox</b> [ Wed Jun 28, 2017 4:38 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: APU Pulse</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">byuu wrote:</div><div class="quotecontent">But if you really mean we should be outputting LITERALLY:<br />01000000<br />01100000<br />01111000<br />10011111<br /></div><br />That's correct. (Blargg's <a href="http://nesdev.com/apu_ref.txt" class="postlink">original doc</a> doesn't mention decrementing, somebody probably added it based on Visual 2A03.)<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Then why mention the decrementing thing?</div><br />I agree that it's worded in a confusing way. It should say something like &quot;... sequence counter in the NES APU hardware is initialized to zero ...&quot;.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Wed Jun 28, 2017 4:44 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: APU Pulse</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I think the page mentions decrementing in order to explain how the circuit produces the sequence internally. I have edited the page to clarify this, giving both the lookup table and the resulting output.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Wed Jun 28, 2017 5:18 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: APU Pulse</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />The information of primary importance is the output sequence. That's what matters.<br /><br />What it does internally is irrelevant to an emulator, or for working with the output sound (e.g. making music). Nothing depends on whether it's counting up or down. Maybe it's nice to know why that weird sequence exists, but it's far more important that it just get the output correct.<br /><br />I'd probably suggest making a separate &quot;internal details&quot; section further down in the article and explain that stuff there... I dunno. I just feel like the more words and diagrams you spend on those internal details the more it's going to confuse the useful bit about the actual output. Like, right now we have two tables, one with bits that it <em>doesn't</em> output, which precedes the table with bits that it <em>does</em>?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Zepper</b> [ Wed Jun 28, 2017 5:33 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: APU Pulse</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">rainwarrior wrote:</div><div class="quotecontent">The information of primary importance is the output sequence. That's what matters.<br /><br />What it does internally is irrelevant to an emulator, or for working with the output sound (e.g. making music). Nothing depends on whether it's counting up or down. Maybe it's nice to know why that weird sequence exists, but it's far more important that it just get the output correct.</div><br />Agreed.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Wed Jun 28, 2017 5:41 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: APU Pulse</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />...and done. Everything about the decreasing counter has been moved down to the <a href="https://wiki.nesdev.com/w/index.php/APU_Pulse#Implementation_details" class="postlink">&quot;Implementation details&quot; section</a>.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Wed Jun 28, 2017 5:55 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: APU Pulse</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Yeah, that's probably an improvement.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>byuu</b> [ Wed Jun 28, 2017 6:33 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: APU Pulse</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">The information of primary importance is the output sequence. That's what matters.</div><br /><br />Right, but the output sequence changes completely depending on whether you increment or decrement through the 8-entry duty modes. The table expects [well, did. Updated now :)] you to increment (without telling you to do so), but then adds a note that it looks weird because real hardware decrements. I'm not a very bright person, and took it to mean that -I- should be decrementing in emulation (as I'm trying to emulate how the hardware worked here), which indeed made the true output look really nice and clean. Which is apparently wrong.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">...and done. Everything about the decreasing counter has been moved down to the &quot;Implementation details&quot; section.</div><br /><br />Thanks a bunch! That looks nicer :D
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Sour</b> [ Wed Jun 28, 2017 8:04 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: APU Pulse</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">byuu wrote:</div><div class="quotecontent">I'd try to emulate this by ear but I cannot tell the difference at all between either way.</div>The apu_mixer\square test rom's sound output should vary based on whether or not this is implemented properly (though the test will also vary based on a lot of other factors).<br /><br />I actually misinterpreted the information on the Wiki in the exact same way a while ago and also ended up creating a <a href="http://forums.nesdev.com/viewtopic.php?f=3&amp;t=15275" class="postlink">thread</a> about it, so it's definitely nice that the wiki's wording was changed to make this more obvious.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

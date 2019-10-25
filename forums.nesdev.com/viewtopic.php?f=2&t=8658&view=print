@@ -1,0 +1,263 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Collision Detection errors</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Collision Detection errors</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=8658">http://forums.nesdev.com/viewtopic.php?f=2&amp;t=8658</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>CareerOfEvil</b> [ Sat Feb 25, 2012 6:48 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Collision Detection errors</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Hi folks! I'm in the process of writing my own homebrew game and implementing collision detection has been a troublesome task, as I am stuck at an error that seems to have no explanation and figured this would be the right forum to ask. 
+<br />
+<br />The data I am working with is an entire uncompressed screen (well, 2 of them but at this moment I am only concerned about working with one.)
+<br />
+<br />This is the code I am working with.
+<br />
+<br />checkCollisionRight:
+<br />	LDA #$20 ;; Hi byte since nametable starts at $2000
+<br />	STA collisionHi
+<br />
+<br />	LDA HeroY ;; Takes Hero Y coordinate, divides by 8
+<br />	LSR A
+<br />	LSR A
+<br />	LSR A
+<br />	STA collisionLo
+<br />
+<br />	LDX #$00
+<br />shiftLoop:
+<br />	LDA collisionLo
+<br />	CLC
+<br />	ASL A
+<br />	STA collisionLo
+<br />	LDA collisionHi
+<br />	ADC #$00
+<br />	STA collisionHi
+<br />	INX
+<br />	CPX #$05 ;; This run five times since it must be multiplied by 32
+<br />	BNE shiftLoop
+<br />
+<br />endCollision:
+<br />	RTS
+<br />
+<br />All this is trying to do at the moment is returning the current line that the hero is walking on, not the exact tile. It does fine for the first half of the screen, from $2000-21FF, but for some reason, when the hero is beyond tiles $2200, the high byte does not increment but rather loops from $2100 all over again. Only once you reach the bottom quarter of the screen does it increase to $2200, where it should actually be at $2300.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Kasumi</b> [ Sat Feb 25, 2012 7:35 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Maybe I'm misunderstanding something here, but I don't think you can do what you want to do that way.
+<br />
+<br />The first nametable starts at $2000, but that's in the PPU's memory. The CPU can't access that data directly. 
+<br />
+<br />If I'm understanding correctly, your goal with this subroutine is to get the PPU address for the tile (well, first tile in the row) that the hero is currently standing on? There's really not much reason to do that for collision.
+<br />
+<br />In any case, maybe this breakdown of what part of your routine is doing will help with your actual glitch:
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">LDX #$00<br />shiftLoop:<br />LDA collisionLo<br />CLC;You clear the carry flag<br />ASL A;But this line shifts the highest bit of A into the carry<br />;Effectively obliterating what CLC just did.<br />STA collisionLo<br />LDA collisionHi;Because of the ASL above, the carry is unknown here.<br />ADC #$00;So this could add 0 or 1, but not in a controlled way<br /><br />;Edit: Actually I just realized that because of your divides &#40;LSR instructions&#41; before this loop begins, this will add 0 at least 3 times in a row, because the highest bits of collision low are guaranteed to be zero.<br /><br />STA collisionHi;<br />INX<br />CPX #$05 ;; This run five times since it must be multiplied by 32<br />BNE shiftLoop<br /><br />endCollision:<br />RTS <br /></div><br /><br />If you're looking for how to multiply a 16bit number by 32, you do it like this:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">ldx #$05<br />shiftloop:<br />lda lowbyte<br />asl a<br />sta lowbyte<br /><br />lda highbyte<br />rol a<br />sta highbyte<br /><br />dex<br />bne shiftloop<br /></div><br /><br />And you can actually skip some steps. Here is what you can do instead of dividing by 8, then multiplying by 32.<br /><br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">lda HeroY<br />and #%11111000;Gets rid of the lowest bits, which is what<br />;the first three divides did<br /></div>
+<br />
+<br />From there, you can get away with multiplying the 16 bit number by only 4, since you don't have to undo some divides while you multiply.
+<br />
+<br />The next step can then add the hero's y position to $2000 with a 16bit add.
+<br />
+<br />Then divide his X position by 8 and add that with a 16bit add. Which I think is a step further than what you're doing now. 
+<br />
+<br />The above method also fixes an issue with your current process. You divide only the low byte by 8, but then you (I assume) are trying to multiply the high AND low bytes by 32. This means your low byte is no longer matched up with the high byte during the multiplies.
+<br />
+<br />
+<br />If that's not what you want, I'm actually stumped with your goal and your process. Even if that is what you want, it's not exactly a great way to do this unless you're doing something like drawing a tile where the hero is currently standing.
+<br />
+<br />Could you be even more detailed for with your end goal and current goal so I can provide better help?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Sat Feb 25, 2012 9:22 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Like Kasumi said, your multiplication by 32 is wrong. Even if the multiplication itself was correct, there would be no reason to multiply the high byte of the name table address, it would actually have to be added at the end.
+<br />
+<br />If the coordinates of the here are expressed in pixels, this is the formula to find the tile it falls in: (HeroY / 8) * 32 + (HeroX / 8) + $2000.
+<br />
+<br />Like Kasumi said, the division by 8 can be combined with the multiplication by 32, so that you only have to multiply by 4 instead (after clearing the lower 8 bits). Then you can divide HeroX by 8 and add to the 16-bit number, and finally add $20 to the high byte. That will get you the correct address for the tile, assuming that the player coordinates are 8-bits and that he can only move inside the first name table. If there's scrolling involved and the player can access more than 1 name table, things are obviously more complex.
+<br />
+<br />Again like Kasumi said, checking tiles in VRAM is not the optimal way to check for collisions. Your game logic typically runs as the frame is rendering, meaning that VRAM can not be read at that moment, so you'd have to wait to check tiles only during VBlank, which would result in a lot of wasted time. Ideally, games have the level maps stored in ROM or RAM, where they can be "consulted" at any time.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>CareerOfEvil</b> [ Sat Feb 25, 2012 9:34 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Thank you for your responses, Kasumi and tokumaru. I was able to get the correct number using this routine with your help:
+<br />
+<br />	LDX #$05
+<br />shiftLoop:
+<br />	LDA collisionLo
+<br />	ASL A
+<br />	STA collisionLo
+<br />	LDA collisionHi
+<br />	ROL A
+<br />	STA collisionHi
+<br />	DEX
+<br />	BNE shiftLoop
+<br />	
+<br />	LDA collisionHi
+<br />	CLC
+<br />	ADC #$20
+<br />	STA collisionHi
+<br />
+<br />Adding the "ROL A" bit helped to get the correct number, it's just that I had to add 20 at the end since it was only returning 00,01,02, or 03. Right now my game is very uncompressed - The whole thing only consists of 2 screens, since this is my first attempt I figured something overly ambitious would be discouraging so I decided to start small. The screens are located at $E000 as well so I get the data directly from this location as well, it's just that I wanted to pull this from the PPU since I can poke around with it in the HEX editor for fceuxd and see if these calculations were correct. Thanks again for the help.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

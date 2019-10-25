@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=12&amp;t=6925" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2010-10-19T07:50:47-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=12&amp;t=6925</id>
+<entry>
+<author><name><![CDATA[psycopathicteen]]></name></author>
+<updated>2010-10-19T07:50:47-07:00</updated>
+<published>2010-10-19T07:50:47-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6925&amp;p=68893#p68893</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6925&amp;p=68893#p68893"/>
+<title type="html"><![CDATA[Advice for an aspiring homebrewer?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6925&amp;p=68893#p68893"><![CDATA[
+I wish I used labels/defines when I wrote my "project SNES" engine.  It defeats the purpose because it was supposed to be an easy-to-pick-up engine, and I once again didn't make it readable enough.  Now I have to go back and fix it, and this will take forever to do.<br /><br />It's a good thing I'm labeling my software rotation code.  I think of sprite rotation being the pinacle of 2D graphical effects, and it will be awsome seeing it in everybody's homebrew games.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4383">psycopathicteen</a> — Tue Oct 19, 2010 7:50 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[blargg]]></name></author>
+<updated>2010-10-18T01:11:34-07:00</updated>
+<published>2010-10-18T01:11:34-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6925&amp;p=68820#p68820</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6925&amp;p=68820#p68820"/>
+<title type="html"><![CDATA[Advice for an aspiring homebrewer?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6925&amp;p=68820#p68820"><![CDATA[
+I recommend using an assembler that keeps track of the size of A and X&amp;Y so you don't have to remember to do LDA.W each time. Forget it and you'll get bugs that you might not find for a while. Once you have such an assembler (maybe this one supports this), I suggest keeping A 8 bits and X&amp;Y 16 bits most of the time. You often need to do 8-bit manipulation, so having A 8 bits makes this easy. Sometimes you need to do simple 16-bit operations, and X&amp;Y serve for this. Rarely you might need to switch A to 16 bits, but switch it back afterwards. This convention has worked well for me and avoided the problems with having to deal with different register sizes throughout code.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=17">blargg</a> — Mon Oct 18, 2010 1:11 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[smkd]]></name></author>
+<updated>2010-10-17T23:38:17-07:00</updated>
+<published>2010-10-17T23:38:17-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6925&amp;p=68816#p68816</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6925&amp;p=68816#p68816"/>
+<title type="html"><![CDATA[Advice for an aspiring homebrewer?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6925&amp;p=68816#p68816"><![CDATA[
+Had a quick look and noticed a few things.  Here's a list and source slightly modified to get a green screen like intended.<br /><br />-the vectors are incorrectly set.  The 1.51 Snes9x debugger has a "Vector Info" button that shows these, not sure about bsnes.  The reset vector was being read as $0000 so it would not start at all.<br /><br />-don't do any 16bit REP stuff before getting out of emulation mode.  Caused the LDA #$0000 to be treated as a BRK in snes9x debugger since it kept A in 8bit mode despite your REP:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">REP #$39         ; clear carry and set 16-bit A<br />XCE         ; clear emulation mode flag<br />LDA.w #$0000      ; set the direct page to $0000 </div><br /><br />-don't JSR or anything that requries stack space before setting up the stack with TCS<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">JSR InitRAM      ;<br />LDA.w #$0FFF      ; set the stack to $0FFF<br />TCS</div><br /><br />-InitRAM trashed the stack as part of the RAM clear.  There was a return address and the contents pushed by PHP trashed with it so it crashed after the RTS.  It's been altered to clear all RAM except the $7E0F00-$7E0FFF region which is assumed to be stack space.<br /><br />-Pointing interrupts to RTS will crash when returning.  It must be an RTI instead.<br /><br />-ClearVRAM looks odd but it wouldn't crash anything.  You can point $4302-$4304 to a dedicated zero byte in ROM as I have used in InitRAM instead of storing a zero to RAM and using that.  The InitRAM original approach also used a hardcoded address that would not necessarily be zero if the code changed (like it just did).  A dedicated zero byte with its own label is more reliable.<br /><br />Without going into any of the other quirks, those changes got your green screen in snes9x and bsnes.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">lorom<br /><br />;org $008000<br />;fillbyte $FF : fill $8000<br /><br />org $008000<br /><br />ResetSNES:<br /><br />SEI         ; disable IRQ<br />CLC<br />XCE         ; clear emulation mode flag<br />REP #$30    ;*do not try to load 16bit values in emulation mode<br />LDA.w #$0000      ; set the direct page to $0000<br />TCD         ;<br />LDA.w #$0FFF      ; set the stack to $0FFF<br />TCS             ;*and do this BEFORE trying to call subroutines<br />JSR InitRAM      ;    ;<br />LDA.w #$008F      ; force blank on, maximum brightness,<br />STA $2100      ;<br />JSR Clear2100s      ; clear registers $21xx<br />;JSR Clear4000s      ; clear registers $40xx<br />JSR Clear4200s      ; clear registers $42xx<br />SEP #$20         ; set 8-bit A<br />JSR ClearVRAM      ; clear out the VRAM<br />JSR ClearPalette      ; clear out the palette &#40;reset all colors to 0000&#41;<br />JSR InitVals      ; initialize some registers to nonzero values<br />SEP #$10         ; set 8-bit XY<br />JSR SetRAMRoutines      ;<br />JSR UploadSPCEngine   ;<br />JSR UploadSamples      ;<br />JSR SetUpHDMA      ;<br /><br />CLI         ;<br /><br />STZ $2121      ;<br />LDA #$EF         ;<br />LDX #$3F         ;<br />STA $2122      ;<br />STX $2122      ;<br />LDA #$0F         ;<br />STA $2100      ;<br /><br />WAI         ;<br />BRA $FD         ;<br /><br />;RTI         ;<br /><br />Clear2100s:<br /><br />STZ $2101<br />STZ $2106<br />STZ $2108<br />STZ $210A<br />STZ $210C<br />STZ $210D<br />STZ $210D<br />STZ $210F<br />STZ $210F<br />STZ $2111<br />STZ $2111<br />STZ $2113<br />STZ $2113<br />STZ $2116<br />STZ $211A<br />STZ $2115<br />STZ $211C<br />STZ $211C<br />STZ $211E<br />STZ $211E<br />STZ $2120<br />STZ $2120<br />STZ $2123<br />STZ $2125<br />STZ $2127<br />STZ $2129<br />STZ $212B<br />STZ $212D<br />STZ $212F<br />STZ $2131<br />STZ $2133<br />RTS<br /><br />Clear4200s:<br /><br />STZ $4200<br />STZ $4202<br />STZ $4204<br />STZ $4206<br />STZ $4208<br />STZ $420A<br />STZ $420C<br />RTS<br /><br />InitVals:<br /><br />LDA #$03<br />STA $2101<br />LDA #$80<br />STA $2115<br />LDA #$01<br />STA $211B<br />LDA #$30<br />STA $2130<br />LDA #$E0<br />STA $2132<br />LDA #$FF<br />STA $4201<br />LDA #$01<br />STA $420D<br />RTS<br /><br />ClearVRAM:<br /><br />LDA #$80      ;<br />STA $2115   ;<br />LDX #$1809   ;<br />STX $4300   ;<br />LDX.w #$0000   ;<br />STX $2116   ;<br />STX $00      ;<br />STX $4302   ;<br />STZ $4304   ;<br />LDX #$FFFF   ;<br />STX $4305   ;<br />LDA #$01      ;<br />STA $420B   ;<br />STZ $2119   ;<br /><br />STZ $2102   ;<br />STZ $2103   ;<br />LDX.w #$007F   ;<br />LDA #$F0      ;<br />.Loop00x1   ;<br />STA $2104   ;<br />STA $2104   ;<br />STZ $2104   ;<br />STZ $2104   ;<br />DEX      ;<br />BPL .Loop00x1   ;<br />LDX.w #$001F   ;<br />.Loop00x2   ;<br />STZ $2104   ;<br />DEX      ;<br />BPL .Loop00x2   ;<br />RTS      ;<br /><br />ClearPalette:<br /><br />STZ $2121   ;<br />LDX.w #$00FF   ;<br />.Loop00x3   ;<br />STZ $2122   ;<br />STZ $2122   ;<br />DEX      ;<br />BPL .Loop00x3   ;<br />RTS      ;<br /><br />InitRAM:<br />PHP      ;<br />SEP #$20      ;<br />STZ $2181   ;<br />STZ $2182   ;<br />STZ $2183   ;<br />LDX #$8008   ;<br />STX $4300   ;<br />STZ $4304       ;we're only ever in bank 00<br />LDX #.zeroByte   ;*dedicated zero byte<br />STX $4302   ;<br />LDX.w #$0F00   ;clear 7E0000-7E0EFF<br />STX $4305   ;<br />LDA #$01<br />STA $420B<br />LDX #$1000    ;clear 7E1000-7EFFFF<br />STX $2181<br />LDX #$F000<br />STX $4305<br />LDA #$01<br />STA $420B<br />STA $2183    ;bank $7F now<br />STA $420B    ;*$4305 already has $0000 loaded into after a finished DMA so no need to set it here<br />PLP     ;<br />RTS      ;<br />.zeroByte    ;*dedicated zero byte<br />    db 0<br /><br />SetRAMRoutines:<br />RTS<br /><br />UploadSPCEngine:<br />RTS<br /><br />UploadSamples:<br />RTS<br /><br />SetUpHDMA:<br />RTS<br /><br />;interrupts all go here, nothing happening there yet<br /><br />EmptyHandler:<br />RTI<br /><br />;native:<br />org $00FFE4   ;<br />dw EmptyHandler    ;COP<br />dw EmptyHandler ;BRK<br />dw 0<br />dw EmptyHandler    ;NMI<br />dw 0<br />dw EmptyHandler    ;IRQ<br /><br />;emulation<br />org $FFFA<br />dw EmptyHandler    ;NMI<br />dw ResetSNES    ;*Reset<br />dw EmptyHandler    ;IRQ/BRK</div><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3295">smkd</a> — Sun Oct 17, 2010 11:38 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[imamelia]]></name></author>
+<updated>2010-10-17T22:25:01-07:00</updated>
+<published>2010-10-17T22:25:01-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6925&amp;p=68813#p68813</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6925&amp;p=68813#p68813"/>
+<title type="html"><![CDATA[Advice for an aspiring homebrewer?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6925&amp;p=68813#p68813"><![CDATA[
+Hm...I'm thinking maybe I should have made this thread over the summer or something, some time when I'd have more time...<br /><br />Well, I've already run into problems.  This is my source code so far:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">;header<br />lorom<br /><br />;org $008000<br />;fillbyte $FF : fill $8000<br /><br />org $008000<br /><br />ResetSNES:<br /><br />SEI         ; disable IRQ<br />REP #$39         ; clear carry and set 16-bit A<br />XCE         ; clear emulation mode flag<br />LDA.w #$0000      ; set the direct page to $0000<br />TCD         ;<br />JSR InitRAM      ;<br />LDA.w #$0FFF      ; set the stack to $0FFF<br />TCS         ;<br />LDA.w #$008F      ; force blank on, maximum brightness,<br />STA $2100      ;<br />JSR Clear2100s      ; clear registers $21xx<br />;JSR Clear4000s      ; clear registers $40xx<br />JSR Clear4200s      ; clear registers $42xx<br />SEP #$20         ; set 8-bit A<br />JSR ClearVRAM      ; clear out the VRAM<br />JSR ClearPalette      ; clear out the palette &#40;reset all colors to 0000&#41;<br />JSR InitVals      ; initialize some registers to nonzero values<br />SEP #$10         ; set 8-bit XY<br />JSR SetRAMRoutines      ;<br />JSR UploadSPCEngine   ;<br />JSR UploadSamples      ;<br />JSR SetUpHDMA      ;<br /><br />CLI         ;<br /><br />STZ $2121      ;<br />LDA #$EF         ;<br />LDX #$3F         ;<br />STA $2122      ;<br />STX $2122      ;<br />LDA #$0F         ;<br />STA $2100      ;<br /><br />WAI         ;<br />BRA $FD         ;<br /><br />;RTI         ;<br /><br />Clear2100s:<br /><br />STZ $2101<br />STZ $2106<br />STZ $2108<br />STZ $210A<br />STZ $210C<br />STZ $210D<br />STZ $210D<br />STZ $210F<br />STZ $210F<br />STZ $2111<br />STZ $2111<br />STZ $2113<br />STZ $2113<br />STZ $2116<br />STZ $211A<br />STZ $2115<br />STZ $211C<br />STZ $211C<br />STZ $211E<br />STZ $211E<br />STZ $2120<br />STZ $2120<br />STZ $2123<br />STZ $2125<br />STZ $2127<br />STZ $2129<br />STZ $212B<br />STZ $212D<br />STZ $212F<br />STZ $2131<br />STZ $2133<br />RTS<br /><br />Clear4200s:<br /><br />STZ $4200<br />STZ $4202<br />STZ $4204<br />STZ $4206<br />STZ $4208<br />STZ $420A<br />STZ $420C<br />RTS<br /><br />InitVals:<br /><br />LDA #$03<br />STA $2101<br />LDA #$80<br />STA $2115<br />LDA #$01<br />STA $211B<br />LDA #$30<br />STA $2130<br />LDA #$E0<br />STA $2132<br />LDA #$FF<br />STA $4201<br />LDA #$01<br />STA $420D<br />RTS<br /><br />ClearVRAM:<br /><br />LDA #$80      ;<br />STA $2115   ;<br />LDX #$1809   ;<br />STX $4300   ;<br />LDX.w #$0000   ;<br />STX $2116   ;<br />STX $00      ;<br />STX $4302   ;<br />STZ $4304   ;<br />LDX #$FFFF   ;<br />STX $4305   ;<br />LDA #$01      ;<br />STA $420B   ;<br />STZ $2119   ;<br /><br />STZ $2102   ;<br />STZ $2103   ;<br />LDX.w #$007F   ;<br />LDA #$F0      ;<br />.Loop00x1   ;<br />STA $2104   ;<br />STA $2104   ;<br />STZ $2104   ;<br />STZ $2104   ;<br />DEX      ;<br />BPL .Loop00x1   ;<br />LDX.w #$001F   ;<br />.Loop00x2   ;<br />STZ $2104   ;<br />DEX      ;<br />BPL .Loop00x2   ;<br />RTS      ;<br /><br />ClearPalette:<br /><br />STZ $2121   ;<br />LDX.w #$00FF   ;<br />.Loop00x3   ;<br />STZ $2122   ;<br />STZ $2122   ;<br />DEX      ;<br />BPL .Loop00x3   ;<br />RTS      ;<br /><br />InitRAM:<br /><br />PHP      ;<br />SEP #$20      ;<br />STZ $2181   ;<br />STZ $2182   ;<br />STZ $2183   ;<br />LDX #$8008   ;<br />STX $4300   ;<br />LDX #$8005   ; $008005<br />STX $4302   ;<br />STZ $4304   ; $008005 is always 00, so use that as our WRAM fill byte<br />LDX.w #$0000   ;<br />STX $4305   ;<br />LDA #$01      ;<br />STA $420B   ;<br />LDA #$01      ;<br />STA $420B   ;<br />PLP      ;<br />RTS      ;<br /><br />SetRAMRoutines:<br />RTS<br /><br />UploadSPCEngine:<br />RTS<br /><br />UploadSamples:<br />RTS<br /><br />SetUpHDMA:<br />RTS<br /><br />org $00FFDF   ;<br />db $60      ; RTS<br />dw $FFFF,$FFFF   ;<br />dw $FFDF      ; COP<br />dw $FFDF      ; BRK<br />dw $FFDF      ; ABORT<br />dw $FFDF      ; NMI<br />dw $8000      ; RESET<br />dw $FFDF      ; IRQ</div><br /><br />Many of the routines are from tutorials and stuff.  But I was just trying to reset the SNES and show a green color on the screen (using an example code I found), and absolutely nothing happens when I load the ROM.  I can't even set breakpoints to step through the code, apparently.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4553">imamelia</a> — Sun Oct 17, 2010 10:25 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[psycopathicteen]]></name></author>
+<updated>2010-09-09T16:10:36-07:00</updated>
+<published>2010-09-09T16:10:36-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6925&amp;p=67412#p67412</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6925&amp;p=67412#p67412"/>
+<title type="html"><![CDATA[Advice for an aspiring homebrewer?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6925&amp;p=67412#p67412"><![CDATA[
+Oh yeah, I forgot about this cool dual-layered rotation trick using Mode-2.<br /><br /><!-- m --><a class="postlink" href="http://nesdev.com/bbs/viewtopic.php?t=6679">http://nesdev.com/bbs/viewtopic.php?t=6679</a><!-- m --> <br /><br />It gets explained in here.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4383">psycopathicteen</a> — Thu Sep 09, 2010 4:10 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[gilligan]]></name></author>
+<updated>2010-09-08T03:29:40-07:00</updated>
+<published>2010-09-08T03:29:40-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6925&amp;p=67365#p67365</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6925&amp;p=67365#p67365"/>
+<title type="html"><![CDATA[Advice for an aspiring homebrewer?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6925&amp;p=67365#p67365"><![CDATA[
+You can have a look at my stuff at: <a href="http://www.github.com/gilligan/snesdev" class="postlink">http://www.github.com/gilligan/snesdev</a><br /><br />It contains some simple examples that might or might not be useful<br />to look at as a starting point :-) Don't expect anything awesome it<br />is still a bit of a mess and hopefully i'll find the time and motivation<br />to rework and extend it sometime soon.<br /><br />I also need to add some credits. Things like the ca65 linking is based on the stuff ekid has done, and there are other things like some sprite I reused from (iirc) the neviksti snes starterkit thingy. That one might also be worthwhile to check out.<br /><br />Comments or contributions are always welcome by the way.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=83">gilligan</a> — Wed Sep 08, 2010 3:29 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2010-09-07T08:02:21-07:00</updated>
+<published>2010-09-07T08:02:21-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6925&amp;p=67320#p67320</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6925&amp;p=67320#p67320"/>
+<title type="html"><![CDATA[Advice for an aspiring homebrewer?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6925&amp;p=67320#p67320"><![CDATA[
+Cut scenes in the story mode of <a href="http://www.pineight.com/croom/" class="postlink">Concentration Room</a> 0.02 use a compromise between specifying a sprite cel as a rectangular block of hardware sprites and specifying each sprite individually. Each sprite cel is divided into horizontal or vertical strips, each of which has a left, top, starting tile number, direction, length in tiles, and attributes. Direction can be right or down, attributes relate to flipping and coloring, and both may be multiplexed onto unused bits of the length. For drawing to the right, x increases by 8 or -8 depending on flip, y increases by 0, and tile number increases by 1. For drawing down, x increases by 0, y increases by 8, and tile number increases by 16.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Tue Sep 07, 2010 8:02 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[psycopathicteen]]></name></author>
+<updated>2010-09-07T07:13:52-07:00</updated>
+<published>2010-09-07T07:13:52-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6925&amp;p=67317#p67317</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6925&amp;p=67317#p67317"/>
+<title type="html"><![CDATA[Advice for an aspiring homebrewer?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6925&amp;p=67317#p67317"><![CDATA[
+For height and legnth defined metasprites I mean using a parameter that say how many hardware sprites tall and wide the game object is.  I used to have it where the offset of every sprite was stored seperately in a lookup table, but making a look up table for every sprite takes too long to do.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4383">psycopathicteen</a> — Tue Sep 07, 2010 7:13 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[psycopathicteen]]></name></author>
+<updated>2010-09-06T19:51:34-07:00</updated>
+<published>2010-09-06T19:51:34-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6925&amp;p=67302#p67302</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6925&amp;p=67302#p67302"/>
+<title type="html"><![CDATA[Advice for an aspiring homebrewer?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6925&amp;p=67302#p67302"><![CDATA[
+I'm programming a game that will be made for the intent of easy hacking.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4383">psycopathicteen</a> — Mon Sep 06, 2010 7:51 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[imamelia]]></name></author>
+<updated>2010-09-06T19:00:08-07:00</updated>
+<published>2010-09-06T19:00:08-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6925&amp;p=67299#p67299</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6925&amp;p=67299#p67299"/>
+<title type="html"><![CDATA[Advice for an aspiring homebrewer?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6925&amp;p=67299#p67299"><![CDATA[
+<div class="quotetitle">MottZilla wrote:</div><div class="quotecontent"><br />You can try being very organized in learning things. If that's what works best for you, go for it. Personally I find it's better to learn things as you need them, so you understand why you need them. Opposed to learning about something and not really using it, forgetting it, and then having to revisit it. But it depends on how you learn.<br /></div><br />It will probably be a combination of both.<br /><br /><div class="quotetitle">MottZilla wrote:</div><div class="quotecontent"><br />If you get good at using the NES then stepping up to the SNES should be no problem.<br /></div><br />Yeah...I imagine NES programming would be easier, but I already know the format and everything for 65816 ASM, so I don't see much point in going back to 6502.  I'm also not as interested in the NES as I am in the SNES.<br /><br /><div class="quotetitle">MottZilla wrote:</div><div class="quotecontent"><br />I'm not sure if you have done much 65816 programming but atleast you have a bit of experience.<br /></div><br />Well...I've done blocks, sprites (what would technically be called "objects"), and patches (editing existing code and sometimes splicing in new code), although I've never really done anything from scratch.<br /><br /><div class="quotetitle">smkd wrote:</div><div class="quotecontent"><br />And if you hit a wall somewhere, just post a thread detailing what you tried and what went wrong and someone will definitely help. You won't stay stuck for long since we have plenty of SNES devers here to help.<br /></div><br />Well, that's good.  I'm just afraid I'll get stuck way too often.  But yeah, I appreciate the help.<br /><br />psycopathicteen: SMW is by far the easiest game to hack, and SMW hacking is definitely easier than homebrew and the like.  And...I'm not sure I understand some of your terminology.  Height- and length-defined metasprites?<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4553">imamelia</a> — Mon Sep 06, 2010 7:00 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[psycopathicteen]]></name></author>
+<updated>2010-09-03T08:31:06-07:00</updated>
+<published>2010-09-03T08:31:06-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6925&amp;p=67172#p67172</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6925&amp;p=67172#p67172"/>
+<title type="html"><![CDATA[Advice for an aspiring homebrewer?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6925&amp;p=67172#p67172"><![CDATA[
+I think Street Fighter 2's engine had fast sprite loading that didn't get maxed out due to having a small frame count.  It probably could've been animated at 60fps if it had more ROM space, but didn't because it didn't have enough unique frames to fill an entire second.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4383">psycopathicteen</a> — Fri Sep 03, 2010 8:31 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2010-09-03T07:09:14-07:00</updated>
+<published>2010-09-03T07:09:14-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6925&amp;p=67168#p67168</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6925&amp;p=67168#p67168"/>
+<title type="html"><![CDATA[Advice for an aspiring homebrewer?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6925&amp;p=67168#p67168"><![CDATA[
+<div class="quotetitle">smkd wrote:</div><div class="quotecontent"><br /><div class="quotetitle">tepples wrote:</div><div class="quotecontent">And in this world of widescreen TVs, don't be afraid to take the visible area all the way down to 168 lines<br /></div><br />I like this, although losing a significant amount of resolution on an already low res system may look kind of icky depending on how many lines you chop off.</div><br />Go down to 240x160 and you're no worse than the Game Boy Advance. Try <a href="http://nesdev.com/bbs/viewtopic.php?p=65871#65871" class="postlink">this demo</a> on your NES to see how bad it'd look. With more and more films and TV series being produced in HD and presented in letterbox, it won't be that bad. True, SDTV is interlaced, but you can do that on a Super NES too.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent"><br />If I were to make a 2D fighter with big sprites it'd be pretty much mandatory I guess.<br /></div><br />Super Street Fighter II (U) has a bit of letterbox, albeit not this much.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Fri Sep 03, 2010 7:09 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[smkd]]></name></author>
+<updated>2010-09-02T16:23:10-07:00</updated>
+<published>2010-09-02T16:23:10-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6925&amp;p=67146#p67146</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6925&amp;p=67146#p67146"/>
+<title type="html"><![CDATA[Advice for an aspiring homebrewer?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6925&amp;p=67146#p67146"><![CDATA[
+<div class="quotetitle">psychopathicteen wrote:</div><div class="quotecontent"><br />I find it hard to beleive that SMW hacking is so popular, when it has the reputation of being limited and sloppy.<br /></div><br /><br />That's one of the reasons it <em>is</em> so popular.  It's rewarding replacing the sloppy and limited parts of the original game with faster/more flexible.  The are many patches which either add flexibility to the game or speed up the original code which also help Lunar Magic be as powerful as it is.<br /><br /><div class="quotetitle">tepples wrote:</div><div class="quotecontent"><br />And in this world of widescreen TVs, don't be afraid to take the visible area all the way down to 168 lines (NTSC) or 200 lines (PAL) Players will push "zoom" on the TV's remote and see the game fill the screen with nothing cut off.<br /></div><br /><br />I like this, although losing a significant amount of resolution on an already low res system may look kind of icky depending on how many lines you chop off.  Still, I'd take that over 'PAL only' games if I absolutely needed more VBL time and I couldn't just chop up one large transfer into smaller chunks with acceptable results.  If I were to make a 2D fighter with big sprites it'd be pretty much mandatory I guess.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3295">smkd</a> — Thu Sep 02, 2010 4:23 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[psycopathicteen]]></name></author>
+<updated>2010-09-02T11:30:44-07:00</updated>
+<published>2010-09-02T11:30:44-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6925&amp;p=67135#p67135</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6925&amp;p=67135#p67135"/>
+<title type="html"><![CDATA[Advice for an aspiring homebrewer?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6925&amp;p=67135#p67135"><![CDATA[
+That's a good point Tepples.<br /><br />I think what is perceived as acceptable for an oldschool 2D platformer has changed a lot since it's heyday.  Pixelized graphics and low color count were frowned upon back then, but now they are perfectly accepted for oldschool 2D fans, however choppy animation was perfectly acceptable back then, but not by today's standards.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4383">psycopathicteen</a> — Thu Sep 02, 2010 11:30 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2010-09-02T10:18:58-07:00</updated>
+<published>2010-09-02T10:18:58-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6925&amp;p=67133#p67133</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6925&amp;p=67133#p67133"/>
+<title type="html"><![CDATA[Advice for an aspiring homebrewer?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6925&amp;p=67133#p67133"><![CDATA[
+And in this world of widescreen TVs, don't be afraid to take the visible area all the way down to 168 lines (NTSC) or 200 lines (PAL). Players will push "zoom" on the TV's remote and see the game fill the screen with nothing cut off. New Super Mario Bros. Wii does something like this if the console is set to 4:3 mode.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Thu Sep 02, 2010 10:18 am</p><hr />
+]]></content>
+</entry>
+</feed>

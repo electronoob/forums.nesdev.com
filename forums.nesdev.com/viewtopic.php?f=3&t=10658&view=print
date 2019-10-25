@@ -1,0 +1,417 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - APU triangle emulation question</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">APU triangle emulation question</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=3&amp;t=10658">http://forums.nesdev.com/viewtopic.php?f=3&amp;t=10658</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>byuu</b> [ Thu Nov 07, 2013 12:36 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>APU triangle emulation question</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Hi, so when playing Rockman 2 (Megaman 2), I am getting a buzzing sound all over the place. This can be fixed with band-limited resampling or sinc resampling, but those things are rather intensive.<br /><br />aliaspider recently noted that by adding &quot;if(period == 0) return 0;&quot; to the top of my APU::Triangle::clock() function, that the buzzing went away completely, even with a simple hermite audio filter (many, many times less CPU intensive.)<br /><br />Could anyone please look at my triangle emulation code and let me know if that is a proper fix (eg how the hardware really works), or if the game is really supposed to create this buzzing sound without proper audio resampling?<br /><br />(Note that I use a variable-length integer class. So a uint5 type, when the value is 31, and you add one, will wrap to zero automatically. Much like your traditional uint8 type does now from 255-&gt;0. This is why there aren't as many bit-masks in the below code.)<br /><br />Many thanks in advance!<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">struct Triangle {<br />&nbsp; unsigned length_counter;<br /><br />&nbsp; uint8 linear_length;<br />&nbsp; bool halt_length_counter;<br /><br />&nbsp; uint11 period;<br />&nbsp; unsigned period_counter;<br /><br />&nbsp; uint5 step_counter;<br />&nbsp; uint8 linear_length_counter;<br />&nbsp; bool reload_linear;<br /><br />&nbsp; void clock_length();<br />&nbsp; void clock_linear_length();<br />&nbsp; uint8 clock();<br /><br />&nbsp; void power();<br />&nbsp; void reset();<br />} triangle;</div><br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">void APU::Triangle::clock_length() {<br />&nbsp; if(halt_length_counter == 0) {<br />&nbsp; &nbsp; if(length_counter &gt; 0) length_counter--;<br />&nbsp; }<br />}<br /><br />void APU::Triangle::clock_linear_length() {<br />&nbsp; if(reload_linear) {<br />&nbsp; &nbsp; linear_length_counter = linear_length;<br />&nbsp; } else if(linear_length_counter) {<br />&nbsp; &nbsp; linear_length_counter--;<br />&nbsp; }<br /><br />&nbsp; if(halt_length_counter == 0) reload_linear = false;<br />}<br /><br />uint8 APU::Triangle::clock() {<br />&nbsp; uint8 result = step_counter &amp; 0x0f;<br />&nbsp; if((step_counter &amp; 0x10) == 0) result ^= 0x0f;<br />&nbsp; if(length_counter == 0 || linear_length_counter == 0) return result;<br /><br />&nbsp; if(--period_counter == 0) {<br />&nbsp; &nbsp; step_counter++;<br />&nbsp; &nbsp; period_counter = period + 1;<br />&nbsp; }<br /><br />&nbsp; return result;<br />}<br /><br />void APU::Triangle::power() {<br />&nbsp; reset();<br />}<br /><br />void APU::Triangle::reset() {<br />&nbsp; length_counter = 0;<br /><br />&nbsp; linear_length = 0;<br />&nbsp; halt_length_counter = 0;<br />&nbsp; period = 0;<br />&nbsp; period_counter = 1;<br />&nbsp; step_counter = 0;<br />&nbsp; linear_length_counter = 0;<br />&nbsp; reload_linear = 0;<br />}</div><br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">void APU::write(uint16 addr, uint8 data) {<br />&nbsp; const unsigned n = (addr &gt;&gt; 2) &amp; 1;&nbsp; //pulse#<br /><br />&nbsp; switch(addr) {<br />&nbsp; ...<br />&nbsp; case 0x4008:<br />&nbsp; &nbsp; triangle.halt_length_counter = data &amp; 0x80;<br />&nbsp; &nbsp; triangle.linear_length = data &amp; 0x7f;<br />&nbsp; &nbsp; break;<br /><br />&nbsp; case 0x400a:<br />&nbsp; &nbsp; triangle.period = (triangle.period &amp; 0x0700) | (data &lt;&lt; 0);<br />&nbsp; &nbsp; break;<br /><br />&nbsp; case 0x400b:<br />&nbsp; &nbsp; triangle.period = (triangle.period &amp; 0x00ff) | (data &lt;&lt; 8);<br /><br />&nbsp; &nbsp; triangle.reload_linear = true;<br /><br />&nbsp; &nbsp; if(enabled_channels &amp; (1 &lt;&lt; 2)) {<br />&nbsp; &nbsp; &nbsp; triangle.length_counter = length_counter_table&#91;(data &gt;&gt; 3) &amp; 0x1f&#93;;<br />&nbsp; &nbsp; }<br />&nbsp; &nbsp; break;<br /><br />&nbsp; case 0x4015:<br />&nbsp; &nbsp; ...<br />&nbsp; &nbsp; if((data &amp; 0x04) == 0) triangle.length_counter = 0;<br />&nbsp; &nbsp; break;<br />&nbsp; }<br />}<br /><br />void APU::clock_frame_counter() {<br />&nbsp; frame.counter++;<br /><br />&nbsp; if(frame.counter &amp; 1) {<br />&nbsp; &nbsp; pulse&#91;0&#93;.clock_length();<br />&nbsp; &nbsp; pulse&#91;0&#93;.sweep.clock(0);<br />&nbsp; &nbsp; pulse&#91;1&#93;.clock_length();<br />&nbsp; &nbsp; pulse&#91;1&#93;.sweep.clock(1);<br />&nbsp; &nbsp; triangle.clock_length();<br />&nbsp; &nbsp; noise.clock_length();<br />&nbsp; }<br /><br />&nbsp; pulse&#91;0&#93;.envelope.clock();<br />&nbsp; pulse&#91;1&#93;.envelope.clock();<br />&nbsp; triangle.clock_linear_length();<br />&nbsp; noise.envelope.clock();<br /><br />&nbsp; if(frame.counter == 0) {<br />&nbsp; &nbsp; if(frame.mode &amp; 2) frame.divider += FrameCounter::NtscPeriod;<br />&nbsp; &nbsp; if(frame.mode == 0) {<br />&nbsp; &nbsp; &nbsp; frame.irq_pending = true;<br />&nbsp; &nbsp; &nbsp; set_irq_line();<br />&nbsp; &nbsp; }<br />&nbsp; }<br />}</div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Thu Nov 07, 2013 1:08 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: APU triangle emulation question</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />The hardware triangle is NOT halted by 0 in the period register.<br /><br />It's very normal to halt it in emulation because of the reason you mentioned. It's really hard to implement a filter than can cut it out as nicely as your analog hardware does.<br /><br />You can verify this on hardware by setting the period to 0 and turning the triangle on and off. You'll hear a popping where the the triangle starts and stops.<br /><br />My choice for NSFPlay was to halt on period 0 by default, but I gave the option to turn it off (even though my oversampling process is not good enough to suppress it entirely, it still comes through as a high pitched aliased ringing).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Thu Nov 07, 2013 1:24 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: APU triangle emulation question</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />One hack that's probably close enough is to output a constant 7 while the period value is less than 2.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Thu Nov 07, 2013 1:37 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: APU triangle emulation question</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />As everyone else as said, you've run into the world's worst aliasing problem. In practice, you're probably safest using tepples's suggestion, possible even for periods as low as 0-3, since all of those are ultrasonic for most people.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Thu Nov 07, 2013 3:57 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: APU triangle emulation question</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />AFAIK the only one that matters in practice is period 0. I've seen many games that use period 0 instead of halt (e.g. Mega Man 2, Silver Surfer) but I've never seen any try to use other ultrasonic periods for anything. There's no reason for anyone to do so, really.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>byuu</b> [ Thu Nov 07, 2013 6:30 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: APU triangle emulation question</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Alright, thank you very much for the information.<br /><br />Was hoping for an easy <em>and</em> correct fix =(<br /><br />Only cheap solutions seem to be to falsely halt on period 0, or to simply decimate the audio 32x prior to resampling.<br /><br />I suppose I'll keep looking for a more efficient / simplistic resampling algorithm than windowed sinc / band-limited synthesis that can remove the aliasing ...
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Thu Nov 07, 2013 6:35 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: APU triangle emulation question</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Tepples's suggestion (just have the DAC output a constant value of 7.5 when ultrasonic) is actually what correct antialiasing would result in, so I'm not certain it's actually a hack. Especially if you keep the phase running for whenever the game brings the pitch back down to audible frequencies.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Thu Nov 07, 2013 8:53 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: APU triangle emulation question</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />It's what correct anti-aliasing would do when the triangle state is not changing. It's not correct during any transition, however. As I mentioned, the triangle can still be halted in its high frequency state, and this absolutely makes audible noise on the hardware. This isn't important to emulating any game I know of, however. Possibly Mega Man 2's triangle has a bit more bite if you correctly emulate this, though aesthetically it may be worse off for it.<br /><br />I prefer to halt the triangle instead of jumping to 7.5 because it very slightly reduces the popping noise of a halt by freezing at current level instead of jumping to 7. It's perhaps a tradeoff, though, since the triangle position also influences the nonlinear mix. Though, the standard nonlinear mix curve we currently use isn't totally accurate to begin with, not to mention the huge variability in hardware mix between the two APU pins, so that kind of subtlety is a bit lost on the NES as a general rule. The games that do this are really just trying to silence the triangle anyway, so it's not a big deal either way. Both methods result in the expected silent triangle, and the difference is quite subtle. (I doubt I could pick them apart in a blind test.)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>mic_</b> [ Fri Nov 08, 2013 6:06 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: APU triangle emulation question</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">This can be fixed with band-limited resampling or sinc resampling, but those things are rather intensive</div><br />Is the resampling performance really that big of a deal? (unless you're targeting really old hardware). I'm using Blargg's Blip_Buffer in a chiptune player I'm writing for mobile phones. As an example, my GBS player uses a total of 8 Blip_Synths (4-channel stereo), each clocked at 1 Mhz, and this runs just fine on my Galaxy S2+.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Fri Nov 08, 2013 6:58 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: APU triangle emulation question</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />As I understand it, the performance of BLEP resampling algorithms like blargg's is O(n) in the number of transitions. Doing it without hacks is fine for square and DMC because they change less often. DMC is limited to how fast writes to $4011 can occur, and square is limited to two transitions per 144 cycles because it shuts off when the period value becomes less than 8. But triangle and noise can have a transition every 1 or 2 cycles. Do GBS files routinely drive the wavetable at period $7FF (inverted vs. NES) and noise at maximum rate?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>mic_</b> [ Fri Nov 08, 2013 7:13 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: APU triangle emulation question</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Do GBS files routinely drive the wavetable at period $7FF (inverted vs. NES) and noise at maximum rate?</div><br />Probably not. My point was that I have 8 synths (which I know is overkill) and still get performance that is good enough for a mobile phone, and you'd really only need 1 or 2 synths for NES audio (ignoring expansion audio).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>James</b> [ Fri Nov 08, 2013 9:16 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: APU triangle emulation question</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">byuu wrote:</div><div class="quotecontent">This can be fixed with band-limited resampling or sinc resampling, but those things are rather intensive.</div><br />Aren't you famous for your emulators' CPU requirements?  Surely, a little more wouldn't hurt <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" /><br /><br />I wrote a low CPU utilization SSE filter (512 tap FIR.  IIRC, it accounts for about .3% CPU utilization on my 1.86GHz Core 2 Duo laptop).  If you (or anyone else) are interested, I'll post the code.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Mednafen</b> [ Fri Nov 08, 2013 9:53 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: APU triangle emulation question</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />FWIW, you can get a massive performance boost in a bandlimited polyphase resampler if you don't care if the sample rate conversion ratio is slightly off(fewer impulse response phases need to be stored, and you don't have to interpolate between phases anymore).<br /><br />Like so:<br /><br />1789772.72 * 7 / 261 = 48001.5672<br />1789772.72 * 12 / 487 = 44101.1756<br /><br />...and by using 16-bit samples and impulse response coefficients, and creating four copies of each phase's impulse response with zero-padding on the front(and end for SIMD multiply granularity) to account for possible alignments of the input samples read position, you can utilize MMX to make a decent-quality resampler that'll run significantly faster than realtime even on a Pentium II.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>James</b> [ Fri Nov 08, 2013 10:33 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: APU triangle emulation question</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />In the current release of nemulator, I decimate the APU output by 40 to get a ~44671Hz sample rate.  I then adjust the buffer's playback rate accordingly and let Windows deal with resampling it to the sound card's playback rate.  I wish I knew exactly what it was doing under the hood...<br /><br />Anyway, decimating by 40 (using floats with appropriately sized filter and sample buffers) allows everything to be aligned on 16-byte boundaries, so the SSE implementation is really fast.<br /><br />I'm currently working on an arbitrary sample rate converter (that doesn't require the OS to perform sample rate conversion).  It's working well, but results in a few % additional CPU utilization.  I think I'll be able to get it within a couple of points of the current implementation, though.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>byuu</b> [ Fri Nov 08, 2013 11:27 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: APU triangle emulation question</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">James wrote:</div><div class="quotecontent">Aren't you famous for your emulators' CPU requirements?</div><br /><br />Probably, but I try not to entirely waste CPU cycles. They usually go to emulating fine details. The sinc filter cuts the framerate in half in NES and GB mode. When emulating the SNES+GB at the same time with that filter, it gets pretty bogged down.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

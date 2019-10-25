@@ -1,0 +1,186 @@
+//HW Test for byuu
+//Shonumi, January 12th, 2016
+//Tests LCD clocking behavior when LCD is turned off/on
+//
+//This test waits for VBlank (Line 152) then disables the LCD.
+//After that it runs an internal loop, creating two counters (C1 and C2) that will be saved to cart RAM.
+//
+//The first counter runs for approximately 72 scanlines (32832 cycles) and saved to cart RAM.
+//The test re-enables the LCD, then begins the second counter.
+//After a VBlank interrupt, the second counter stops and is saved to cart RAM.
+//
+//If the LCD does not clock when it is turned off, C2 will be significantly greater than C1 (approximately 2x)
+//If the LCD does clock when it is turned off, C1 and C2 will be nearly equivalent
+//
+//A real Game Boy writes C1 as 0x390 and C2 as 0x720
+
+//Default VBLANK INT @ 0x1000
+!0040
+JP 0x1000		$C3 $00 $10
+
+//Entry Point
+!0100
+
+NOP			$00
+JP 0x150		$C3 $50 $01
+
+//Nintendo Logo
+!0104
+
+$CE $ED $66 $66 $CC $0D $00 $0B $03 $73 $00 $83 $00 $0C $00 $0D
+$00 $08 $11 $1F $88 $89 $00 $0E $DC $CC $6E $E6 $DD $DD $D9 $99
+$BB $BB $67 $63 $6E $0E $EC $CC $DD $DC $99 $9F $BB $B9 $33 $3E
+
+//Title
+!0134
+
+POKEMON 20TH		$50 $4F $4B $45 $4D $4F $4E $20 $32 $30 $54 $48
+
+//Cart Type
+!0147
+
+MBC1+RAM+BATTERY	$03
+
+//ROM Size
+!0148
+
+32KB			$00
+
+//RAM Size
+!0149			
+
+8KB			$02
+
+//Header Checksum
+!014D
+			$AB
+================================
+= VBLANK INT                   =
+================================
+
+!1000
+JP 0x0400		$C3 $00 $04
+
+================
+= Main Program =
+================
+
+!0150
+
+//Disable IRQs
+DI			$F3
+
+//Setup MBC1 RAM, enable it, then set the bank
+LD A, 0x0A		$3E $0A
+LD HL, 0x1000		$21 $00 $10
+LD (HL), A		$77
+
+LD A, 0x01		$3E $01
+LD HL, 0x6000		$21 $00 $60
+LD (HL), A		$77
+
+LD A, 0x00		$3E $00
+LD HL, 0x4000		$21 $00 $40
+LD (HL), A		$77
+
+//Wait for Line 152
+CALL 0x2010		$CD $10 $20
+
+//Turn off LCD
+LD A, 0x0		$3E $00
+LD C, 0x40		$0E $40
+LDH C, A		$E2
+
+//Enable VBlank IRQs
+LD A, 0x1		$3E $01
+LD C, 0xFF		$0E $FF
+LDH C, A		$E2
+
+//Clear BC for Counter 1 (C1)
+LD BC, 0x0000		$01 $00 $00
+
+//Set up loop counter, RAM address
+LD HL, 0xA000		$21 $00 $A0
+LD DE, 0x0390		$11 $90 $03
+
+//Run loop for 0x390 times
+CALL 0x2020		$CD $20 $20
+
+//After our loop is done, save BC to RAM
+//This test writes it MSB first, for convenience
+LD A, B			$78
+LDI (HL), A		$22
+LD A, C			$79
+LDI (HL), A		$22
+
+//Clear IF for pending IRQs
+LD C, 0x0F		$0E $0F
+LDH C, A		$E2
+LD C, 0x44		$0E $44
+
+//Enable interrupts, turn on LCD and start new loop until VBlank
+EI			$FB
+
+LD A, 0x91		$3E $91
+LD C, 0x40		$0E $40
+LDH C, A		$E2
+
+//Clear BC for Counter 2
+LD BC, 0x0000		$01 $00 $00
+
+//Loop endlessly until VBlank interrupt
+//NOPs are fillers to make this loop equivalent to the first
+INC BC			$03	
+NOP			$00
+NOP			$00
+NOP			$00
+NOP			$00
+JR -7			$18 $F9
+
+============
+= Finished =
+============
+
+!0400
+
+//Save counter 2 to RAM
+LD A, B			$78
+LDI (HL), A		$22
+LD A, C			$79
+LDI (HL), A		$22
+
+//Stall or something
+NOP			$00
+NOP			$00
+NOP			$00
+JR -5			$18 $FB
+
+====================
+= Global Functions =
+====================
+
+=================
+= WAIT_LINE_152 =
+=================
+
+!2010
+
+LD C, 0x44		$0E $44
+LDH A, C		$F2
+CP 0x98			$FE $98
+JR NZ -7		$20 $F9
+RET			$C9
+
+==================
+= Counter Loop 1 =
+==================
+
+!2020
+
+INC BC			$03	
+DEC DE			$1B
+LD A, D			$7A
+OR A, E			$B3
+JR NZ -6		$20 $FA
+RET			$C9
+

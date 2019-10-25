@@ -1,0 +1,495 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - PAL NES, sprite evaluation and $2004 reads/writes</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">PAL NES, sprite evaluation and $2004 reads/writes</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=3&amp;t=15763">http://forums.nesdev.com/viewtopic.php?f=3&amp;t=15763</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Sour</b> [ Tue Apr 04, 2017 7:59 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>PAL NES, sprite evaluation and $2004 reads/writes</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I'm trying to get a better idea of how PAL consoles behave when it comes to sprite evaluation and $2004 reads/writes.<br />In this <a href="http://forums.nesdev.com/viewtopic.php?p=62137#p62137" class="postlink">old post</a>, jsr said the oam_test on their PAL NES returned bad values from the middle of line 3, to the start of line 8.<br /><br />As far as I can tell, this implies that, when rendering is disabled on a PAL NES, sprite evaluation is only active from around scanline 264 to the end of vblank (scanline 310).  Implementing this in Mesen gives roughly the same result as jsr described:<br /><div class="attachtitle">Attachment:</div><div class="attachcontent">
+			<img src="./download/file.php?id=8522" alt="oam_read_001.png" /><br />
+			<span class="gensmall">oam_read_001.png [ 1.66 KiB | Viewed 4117 times ]</span>
+		
+
+		<br />
+	</div><br />So it seems like when vblank ends, sprite evaluation also stops if rendering is disabled - is this correct?<br /><br />Quotes from a few pages on the wiki:<br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">(1) To compensate for PAL's longer vblank period, the 2C07 always enables the OAM refresh logic, regardless of whether rendering is enabled.<br />(2) Additionally, it will continue to refresh during the visible portion of the screen even if rendering is disabled. Because of this, OAM DMA must be done near the beginning of vertical blank on PAL, and everywhere else it is liable to conflict with the refresh<br />(3) In the 2C07, sprite evaluation can never be fully disabled, and will always start 20 scanlines after the start of vblank</div>This mixes sprite evaluation and oam refresh - are they 2 unrelated processes? These make it sound like sprite evaluation is always on during scanlines 0-239, even if rendering is off?<br />But if that's the case, it would contradict jsr's results for their PAL console.  If sprite evaluation can't be disabled, the $2004 reads should give invalid results until the last line of the test.<br /><br />Could someone confirm the output of blargg's oam_read test on a PAL console?<br /><br />Also relevant is this <a href="https://www.youtube.com/watch?v=f9py05A7wA4" class="postlink">video</a> of a PAL NES running the &quot;Quantum Disco Brothers&quot; demo with a powerpak.  This means the demo works correctly on a PAL console.  This demo performs a sprite DMA during vblank which ends around scanline 264, cycle ~60.  If I turn on sprite evaluation on scanline 263, the demo breaks (artifacts appear on the screen, or the scrolling stops).  Turning on sprite evaluation at the start of scanline 264 makes it work (which means the last writes of sprite DMA may or may not be important in this case - so can't use this as a precise measurement).<br /><br />So far, what I'm understanding from all this is that:<br />-It looks like PAL sprite evaluation can be turned off during scanlines 0-239 if rendering is disabled (how does that make sense vs OAM decay, since apparently <a href="http://forums.nesdev.com/viewtopic.php?p=125954#p125954" class="postlink">PAL OAM ram can't decay</a>, even with rendering disabled?)<br />-Sprite evaluation/oam refresh begins around the start of scanline 264 during vblank.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Tue Apr 04, 2017 8:23 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: PAL NES, sprite evaluation and $2004 reads/writes</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Sour wrote:</div><div class="quotecontent">This mixes sprite evaluation and oam refresh - are they 2 unrelated processes?<br /></div>Sprite evaluation is the only mechanism for OAM DRAM refresh in the 2C02. I see no reason to think <em>that</em> part is different in the 2C07.<br /><br />Reading at least one byte out of every row out of OAM DRAM at least every ≈1.5ms is necessary to prevent data loss. They could have gotten really clever, and just run sprite evaluation once every 20 scanlines or so to prevent data loss. But I don't think they were that clever.<br /><br />Can't help with the other questions...
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>thefox</b> [ Wed Apr 05, 2017 8:31 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: PAL NES, sprite evaluation and $2004 reads/writes</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Sour wrote:</div><div class="quotecontent">Could someone confirm the output of blargg's oam_read test on a PAL console?</div><br />I ran it way back when: <!-- l --><a class="postlink-local" href="http://forums.nesdev.com/viewtopic.php?p=68971#p68971">viewtopic.php?p=68971#p68971</a><!-- l --><br /><br />I'm not all that convinced that sprite evaluation is active all the way 20 scanlines after vblank, it's conjecture. Most of what we know about this is based on my limited tests.<br /><br />If you assume that OAM can't decay, it'd be fairly easy to write a new test for this. Simply wait varying times from the start of vblank with rendering off, read a byte (or two) from OAM and see if the byte(s) got corrupted. The data should tell us on which PPU cycles (or scanlines) sprite evaluation is active. (This is assuming that merely setting OAM_ADDR for reads and/or reading via OAM_DATA won't be able to somehow mess up the refresh and possibly corrupt the data.)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Wed Apr 05, 2017 9:34 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: PAL NES, sprite evaluation and $2004 reads/writes</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Per the Micro Machines synchronization trick, we know that reading $2004 during rendering (and thus, presumably OAM refresh also) just returns the current byte in the OAM's data bus.<br /><br />I've been meaning, and failing to get around to, writing a simple test that would do nothing but<br />* Make sure that the $2004 is readable<br />* Preload OAM with a simple table where the first byte is $FF and the remaining bytes are all $00, or something else unambiguous<br />* Wait for vblank, and start a loop that checks whether the value read from $2004 is $FF or not (approximately equivalent to &quot;rendering is inactive or active&quot;) that would last just a little over 312 scanlines on a Dendy, and save the result<br />* Upload the result to the screen<br /><br />Should be good enough to let us know what scanlines refresh is active...
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Sour</b> [ Wed Apr 05, 2017 4:46 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: PAL NES, sprite evaluation and $2004 reads/writes</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I've edited blargg's original test to make it read a specific address ($80) in OAM, which has to contain a specific value (also $80). The rest of OAM contains $00.<br /><br />I'm terrible at NES coding, so I built 8 different copies of the test for different test cases:<br />-NTSC vs PAL<br />-Rendering enabled vs disabled<br />-First 256 scanlines after vblank vs the next 256 scanlines after that<br /><br />NTSC or PAL is to try to read the OAM around the same cycle on each scanline.<br />On NTSC, the read occurs around cycle 80. On PAL, it occurs around cycle 100 at first, and slowly drifts to around cycle 130 (because I suck at this - but this shouldn't matter much)<br />And then I need 2 tests because it would take me hours to figure out how to modify the code to log more than 256 values <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" /><br /><br />So the code reads OAM, stores the value, wastes time until the next scanline, and repeats, 256 times.  The &quot;Rows257-512&quot; versions just add a 256 scanline delay at the start of the test to resume where the last test left off.<br />If the value read is $80, a dash is shown, otherwise a star is shown.  Each character equals 1 scanline - the first character being scanline 241 (i.e after vblank flag is set).<br /><br />It seems to be working properly on Mesen.  I also tested it on puNES and Nestopia UE and got the same results from both. When rendering is enabled, NTSC/PAL both work correctly during all of vblank.  With rendering disabled, NTSC/PAL both work the whole time. Which is pretty much what I expected from emulators.<br /><br />Could I ask you guys to run these on NTSC/PAL and see what the results are?<br /><br />Also: the test only writes to OAM RAM a single time.  This means that I would expect the NTSC test with rendering disabled to fail completely.
+
+		
+			<br clear="all" /><br />
+
+			<table class="tablebg" width="100%" cellspacing="1">
+			<tr>
+				<td><b class="genmed">Attachments: </b></td>
+			</tr>
+			
+				<tr>
+					<td>
+			<span class="genmed">
+				<img src="./styles/subsilver2/imageset/icon_topic_attach.gif" width="14" height="18" alt="" title="" /> 
+				<a href="./download/file.php?id=8537">PalNtscOamReadTest.zip</a> [17.1 KiB]
+			</span><br />
+			<span class="gensmall">Downloaded 90 times</span>
+		
+
+		<br />
+	</td>
+				</tr>
+			
+			</table>
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Sour</b> [ Thu Apr 13, 2017 1:58 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: PAL NES, sprite evaluation and $2004 reads/writes</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />It'd really be appreciated if someone with the proper setup for it could run at least the PAL tests.<br /><br />I'd run them myself if I could, but I'd have to spend a couple hundred dollars on a PAL console, a flash cart, and a bunch of other stuff.<br />Also, sorry for the bump - but if at all possible I'd like to avoid having wasted 2-3 hours writing tests that nobody will ever run :p
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>thefox</b> [ Thu Apr 13, 2017 10:54 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: PAL NES, sprite evaluation and $2004 reads/writes</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I can run them at some point, I just don't have my PAL NES hooked up right now.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>thefox</b> [ Fri Apr 14, 2017 2:10 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: PAL NES, sprite evaluation and $2004 reads/writes</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />OK, here are some results.<br /><br /><strong>PalRenderingDisabled_Rows1-256.nes</strong><br />- All &quot;*&quot;<br /><br /><strong>PalRenderingDisabled_Rows257-512.nes</strong><br />- All &quot;*&quot;<br /><br /><strong>PalRenderingEnabled_Rows1-256.nes</strong><br />- 24 &quot;-&quot;, the rest were &quot;*&quot;<br />- Quite reliable from different powerons/resets, sometimes a a few &quot;-&quot; appear at the bottom (probably coincidental).<br /><br /><strong>PalRenderingEnabled_Rows257-512.nes</strong><br />- Very dependent on poweron/reset:<br />- - Sometimes all &quot;*&quot;<br />- - Sometimes 55 &quot;*&quot;, then 25 &quot;-&quot;, the rest &quot;*&quot;<br /><br /><strong>NtscRenderingEnabled_Rows1-256.nes</strong><br />- Dependent on poweron/reset:<br />- - Sometimes all &quot;*&quot; from poweron, but changes to 20 &quot;-&quot; and rest &quot;*&quot; from reset (toggles between those two options randomly)<br />- - On some powerons works reliably (20 &quot;-&quot; and rest &quot;*&quot; over many resets).<br /><br /><strong>NtscRenderingEnabled_Rows257-512.nes</strong><br />- 5 &quot;*&quot;, then 21 &quot;-&quot;, the rest &quot;*&quot;<br />- After a few resets all &quot;*&quot; (probably poweron/reset dependent like the one above).<br /><br /><strong>NtscRenderingDisabled_Rows1-256.nes</strong><br /><strong>NtscRenderingDisabled_Rows257-512.nes</strong><br />- Sometimes all &quot;*&quot;, sometimes all &quot;-&quot; (the &quot;-&quot; seems to be less common).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Sour</b> [ Fri Apr 14, 2017 5:16 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: PAL NES, sprite evaluation and $2004 reads/writes</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Thanks a lot for taking the time to run these!<br /><br />The results for PAL are a bit surprising though.<br /><br />There are 2 ways I can explain the tests with rendering disabled displaying all stars.  Either using sprite dma when rendering is disabled either doesn't work properly, or there is some sort of OAM decay going on.  The decay theory would imply that it might decay after 300+ scanlines with rendering disabled and no accesses to OAM - but this probably contradicts your previous test?<br /><br />I expected the 257-512 PAL test w/ rendering enabled to always be ~55 '*' + ~25 '-' + rest is stars.  I'm not sure what could make it return all stars - decay seems like an unlikely culprit - maybe PPU/CPU alignment like what seems to be the case in the NTSC tests?<br /><br />Either way, this seems to confirm that reading OAM via $2004 on PAL NES should be (mostly) reliable from scanline 240 to 264 (25 scanlines - the 257-512 test sometime displaying 25 stars implies that scanline 240 is also safe). So sprite evaluation (or whatever is actually happening during vblank) seems to start around scanline 265 (or in the last half of scanline 264).<br />So the &quot;Quantum Disco Brothers&quot; demo working on a PAL NES makes sense.<br /><br />For NTSC:<br />-NTSC disabled returning all stars is what I expected due to OAM decay.<br />-Seems to be affected by ppu/cpu alignment (the same was true with blargg's original test too)<br />-Reading from $2004 (when it decides to work) is safe for 21 scanlines, from 240 to 260 (i.e all scanlines outside the visible picture except the prerender line)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>thefox</b> [ Fri Apr 14, 2017 7:28 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: PAL NES, sprite evaluation and $2004 reads/writes</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Sour wrote:</div><div class="quotecontent">There are 2 ways I can explain the tests with rendering disabled displaying all stars. Either using sprite dma when rendering is disabled either doesn't work properly, or there is some sort of OAM decay going on. The decay theory would imply that it might decay after 300+ scanlines with rendering disabled and no accesses to OAM - but this probably contradicts your previous test?</div><br />Yeah, it does. And I think given how simple that test is (it's oam-decay-test from <a href="http://forums.nesdev.com/viewtopic.php?f=9&amp;t=11041&amp;p=125954" class="postlink">here</a>), I think it's unlikely to have a bug in it. It basically just wrote $00 to $2001 right after VBL when A was being pressed on the controller (otherwise it wrote $14 to enable rendering).<br /><br />Some other hypotheses (might have some holes in them):<br />(1) OAM refresh is always active when rendering is disabled.<br />(2) The writes to $2003 and/or reads from $2004 somehow mess up the refresh and/or the data.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">I expected the 257-512 PAL test w/ rendering enabled to always be ~55 '*' + ~25 '-' + rest is stars.  I'm not sure what could make it return all stars - decay seems like an unlikely culprit - maybe PPU/CPU alignment like what seems to be the case in the NTSC tests?</div><br />Yeah that one's strange, because the 1-256 test always worked as expected. (This makes me think CPU/PPU alignment shouldn't be an issue.)<br /><br />The 2nd hypothesis at least partially agrees with this. If the sequence in the program is (1) Wait for VBL, (2) Wait for 256 scanlines, (3) Start reading OAM, there's a good 56 scanlines of rendering time before the next VBL to corrupt the data in OAM before landing on VBL (where the reads would work if it wasn't for the corrupted data). The corruption wouldn't be an issue for the 1-256 test, because the expected &quot;good&quot; values already appear at the beginning of the test before any (possible) corruption takes place. But this all is just guessing, of course.<br /><br />I guess more testing is needed. It might be a good idea to isolate the reads, i.e., wait for VBL, wait some time, read a byte, and repeat until all timing offsets have been covered.<br /><br />Hypothesis 1 should be easy to falsify by disabling rendering, waiting for VBL, doing an OAM DMA, waiting for VBL, and enabling rendering. If the sprites show up OK, then refresh certainly wasn't active all the way. (In fact, I think oam-decay-test already falsifies this hypothesis, because it comes straight out of disabled rendering state to VBL, and only uploads the sprites once before entering the main loop.)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Sour</b> [ Fri Apr 14, 2017 9:11 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: PAL NES, sprite evaluation and $2004 reads/writes</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">thefox wrote:</div><div class="quotecontent">Some other hypotheses (might have some holes in them):<br />(1) OAM refresh is always active when rendering is disabled.<br />(2) The writes to $2003 and/or reads from $2004 somehow mess up the refresh and/or the data.</div>OAM refresh being always active when rendering is disabled would also mean that blargg's original test shouldn't have worked.  So like you said, between your test and this, it's unlikely that OAM refresh would always be enabled.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">The 2nd hypothesis at least partially agrees with this. If the sequence in the program is (1) Wait for VBL, (2) Wait for 256 scanlines, (3) Start reading OAM, there's a good 56 scanlines of rendering time before the next VBL to corrupt the data in OAM before landing on VBL.</div>That's what the test does, but it seems unlikely that normal rendering would corrupt the contents of OAM if the CPU is just busy wasting cpu cycles?<br />It's also not a &quot;perfect&quot; continuation of the previous test - the first test, by the time it reaches the 256th scanline will be reading $2004 around cycle 130.  The 2nd test will resume on the 257th scanline, but around cycle 100 (and it will drift back to cycle 130 or so by the 512th cycle) - but it seems fairly unlikely that this would have any big impact..<br /><br /><br />I think the results might be my own fault though - I forgot to write $00 to $2003 before writing to $4014.<br />Since rendering is never enabled throughout the test, maybe the value in OAMADDR isn't guaranteed to be 0? Which would screw up the DMA transfer and make the entire test display stars (for both NTSC and PAL).  If I tweak Mesen to have OAMADDR = 40 as a startup value, the rendering enabled tests still pass, but the rendering disabled tests fail (all stars).<br /><br />I recompiled all 8 tests to add a write to $2003 before the write to $4014. This should fix any potential issue with the oam address possibly not being set to 0 due to rendering always being turned off. Hopefully that changes the PAL results with rendering off - otherwise there's something more complex going on that I'm not quite understanding.
+
+		
+			<br clear="all" /><br />
+
+			<table class="tablebg" width="100%" cellspacing="1">
+			<tr>
+				<td><b class="genmed">Attachments: </b></td>
+			</tr>
+			
+				<tr>
+					<td>
+			<span class="genmed">
+				<img src="./styles/subsilver2/imageset/icon_topic_attach.gif" width="14" height="18" alt="" title="" /> 
+				<a href="./download/file.php?id=8610">PalNtscOamReadTestv2.zip</a> [17.15 KiB]
+			</span><br />
+			<span class="gensmall">Downloaded 87 times</span>
+		
+
+		<br />
+	</td>
+				</tr>
+			
+			</table>
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>thefox</b> [ Fri Apr 14, 2017 11:40 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: PAL NES, sprite evaluation and $2004 reads/writes</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />OK, well this is interesting.<br /><br /><strong>PalRenderingDisabled_Rows1-256v2.nes</strong><br />- 24 &quot;-&quot;, 46 &quot;*&quot;, rest &quot;-&quot;<br />- The results were fairly consistent across resets/powerons.<br />- Once or twice got 24 &quot;-&quot;, rest &quot;*&quot; after reset.<br /><br /><strong>PalRenderingDisabled_Rows257-512v2.nes</strong><br />- 80 &quot;-&quot;, 46 &quot;*&quot;, rest &quot;-&quot;<br />- Results were consistent wrt poweron/reset.<br /><br />...<br /><br />So, seems like 24 scanlines after start of VBL it does &quot;refresh&quot; (or whatever) until the end of VBL, and nowhere else. Now, not sure how this fits together with oam-decay-test. It seems like there are 312-46 = 266 scanlines without refresh, yet the sprites somehow survive over to the next frame.<br /><br />(BTW, please use shorter filenames the next time. It's a PITA telling them apart in PowerPak otherwise because it only displays ~30 or so characters. <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" />)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Sour</b> [ Fri Apr 14, 2017 12:48 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: PAL NES, sprite evaluation and $2004 reads/writes</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />So I guess we've proven that sprite evaluation can actually be disabled on a PAL NES - except between scanlines 265 to 310 (assuming that &quot;Sprite evaluation&quot; is what is actually running during those scanlines).<br />Like you said though, it's a mystery how the ram's contents survived the 1-frame delay between the $4014 write and the start of the test. I'm not sure any sort of test rom would be able to figure that part out, though.<br /><br />So to sum up, the most common results for these tests should look like this:<div class="attachtitle">Attachment:</div><div class="attachcontent">
+			<img src="./download/file.php?id=8616" alt="results.png" /><br />
+			<span class="gensmall">results.png [ 9.49 KiB | Viewed 3762 times ]</span>
+		
+
+		<br />
+	</div><br />This is what I get in Mesen at the moment (if I turn on OAM decay emulation for NTSC).<br />Although it looks like sometimes the OAM decay on NTSC isn't quite as fast as you would expect (and you end up with a screen of dashes for the rendering disabled test, instead of stars)?<br /><br />Thanks again for taking the time to run these!<br />Sorry about the long filenames - I'll keep that in mind for the next time.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>thefox</b> [ Fri Apr 14, 2017 11:22 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: PAL NES, sprite evaluation and $2004 reads/writes</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Sour wrote:</div><div class="quotecontent">Although it looks like sometimes the OAM decay on NTSC isn't quite as fast as you would expect (and you end up with a screen of dashes for the rendering disabled test, instead of stars)?</div><br />Yeah, I got that a few times. Although the fact that this test only reads one value ($80) and from a single memory address ($80) might have something to do with it.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Sour</b> [ Sun Apr 16, 2017 12:18 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: PAL NES, sprite evaluation and $2004 reads/writes</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I did some improvements to the tests, which should (hopefully) give similar/better results.<br /><br />Changes:<br />-The tests now read 4x from OAM per scanline at the following addresses and expect the following values:<br />Addr : Value<br />$22 : $A0  (Note: The test writes $BC, but expects $A0 to be read due to the missing bits in OAM - so not emulating the missing bits will cause the tests to fail)<br />$80 : $80<br />$A0 : $FC<br />$E0 : $55<br />(All other addresses are initialized with $C3)<br /><br />The results are XORed together, and the code expects the end result to be $89 ($A0^$80^$FC^$55 = $89)<br />This means it should be more sensitive to OAM decay, among other things (I would expect the NTSC rendering off test to display all stars most of the time with this).<br /><br />-Less jitter in the PAL test - the first OAM read occurs between cycle 80-90, the 4th read is between cycle 177-187.<br />-They display &quot;Passed&quot; when they match the patterns shown on the screenshot I posted above.<br />-Shorter filenames :)<br /><br />On Mesen, these changes give the exact same results as before, and I'd expect the results to be fairly similar on a NES too (hopefully more consistent results due to reading 4 different addresses?).<br /><br />If you get a chance, it'd be interesting to see how these behave on NTSC &amp; PAL - no rush though, whenever you have the time to spare is fine!
+
+		
+			<br clear="all" /><br />
+
+			<table class="tablebg" width="100%" cellspacing="1">
+			<tr>
+				<td><b class="genmed">Attachments: </b></td>
+			</tr>
+			
+				<tr>
+					<td>
+			<span class="genmed">
+				<img src="./styles/subsilver2/imageset/icon_topic_attach.gif" width="14" height="18" alt="" title="" /> 
+				<a href="./download/file.php?id=8649">PalNtscOamReadTestv3.zip</a> [17.02 KiB]
+			</span><br />
+			<span class="gensmall">Downloaded 83 times</span>
+		
+
+		<br />
+	</td>
+				</tr>
+			
+			</table>
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

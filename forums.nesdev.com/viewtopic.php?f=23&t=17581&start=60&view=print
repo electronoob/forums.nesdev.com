@@ -1,0 +1,165 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - DSi unlaunch (bootcode exploit)</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">DSi unlaunch (bootcode exploit)</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=23&amp;t=17581">http://forums.nesdev.com/viewtopic.php?f=23&amp;t=17581</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>5</strong> of <strong>5</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>nocash</b> [ Tue Aug 14, 2018 8:03 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: DSi unlaunch (bootcode exploit)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Slightly unrelated: From what I've heard, people still don't know how to write to eMMC in a stable way (and if that's true, then I suspect that SD writes are equally unstable since they use the same sector writing mechanism). So here some of my findings and ideas:<br /><br /><strong>Timeouts</strong><br />Some DSi sd/mmc writing functions seem to contain timeout counters (and I had used something similar up to including unlaunch v0.9). I think that timeout handling should be completely removed.<br />First of, the sd/mmc controller is generating its own error flags (including timeouts), and it's better to use that flags instead of using manually generated timeouts (ie. check error flags alongsides with ready flags when reading SD_IRQ_STATUS). With manually generated timeouts things could derail badly (eg. software aborting write while hardware is still trying to finish writing).<br />Second, some writes may be slower than expected (writing to worn-out sectors may be slower, and if the sector dies completely then broken-sector replacement will occur, which will make the write even slower). So, regardless of the timeout mechanism used, the timeout must be large enough for worst-case write timings.<br />Officially, worst case timeout should be somehow computed from the CSD register, but I am just using a fixed setting of  SD_CARD_OPTION=40D0h, which should work with all eMMC chip variants used in the DSi (I haven't tried writing anything to 3DS or to SD cards, but I hope 3DS is also fast enough to work with that value, whilst, for external for SD/MMC cards, it might depend on whether it's an old/new slow/fast card). Ah, and for special cases, one might need much larger timeouts (eg. when/if using erase-multiple-sector commands).<br /><br /><strong>Error handling</strong><br />Yeah, to be honest, despite of checking the error flags in SD_IRQ_STATUS, I am not really having an error handler for them - because I think that timeouts and other errors <em>should</em> never happen during normal operation (exceptions would be ejecting an SD card during access, or writing to a totally dead worn-out card, or sending an unsupported command, or using too small values in SD_CARD_OPTION, or the like).<br />Nethertheless, of course it wouldn't be bad to implement some error handling. Though I am unsure what to do best in which situation... A fatal error blue screen would be better than silently ignoring the error. In some cases it <em>might</em> help to retry sending the command a few times, or to prompt the user whether to retry/ignore/cancel, or to re-insert the ejected card. And maybe one might want to try to keep finishing further writes before locking up in fatal error screen. And, one would somehow need to implement showing the prompt's or error messages in the user interface, which may be easy or difficult, depending on how the existing user interface looks like (eg. wheter currently displaying a text screen, or animated graphics layers).<br />Well, and aside from SD_IRQ_STATUS flags (errors spotted by the sd/mmc controller), one should also check flags in CSR register (errors spotted by the sd/mmc storage chip itself). I am not actually doing that either, and I am vaguely remembering that there might be special cases like errors for the current command not being reported until after sending the next command (Nintendo seems to send a separate GET_STATUS command after each READ/WRITE_MULTIPLE command, maybe for that reason).<br /><br /><strong>Restoring eMMC backups</strong><br />Most important should be comparing the (encrypted) MBR's on sector 0 of the eMMC chip with that from the MMC image, if they don't match up then the MMC image is from a different console, or it's a decrypted image - which would both brick the console.<br />Be sure to support both Samsung 240Mbyte and ST 245.5MByte images, and if there's the 40h-byte no$gba footer appended at the end of the image, omit those last bytes when writing. For 245.5MByte chips: I don't know if existing DSi tools support making a full backup of those chips though.<br />As it'll take some time to write the whole image, it may be extra important to check battery level before starting, and to ignore power button irq during writing, and of course to display some progress bar &amp; ready message.<br />And a special caution related to DSi shop: If the console had never accessed the shop at time when making the eMMC backup, then accessing the shop (creating the dev.kp file), and then restoring the backup (without dev.kp), then the shop is reportedly getting confused, and you can't any longer access the shop from your console (of course, the shop is now mostly closed anyways, and you'd only loose access to the 3DS transfer tool).<br /><br /><strong>Uninstalling unlaunch</strong><br />Well that's the reason why I had wondered about eMMC writing issues at all. The official way to uninstall unlaunch would be truncating the launcher's .tmd file back to 520-byte size, and strip the read-only attributes for both .app and .tmd file (or restore a complete eMMC backup), but there appear to be no tools capable of doing that in a stable fashion yet (apart from hardmods).<br />The reasons why I haven't implemented an uninstall function myself are that it would convert the console back to the useless original state with the health safety touch to continue nag screen. And, my own ASM coded FAT engine is still a bit limited in functionality (it can increase the .tmd filesize with new clusters appended as needed, but it can't yet decrease the filesize and deallocate old clusters, and also can't delete/create files or such things).<br />EDIT: Also see apache's next post. If the console boots up okay with-unlaunch and without-sd-card-inserted, then you can probably safely truncate .tmd to 520-byte size, otherwise you'll carefully need to repair more things about getting an intact and matching launcher .app/.tmd pair. That issues may occur if you had used unlaunch v0.6, or if have somehow tried to upgrade/downgrade/region-change your launcher version.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Apache Thunder</b> [ Tue Aug 14, 2018 8:17 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: DSi unlaunch (bootcode exploit)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Another factor about uninstalling Unlaunch could produce unsafe conditions. If Launcher.app was corrupted/swapped out/changed or the first part of the TMD was modified outside of Unlaunch's knowledge. So blindly truncating TMD back without first verifying that the TMD/Launcher pair would be valid would result in a brick from Stage2 rejecting it. Could be mitigated by requiring user provide the valid files needed to restore then rather then trying to fix what's already there.<br /><br />As for the other issues. I never really thought about the underlying hardware. Thought the software took care of that. But I can see where things could go wrong. I've done a few full nand restores with a modified build of fwtool back when I was testing/working on RocketLauncher. Lack of decent nand tools was why RocketLauncher was never released. One of the only devs able to work on this was busy with other things so it was just held back by that. Anyways, even before reading your notes on this, I stopped using fwtool. Mainly because I don't need to touch nand again. Unlaunch seems perfectly fine installing to it and since it disables white list check, I haven't even gotten around to uninstalling the &quot;RocketLauncher&quot; version of the white list. Though even so, I have no reason to even without Unlaunch as I have no plans on ever changing nand's FW version from 1.4.<br /><br /><br />I'm wondering how the 3DS arm9 tools work. (stuff like GodMode9/Decrypt9). You should look at them. They use arm9 to handle SD/MMC stuff. (as long as 3DS is kept in CTR mode. Legacy mode switch results in arm9 losing access to SD/MMC and having arm7 handle it like on DSi) I'm curious if those are also coded to handle the things you've mentioned.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>highmans</b> [ Thu Aug 16, 2018 6:17 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: DSi unlaunch (bootcode exploit)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Hello! I hope this is the right place -- I didn't really know where else to put this. I'm having trouble with unlaunch and starting the rom cartridge on boot. It doesn't seem to work with my &quot;R4i Gold 3DS Plus&quot; -- it just hangs at a black screen? I'm using a DSi with unlaunch v1.2
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>5</strong> of <strong>5</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=2&amp;t=11372" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2014-06-28T09:33:23-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=2&amp;t=11372</id>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2014-06-28T09:33:23-07:00</updated>
+<published>2014-06-28T09:33:23-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11372&amp;p=130359#p130359</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11372&amp;p=130359#p130359"/>
+<title type="html"><![CDATA[Re: Tile compression formats]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11372&amp;p=130359#p130359"><![CDATA[
+Thanks for the info; I'll summarize to the wiki.<br /><br />Of these, long word mode is least likely to work well on an NES due to the required 2 KiB state, which exceeds the NES's built-in work RAM. (The GBC has 4K of work RAM, 28K of switchable work RAM, and memory-mapped VRAM.) Is the limit of 32-byte back references a big handicap in short word mode? And how does common byte compare in ratio to RLE methods? (Yeah, I know plain RLE doesn't work well on Game Boy tiles without deinterleaving the tiles into NES format first; assume that.)<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Sat Jun 28, 2014 9:33 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Dwedit]]></name></author>
+<updated>2014-06-28T08:38:54-07:00</updated>
+<published>2014-06-28T08:38:54-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11372&amp;p=130355#p130355</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11372&amp;p=130355#p130355"/>
+<title type="html"><![CDATA[Re: Tile compression formats]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11372&amp;p=130355#p130355"><![CDATA[
+Now I have to pull out my old Oracle of Ages editor...<br />Oracle of Ages used one of 4 possible formats:  Uncompressed, LZ (short words), LZ (long words), and a bitmask indicating which of the next 16 bytes uses a common byte.<br /><br />LZ:<br />mask = read a byte<br />This determines whether the next 8 things processed are LZ runs or raw bytes, starting with the most significant bit of 'mask'.  After processing 8 things, if there are still bytes remaining to decompress, read a new byte for 'mask'.<br />LZ run (bit is 1):<br />short word mode:<br />read a byte<br />LLLDDDDD<br />L = length (add 1)<br />D = distance<br />If value of L is zero, read a byte and use that for length instead.<br /><br />long word mode:<br />read two bytes<br />DDDDDDDD  low byte of LZ distance<br />LLLLLDDD    high byte of LZ distance, length (add 1)<br />If value of L is zero, read a byte and use that for length instead.<br /><br />Add ~Distance (bitwise complement) to Destination pointer, copy Length bytes.<br /><br />16 byte with common:<br />Read two bytes<br />MMMMMMMM  Mask indicating which bytes use the common byte<br />MMMMMMMM<br />If M is zero, just copy 16 bytes.<br />Otherwise<br />Read a byte, this is the Common byte.<br />look at each bit of M (starting with most significant bit of first byte)<br />If it's 1, output the Common byte<br />otherwise, copy a byte.<br /><br /><br />Code I used to decompress it:  (BP and CBP are classes that act like byte pointers but do bounds checking)<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">void lzdecompress(BP dest, CBP src,int length, bool LWM)<br />{<br />   int bitsleft=1;<br />   u8 mask=0;<br />   while (length&gt;0)<br />   {<br />      bitsleft--;<br />      mask&lt;&lt;=1;<br />      if (bitsleft==0)<br />      {<br />         bitsleft=8;<br />         mask=*src++;<br />      }<br />      if (mask &amp; 0x80)<br />      {<br />         int lzdist1=0,lzdist2=0;<br />         int lzlength=0;<br />         if (LWM)<br />         {<br />            lzdist1=*src++;<br />            int a=*src++;<br />            lzdist2=a &amp; 7;<br />            a=a&gt;&gt;3;<br />            if (a!=0)<br />            {<br />               lzlength=a+2;<br />            }<br />            else<br />            {<br />               lzlength=*src++;<br />               if (lzlength==0) lzlength=256;<br />            }<br />         }<br />         else<br />         {<br />            int a=*src++;<br />            lzdist1=a &amp; 0x1F;<br />            lzdist2=0;<br />            a&gt;&gt;=5;<br />            if (a==0)<br />            {<br />               lzlength=*src++;<br />               if (lzlength==0) lzlength=256;<br />            }<br />            else<br />            {<br />               lzlength=a+1;<br />            }<br />         }<br />         int i;<br />         s16 lzdist16= (lzdist1^0xFF) | ((lzdist2^0xFF)&lt;&lt;8);<br />         BP src2=dest+ lzdist16;<br />         for (i=0;i&lt;lzlength;i++)<br />         {<br />            *dest++=*src2++;<br />            length--;<br />            if (length==0) return;<br />         }<br />      }<br />      else<br />      {<br />         *dest++=*src++;<br />         length--;<br />      }<br />   }<br />}<br /><br />void unpack_16_common(BP*dest_p, CBP*src_p)<br />{<br />   BP &amp;dest = *dest_p;<br />   CBP &amp;src = *src_p;<br />   int length=16;<br />   u16 mask=src.getu16be();<br />   if (mask==0)<br />   {<br />      memcpy(&amp;dest&#91;0&#93;,&amp;src&#91;0&#93;,16);<br />      dest+=16;<br />      src+=16;<br />      return;<br />   }<br />   else<br />   {<br />      u8 common=*src++;<br />      int i;<br />      for (i=0;i&lt;16;i++)<br />      {<br />         if (mask &amp; 0x8000)<br />         {<br />            *dest++=common;<br />         }<br />         else<br />         {<br />            *dest++=*src++;<br />         }<br />         mask&lt;&lt;=1;<br />      }<br />   }<br />}<br /></div><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=53">Dwedit</a> — Sat Jun 28, 2014 8:38 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2014-06-28T04:18:48-07:00</updated>
+<published>2014-06-28T04:18:48-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11372&amp;p=130347#p130347</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11372&amp;p=130347#p130347"/>
+<title type="html"><![CDATA[Tile compression formats]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11372&amp;p=130347#p130347"><![CDATA[
+After having read <a href="http://forums.nesdev.com/viewtopic.php?f=21&amp;t=11363" class="postlink">a topic about making a graphics hack for <em>Blades of Steel</em></a>, I decided to write a long-awaited <a href="http://wiki.nesdev.com/w/index.php/Tile_compression" class="postlink">wiki article about tile compression</a>. Currently it covers a few byte-level RLE formats and the pixel-level RLE/Markov thing that Codemasters used and tokumaru reverse engineered. What other tile compression formats are used for 2-bit tiles in commercial NES, Super NES, GB, and GBC releases?<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Sat Jun 28, 2014 4:18 am</p><hr />
+]]></content>
+</entry>
+</feed>

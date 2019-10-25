@@ -1,0 +1,149 @@
+From: Mark <mark_k@[deleted]>
+To: nesdev@onelist.com
+Date: Tue, 09 Feb 1999 23:53:09 +0000
+Subject: [nesdev] Cheetahmen II mapper & image uploaded
+
+From: Mark <mark_k@[deleted]>
+
+Hi,
+
+Cheetahmen II is made by Active Enterprises, the same company who produced
+Action 52. Many thanks to "Skrybe" for lending me the cartridge.
+
+I have uploaded an image in .nes format of Cheetahmen II to:
+     [deleted]  (119358 bytes long)
+
+NOTE:
+- Cheetahmen II can be considered to use a subset of the Action 52 mapper.
+  Therefore, I am using mapper number 228 = $E4 to denote the Cheetahmen II/
+  Action 52 mapper.
+- As per my extended header format proposal, header byte 10 bit 4 is set to
+  indicate that this cartridge does not have extra WRAM at $6000-$7FFF.
+
+fwNES 0.302 may not run Cheetahmen II properly, though it does apparently
+support the Action 52 mapper.
+
+
+
+Hardware info
+-------------
+There are eight ICs on the board.
+
+There are two 74LS273s (octal D-type flip-flops), a 74HC00, 74HC32, 74HC153,
+and a PIC16C54 in addition to two ROM chips. The PIC16C54 handles the lockout-
+defeating function.
+
+Discrete components are 1 resistor, 2 small capacitors, 2 100uF electrolytic
+capacitors, and 2 diodes. Most of these are to do with the lockout-defeating.
+
+This game uses 2Mbit PRG and 1Mbit CHR ROM.
+
+The ROMs in the cartridge are marked as follows:
+     [MX] S9242                   [MX] S9241
+ U5:      23C2000-1040        U6:      23C1000-1029
+          PGM-A                        CHR-A
+          CHEETAHMEN-II                CHEETAHMEN-II
+          CAL21009.2                   CAL22038.3
+
+([MX] denotes the logo of the chip manufacturer, which is probably Macronix.)
+
+
+
+Mapper description
+------------------
+
+This is more or less a subset of the Action 52 mapper. Refer to my previous
+posting about that and compare the two.
+
+Like most other mappers, switching is achieved by writing to addresses $8000-
+$FFFF.
+
+Only the low two bits of the value written are relevant. The address written
+to determines how the mapping is set. It looks something like this:
+
+ Address     A15 A14|A13|A12 A11 A10| A9  A8  A7| A6| A5| A4  A3  A2| A1 A0
+             -------+---+-----------+-----------+---+---+-----------+------
+              1   - | m | -   -   - | p   p   p |u/l| s | -    -   -| c3 c2
+
+ Value written   D7  D6  D5  D4  D3  D2| D1  D0
+                 ----------------------+-------
+                 -   -   -   -   -   - | c1  c0
+
+A14, A12-A10, A4-A2 and D2-D7 are unused (but see below).
+
+A13 sets mirroring. 0: PA10 connected to VRAM A10. Same as when the H pads are
+                       connected on a Nintendo PCB. "Vertical mirroring".
+                    1: PA11 connected to VRAM A10. Same as when the V pads are
+                       connected on a Nintendo PCB. "Horizontal mirroring".
+
+A9-A7 select which 32K PRG page is in use.
+
+A5 sets PRG page size. If page size is 16K, the 16K page appears at both $8000
+and $C000. 0: 32Kb (A6 ignored in this case)
+           1: 16Kb
+
+A6 is only used if PRG page size is 16K. It determines whether the upper or
+lower half of the chosen 32K PRG page is used (mirrored to $8000 and $C000).
+It is unused if PRG page size is set to 32K. Put another way, in 16K page
+mode A9-A6 select which 16K page is active.
+        0: lower
+        1: upper
+
+A1-A0 and D1-D0 select the 8K CHR-ROM page. D0 is the least significant bit,
+A1 the most significant.
+
+At power-on time, the mapping functions as if a 0 has just been written to
+$8000. That is, 32K PRG pages, PRG page 0, CHR page 0, vertical mirroring.
+
+Pressing Reset should not cause the mapper to be reset as at power-on time.
+Every page which appears at $C000 should have its reset vector pointing to
+code which initialises the mapper. In other words, emulators should do nothing
+special with paging when the virtual Reset button is pressed, the game code
+should handle it.
+
+
+I said that A12-A11 are not used on this board. This is a crucial difference
+between the Action 52 board and Cheetahmen II. On the Action 52, A12-A11 select
+which PRG ROM (there are three in that game) is active. All three PRG ROMs can
+be disabled too.
+
+On Cheetahmen II, A12-A11 do nothing. The PRG ROM is always enabled. Simply, if
+the game has <= 4Mbit PRG data, then emulators should ignore the A12-A11
+states.
+
+
+
+
+Some examples
+-------------
+Hopefully a couple of examples will make things clearer.
+
+1. Setting PRG page size to 32K, 32K PRG page 5 active (i.e. the 6th PRG page),
+   CHR page 13, horizontal scrolling = vertical mirroring.
+
+   In binary, 13 = %1101. So the value we need to write must have 01 as its
+   low two bits, e.g. $01, $C1, $F9, etc.
+
+   A suitable address to write would be in binary:
+   Address     A15 A14|A13|A12 A11 A10| A9  A8  A7| A6| A5| A4  A3  A2| A1 A0
+               -------+---+-----------+-----------+---+---+-----------+------
+                1   - | 0 | -   -   - | 1   0   1 | - | 0 | -   -   - | 0  1
+
+   So writing $F9 to $CECD would have the desired effect.
+
+
+2. What would a write of $77 to address $BB72 do?
+
+   Low two bits of $77 in binary are 11. In binary, $BB72 reads as follows:
+
+   Address     A15 A14|A13|A12 A11 A10| A9  A8  A7| A6| A5| A4  A3  A2| A1 A0
+               -------+---+-----------+-----------+---+---+-----------+------
+                1   0 | 1 | 1   1   0 | 1   1   0 | 1 | 1 | 1   0   0 | 1  0
+
+   This means: 8K CHR page %1011 = 11 is selected, 
+               32K PRG page 6 is selected, and the upper half of this appears
+               at both $8000 and $C000 (because PRG page size is 16K).
+               Vertical scrolling = Horizontal mirroring.
+
+
+-- Mark

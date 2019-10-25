@@ -1,0 +1,324 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Revolutionarry method to reduce jittering</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Revolutionarry method to reduce jittering</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=5468">http://forums.nesdev.com/viewtopic.php?f=2&amp;t=5468</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Wed Aug 05, 2009 1:33 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Revolutionarry method to reduce jittering</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I've just made a demo that show a Fire Emblem screenshot WITHOUT using the MMC4 auto-CHR switch features. It does all switching manually with very very fine tuned timings.
+<br />The goal was to test mid-scanline CHR bankswitching. Unfortunately, since under normal conditions, there is a 7-cycle jittering (which means up to 21 (NTSC) or 23 (PAL) pixel jittering), which means 3 tiles should be "shared" by both pattern tables, which is a lot.
+<br />
+<br />However, after having a few headaches I found an idea to reduce the jittering and make it happen on only one dozen of pixels (2 tiles), and that for both PAL and NTSC. The idea is that when the sprite zero hit happens at a fixed place, the amount of cycles between when the flag is clear and where it's set is constant. Then it's possible to count the number of times we have to poll $2002 in order to get the sprite hit with an index register (altough the loop takes 9 cycles intead of 7). Then by using this count value, it either is fixed (useless) or oscillate between 2 adjascent values. By placing the sprite zero in a fine tuned way so that it oscillate between 2 values at about 50%-50% probatilty, I'm able to check which one it is and waste a different amount of cycles on each case, halving the jittering.
+<br />Here you are the code for that :
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">-&nbsp; &nbsp;bit $2002<br />&nbsp; &nbsp;bvs -&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;;Wait for the flag to be clear<br />&nbsp; &nbsp;ldx #$00<br />-&nbsp; &nbsp;bit $2002&nbsp; &nbsp; ;Wait for the flag to be set, count itterations<br />&nbsp; &nbsp;inx<br />&nbsp; &nbsp;bvc -<br />&nbsp; &nbsp;cpx #Value&nbsp; &nbsp; ;You should check Nintendulator's debugger to get a reliable value here<br />&nbsp; &nbsp;bcs +<br />&nbsp; &nbsp;nop&nbsp; &nbsp; &nbsp; &nbsp; ;This wastes 3 more cycles x &gt;= value, reducting the jittering<br />&nbsp; &nbsp;nop<br />+</div>
+<br />
+<br />Unfortunatlely this is all theorical, I can't test it on real hardware, not even the PAL version because one of my EEPROMs I used to use on my CNROM devcard seems to stopped working  <img src="./images/smilies/icon_cry.gif" alt=":cry:" title="Crying or Very sad" /> 
+<br />
+<br />I have uploaded the demo <a href="http://jonathan.microclub.ch/midscanline/" class="postlink">here</a>, both PAL and NTSC versions available, for both MMC1 and CNROM (sorry no CNROM NTSC version right now). Someone please test them for me (if possible different people test PAL and NTSC version) and tell me the results.
+<br />
+<br />Emulator reults so far :
+<br />Latest Nintendulator : Works perfect
+<br />Latest Nestopia : Works perfect
+<br />Nintendulator 0.950 : PAL version has glitches on the left (switching too early)
+<br />Nestopia 1.09 : both versions have a flickering tile after the switch not at the same place tough
+<br />FCEUltra (all versions) : PAL version perfect, NTSC has two flickering tiles after the switch
+<br />VitruaNES : Givies all kinds of terrible messy graphics
+<br />Nesticle : All bankswitching is ignored  <img src="./images/smilies/icon_wink.gif" alt=":wink:" title="Wink" /> 
+<br />Rew : The screen doesn't even look like it's supposed to
+<br />
+<br />So on this one I can really not rely on emulators, even Nestopia and Nintendulator revisions disagree between them <img src="./images/smilies/icon_sad.gif" alt=":(" title="Sad" />
+<br />Probably because I rely one the exact $2002 poll number which makes most emulator breaks.
+<br />
+<br />PS : Before anyone ask, no, I'm NOT preparing a Fire Emblem mapper hack, I was just experiencing midscanline CHR bankswitching
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Super-Hampster</b> [ Wed Aug 05, 2009 4:39 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I tried it on the powerpak. The CNROM version has all sorts of graphical glitches. MMC1 Works, But there is a little glitch around the 1 next to Marth's Quest. If you hit reset however there is all sorts of glitching.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Dwedit</b> [ Thu Aug 06, 2009 5:16 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Marble Madness just used timed code starting from NMI to switch between the left and right pattern table while displaying the "Adding Time for Beginner Race" prompts.  No sprite hit there, except at the bottom to turn off the screen early.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Thu Aug 06, 2009 11:56 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Super-Hampster wrote:</div><div class="quotecontent">I tried it on the powerpak. The CNROM version has all sorts of graphical glitches. MMC1 Works, But there is a little glitch around the 1 next to Marth's Quest. If you hit reset however there is all sorts of glitching.</div>
+<br />Well, have you a PAL or NTSC NES ? I assume you have NTSC, which would make the CNROM version fail because it's supposed to be for PAL.
+<br />
+<br />Because the '1' glitches, that's not how the latest Nestopia and Nintendulator behaves ! Who it's the first time I ever see this ! Then it would be Nestopia 1.09 the only one who is right on this one I think. Weird.
+<br />
+<br />Someone could please test the PAL version on a PAL NES please ? I would do it myself if my second EEPROM worked <img src="./images/smilies/icon_sad.gif" alt=":(" title="Sad" /> 
+<br />
+<br />@dwedit : Yes, this could also reduce jittering depnding on what code is executed before the interrupt. If a random code is executed, there is also a 7-cycle jitter (because the longest instruction available is 7-cycle long). But if you are in a standard wait loop there would be down to 3-cycle jutter. I tried that, but it looked to jitter as much as the sprite-zero mechod. Maybe I should insist on doing that since it would probably work in more emus.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Fri Aug 07, 2009 2:28 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Ok, DWedit were completely right, it was supid doing it with a sprite-zero hit with 7 cycles jitter when doing it inside the NMI routine gives me typically only 3 cycles jitter, which is ridiculously better (the reason it didn't work for me before is because I was doing something stupid).
+<br />Yet my method to deduce jittering with sprite zero hits may interest some people in case where it can't be avoided to use sprite zero hit (for many reasons).
+<br />
+<br />So I updated the demo <a href="http://jonathan.microclub.ch/midscanline/" class="postlink">here</a>, again there is a 2-tile band that must be shared between both pattern tables on left and on the right of the boxes. And it works under much more emulators !
+<br />
+<br />Emulator results so far :
+<br />Nintendulator (all versions) : Perfect
+<br />Nestopia (all versions) : Perfect
+<br />FCEUltra (all versionos) : Perfect
+<br />Virtua NES (after setting render method to "tile" mode) : Glitches on the tile before the status bar on NTSC version, crap graphics on PAL version
+<br />RockNES : Glitches on the tile before the status bar on NTSC version (how do you make RockNES emulate a PAL NES ?)
+<br />Nesticle : All CHR bankswitching ignored  <img src="./images/smilies/icon_wink.gif" alt=":wink:" title="Wink" /> 
+<br />Rew : Crap flickering graphics
+<br />
+<br />If someone could plese test if for me on the real HW it would be cool (at least NTSC because I can't test it, and PAL too if possible until I can again).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Zepper</b> [ Fri Aug 07, 2009 12:24 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />- RockNES has no PAL mode support.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Memblers</b> [ Fri Aug 07, 2009 6:15 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Bregalad wrote:</div><div class="quotecontent">again there is a 2-tile band that must be shared between both pattern tables on left and on the right of the boxes. And it works under much more emulators !<br /></div>
+<br />
+<br />That's a pretty cool trick.  2 tiles is a fine size for a window border, and that's an easy trade-off for being able to show any CHR tile.
+<br />
+<br />Actually something like that was one of the 'modes' I had in mind for Squeedo.  The PIC had a counter for NES CPU cycles, and also controlled the CHR banking.  So theoretically, the NES would give the PIC a 'timing script' of when to change banks.  However I hadn't seriously considered mid-scanline banking, but that would be far more interesting if it could be automated.  Jitter would be a problem still (it would depend on the NES's program's NMI routine).   The PIC would have the raw NES clock available to it, if it could "lock in" to the right value somehow.
+<br />
+<br />Also the sprite #0 jitter-reducing trick is very cool!  This could free up more cycles during hblank.  Which is pretty big deal, because there aren't very many of them.  Sprite #0 would be better than NMI timing if it's not a full-screen effect (or is further down on the screen or something).
+<br />
+<br />Also I wouldn't worry about the emulators.  Look at all the references to people working their emulators around games like Marble Madness and other stuff by Rare.  If it works on the system and breaks a lot of emus, that is even better.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Sat Aug 08, 2009 12:57 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Actually something like that was one of the 'modes' I had in mind for Squeedo. The PIC had a counter for NES CPU cycles, and also controlled the CHR banking. So theoretically, the NES would give the PIC a 'timing script' of when to change banks. However I hadn't seriously considered mid-scanline banking, but that would be far more interesting if it could be automated. </div><br />Sounds awesome. Altough the MMC2 and MMC4 already does auto-midscanline bankswitching, that would be a more flexible way to do it (without forcing the user to use tiles $fd and $fe on split points).<br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">That's a pretty cool trick. 2 tiles is a fine size for a window border, and that's an easy trade-off for being able to show any CHR tile.</div><br />Definitely. The first/last column is the border of the window, so it's only a real deal for the second/second-last row. By the way anyone have an indea why Dragon Quest and Fire Emblem games always have those stars at the begining of a paragraph ? Is it some japan culture trick ?<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent"> <br /><br />Also the sprite #0 jitter-reducing trick is very cool! This could free up more cycles during hblank. Which is pretty big deal, because there aren't very many of them. Sprite #0 would be better than NMI timing if it's not a full-screen effect (or is further down on the screen or something).</div><br />Well, in fact it reduces jittering from 7 cycles to 4 cycles in the best case, but you need to execute the code before the sprite flag is clear, so before the start of the frame which makes it stupid since doing it from NMI directly directly gives me 3 cycle jitter (better) ! This could be usefull if you really can't have your NMI routine taking a fixed amount of cycles for some reason.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Also I wouldn't worry about the emulators. Look at all the references to people working their emulators around games like Marble Madness and other stuff by Rare. If it works on the system and breaks a lot of emus, that is even better.</div>
+<br />Well, I still don't know how well works on hardware  <img src="./images/smilies/icon_cry.gif" alt=":cry:" title="Crying or Very sad" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

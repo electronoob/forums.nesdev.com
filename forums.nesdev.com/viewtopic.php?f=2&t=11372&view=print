@@ -1,0 +1,165 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Tile compression formats</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Tile compression formats</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=11372">http://forums.nesdev.com/viewtopic.php?f=2&amp;t=11372</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Sat Jun 28, 2014 4:18 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Tile compression formats</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />After having read <a href="http://forums.nesdev.com/viewtopic.php?f=21&amp;t=11363" class="postlink">a topic about making a graphics hack for <em>Blades of Steel</em></a>, I decided to write a long-awaited <a href="http://wiki.nesdev.com/w/index.php/Tile_compression" class="postlink">wiki article about tile compression</a>. Currently it covers a few byte-level RLE formats and the pixel-level RLE/Markov thing that Codemasters used and tokumaru reverse engineered. What other tile compression formats are used for 2-bit tiles in commercial NES, Super NES, GB, and GBC releases?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Dwedit</b> [ Sat Jun 28, 2014 8:38 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Tile compression formats</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Now I have to pull out my old Oracle of Ages editor...<br />Oracle of Ages used one of 4 possible formats:  Uncompressed, LZ (short words), LZ (long words), and a bitmask indicating which of the next 16 bytes uses a common byte.<br /><br />LZ:<br />mask = read a byte<br />This determines whether the next 8 things processed are LZ runs or raw bytes, starting with the most significant bit of 'mask'.  After processing 8 things, if there are still bytes remaining to decompress, read a new byte for 'mask'.<br />LZ run (bit is 1):<br />short word mode:<br />read a byte<br />LLLDDDDD<br />L = length (add 1)<br />D = distance<br />If value of L is zero, read a byte and use that for length instead.<br /><br />long word mode:<br />read two bytes<br />DDDDDDDD  low byte of LZ distance<br />LLLLLDDD    high byte of LZ distance, length (add 1)<br />If value of L is zero, read a byte and use that for length instead.<br /><br />Add ~Distance (bitwise complement) to Destination pointer, copy Length bytes.<br /><br />16 byte with common:<br />Read two bytes<br />MMMMMMMM  Mask indicating which bytes use the common byte<br />MMMMMMMM<br />If M is zero, just copy 16 bytes.<br />Otherwise<br />Read a byte, this is the Common byte.<br />look at each bit of M (starting with most significant bit of first byte)<br />If it's 1, output the Common byte<br />otherwise, copy a byte.<br /><br /><br />Code I used to decompress it:  (BP and CBP are classes that act like byte pointers but do bounds checking)<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">void lzdecompress(BP dest, CBP src,int length, bool LWM)<br />{<br />&nbsp; &nbsp;int bitsleft=1;<br />&nbsp; &nbsp;u8 mask=0;<br />&nbsp; &nbsp;while (length&gt;0)<br />&nbsp; &nbsp;{<br />&nbsp; &nbsp;&nbsp; &nbsp;bitsleft--;<br />&nbsp; &nbsp;&nbsp; &nbsp;mask&lt;&lt;=1;<br />&nbsp; &nbsp;&nbsp; &nbsp;if (bitsleft==0)<br />&nbsp; &nbsp;&nbsp; &nbsp;{<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;bitsleft=8;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;mask=*src++;<br />&nbsp; &nbsp;&nbsp; &nbsp;}<br />&nbsp; &nbsp;&nbsp; &nbsp;if (mask &amp; 0x80)<br />&nbsp; &nbsp;&nbsp; &nbsp;{<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;int lzdist1=0,lzdist2=0;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;int lzlength=0;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (LWM)<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;{<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;lzdist1=*src++;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;int a=*src++;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;lzdist2=a &amp; 7;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;a=a&gt;&gt;3;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (a!=0)<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;{<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;lzlength=a+2;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;else<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;{<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;lzlength=*src++;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (lzlength==0) lzlength=256;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;else<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;{<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;int a=*src++;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;lzdist1=a &amp; 0x1F;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;lzdist2=0;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;a&gt;&gt;=5;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (a==0)<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;{<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;lzlength=*src++;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (lzlength==0) lzlength=256;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;else<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;{<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;lzlength=a+1;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;int i;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;s16 lzdist16= (lzdist1^0xFF) | ((lzdist2^0xFF)&lt;&lt;8);<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;BP src2=dest+ lzdist16;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;for (i=0;i&lt;lzlength;i++)<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;{<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;*dest++=*src2++;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;length--;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (length==0) return;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />&nbsp; &nbsp;&nbsp; &nbsp;}<br />&nbsp; &nbsp;&nbsp; &nbsp;else<br />&nbsp; &nbsp;&nbsp; &nbsp;{<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;*dest++=*src++;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;length--;<br />&nbsp; &nbsp;&nbsp; &nbsp;}<br />&nbsp; &nbsp;}<br />}<br /><br />void unpack_16_common(BP*dest_p, CBP*src_p)<br />{<br />&nbsp; &nbsp;BP &amp;dest = *dest_p;<br />&nbsp; &nbsp;CBP &amp;src = *src_p;<br />&nbsp; &nbsp;int length=16;<br />&nbsp; &nbsp;u16 mask=src.getu16be();<br />&nbsp; &nbsp;if (mask==0)<br />&nbsp; &nbsp;{<br />&nbsp; &nbsp;&nbsp; &nbsp;memcpy(&amp;dest&#91;0&#93;,&amp;src&#91;0&#93;,16);<br />&nbsp; &nbsp;&nbsp; &nbsp;dest+=16;<br />&nbsp; &nbsp;&nbsp; &nbsp;src+=16;<br />&nbsp; &nbsp;&nbsp; &nbsp;return;<br />&nbsp; &nbsp;}<br />&nbsp; &nbsp;else<br />&nbsp; &nbsp;{<br />&nbsp; &nbsp;&nbsp; &nbsp;u8 common=*src++;<br />&nbsp; &nbsp;&nbsp; &nbsp;int i;<br />&nbsp; &nbsp;&nbsp; &nbsp;for (i=0;i&lt;16;i++)<br />&nbsp; &nbsp;&nbsp; &nbsp;{<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if (mask &amp; 0x8000)<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;{<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;*dest++=common;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;else<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;{<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;*dest++=*src++;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;mask&lt;&lt;=1;<br />&nbsp; &nbsp;&nbsp; &nbsp;}<br />&nbsp; &nbsp;}<br />}<br /></div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Sat Jun 28, 2014 9:33 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Tile compression formats</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Thanks for the info; I'll summarize to the wiki.<br /><br />Of these, long word mode is least likely to work well on an NES due to the required 2 KiB state, which exceeds the NES's built-in work RAM. (The GBC has 4K of work RAM, 28K of switchable work RAM, and memory-mapped VRAM.) Is the limit of 32-byte back references a big handicap in short word mode? And how does common byte compare in ratio to RLE methods? (Yeah, I know plain RLE doesn't work well on Game Boy tiles without deinterleaving the tiles into NES format first; assume that.)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

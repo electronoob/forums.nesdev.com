@@ -1,0 +1,106 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <errno.h>
+
+int main (int argc, char * argv[]) {
+	unsigned char v, *chrrom = NULL;
+	char *scaler = NULL;
+	char *walker;
+	int width=0;
+	int ty, tx, cx, cy;
+	int sx, sy, scale=0;
+
+	if (isatty(0)) {
+		switch (argc) {
+		case 1:
+			fprintf(stderr,"use: \n"
+			        "chr2pgm [scaler] < [in.chr] > [out.pgm]\n"
+			        "chr2pgm [scaler] [in.chr] > [out.pgm]\n"
+			        "chr2pgm [in.chr] [scaler] > [out.pgm]\n");
+			return 0;
+		case 2: /* One argument, no pipe, must be a filename */
+			if (freopen(argv[1],"rb",stdin) == NULL) {
+				fprintf(stderr,"couldn't open %s: %s (%d)\n",argv[1],strerror(errno),errno);
+				return 1;
+			}
+			break;
+		default: /* Two arguments, who knows? */
+			/* First see if the first is a number as the second is a filename */
+			strtoul(argv[1],&walker,0); // yes, throw it away.
+			if (*walker <= ' ' && freopen(argv[2],"rb",stdin) != NULL) {
+				scaler = argv[1];
+			} else {
+				strtoul(argv[2],&walker,0);
+				if (*walker > ' ' || freopen(argv[1],"rb",stdin) == NULL) {
+					fprintf(stderr,
+					        "couldn't parse '%s' and '%s' as both a scaler and a filename in either order\n",
+					        argv[1],argv[2]);
+					return 1;
+				} else {
+					scaler = argv[2];
+				}
+			}
+			break;
+		}
+	} else {
+		/* Stdin is already a pipe, we don't need to do anything particular */
+		if (argc > 1)
+			scaler = argv[1];
+	}
+
+
+	do {
+		width += 256;
+		chrrom = realloc(chrrom, width);
+		if (chrrom == NULL) return 9;
+	} while (fread(&chrrom[width-256],256,1,stdin));
+
+	width -= 256;
+	width /= 256;
+	if (width == 0) return 1;
+	
+	if (scaler)
+		scale = strtoul(scaler,NULL,0);
+
+	if (scale < 1) 
+		scale = 1;
+
+	if (scale==1) {
+		fprintf(stdout,"P5 %d 128 3\n",width*8);
+
+		for (ty = 0; ty < 16; ty++)
+			for (cy = 0; cy < 8; cy++)
+				for (tx = 0; tx < width; tx++)
+					for (cx = 0; cx < 8; cx++)
+						fputc((!!(chrrom[ty*16 + tx*256 + cy] & (128 >> cx)))+
+						      (2*!!(chrrom[ty*16 + tx*256 + cy+8] & (128 >> cx))),stdout);
+	} else {
+		fprintf(stdout,"P6 %d %d 3\n",width*scale*8,128*scale);
+
+		for (ty = 0; ty < 16; ty++)
+			for (cy = 0; cy < 8; cy++)
+				for (sy = 0; sy < scale; sy++)
+					for (tx = 0; tx < width; tx++)
+						for (cx = 0; cx < 8; cx++)
+							for (sx = 0; sx < scale; sx++)
+								if (sx != 0 && sy != 0 || 
+								    scale == 2 && (cx != 0 || sx != 0) && (cy != 0 || sy != 0)) {
+									v = (!!(chrrom[ty*16 + tx*256 + cy] & (128 >> cx)))+
+										(2*!!(chrrom[ty*16 + tx*256 + cy+8] & (128 >> cx)));
+									fputc(v,stdout); fputc(v,stdout);	fputc(v,stdout);
+								} else {
+									if ((cx == 0 && sx == 0) || (cy == 0 && sy == 0)) {
+										if (tx % 4 == 0 && cx == 0 && sx == 0 &&
+										    !(tx/4 & (1<<ty))) {
+											fputc(0,stdout); fputc(3,stdout);	fputc(0,stdout);
+										} else {
+											fputc(3,stdout); fputc(0,stdout);	fputc(0,stdout);
+										}
+									} else {
+										fputc(0,stdout); fputc(0,stdout);	fputc(3,stdout);
+									}
+								}
+	}
+	return 0;
+}
+

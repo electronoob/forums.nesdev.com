@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=3&amp;t=8789" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2012-04-04T02:50:46-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=3&amp;t=8789</id>
+<entry>
+<author><name><![CDATA[crudelios]]></name></author>
+<updated>2012-04-04T02:50:46-07:00</updated>
+<published>2012-04-04T02:50:46-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8789&amp;p=92135#p92135</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8789&amp;p=92135#p92135"/>
+<title type="html"><![CDATA[CPU absolute addressing question]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8789&amp;p=92135#p92135"><![CDATA[
+Actually, DMC DMA may take less than 3 cycles if it lands on a CPU write. For example, if it lands on the dummy write in a RMW instruction, then the DMC will only be delayed by two cycles, after the effective write to the target address.<br /><br />An example, using opcode $6E (ROR - Absolute), followed by $AD (LDA - Absolute):<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">CYC INSTR     ACTION COMMENT<br />1   ROR $0765 Read   Fetch opcode<br />2   ROR       Read   Fetch low address byte<br />3   ROR       Read   Fetch high address byte<br />4   ROR       Write  Dummy write     &lt;- DMC DMA lands here, RDY low cycle 1<br />5   ROR       Write  Effective write &lt;- CPU is not paused here, RDY low cycle 2<br />1   DMA              DMC DMA &#40;RDY low cycle 3 - CPU paused&#41;<br />2   DMA              DMC DMA &#40;effective read from memory&#41;<br />1   LDA $0300 Read   Fetch opcode<br />....</div><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=5192">crudelios</a> — Wed Apr 04, 2012 2:50 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Zepper]]></name></author>
+<updated>2012-04-03T18:50:26-07:00</updated>
+<published>2012-04-03T18:50:26-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8789&amp;p=92129#p92129</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8789&amp;p=92129#p92129"/>
+<title type="html"><![CDATA[CPU absolute addressing question]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8789&amp;p=92129#p92129"><![CDATA[
+<div class="quotetitle">crudelios wrote:</div><div class="quotecontent"><br />Also, when you start a sample using STA $4015, if the output buffer is empty so the APU will have to load a new sample from memory, you should immediately delay CPU execution by 3 cycles, not 4.<br /></div><br /><br />My notes: <div class="codetitle"><b>Code:</b></div><div class="codecontent">   /* 3 if it lands on a CPU write, <br />      2 if it lands on the $4014 write or during OAM DMA, <br />      1 if on the next-to-next-to-last DMA cycle, <br />      3 if on the last DMA cycle.<br />     DMA transfer takes 513 cycles on even cycles<br />     and 514 on odd cycles. */<br /><br /> /* You can see this in the STA $100 after OAM DMA,<br />  where DMC DMA takes three cycles for two different times.<br />  This is because both times it's landing on the fourth cycle of STA $100.<br />  */</div><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=39">Zepper</a> — Tue Apr 03, 2012 6:50 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[crudelios]]></name></author>
+<updated>2012-04-03T18:12:11-07:00</updated>
+<published>2012-04-03T18:12:11-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8789&amp;p=92128#p92128</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8789&amp;p=92128#p92128"/>
+<title type="html"><![CDATA[CPU absolute addressing question]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8789&amp;p=92128#p92128"><![CDATA[
+It s nearly the same, really.<br /><br />If it lands on the write part of STA before the SPR DMA, you delay by one less cycle that you normally would.<br /><br />If it lands on the DMA, you delay 2 cycles normally, 3 if it lands on SPR DMA's last cycle or 1 if there are 2 cycles remaining.<br /><br />Example:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">INSTR  CYC DELAY<br />STA    1   4 &#40;STA $4014, 4 cycles&#41;<br />STA    2   4<br />STA    3   4<br />STA    4   2<br />SPRDMA 1   2 &#40;sprite DMA&#41;<br />SPRDMA 2   2<br />............<br />SPRDMA 510 2<br />SPRDMA 511 1<br />SPRDMA 512 2<br />SPRDMA 513 3 &#40;last SPR DMA cycle, could be 514 cycles as well&#41;</div><br /><br />Also, when you start a sample using STA $4015, if the output buffer is empty so the APU will have to load a new sample from memory, you should immediately delay CPU execution by 3 cycles, not 4. This was the only way I could get all the tests working.<br /><br />Note: I gathered all this from looking at my own code. I may be reading it incorrectly now though...<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=5192">crudelios</a> — Tue Apr 03, 2012 6:12 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Zepper]]></name></author>
+<updated>2012-04-03T18:46:06-07:00</updated>
+<published>2012-04-03T17:16:23-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8789&amp;p=92126#p92126</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8789&amp;p=92126#p92126"/>
+<title type="html"><![CDATA[CPU absolute addressing question]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8789&amp;p=92126#p92126"><![CDATA[
+<div class="quotetitle">crudelios wrote:</div><div class="quotecontent"><br />When doing SPR DMA (LDA $4014), this is what I do:<br /><br />If the IRQ lands on the LDA instruction (at any of the four cycles of the instruction), the IRQ happens immediately after DMA.<br />If the IRQ lands on the DMA (that is, after the LDA), then IRQ is only triggered after the NEXT instruction. Meaning one instruction executes after the DMA but before the IRQ.<br /></div><br /><br />Well, IRQ/NMI_and_DMA tests have passed. <img src="http://forums.nesdev.com/images/smilies/icon_smile.gif" alt=":)" title="Smile" /> So, looks like an IRQ/NMI isn't acknowledged during a sprite DMA, but only in the next instruction.<br /><br />There's one thing left: the DMC and SPR DMA test. I have to force the DMC unit to run for 3 cycles, instead of normally 2, on STA $xxxx instruction.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=39">Zepper</a> — Tue Apr 03, 2012 5:16 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[crudelios]]></name></author>
+<updated>2012-04-03T12:39:10-07:00</updated>
+<published>2012-04-03T12:39:10-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8789&amp;p=92116#p92116</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8789&amp;p=92116#p92116"/>
+<title type="html"><![CDATA[CPU absolute addressing question]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8789&amp;p=92116#p92116"><![CDATA[
+I'm passing IRQ and DMA, and this is what I do:<br /><br />I only check for IRQs after each instruction. When executing CLI or SEI, its effect is delayed by one CPU instruction. Some branches also delay IRQ by one instruction.<br /><br />When doing SPR DMA (LDA $4014), this is what I do:<br /><br />If the IRQ lands on the LDA instruction (at any of the four cycles of the instruction), the IRQ happens immediately after DMA.<br />If the IRQ lands on the DMA (that is, after the LDA), then IRQ is only triggered after the NEXT instruction. Meaning one instruction executes after the DMA but before the IRQ.<br /><br />I'm not sure these answer your questions, but it also took me a long while to get IRQ and DMA working...<br /><br />Oh and another thing I noticed is that while SPR DMA always ends at an odd cycle, the APU IRQ always triggers at an even cycle (it may be the other way around, I can't understand it clearly from the obfuscated mess that is that part of my code <img src="http://forums.nesdev.com/images/smilies/icon_razz.gif" alt=":P" title="Razz" />). This is not documented anywhere and may be wrong, but so far I'm passing every single APU related test with this behavior.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=5192">crudelios</a> — Tue Apr 03, 2012 12:39 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Zepper]]></name></author>
+<updated>2012-04-03T08:44:20-07:00</updated>
+<published>2012-04-03T08:44:20-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8789&amp;p=92107#p92107</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8789&amp;p=92107#p92107"/>
+<title type="html"><![CDATA[CPU absolute addressing question]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8789&amp;p=92107#p92107"><![CDATA[
+Timing diagram of a LDA $xxxx instruction:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">        #  address R/W description<br />       --- ------- --- ------------------------------------------<br />        1    PC     R  fetch opcode, increment PC<br />        2    PC     R  fetch low byte of address, increment PC<br />        3    PC     R  fetch high byte of address, increment PC<br />        4  address  R  read from effective address<br />                       Set CPU flags</div><br /><br />- Can an IRQ be requested and/or acknowledged during the first 3 cycles? I read somewhere about only getting triggered in the last cycle of the instruction.<br />- Can an IRQ (or any other flag, let's say, from $4015) be cancelled <em>right</em> at the 4th cycle, but before the effective read?<br /><br />I have problems in a few test ROMs, like IRQ_and_DMA. Thanks.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=39">Zepper</a> — Tue Apr 03, 2012 8:44 am</p><hr />
+]]></content>
+</entry>
+</feed>

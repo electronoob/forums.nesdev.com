@@ -1,0 +1,223 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Optimizing vblank use</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Optimizing vblank use</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=6688">http://forums.nesdev.com/viewtopic.php?f=2&amp;t=6688</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Drag</b> [ Mon Jul 26, 2010 11:52 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Optimizing vblank use</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I can't remember if I've asked this before, but the issue has come up again.
+<br />
+<br />When vblank starts, is it better to do the sprite DMA first, and the $2007 streaming afterwards, or is it better to do the $2007 streaming first, and the DMA afterwards?
+<br />
+<br />Also, another question; If I have rendering turned off, and I'm writing to $2006 and $2007 in my main code, and then I have two writes to $2005 taking place in the NMI, will that mess up the PPU address if the NMI takes place while I'm still writing to $2007?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Dwedit</b> [ Mon Jul 26, 2010 12:03 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Order of sprite DMA and PPU drawing doesn't matter, they still take the same amount of time regardless of what order you do them in.  What matters is whether you have rendering disabled or not.  With rendering disabled, you get to use the prerender line for additional draw time, then you can enable rendering afterwards once you've written your scroll values.
+<br />
+<br />Writes to 2005 during NMI should not affect drawing code, since it only changes T, and not V.
+<br />
+<br />What I did was make the first instruction of NMI an indirect jump, and use a different NMI handler for a screen which is off.  I basically used a different NMI handler for each type of screen that needs different raster effects, since the NMI handler installs the first MMC3 interrupt handler.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Mon Jul 26, 2010 12:03 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Optimizing vblank use</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Drag wrote:</div><div class="quotecontent">When vblank starts, is it better to do the sprite DMA first, and the $2007 streaming afterwards, or is it better to do the $2007 streaming first, and the DMA afterwards?</div><br />I don't think it matters, as long as both take place during VBlank.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Also, another question; If I have rendering turned off, and I'm writing to $2006 and $2007 in my main code, and then I have two writes to $2005 taking place in the NMI, will that mess up the PPU address if the NMI takes place while I'm still writing to $2007?</div>
+<br />I'm pretty sure it will screw up the PPU address. You should either disable NMIs along with the rendering or have your NMI check a flag that indicates whether it should perform PPU operations.
+<br />
+<br />EDIT: Sorry, I didn't realize you write <strong>only</strong> to $2005, so yeah, Dwedit is right. But why do you write only to $2005, seeing as that alone isn't enough to fully set the scroll (you still have to select a name table)?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Mon Jul 26, 2010 12:36 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Optimizing vblank use</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tokumaru wrote:</div><div class="quotecontent">I didn't realize you write <strong>only</strong> to $2005, so yeah, Dwedit is right. But why do you write only to $2005, seeing as that alone isn't enough to fully set the scroll (you still have to select a name table)?</div>
+<br />I'd guess that the nametable bits will be set to the last VRAM address that was used. In one-screen mirroring, this Just Works, and it also Just Works if you're displaying the same nametable that you wrote to, such as in a non-scrolling game. For example, in horizontal mirroring, a write across all of $2000-$23FF will leave the nametable select bits pointing at either $2000 or $2400, and a write to $2800-$2BFF will leave the nametable select bits pointing at either $2800 or $2C00.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Drag</b> [ Mon Jul 26, 2010 1:39 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Oh oops, that's a good point, I forgot you have to rewrite to $2000 to put the correct nametable msbs in.
+<br />
+<br />and yeah, I had a feeling that a random $2005 $2005 in the middle of a bunch of $2007s wouldn't mess up the PPU address while rendering was turned off.
+<br />
+<br />I guess what I'm wondering, in regards to DMA-first or PPU-Stream-first: which one has worse side effects when it spills out of vblank? I know theoretically it should never happen, but I'm still curious.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

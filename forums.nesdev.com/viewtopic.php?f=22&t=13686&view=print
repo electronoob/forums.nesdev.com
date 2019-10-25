@@ -1,0 +1,201 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - PBJ compression format</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">PBJ compression format</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=22&amp;t=13686">http://forums.nesdev.com/viewtopic.php?f=22&amp;t=13686</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>JRoatch</b> [ Thu Dec 31, 2015 10:33 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>PBJ compression format</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="attachtitle">Attachment:</div><div class="attachcontent">
+			<img src="./download/file.php?id=4794" alt="pbj-image.png" /><br />
+			<span class="gensmall">pbj-image.png [ 8.49 KiB | Viewed 2070 times ]</span>
+		
+
+		<br />
+	</div><br />In August I spent a lot of time crunching numbers to try to find a way to better compress chr data. Ultimately that effort failed because the LZMPi like bit-streams I was coming up with would bloat the decoder too much for my tastes, but I did find out that the core PB8 routine of <a href="http://wiki.nesdev.com/w/index.php/Tile_compression#PB53" class="postlink">PB53</a> was surprisingly effective. So late November I decided to upgrade my <a href="http://forums.nesdev.com/viewtopic.php?f=22&amp;t=12445" class="postlink">nametable compression format</a> by having a PB8 mode. After I posted that quick hack I then proceeded to rearrange the codespace to make a much more efficient decoder.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">## PBJ Stream format:<br />&nbsp; Initially starts in PB8 mode.<br />&nbsp; In PB8 mode:<br />&nbsp; &nbsp; 00000000&nbsp; &nbsp; &nbsp; &nbsp; : 0x00 8 times.<br />&nbsp; &nbsp; 01111111&nbsp; &nbsp; &nbsp; &nbsp; : 0xff 8 times.<br />&nbsp; &nbsp; 0nnnnnnn ...&nbsp; &nbsp; : For each bit in the pb8 control byte,<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; 0 is a new byte, 1 is the previous byte.<br />&nbsp; In BG mode:<br />&nbsp; &nbsp; 0nnnnnnn&nbsp; &nbsp; &nbsp; &nbsp; : 128-N Run of BG<br />&nbsp; In both modes:<br />&nbsp; &nbsp; 10011111 xx&nbsp; &nbsp; &nbsp;: Switch to BG mode and set BG to X.<br />&nbsp; &nbsp; 100nnnnn xx&nbsp; &nbsp; &nbsp;: 32-N incrementing run starting at X.<br />&nbsp; &nbsp; 10111111&nbsp; &nbsp; &nbsp; &nbsp; : Switch to PB8 mode.<br />&nbsp; &nbsp; 10111110 xx yy&nbsp; : Set PPU_ADDR to yyxx<br />&nbsp; &nbsp; 101nnnnn xx yy&nbsp; : For 32-N times, emit alternately X and Y.<br />&nbsp; &nbsp; 110nnnnn ...&nbsp; &nbsp; : 32-N literal bytes.<br />&nbsp; &nbsp; 11111111&nbsp; &nbsp; &nbsp; &nbsp; : End stream.<br />&nbsp; &nbsp; 111nnnnn xx&nbsp; &nbsp; &nbsp;: 32-N run of X.<br /></div><br /><br />PB8 is the peanut butter, <a href="http://forums.nesdev.com/viewtopic.php?p=108264#p108264" class="postlink">RLEINC2</a> the jelly, and my old <a href="http://forums.nesdev.com/viewtopic.php?f=22&amp;t=12445" class="postlink">nametable compression</a> the bread that combines it all together into .pbj files.<br /><br />The decoder assembles to 159 bytes of ROM and uses 5 bytes of RAM.<br />The current encoder is a bit dumb as it's only able to use either pb8 planes or everything else but not both.<br /><br />Example file sizes:<br />The pbj picture in this post: 4513 bytes<br />The gus portrait from <a href="http://forums.nesdev.com/viewtopic.php?f=22&amp;t=13394" class="postlink">240p test suite</a>: 2297 bytes<br />The title screen from <a href="http://forums.nesdev.com/viewtopic.php?f=22&amp;t=8467" class="postlink">Zooming sectary</a>: 1423 bytes<br /><br />EDIT: oops, I uploaded the wrong decoder.
+
+		
+			<br clear="all" /><br />
+
+			<table class="tablebg" width="100%" cellspacing="1">
+			<tr>
+				<td><b class="genmed">Attachments: </b></td>
+			</tr>
+			
+				<tr>
+					<td>
+			<span class="gensmall"><b>File comment:</b> The 6502 decoder</span><br />
+		
+			<span class="genmed">
+				<img src="./styles/subsilver2/imageset/icon_topic_attach.gif" width="14" height="18" alt="" title="" /> 
+				<a href="./download/file.php?id=4797">pbj-decode.s</a> [4.65 KiB]
+			</span><br />
+			<span class="gensmall">Downloaded 96 times</span>
+		
+
+		<br />
+	</td>
+				</tr>
+			
+				<tr>
+					<td>
+		<span class="genmed">[The extension <strong>py</strong> has been deactivated and can no longer be displayed.]</span><br />
+	</td>
+				</tr>
+			
+			</table>
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Thu Dec 31, 2015 10:56 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: PBJ compression format</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I assume &quot;BG&quot; is a common byte, used for runs of long lengths without needing to re-specify the run byte.<br /><br />I see you're including a &quot;seek in output&quot; command (<tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">%10111110</tt>). That complicates an offline decoder, as it has to buffer the entire output in case the stream seeks backwards. What was the reasoning behind that command?<br /><br />Can your decoder break the RLEINC2 runs into fixed-size output packets? Say I wanted to decode 128 bytes, send that to VRAM, decode the next 128 bytes, send that to VRAM, etc. That was my original motivation behind PB8: to be able to decode while rendering is on.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>JRoatch</b> [ Thu Dec 31, 2015 11:30 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: PBJ compression format</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tepples wrote:</div><div class="quotecontent">I assume &quot;BG&quot; is a common byte, used for runs of long lengths without needing to re-specify the run byte.</div><br />That is correct.<br /><br /><div class="quotetitle">tepples wrote:</div><div class="quotecontent">Can your decoder break the RLEINC2 runs into fixed-size output packets? Say I wanted to decode 128 bytes, send that to VRAM, decode the next 128 bytes, send that to VRAM, etc. That was my original motivation behind PB8: to be able to decode while rendering is on.</div><br />I say continue to use PB53 for that. PBJ was design for only blank screen bulk uploads. In fact PB53 beats PBJ in chr compression (PBJ has to code a duplicate 8 byte plane twice). I suppose a decoder can be made to keep partial RLEINC2 run commands in memory for the next partial decode, but the size of such a decoder will probably be larger then just including PB53 as well.<br /><br /><div class="quotetitle">tepples wrote:</div><div class="quotecontent">I see you're including a &quot;seek in output&quot; command (<tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">%10111110</tt>). What was the reasoning behind that command?</div><br />So that a complete PPU picture can be rendered. Sometimes I also want to be able write a ASCII tile set to a different offset then $0000, or maybe I need to write just the bottom of the screen for a status bar. The double byte command already reads in two bytes, so it's not that far away from writing those two bytes to PPU_ADDR instead of PPU_DATA (12 bytes of code in the decoder).<br /><br /><div class="quotetitle">tepples wrote:</div><div class="quotecontent">That complicates an offline decoder, as it has to buffer the entire output in case the stream seeks backwards.</div><br />It does complicate things, but I plan to have some options to read/write a list of ppu address with corresponding file offsets, and only process files like a bag of bytes when the &quot;seek in output&quot; command is not present. Also I'll include a different option to write out a sav file for your editor as well.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

@@ -1,0 +1,263 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Compressing 1-bit tiles</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Compressing 1-bit tiles</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=6068">http://forums.nesdev.com/viewtopic.php?f=2&amp;t=6068</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Sat Feb 20, 2010 1:14 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Compressing 1-bit tiles</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I looked at <a href="http://nesdev.com/bbs/viewtopic.php?p=54230#54230" class="postlink">tokumaru's rewrite of the Codemasters Markov CHR codec</a>. I noticed that it essentially transforms runs of identical pixels into a unary code: 0 represents one pixel, 10 represents two, 110 represents three, etc. 
+<br />
+<br /><a href="http://nesdev.com/bbs/viewtopic.php?p=54754#54754" class="postlink">Dwedit has noticed</a> that this scheme doesn't perform so well on tiles with 1 bit per pixel. These tiles are seen in text fonts and in decorative tiles representing things that are in the far background. Encoding run lengths in unary doesn't save any bits over not compressing the 1-bit tile at all: each pixel has one bit for whether it's the same color as the pixel to its left or the other color. In fact, there are two additional bits of overhead per line: one to state that the row isn't repeated, and one because the first pixel is always literal (not compressed), even in a tile with two colors mode 1 and the others mode 0. 
+<br />
+<br />I'm playing with the following techniques and seeing 15 to 20 percent off a font:
+<br /><ol style="list-style-type: decimal"><li>Encoding 32x8 pixel areas instead of 8x8, to be rearranged by the unrolled code that copies the result to VRAM. This allows for capturing longer run lengths, such as the 1-pixel-tall gap at the bottom of glyphs with no descender or the 2-pixel-tall gap at the top of lowercase glyphs with no ascender. </li><li><a href="http://www.google.com/url?sa=t&amp;source=web&amp;ct=res&amp;cd=1&amp;ved=0CAcQFjAA&amp;url=http%3A%2F%2Fen.wikipedia.org%2Fwiki%2FElias_gamma_coding&amp;ei=8jyAS-C9EYWGNI6dsdEE&amp;usg=AFQjCNHu1_wseQ5GZvUqxICM8I2gflfXOg" class="postlink">Gamma coding</a> the run lengths. It slightly outperforms <a href="http://www.google.com/url?sa=t&amp;source=web&amp;ct=res&amp;cd=1&amp;ved=0CAcQFjAA&amp;url=http%3A%2F%2Fen.wikipedia.org%2Fwiki%2FGolomb_coding&amp;ei=jECAS462BI6CNt6LpLEE&amp;usg=AFQjCNENp6JUOW6qGtgjRlJtxyx6AXu9Pg" class="postlink">Golomb(M=2)</a>, which significantly outperforms unary. </li><li>Swapping the code for the most common run length with the code for run length 1 pixel. This saves on (for example) fonts with lots of vertical strokes 2 pixels thick. </li></ol>
+<br />I'll release a demo once I have an encoder and decoder finalized.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Sat Feb 20, 2010 2:11 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Compressing 1-bit tiles</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tepples wrote:</div><div class="quotecontent">Gamma coding</div>
+<br />Hum, I had never seen that. The number of bits (minus one, because no number uses 0 bits) necessary to represent the value are encoded in unary, and then comes the value itself. Interesting. How can you represent 0, without it being interpreted as one extra bit in the next code? EDIT: I just read it can't encode the number 0, so you'd have encode the value + 1 and subtract 1 after decoding.
+<br />
+<br />Anyway, I wonder if an auto-triggering RLE scheme (a run length is only encoded when a pixel repeats, even if this length is 0, in case the pixel doesn't repeat again) would work well in this case. I guess this is the only way to make RLE efficient when working with codes as small as 1 or 2 bits in small images.
+<br />
+<br />If a very good compression for 1-bit tiles is devised, it would be cool if it performed well on normal NES tiles too, since they are basically composed of 2 1-bit tiles. I don't think RLE alone will do much though, we must do something about larger repeating patterns, not only single pixels.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>UncleSporky</b> [ Sat Feb 20, 2010 7:39 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I'd never seen gamma coding either, that's ingenious.  I'm very interested in the results here, since there's recently been a resurgence in popularity for simpler graphics that could use this compression.
+<br />
+<br /><a href="http://www.adamatomic.com/canabalt/" class="postlink"><img src="http://img691.imageshack.us/img691/5778/62393630.png" alt="Image" /></a>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tomaitheous</b> [ Sun Feb 21, 2010 1:05 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I always did "repeat last row" encoding for 1bit graphics. Though that's almost always for fonts and not other detail. Compression results vary, obviously, but I was able to compress a whole 96 character font set to 55-60% of the original.
+<br />
+<br /> There's also other techniques, like the changing the format of the graphics themselves. Changing horizontal bitmap to vertical rows instead or even re-ordering to zig-zag format. Before compressing.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Thu Feb 25, 2010 6:09 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Today, I managed to round-trip SMB1's CHR through the Python encoder and 6502 asm decoder. So I feel ready to release exact ratios that I've managed to achieve, which approach within a couple percent of CMM on pretty much everything but SMB1:
+<br />
+<br />Concentration Room
+<br />titlegfx.chr (plenty of 1-bit tiles)
+<br />compressed 22528 bits to 11909 saving 47%
+<br />gamegfx.chr
+<br />compressed 32768 bits to 20712 saving 36%
+<br />
+<br />LJ65
+<br />lj65.chr
+<br />compressed 32768 bits to 18475 saving 43%
+<br />
+<br />Super Mario Bros.
+<br />smb1bg.chr (minus tiles containing title screen data)
+<br />compressed 30720 bits to 18660 saving 39%
+<br />
+<br />Perhaps after I release the encoder, hopefully tomorrow night, someone could help figure out why CMM kicks the behind of the (admittedly less sophisticated) format that I'm using for 2-bit tiles on compression ratio for SMB1.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Fri Feb 26, 2010 7:54 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />As you can see from the file sizes in the zipfile, it even beats PNG.
+<br />
+<br /><!-- m --><a class="postlink" href="http://pics.pineight.com/nes/chrpress.zip">http://pics.pineight.com/nes/chrpress.zip</a><!-- m -->
+<br />
+<br />It encodes 2-bit tiles similarly to 1-bit tiles, except instead of using a lookup table for each color as in CMM, it uses only one table that gets EOR'd against the current color.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

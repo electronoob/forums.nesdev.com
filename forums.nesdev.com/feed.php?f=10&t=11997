@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=10&amp;t=11997" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2014-11-07T11:20:24-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=10&amp;t=11997</id>
+<entry>
+<author><name><![CDATA[mikaelmoizt]]></name></author>
+<updated>2014-11-07T11:20:24-07:00</updated>
+<published>2014-11-07T11:20:24-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11997&amp;p=136146#p136146</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11997&amp;p=136146#p136146"/>
+<title type="html"><![CDATA[Re: Hacking questions:MMC1 expansion of Super Mario Bros + A]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11997&amp;p=136146#p136146"><![CDATA[
+Ah.. yes. I finally figured it out. The reason why I could not get the correct adress is because I include too much of the rom to overlap the correct orientation of my code. Lesson learned -  chunks must be separated.<br /><br />So<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">incbin &quot;smbSxROM.nes&quot; , $00, $4010 ; prg block 1<br />  base $8000 ; Tokumaru - you rock <br />  rts ; Random test crap<br />  nop<br />  rts<br />  nop<br />  rts<br />  pad $c000, $ea<br />  incbin &quot;smbSxROM.nes&quot;, $8010</div> <br /><br />will replace 16k of $FF and allow me to carry on code at $8000. Thanks a lot!<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6478">mikaelmoizt</a> — Fri Nov 07, 2014 11:20 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tokumaru]]></name></author>
+<updated>2014-11-07T10:35:20-07:00</updated>
+<published>2014-11-07T10:35:20-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11997&amp;p=136145#p136145</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11997&amp;p=136145#p136145"/>
+<title type="html"><![CDATA[Re: Hacking questions:MMC1 expansion of Super Mario Bros + A]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11997&amp;p=136145#p136145"><![CDATA[
+I believe you're looking for the .base directive. Look it up in ASM6's manual. It basically changes the PC to whatever value you want.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=95">tokumaru</a> — Fri Nov 07, 2014 10:35 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[mikaelmoizt]]></name></author>
+<updated>2014-11-07T10:04:48-07:00</updated>
+<published>2014-11-07T10:04:48-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11997&amp;p=136144#p136144</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11997&amp;p=136144#p136144"/>
+<title type="html"><![CDATA[Hacking questions:MMC1 expansion of Super Mario Bros + Asm 6]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11997&amp;p=136144#p136144"><![CDATA[
+Hello again. Back after some time now, still coding and hacking.<br /><br />So I found a patch some time ago that turns your SMB (n)rom into a mapper 1 rom complete with a bank switch routine. It is really nice for large scale hacks and whatever experiments to try.<br />Tired of painfully entering hex values inside fceux, I figured : &quot;Hey let's import this thing into ConText and get a much simpler way of adding things in!&quot;<br /><br />After some basic setup code, I managed to add my own routines in hardwired memory at $f300 and onward. So, cool.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">; Lets start with some basic defines<br /><br />  controller equ $06fc<br />  mariosize equ $0754<br />  mariofire equ $0756<br /><br />  incbin &quot;smbSxROM.nes&quot; , $00 , $01ad                ; Include a patched version of SMB rom file from start to $01ad (430 bytes)<br />                                                     ; This will replace the good old startbutton routine with..<br />pipeline:<br />         jsr main                                    ; Our hack!<br /><br /><br />  incbin &quot;smbSxROM.nes&quot; , $01b0, $f310-$01b0         ; All code now will start at $f300 in bank 3 (always mapped)<br />  org $f300                                          ; To give the compiler correct adress<br />                                                     ; This will provide 3263 bytes. Not bad.<br /><br />main:                                                ; Here we go.<br />  lda controller<br />  and #$20      ; select<br />  bne +<br />  rts<br /><br />+<br />  lda mariosize<br />  beq small<br />  lda #$00<br />  sta mariosize<br />  rts<br /><br />small:<br />  lda #$01<br />  sta mariosize<br />  rts<br /><br />enddummy:<br />  pad $ffbf, $ea                                     ; Pad with nop's<br />  rts                                                ; Safety rts for catching any misstake<br />  incbin &quot;smbSxROM.nes&quot; , $ffd0                      ; Include the ROM once more and fill rest of memory<br />;EOF</div><br /><br />Now, here is what I am trying to do:<br />Switch upper bank (simple) and continiue my own code, now starting at $8000. With a lot of trickery I found that incbin-ing first 16k block and adding code would put whatever routine I am working on in the correct place without org $8000, however this messes up the code allocation and forces me to calculate my jmps and jsrs by hand. Also, I need to pad nop's.. a lot of them. <br /><br />What I would have wanted is something like this:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">; Imaginary assembler code<br /><br />org $f300<br />(do stuff)<br /><br />switch upper bank and tell my assembler to now &quot;work&quot; in bank #1/2/3<br />org $8000<br />(continue with the routine here)</div><br /><br />Any ideas?<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6478">mikaelmoizt</a> — Fri Nov 07, 2014 10:04 am</p><hr />
+]]></content>
+</entry>
+</feed>

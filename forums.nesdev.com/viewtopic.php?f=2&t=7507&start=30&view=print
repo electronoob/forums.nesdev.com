@@ -1,0 +1,404 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Is there anything that could alter an MMC1 reg3 write?</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Is there anything that could alter an MMC1 reg3 write?</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=7507">http://forums.nesdev.com/viewtopic.php?f=2&amp;t=7507</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>3</strong> of <strong>3</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>MottZilla</b> [ Wed Feb 23, 2011 9:45 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tepples wrote:</div><div class="quotecontent">CHR ROM on SFROM/SJROM/SKROM/SLROM needs to be swapped 4 KiB at a time, which in my mind defeats the advantage of CHR ROM over CHR RAM. With CHR ROM on MMC1, you have to repeat the hero's sprite cels in each set of enemy sprite cels.</div>
+<br />
+<br />One use is in Ninja Gaiden the background is swapped between the status bar and the playfield so that you have more graphical tiles available for the backgrounds. With CHR-RAM you cannot do this. Though I suppose if you made your own MMC1 with 32kb of CHR-RAM then there would be no point in CHR-ROM over it with its large CHR chunk size.
+<br />
+<br />But that just reinforces the point that it would be nice for homebrew to have a mapper that is smoother and more capable. You can always re-purpose a MMC3 but if you plan to produce your game on any scale you'll be stuck using donors rather than being able to have new parts. Although I think I mentioned before I would assume if you published your game through RetroZone that MMC3 wouldn't be an issue.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>bigjt_2</b> [ Wed Feb 23, 2011 9:49 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Is there anything that could alter an MMC1 reg3 write?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tokumaru wrote:</div><div class="quotecontent">One could argue that dealing with this problem is a part of the learning process...</div> <br />Yep!<br /><div class="quotetitle">tokumaru wrote:</div><div class="quotecontent">... but there are cases when fixing this is very frustrating because it requires great changes in the game's architecture.</div>
+<br />And yep again.
+<br />
+<br />Fixed it!  I was reluctant to disable my NMI because I'm doing sprite 0 hit for my status bar.  So whenever I disable my NMI interrupt during gameplay, everything goes to hell.  
+<br />
+<br />Let me describe real quick what I did.  A lot of this will be real basic to a lot of you, but just in case it might help some other people with a similar issue in the future.
+<br />
+<br />I took advantage of a variable already in my NMI handler.  This variable (called sleeping) gets set to 0 at the end of the NMI handler just before the registers are restored.  In the gameloop, it doesn't proceed past the continuous loop into the rest of the engine unless this "sleeping" is 0 (meaning NMI has fired).  This particular process I learned from Metalslime, but of course it's a variant of what a lot of you do in your gameloops.
+<br />
+<br />I basically applied the same thing to the PRG bank switching subroutine.  At the end of the sub, it now checks if the variable is 0.  If not, it branches to RTS.  If it is, then it resets the MMC1 latch by writing $80 to $8000 (just to be safe) and then jumps back to the beginning of the sub to re-write to REG3.  Also, I've now added a couple of lines pushing my current PRG bank # to the stack (where the registers get pushed) at the beginning on NMI and pulling at the end.  Yeah, I think this describes all of what I did.
+<br />
+<br />Regardless, I set a breakpoint on the new part of bankswitching sub and it's working exactly like I needed it to.  Also tested it on the NES and there wasn't any noticeable slowdown.  Then again, I should hope not, as it's only dropping one of 60 frames about 3% of the time.  (This bug frame overflow was really random, another thing that made it so damn hard to find.)  
+<br />
+<br />It's still going to be my policy to keep things within the frame as much as possible, but it's nice to have this safegaurd here in case that doesn't happen.
+<br />
+<br />Thanks for the help folks!
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>frantik</b> [ Wed Feb 23, 2011 10:01 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Is there anything that could alter an MMC1 reg3 write?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">bigjt_2 wrote:</div><div class="quotecontent">I took advantage of a variable already in my NMI handler. ...  At the end of the sub, it now checks if the variable is 0.  If not, it branches to RTS.  If it is, then it resets the MMC1 latch by writing $80 to $8000 (just to be safe) and then jumps back to the beginning of the sub</div>
+<br />
+<br />heh, that's exactly what i suggested  like 30 minutes ago <img src="./images/smilies/icon_biggrin.gif" alt=":D" title="Very Happy" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Wed Feb 23, 2011 10:06 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">MottZilla wrote:</div><div class="quotecontent"><div class="quotetitle">tepples wrote:</div><div class="quotecontent">CHR ROM on SFROM/SJROM/SKROM/SLROM needs to be swapped 4 KiB at a time, which in my mind defeats the advantage of CHR ROM over CHR RAM.</div><br />One use is in Ninja Gaiden the background is swapped between the status bar and the playfield so that you have more graphical tiles available for the backgrounds. With CHR-RAM you cannot do this.</div>
+<br />I understand what you mean. I've never played Ninja Gaiden, but from screenshots, its status bar could also use a lot of slimming down: "SCORE STAGE TIMER NINJA ENEMY" Does it use one set of enemies for all levels? Or how many times does it repeat Ryu's sprite cels?
+<br />
+<br />If I use only three-fourths of the sprite half of the pattern table (and I can prove that with double buffering this can be feasible), that frees up 64 tiles out of which to build a status bar.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>bigjt_2</b> [ Wed Feb 23, 2011 10:12 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Is there anything that could alter an MMC1 reg3 write?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">frantik wrote:</div><div class="quotecontent">heh, that's exactly what i suggested  like 30 minutes ago <img src="./images/smilies/icon_biggrin.gif" alt=":D" title="Very Happy" /></div>
+<br />
+<br />Yes, the only difference was I really didn't need to add something, per se, as there was already something there to use (the sleeping variable).  Nonetheless it was a helpful suggestion, along with the others.  Danke!
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Wed Feb 23, 2011 10:29 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">MottZilla wrote:</div><div class="quotecontent">One use is in Ninja Gaiden the background is swapped between the status bar and the playfield so that you have more graphical tiles available for the backgrounds.</div><br />Touché! This is indeed an advantage of CHR-ROM over CHR-RAM, even if the mapper can only switch large chunks of tiles.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">But that just reinforces the point that it would be nice for homebrew to have a mapper that is smoother and more capable.</div><br />I would really like that, one without the oversights present in the Nintendo mappers, but just like with iNES replacements, talks about a homebrew mapper come and go every once in a while but nothing ever changes.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Although I think I mentioned before I would assume if you published your game through RetroZone that MMC3 wouldn't be an issue.</div>
+<br />I don't know, they can't seem to get the MMC3 right on the PowerPak... Unless something changed since the last time I checked.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>frantik</b> [ Thu Feb 24, 2011 3:25 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Is there anything that could alter an MMC1 reg3 write?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">bigjt_2 wrote:</div><div class="quotecontent"><div class="quotetitle">frantik wrote:</div><div class="quotecontent">heh, that's exactly what i suggested  like 30 minutes ago <img src="./images/smilies/icon_biggrin.gif" alt=":D" title="Very Happy" /></div><br /><br />Yes, the only difference was I really didn't need to add something, per se, as there was already something there to use (the sleeping variable).  Nonetheless it was a helpful suggestion, along with the others.  Danke!</div>
+<br />
+<br />well if it helped at all thats cool <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Thu Feb 24, 2011 5:29 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Oh I'm sorry to have stated my solution will solve all problems, because whoever corrected me is right, it's a bad idea to say that !
+<br />
+<br />In this case it happened to solve the problem, but he's right that it might have been something else as well.
+<br />
+<br />Maybe a wiki article about MMC1 writing techniques should be made ? I should include :
+<br />1) The normal way to do it (disable interrupts)
+<br />2) The tricky workarround (if you rely on tight NMI timing or if you sync with NMIs like Battletoads)
+<br />3) Some other workarround that works with 32kb or high 16kb PRGROM switching
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>MottZilla</b> [ Thu Feb 24, 2011 4:30 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tepples wrote:</div><div class="quotecontent"><div class="quotetitle">MottZilla wrote:</div><div class="quotecontent"><div class="quotetitle">tepples wrote:</div><div class="quotecontent">CHR ROM on SFROM/SJROM/SKROM/SLROM needs to be swapped 4 KiB at a time, which in my mind defeats the advantage of CHR ROM over CHR RAM.</div><br />One use is in Ninja Gaiden the background is swapped between the status bar and the playfield so that you have more graphical tiles available for the backgrounds. With CHR-RAM you cannot do this.</div><br />I understand what you mean. I've never played Ninja Gaiden, but from screenshots, its status bar could also use a lot of slimming down: "SCORE STAGE TIMER NINJA ENEMY" Does it use one set of enemies for all levels? Or how many times does it repeat Ryu's sprite cels?<br /><br />If I use only three-fourths of the sprite half of the pattern table (and I can prove that with double buffering this can be feasible), that frees up 64 tiles out of which to build a status bar.</div>
+<br />
+<br />As the game is, no you can't free up any space. It is all used. There are no significant free BG or Sprite tiles in banks. Another issue is the game also needs CHR-ROM for bankswitching between Cinema Scene graphics and the font. Though I suppose it might be possible to use the other 4K of pattern tables and switch between them although now we are just talking about it being possible to perhaps achieve something similar, but the point is that NG does need CHR-ROM as it was built. If it did not, it would have used CHR-RAM as CHR-ROM repeats Ryu's sprites since the enemy graphics change depending on the level or boss.
+<br />
+<br />Another issue is the cinema scenes would require substantial pauses to load graphics between each picture where as with CHR-ROM it is instant.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Thu Feb 24, 2011 5:30 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">MottZilla wrote:</div><div class="quotecontent">As the game is, no you can't free up any space.</div><br />I don't think anyone is considering converting the actual game to CHR-RAM, tepples was probably just thinking of ways to hypothetically "remake" the game with CHR-RAM instead of CHR-ROM, as an exercise.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">It is all used.</div><br />If I understand correctly, his idea was to dynamically load a single frame of animation worth of player tiles to a small section of VRAM as demanded by the game engine, so that there was no need keep all of them mapped at all times. This would free up a great deal of tiles, maybe enough for the status bar tiles.<br /><br />I seem to remember that there was an item or something that created a ghost of the player, and in this case each copy would need to display different animation frames. This kinda gets in the way of freeing up those tiles.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Another issue is the cinema scenes would require substantial pauses to load graphics between each picture where as with CHR-ROM it is instant.</div>
+<br />I don't think a couple of black frames would make such a difference (apparently the screen already flashes black between some scenes).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>thefox</b> [ Fri Feb 25, 2011 12:18 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Bregalad wrote:</div><div class="quotecontent">Maybe a wiki article about MMC1 writing techniques should be made ? I should include :<br />1) The normal way to do it (disable interrupts)<br />2) The tricky workarround (if you rely on tight NMI timing or if you sync with NMIs like Battletoads)<br />3) Some other workarround that works with 32kb or high 16kb PRGROM switching</div><br />Article about this and interrupt awareness in general would be good. There are other problematic things like updating music pointers (i.e. calling music init routines) from the "main thread" that can cause troubles if the programmer isn't careful.<br /><br /><div class="quotetitle">MottZilla wrote:</div><div class="quotecontent">but the point is that NG does need CHR-ROM as it was built. If it did not, it would have used CHR-RAM as CHR-ROM repeats Ryu's sprites since the enemy graphics change depending on the level or boss.<br /><br />Another issue is the cinema scenes would require substantial pauses to load graphics between each picture where as with CHR-ROM it is instant.</div>
+<br />If I had to choose a config for a new game, I would go with bankswitchable CHR-RAM. Maybe like 32K.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>MottZilla</b> [ Thu Mar 03, 2011 12:26 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tokumaru wrote:</div><div class="quotecontent">I don't think anyone is considering converting the actual game to CHR-RAM, tepples was probably just thinking of ways to hypothetically "remake" the game with CHR-RAM instead of CHR-ROM, as an exercise.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">It is all used.</div><br />If I understand correctly, his idea was to dynamically load a single frame of animation worth of player tiles to a small section of VRAM as demanded by the game engine, so that there was no need keep all of them mapped at all times. This would free up a great deal of tiles, maybe enough for the status bar tiles.<br /><br />I seem to remember that there was an item or something that created a ghost of the player, and in this case each copy would need to display different animation frames. This kinda gets in the way of freeing up those tiles.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Another issue is the cinema scenes would require substantial pauses to load graphics between each picture where as with CHR-ROM it is instant.</div><br />I don't think a couple of black frames would make such a difference (apparently the screen already flashes black between some scenes).</div>
+<br />
+<br />Actually given my extensive workings with Ninja Gaiden, tonight for fun I converted it to UNROM. I cut out the Cinema Scenes but the rest of the game is there and works. It fits into 128K (though without much to spare) even though it was 256KB before. The Cinema stuff takes up about half of the CHR and probably half of the used PRG.
+<br />
+<br />There is no room in BG graphics for a status bar. For sprites, I wouldn't really know how to go about trying to dynamically load the current animation frame. There are no clones (Phantom Doubles is their actual name) in NG1, only NG2. So the idea does work assuming you actually have enough time to transfer all the tiles needed each frame.
+<br />
+<br />An idea that might also work for a slimmed down Status bar would be to redraw the Item Pickup boxes to reuse and reduce the total tiles used to try to have enough for a status bar. Something like 20 - 24 or maybe more tiles are used by items the player can pickup. So if you cut these down you could probably get to still display the life bars, Score, Chi (special weapon ammo), current level, and time.
+<br />
+<br />Not planning on releasing anything about it on UNROM since the ROM is far too different for any IPS patches or anything like that to not contain huge amounts of copyrighted material. But it could have been done though for the Cinema's I think UOROM would have been needed for the capacity. But I guess that just again proves you don't need a fancy mapper to make a good game.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>3</strong> of <strong>3</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

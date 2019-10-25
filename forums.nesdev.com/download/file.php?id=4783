@@ -1,0 +1,1262 @@
+  ;.inesmap 5   ; mapper 5 = MMC3
+  ;.inesprg 8   ; # of 8KB PRG banks 64KB
+  ;.ineschr 64  ; # of 4KB CHR banks 256KB
+  ;.inesmir 1   ; background mirroring
+  
+  .byte $4E,$45,$53,$1A,$08,$40,$51,$00,$00,$00,$00,$00,$00,$00,$00,$00
+
+  .bank 15
+  .org $FFFA
+  .dw NMI
+  .dw RESET
+  .dw 0
+
+screen = $00
+scroll = $01
+lastscroll = $02
+block = $03
+blocktemp = $04
+gamestate = $05
+pressguard = $06
+drawfieldflag = $07
+PPUCTRL = $08
+nmidetect = $09
+skies = $0A
+winddirection = $0B
+windspeed = $0C
+team = $0D
+extra = $0E
+attribtowrite = $0F
+run = $12
+menustateA = $13
+menustateB = $14
+menunumber = $15
+color = $16
+drawarrowflag = $17
+drawspeedflag = $18
+exRAM0 = $20
+exRAM1 = $21
+bufferflag = $30
+counterA = $31
+counterB = $32
+address0 = $33
+address1 = $34
+strip0 = $40
+strip1 = $41
+controller = $FF
+  
+  .org $E000
+
+RESET
+  lda #$03
+  sta $5101   ; CHR mode 8 separate 1K banks
+  lda #$01
+  sta $5104   ; extended RAM mode 1
+  lda #$F4
+  sta $5105   ; nametable mapping
+  lda #$00
+  sta $5124   ; bank 00 mapped to PPU $1000-$13FF
+  lda #$01
+  sta $5125   ; bank 01 mapped to PPU $1400-$17FF
+  lda #$02
+  sta $5126   ; bank 02 mapped to PPU $1800-$1BFF
+  lda #$03
+  sta $5127   ; bank 03 mapped to PPU $1C00-$1FFF
+  lda #$01
+  sta $5203   ; IRQ counter
+  sei         ; disable IRQs
+  cld         ; disable decimal mode
+  ldx #$40
+  stx $4017   ; disable APU frame IRQ
+  ldx #$FF
+  txs         ; Set up stack
+  inx
+  stx $2000   ; disable NMI
+  stx $2001   ; disable rendering
+  stx $4010   ; disable DMC IRQs
+
+ClearMemory
+  lda #$00
+  sta $0000,X
+  sta $0100,X
+  sta $0300,X
+  sta $0400,X
+  sta $0500,X
+  sta $0600,X
+  sta $0700,X
+  lda #$FF
+  sta $0200,X
+  inx
+  bne ClearMemory
+
+  lda #$01
+  sta screen
+  lda #$80
+  sta scroll
+  lda #$00
+  sta skies
+  lda #$0B
+  sta winddirection
+  lda #$06
+  sta windspeed
+  lda #$19
+  sta team
+  lda #$06
+  sta extra
+  lda #$00
+  sta menustateA
+  lda #$00
+  sta menustateB
+  
+  bit $2002
+VBlankWait0
+  bit $2002
+  bpl VBlankWait0
+VBlankWait1
+  bit $2002
+  bpl VBlankWait1
+  
+  lda #%10010000
+  sta PPUCTRL
+  
+  jsr PPUon
+  jsr DrawField
+
+Main
+  jsr UpdatePPU
+  jsr ReadController
+  jsr Rendering
+  jmp Main
+  
+NMI
+  inc nmidetect
+  rti
+  
+NMIwait
+  lda nmidetect
+NMIloop
+  cmp nmidetect
+  beq NMIloop
+  rts
+  
+UpdatePPU
+  jsr NMIwait
+  lda #$00
+  sta $2003
+  lda #$02
+  sta $4014
+  lda bufferflag
+  beq @SkipBuffer
+  dec bufferflag
+  lda $0300
+  sta blocktemp
+  jsr BlocktempToPPUAddress
+  ldy #$00
+@Loop
+  lda $0301,Y
+  sta $2007
+  iny
+  cpy #$19
+  bne @Loop
+@SkipBuffer
+  lda drawfieldflag
+  beq @SkipDrawField
+  dec drawfieldflag
+  jsr DrawField
+@SkipDrawField
+  lda gamestate
+  bne .PPUMenu
+  lda screen
+  clc
+  and #$01
+  adc #%10010100
+  sta $2000
+  lda scroll
+  sta $2005
+  lda #$00
+  sta $2005
+  rts
+@PPUMenu
+  lda drawarrowflag
+  beq @Skip0
+  dec drawarrowflag
+  jsr DrawArrow
+@Skip0
+  lda drawspeedflag
+  beq @Skip1
+  dec drawspeedflag
+  jsr DrawSpeed
+@Skip1
+  lda #$00
+  sta $2005
+  sta $2005
+  rts
+  
+RenderWait
+  bit $5204
+  bvc RenderWait
+  rts
+  
+Rendering
+  jsr RenderWait
+  lda bufferflag
+  beq @Skip0
+  lda $0300
+  sta blocktemp
+  jsr BlocktempToExRAM
+  jsr ExRAMColumnWrite
+@Skip0
+  lda gamestate
+  beq @Exit
+  lda nmidetect
+  and #%00000100
+  asl A
+  asl A
+  asl A
+  asl A
+  sta color
+  lda menunumber
+  jsr MenuAttributes
+@Exit
+  rts
+
+BlocktempToExRAM
+  lda blocktemp
+  and #$1F
+  clc
+  adc #$80
+  sta exRAM0
+  lda #$5C
+  sta exRAM1
+  rts
+  
+BlocktempToPPUAddress
+  lda $2002
+  lda blocktemp
+  and #%00100000
+  lsr A
+  lsr A
+  lsr A
+  clc
+  adc #$20
+  sta $2006
+  lda blocktemp
+  and #%00011111
+  clc
+  adc #$80
+  sta $2006
+  rts
+
+BlocktempToStripAddress
+  ldx blocktemp
+  lda Field,X
+  tay
+  lda Strip0,Y
+  sta strip0
+  lda Strip1,Y
+  sta strip1
+  rts
+  
+ExRAMColumnWrite
+  ldx blocktemp
+  lda Field,X
+  tay
+  lda Strip1,Y
+  sta address1
+  lda Strip0,Y
+  clc
+  adc #$19
+  sta address0
+  lda address1
+  adc #$00
+  sta address1
+  ldy #$00
+  sty run
+NextRun
+  ldy run
+  lda (address0),Y
+  and #$1F
+  sta counterB
+  lda (address0),Y
+  and #$C0
+  sta attribtowrite
+  ldy #$00
+@RowLoop
+  lda attribtowrite
+  sta (exRAM0),Y
+  lda exRAM0
+  clc
+  adc #$20
+  sta exRAM0
+  lda exRAM1
+  adc #$00
+  sta exRAM1
+  dec counterB
+  bne @RowLoop
+  ldy run
+  inc run
+  lda (address0),Y
+  and #$20
+  bne NextRun
+  rts
+  
+OneColumnToBuffer
+  inc bufferflag
+  jsr BlocktempToStripAddress
+  ldy #$00
+@Loop
+  lda (strip0),Y
+  sta $0301,Y
+  iny
+  cpy #$19
+  bne @Loop
+  rts
+  
+StateToMenuNumber
+  ldx menustateA
+  lda MenuBoost,X
+  clc
+  adc menustateB
+  sta menunumber
+  rts
+
+LatchController
+  lda #$01
+  sta $4016
+  lda #$00
+  sta $4016
+  ldx #$08
+@ReadControllerLoop
+  lda $4016
+  lsr A
+  rol controller
+  dex
+  bne @ReadControllerLoop
+  rts
+
+ReadController
+  jsr LatchController
+@Reread
+  lda controller
+  pha
+  jsr LatchController
+  pla
+  cmp controller
+  bne @Reread
+  lda controller
+  bne @Skip0
+  lda #$00
+  sta pressguard
+@Skip0
+  lda gamestate
+  bne @Skip1
+  jsr ControllerField
+  rts
+@Skip1
+  lda menustateA
+  bne @Skip2
+  jsr ControllerMain
+  rts
+@Skip2
+  cmp #$01
+  bne @Skip3
+  jsr ControllerSkies
+  rts
+@Skip3
+  cmp #$02
+  bne @Skip4
+  jsr ControllerWind
+  rts
+@Skip4
+  cmp #$03
+  bne @Skip5
+  jsr ControllerTeam
+  rts
+@Skip5
+  cmp #$04
+  bne @Skip6
+  jsr ControllerExtra
+@Skip6
+  rts
+  
+ControllerField  
+  lda scroll
+  and #%11111000
+  sta lastscroll
+  lda controller
+  cmp #$01
+  bne @ReadL
+  lda screen
+  cmp #$03
+  bne @ReadR
+  rts
+@ReadR
+  inc scroll
+  inc scroll
+  inc scroll
+  inc scroll
+  bne @Skip0
+  inc screen
+@Skip0
+  lda scroll
+  and #%11111000
+  cmp lastscroll
+  bne @Skip1
+  rts
+@Skip1
+  inc block
+  lda block
+  clc
+  adc #$20
+  sta $0300
+  sta blocktemp
+  jsr OneColumnToBuffer
+  rts
+@ReadL
+  cmp #$02
+  bne @ReadStart
+  lda scroll
+  bne @LeftScrollAllowed
+  lda screen
+  bne @LeftScrollAllowed
+  rts
+@LeftScrollAllowed
+  lda scroll
+  bne @Skip2
+  dec screen
+@Skip2
+  dec scroll
+  dec scroll
+  dec scroll
+  dec scroll
+  lda scroll
+  and #%11111000
+  cmp lastscroll
+  beq ReadEnd
+  dec block
+  lda block
+  sta $0300
+  sta blocktemp
+  jsr OneColumnToBuffer
+  rts
+@ReadStart
+  cmp #$10
+  bne ReadEnd
+  lda pressguard
+  bne ReadEnd
+  inc gamestate
+  inc pressguard
+  jsr DrawMenu
+ReadEnd ; .ReadEnd doesn't work for some reason
+  rts
+  
+ControllerMain
+  lda pressguard
+  bne @ReadEnd
+  lda controller
+  cmp #$04
+  bne @ReadUp
+  jsr CurrentWhite
+  inc menustateB
+  lda menustateB
+  and #%00000011
+  sta menustateB
+  jsr StateToMenuNumber
+  rts
+@ReadUp
+  cmp #$08
+  bne @ReadStart
+  jsr CurrentWhite
+  dec menustateB
+  lda menustateB
+  and #%00000011
+  sta menustateB
+  jsr StateToMenuNumber
+  rts
+@ReadStart
+  cmp #$10
+  bne @ReadA
+  jsr MenuToField
+  rts
+@ReadA
+  cmp #$80
+  bne @ReadEnd
+  inc pressguard
+  jsr CurrentWhite
+  lda menustateB
+  sta menustateA
+  inc menustateA
+  lda menustateA
+  cmp #$01
+  bne @Skip0
+  lda skies
+  jmp @SkipAll
+@Skip0
+  cmp #$02
+  bne @Skip1
+  lda #$00
+  jmp @SkipAll
+@Skip1
+  cmp #$03
+  bne @Skip2
+  lda team
+  jmp @SkipAll
+@Skip2
+  cmp #$04
+  lda extra
+@SkipAll
+  sta menustateB
+  jsr StateToMenuNumber
+@ReadEnd
+  rts
+  
+ControllerSkies
+  lda pressguard
+  bne @ReadEnd
+  lda controller
+  cmp #$01
+  bne @ReadLeft
+  jsr CurrentWhite
+  inc menustateB
+  lda menustateB
+  cmp #$03
+  bne @Skip0
+  lda #$00
+  sta menustateB
+@Skip0
+  sta skies
+  jsr StateToMenuNumber
+  rts
+@ReadLeft
+  cmp #$02
+  bne @ReadStart
+  jsr CurrentWhite
+  dec menustateB
+  lda menustateB
+  cmp #$FF
+  bne @Skip1
+  lda #$02
+  sta menustateB
+@Skip1
+  sta skies
+  jsr StateToMenuNumber
+  rts
+@ReadStart
+  cmp #$10
+  bne @ReadA
+  jsr MenuToField
+  rts
+@ReadA
+  cmp #$80
+  bne @ReadEnd
+  jsr CurrentYellow
+  lda menustateA
+  sta menustateB
+  dec menustateB
+  lda #$00
+  sta menustateA
+  jsr StateToMenuNumber
+@ReadEnd
+  rts
+
+ControllerWind:
+  lda pressguard
+  beq @SkipExit
+  rts
+@SkipExit
+  lda controller
+  cmp #$01
+  bne @ReadLeft
+@LeftRight
+  jsr CurrentYellow
+  lda menustateB
+  eor #%00000001
+  sta menustateB
+  jsr StateToMenuNumber 
+  rts
+@ReadLeft
+  cmp #$02
+  beq @LeftRight
+  cmp #$04
+  bne @ReadUp
+  lda menustateB
+  bne @SpeedDown
+  dec winddirection
+  inc drawarrowflag
+  rts
+@SpeedDown
+  dec windspeed
+  lda windspeed
+  and #%00001111
+  cmp #$0F
+  bne @SkipA
+  lda windspeed
+  SEC
+  sbc #$06
+  sta windspeed
+  cmp #$F9
+  bne @SkipA
+  lda #$39
+  sta windspeed
+@SkipA
+  inc drawspeedflag
+  rts
+@ReadUp
+  cmp #$08
+  bne @ReadStart
+  lda menustateB
+  bne @SpeedUp
+  inc winddirection
+  inc drawarrowflag
+  rts
+@SpeedUp
+  inc windspeed
+  lda windspeed
+  and #%00001111
+  cmp #$0A
+  bne @SkipB
+  lda windspeed
+  clc
+  adc #$06
+  sta windspeed
+  cmp #$40
+  bne @SkipB
+  lda #$00
+  sta windspeed
+@SkipB
+  inc drawspeedflag
+  rts
+@ReadStart
+  cmp #$10
+  bne @ReadA
+  jsr MenuToField
+  rts
+@ReadA
+  cmp #$80
+  bne @ReadEnd
+  jsr CurrentYellow
+  lda menustateA
+  sta menustateB
+  dec menustateB
+  lda #$00
+  sta menustateA
+  jsr StateToMenuNumber
+@ReadEnd
+  rts
+
+ControllerTeam
+  lda pressguard
+  beq @Begin
+  rts
+@Begin
+  lda controller
+  cmp #$01
+  bne @ReadLeft
+  jsr CurrentWhite
+  inc menustateB
+  lda menustateB
+  and #%00000011
+  bne @Skip0
+  lda menustateB
+  SEC
+  sbc #$04
+  sta menustateB
+@Skip0
+  lda menustateB
+  sta team
+  jsr StateToMenuNumber
+  rts
+@ReadLeft
+  cmp #$02
+  bne @ReadDown
+  jsr CurrentWhite
+  dec menustateB
+  lda menustateB
+  and #%00000011
+  cmp #$03
+  bne @Skip1
+  lda menustateB
+  clc
+  adc #$04
+  sta menustateB
+@Skip1
+  lda menustateB
+  sta team
+  jsr StateToMenuNumber
+  rts
+@ReadDown
+  cmp #$04
+  bne @ReadUp
+  jsr CurrentWhite
+  inc menustateB
+  inc menustateB
+  inc menustateB
+  inc menustateB
+  lda menustateB
+  cmp #$20
+  bmi @Skip2
+  and #%00000011
+  sta menustateB
+@Skip2
+  lda menustateB
+  sta team
+  jsr StateToMenuNumber
+  rts
+@ReadUp
+  cmp #$08
+  bne @ReadStart
+  jsr CurrentWhite
+  dec menustateB
+  dec menustateB
+  dec menustateB
+  dec menustateB
+  lda menustateB
+  bpl @Skip3
+  clc
+  adc #$20
+  sta menustateB
+@Skip3
+  lda menustateB
+  sta team
+  jsr StateToMenuNumber
+  rts
+@ReadStart
+  cmp #$10
+  bne @ReadA
+  jsr MenuToField
+  rts
+@ReadA
+  cmp #$80
+  bne @ReadEnd
+  jsr CurrentYellow
+  lda menustateA
+  sta menustateB
+  dec menustateB
+  lda #$00
+  sta menustateA
+  jsr StateToMenuNumber
+@ReadEnd
+  rts
+  
+ControllerExtra
+  lda pressguard
+  bne @ReadEnd
+  lda controller
+  cmp #$04
+  bne @ReadUp
+  jsr CurrentWhite
+  inc menustateB
+  lda menustateB
+  cmp #$0A
+  bne @Skip0
+  lda #$00
+  sta menustateB
+@Skip0
+  sta extra
+  jsr StateToMenuNumber
+  rts
+@ReadUp
+  cmp #$08
+  bne @ReadStart
+  jsr CurrentWhite
+  dec menustateB
+  lda menustateB
+  cmp #$FF
+  bne @Skip1
+  lda #$09
+  sta menustateB
+@Skip1
+  sta extra
+  jsr StateToMenuNumber
+  rts
+@ReadStart
+  cmp #$10
+  bne @ReadA
+  jsr MenuToField
+  rts
+@ReadA
+  cmp #$80
+  bne @ReadEnd
+  jsr CurrentYellow
+  lda menustateA
+  sta menustateB
+  dec menustateB
+  lda #$00
+  sta menustateA
+  jsr StateToMenuNumber
+@ReadEnd
+  rts
+  
+CurrentWhite
+  lda #$00
+  sta color
+  inc pressguard  
+  jsr RenderWait
+  jsr StateToMenuNumber
+  jsr MenuAttributes
+  rts
+  
+CurrentYellow
+  lda #$40
+  sta color
+  inc pressguard  
+  jsr RenderWait
+  jsr StateToMenuNumber
+  jsr MenuAttributes
+  rts
+  
+MenuToField
+  dec gamestate
+  lda #$01
+  sta pressguard
+  inc drawfieldflag
+  rts
+  
+PPUoff
+  lda #$00
+  sta $2001
+  rts
+  
+PPUon
+  lda #%00011110
+  sta $2001
+  rts
+  
+PPUacross
+  lda PPUCTRL
+  and #%11111011
+  sta PPUCTRL
+  sta $2000
+  rts
+  
+PPUdown
+  lda PPUCTRL
+  ora #%00000100
+  sta PPUCTRL
+  sta $2000
+  rts
+  
+DrawArrow
+  inc pressguard
+  lda $2002
+  lda #$20
+  sta $2006
+  lda #$AA
+  sta $2006
+  lda winddirection
+  and #%00001111
+  sta winddirection
+  clc
+  adc #$B0
+  sta $2007
+  jsr RenderWait
+  rts
+  
+DrawSpeed
+  inc pressguard
+  lda $2002
+  lda #$20
+  sta $2006
+  lda #$AB
+  sta $2006
+  lda windspeed
+  and #%11110000
+  lsr A
+  lsr A
+  lsr A
+  lsr A
+  clc
+  adc #$80
+  sta $2007
+  lda windspeed
+  and #%00001111  
+  clc
+  adc #$80
+  sta $2007
+  jsr RenderWait
+  rts
+  
+DrawField
+  jsr PPUacross
+  lda $2002
+  lda #$3F
+  sta $2006
+  lda #$00
+  sta $2006
+  ldx #$00
+@PalettesLoop
+  lda Palette,X
+  sta $2007
+  inx
+  cpx #$20            
+  bne @PalettesLoop
+  
+  jsr NMIwait
+  jsr PPUoff
+  lda $2002
+  lda #$20
+  sta $2006
+  lda #$00
+  sta $2006
+  ldx #$20
+  ldy #$04
+@BlackLoop
+  lda #$01
+  sta $2007
+  dex
+  bne @BlackLoop
+  ;jsr NMIwait
+  ldx #$20
+  dey
+  bne @BlackLoop
+  
+  jsr PPUdown
+  
+  lda screen
+  asl A
+  asl A
+  asl A
+  asl A
+  asl A
+  sta block
+  lda scroll
+  lsr A
+  lsr A
+  lsr A
+  clc
+  adc block
+  sta block
+  sta blocktemp
+  lda #$21
+  sta counterA
+ColumnLoopTiles
+  jsr BlocktempToStripAddress
+  ;jsr NMIwait
+  jsr BlocktempToPPUAddress
+  ldy #$00
+@RowLoop
+  lda (strip0),Y
+  sta $2007
+  iny
+  cpy #$19
+  bne @RowLoop
+  inc blocktemp
+  dec counterA
+  bne ColumnLoopTiles
+  jsr RenderWait
+  lda block
+  sta blocktemp
+  lda #$20
+  sta counterA
+ColumnLoopAttributes
+  jsr BlocktempToExRAM
+  jsr ExRAMColumnWrite
+  inc blocktemp
+  dec counterA
+  bne ColumnLoopAttributes
+  jsr NMIwait
+  jsr PPUon
+  rts
+  
+DrawMenu
+  jsr PPUacross
+  jsr PPUoff
+  lda $2002
+  lda #$20
+  sta $2006
+  lda #$00
+  sta $2006
+  tax
+  ldy #$04
+@BlankLoop
+  sta $2007
+  dex
+  bne @BlankLoop
+  dey
+  bne @BlankLoop
+  lda #$00
+  sta address0
+  lda #$F8
+  sta address1
+  ldy #$00
+@DataLoop0
+  lda $2002
+  lda (address0),Y
+  sta $2006
+  jsr DataLoopNext
+  sta $2006
+  jsr DataLoopNext
+  tax
+@DataLoop1
+  jsr DataLoopNext
+  sta $2007
+  dex
+  bne @DataLoop1
+  jsr DataLoopNext
+  cmp #$FF
+  bne @DataLoop0
+  lda $2002
+  lda #$20
+  sta $2006
+  lda #$AA
+  sta $2006
+  lda winddirection
+  clc
+  adc #$B0
+  sta $2007
+  lda windspeed
+  and #%11110000
+  ror A
+  ror A
+  ror A
+  ror A
+  adc #$80
+  sta $2007
+  lda windspeed
+  and #%00001111
+  adc #$80
+  sta $2007
+  jsr RenderWait
+  lda #$00
+  tax
+@ExRAMloop
+  sta $5C00,X
+  sta $5D00,X
+  sta $5E00,X
+  sta $5F00,X
+  dex
+  bne @ExRAMloop
+  lda #$40
+  sta color
+  sta $5CAA
+  sta $5CAB
+  sta $5CAC
+  lda skies
+  clc
+  adc #$04
+  jsr MenuAttributes
+  lda team
+  clc
+  adc #$09
+  jsr MenuAttributes
+  lda extra
+  clc
+  adc #$29
+  jsr MenuAttributes
+  
+  jsr PPUon
+  rts
+  
+DataLoopNext
+  inc address0
+  bne @Skip
+  inc address1
+@Skip
+  lda (address0),Y
+  rts
+
+MenuAttributes
+  asl A
+  tax
+  lda MenuLocAndLength,X
+  and #%11000000
+  clc
+  rol A
+  rol A
+  rol A
+  adc #$5C
+  sta address1
+  lda MenuLocAndLength,X
+  and #%00011111
+  sta counterA
+  inx
+  lda MenuLocAndLength,X
+  sta address0
+  lda color
+  ldy #$00
+@WriteLoop
+  sta (address0),Y
+  iny
+  cpy counterA
+  bne @WriteLoop
+  rts
+  
+  .bank 15
+  .org $F800
+  
+  .db $3F,$10,$01, $0C   ; menu data
+  .db $3F,$07,$01, $28
+  .db $20,$63,$15, $A2,$9A,$98,$94,$A2,$8A,$00,$95,$90,$98,$A1,$00,$A1,$90,$98,$9D,$00,$A2,$9D,$9E,$A6
+  .db $20,$A4,$05, $A6,$98,$9D,$93,$8A
+  .db $20,$E4,$15, $A3,$94,$90,$9C,$8A,$00,$91,$A4,$95,$00,$91,$90,$9B,$00,$97,$9E,$A4,$00,$93,$94,$9D
+  .db $21,$0A,$0E, $9C,$98,$90,$00,$92,$98,$9D,$00,$98,$9D,$93,$00,$9A,$92
+  .db $21,$2A,$0F, $9D,$94,$00,$00,$92,$9B,$94,$00,$99,$90,$A7,$00,$9E,$90,$9A
+  .db $21,$4A,$0E, $9D,$A8,$99,$00,$9F,$98,$A3,$00,$A3,$94,$9D,$00,$A2,$93
+  .db $21,$8A,$0F, $93,$90,$9B,$00,$92,$97,$98,$00,$90,$A3,$9B,$00,$90,$A1,$98
+  .db $21,$AA,$0F, $9D,$A8,$96,$00,$93,$94,$A3,$00,$92,$90,$A1,$00,$A2,$94,$90
+  .db $21,$CA,$0E, $9F,$97,$98,$00,$96,$91,$00,$00,$9D,$9E,$00,$00,$A2,$95
+  .db $21,$EA,$0F, $A6,$90,$A2,$00,$9C,$98,$9D,$00,$A3,$91,$00,$00,$A2,$A3,$9B
+  .db $22,$23,$0B, $94,$A7,$A3,$A1,$90,$8A,$00,$9D,$9E,$9D,$94
+  .db $22,$4A,$10, $91,$90,$92,$9A,$00,$A3,$9E,$00,$95,$9E,$9E,$A3,$91,$90,$9B,$9B
+  .db $22,$6A,$0B, $9D,$95,$9B,$00,$9F,$9B,$90,$A8,$00,$86,$80
+  .db $22,$8A,$12, $91,$92,$00,$90,$A6,$90,$A1,$94,$9D,$94,$A2,$A2,$00,$9C,$9E,$9D,$A3,$97
+  .db $22,$AA,$11, $A2,$90,$9B,$A4,$A3,$94,$00,$A3,$9E,$00,$A2,$94,$A1,$A5,$98,$92,$94
+  .db $22,$CA,$0C, $A3,$97,$90,$9D,$9A,$A2,$96,$98,$A5,$98,$9D,$96
+  .db $22,$EA,$09, $A6,$98,$9B,$93,$00,$92,$90,$A1,$93
+  .db $23,$0A,$0A, $93,$98,$A5,$98,$A2,$98,$9E,$9D,$90,$9B
+  .db $23,$2A,$0C, $92,$97,$90,$9C,$9F,$98,$9E,$9D,$A2,$97,$98,$9F
+  .db $23,$4A,$0A, $A2,$A4,$9F,$94,$A1,$00,$91,$9E,$A6,$9B
+  .db $FF
+  
+MenuLocAndLength
+  .db $06,$63, $05,$A4, $05,$E4, $86,$23   ; Main
+  .db $04,$6A, $04,$6F, $04,$74            ; Skies
+  .db $01,$AA, $02,$AB                     ; Wind
+  .db $03,$EA, $03,$EE, $03,$F2, $03,$F6   ; Team
+  .db $43,$0A, $43,$0E, $43,$12, $43,$16
+  .db $43,$2A, $43,$2E, $43,$32, $43,$36
+  .db $43,$4A, $43,$4E, $43,$52, $43,$56
+  .db $43,$8A, $43,$8E, $43,$92, $43,$96
+  .db $43,$AA, $43,$AE, $43,$B2, $43,$B6
+  .db $43,$CA, $43,$CE, $43,$D2, $43,$D6
+  .db $43,$EA, $43,$EE, $43,$F2, $43,$F6
+  .db $84,$2A, $90,$4A, $8B,$6A, $92,$8A, $91,$AA   ; Extra
+  .db $8C,$CA, $89,$EA, $CA,$0A, $CC,$2A, $CA,$4A
+  
+MenuBoost
+  .db $00,$04,$07,$09,$29
+  
+Palette
+  .db $FF,$28,$0D,$30, $FF,$16,$0D,$30, $FF,$28,$01,$30, $FF,$00,$00,$30   ; Background
+  .db $1B,$00,$00,$00, $FF,$00,$00,$00, $FF,$00,$00,$00, $FF,$00,$00,$00   ; Sprites
+  
+Field
+  .db $00,$00,$09,$0A                           ; LOutside
+  .db $0B,$01,$01,$01,$01,$01,$01,$01,$01,$0C   ; LEndzone
+  .db $0D,$02,$03,$02,$04,$05,$02,$02,$0E,$0F   ; 0-10
+  .db $10,$11,$02,$02,$04,$05,$02,$02,$12,$13   ; 10-20
+  .db $14,$15,$02,$02,$04,$05,$02,$02,$16,$17   ; 20-30
+  .db $18,$19,$02,$02,$06,$07,$02,$02,$1A,$1B   ; 30-40
+  .db $1C,$1D,$02,$02,$04,$05,$02,$02,$1E,$1F   ; 40-50
+  .db $20,$21,$02,$02,$04,$05,$02,$02,$22,$23   ; 50-40
+  .db $24,$25,$08,$02,$06,$07,$02,$02,$26,$27   ; 40-30
+  .db $28,$29,$08,$02,$04,$05,$02,$02,$2A,$2B   ; 30-20
+  .db $2C,$2D,$08,$02,$04,$05,$02,$02,$2E,$2F   ; 20-10
+  .db $30,$31,$08,$02,$04,$05,$02,$02,$03,$32   ; 10-0
+  .db $33,$01,$01,$01,$01,$01,$01,$01,$01,$34   ; REndzone
+  .db $35,$36,$00,$00                           ; ROutside
+
+Strip0
+  .db $00,$1A,$34,$4E,$68,$82,$9C,$B6,$D0,$EA,$05,$1F,$39,$53,$6E,$88
+  .db $A2,$BC,$D6,$F0,$0A,$24,$3E,$58,$72,$8C,$A6,$C0,$DA,$F4,$0E,$28
+  .db $43,$5E,$78,$92,$AC,$C6,$E0,$FA,$14,$2E,$48,$62,$7C,$96,$B0,$CA
+  .db $E4,$FE,$18,$32,$4D,$67,$81
+  
+Strip1
+  .db $F0,$F0,$F0,$F0,$F0,$F0,$F0,$F0,$F0,$F0,$F1,$F1,$F1,$F1,$F1,$F1
+  .db $F1,$F1,$F1,$F1,$F2,$F2,$F2,$F2,$F2,$F2,$F2,$F2,$F2,$F2,$F3,$F3
+  .db $F3,$F3,$F3,$F3,$F3,$F3,$F3,$F3,$F4,$F4,$F4,$F4,$F4,$F4,$F4,$F4
+  .db $F4,$F4,$F5,$F5,$F5,$F5,$F5
+  
+  .bank 15
+  .org $F000
+  
+  .db $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00, $19       ; 00 BlankOutside
+
+  .db $00,$00,$03,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$03, $19       ; 01 BlankEndzone
+
+  .db $00,$00,$03,$42,$00,$00,$00,$00,$00,$00,$00,$44,$00,$00,$00,$47,$00,$00,$00,$00,$00,$00,$00,$49,$03, $19       ; 02 Y
+  
+  .db $00,$00,$03,$42,$00,$00,$00,$00,$00,$00,$00,$44,$00,$43,$00,$47,$00,$00,$00,$00,$00,$00,$00,$49,$03, $19       ; 03 2Y
+
+  .db $00,$00,$03,$42,$00,$00,$00,$00,$00,$00,$00,$45,$00,$00,$00,$48,$00,$00,$00,$00,$00,$00,$00,$49,$03, $19       ; 04 5Y
+  .db $00,$00,$03,$41,$34,$34,$34,$34,$34,$34,$34,$36,$34,$34,$34,$35,$34,$34,$34,$34,$34,$34,$34,$40,$03, $19       ; 05
+
+  .db $00,$00,$03,$42,$00,$00,$00,$00,$00,$00,$00,$45,$00,$37,$00,$48,$00,$00,$00,$00,$00,$00,$00,$49,$03, $19       ; 06 35Y
+  .db $00,$00,$03,$41,$34,$34,$34,$34,$34,$34,$34,$36,$34,$38,$34,$35,$34,$34,$34,$34,$34,$34,$34,$40,$03, $19       ; 07
+  
+  .db $00,$00,$03,$42,$00,$00,$00,$1A,$00,$00,$00,$44,$00,$00,$00,$47,$00,$00,$00,$2A,$00,$00,$00,$49,$03, $19       ; 08 R-ArrowPoint  
+  
+  .db $00,$00,$C0,$C0,$C0,$C0,$C0,$C0,$C0,$C0,$C0,$D0,$E0,$F0,$C0,$C0,$C0,$C0,$C0,$C0,$C0,$C0,$C0,$C0,$C0, $2C,$4D   ; 09 L-Post
+  .db $00,$00,$D3,$F3,$F3,$E1,$E3,$F3,$F3,$F3,$C1,$D1,$E1,$F1,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03, $19       ; 0A
+  .db $00,$00,$C3,$C2,$C2,$C2,$C2,$C2,$C2,$C2,$C2,$D2,$E2,$E2,$E2,$F2,$34,$34,$34,$34,$34,$34,$34,$33,$04, $19       ; 0B
+
+  .db $50,$00,$03,$32,$32,$32,$32,$32,$32,$32,$32,$32,$32,$32,$32,$32,$32,$32,$32,$32,$32,$32,$32,$32,$03, $59       ; 0C LG
+  .db $51,$00,$05,$34,$34,$34,$34,$34,$34,$34,$34,$34,$34,$34,$34,$34,$34,$34,$34,$34,$34,$34,$34,$33,$04, $41,$18   ; 0D
+
+  .db $00,$00,$03,$42,$00,$00,$00,$20,$00,$00,$00,$44,$00,$00,$00,$47,$00,$00,$00,$22,$00,$00,$00,$49,$03, $19       ; 0E L10
+  .db $52,$00,$03,$42,$00,$00,$00,$21,$00,$00,$00,$45,$00,$00,$00,$48,$00,$00,$00,$23,$00,$00,$00,$49,$03, $59       ; 0F
+  .db $57,$00,$03,$41,$34,$34,$34,$12,$34,$34,$34,$36,$34,$34,$34,$35,$34,$34,$34,$10,$34,$34,$34,$40,$03, $59       ; 10
+  .db $00,$00,$03,$42,$00,$00,$00,$1C,$00,$00,$00,$44,$00,$00,$00,$47,$00,$00,$00,$1B,$00,$00,$00,$49,$03, $19       ; 11
+  
+  .db $00,$00,$03,$42,$00,$00,$00,$20,$00,$00,$00,$44,$00,$00,$00,$47,$00,$00,$00,$24,$00,$00,$00,$49,$03, $19       ; 12 L20
+  .db $53,$00,$03,$42,$00,$00,$00,$21,$00,$00,$00,$45,$00,$00,$00,$48,$00,$00,$00,$25,$00,$00,$00,$49,$03, $59       ; 13
+  .db $57,$00,$03,$41,$34,$34,$34,$14,$34,$34,$34,$36,$34,$34,$34,$35,$34,$34,$34,$10,$34,$34,$34,$40,$03, $59       ; 14
+  .db $00,$00,$03,$42,$00,$00,$00,$1D,$00,$00,$00,$44,$00,$00,$00,$47,$00,$00,$00,$1B,$00,$00,$00,$49,$03, $19       ; 15
+
+  .db $00,$00,$03,$42,$00,$00,$00,$20,$00,$00,$00,$44,$00,$00,$00,$47,$00,$00,$00,$26,$00,$00,$00,$49,$03, $19       ; 16 L30
+  .db $54,$00,$03,$42,$00,$00,$00,$21,$00,$00,$00,$45,$00,$00,$00,$48,$00,$00,$00,$27,$00,$00,$00,$49,$03, $59       ; 17
+  .db $57,$00,$03,$41,$34,$34,$34,$16,$34,$34,$34,$36,$34,$34,$34,$35,$34,$34,$34,$10,$34,$34,$34,$40,$03, $59       ; 18
+  .db $00,$00,$03,$42,$00,$00,$00,$1E,$00,$00,$00,$44,$00,$00,$00,$47,$00,$00,$00,$1B,$00,$00,$00,$49,$03, $19       ; 19
+
+  .db $00,$00,$03,$42,$00,$00,$00,$20,$00,$00,$00,$44,$00,$00,$00,$47,$00,$00,$00,$28,$00,$00,$00,$49,$03, $19       ; 1A L40
+  .db $55,$00,$03,$42,$00,$00,$00,$21,$00,$00,$00,$45,$00,$00,$00,$48,$00,$00,$00,$29,$00,$00,$00,$49,$03, $59       ; 1B
+  .db $57,$00,$03,$41,$34,$34,$34,$18,$34,$34,$34,$36,$34,$34,$34,$35,$34,$34,$34,$10,$34,$34,$34,$40,$03, $59       ; 1C
+  .db $00,$00,$03,$42,$00,$00,$00,$1F,$00,$00,$00,$44,$00,$00,$00,$47,$00,$00,$00,$1B,$00,$00,$00,$49,$03, $19       ; 1D
+  
+  .db $00,$00,$03,$42,$00,$00,$00,$08,$00,$00,$00,$44,$00,$00,$00,$47,$00,$00,$00,$0C,$00,$00,$00,$49,$03, $19       ; 1E 50
+  .db $56,$00,$03,$42,$00,$00,$00,$09,$00,$00,$00,$45,$00,$00,$00,$48,$00,$00,$00,$0D,$00,$00,$00,$49,$03, $61,$18   ; 1F
+  .db $57,$00,$03,$41,$34,$34,$34,$0A,$34,$34,$34,$36,$34,$34,$34,$35,$34,$34,$34,$0E,$34,$34,$34,$40,$03, $61,$18   ; 20
+  .db $00,$00,$03,$42,$00,$00,$00,$0B,$00,$00,$00,$44,$00,$00,$00,$47,$00,$00,$00,$0F,$00,$00,$00,$49,$03, $19       ; 21 
+
+  .db $00,$00,$03,$42,$00,$00,$00,$2C,$00,$00,$00,$44,$00,$00,$00,$47,$00,$00,$00,$2F,$00,$00,$00,$49,$03, $19       ; 22 R40
+  .db $55,$00,$03,$42,$00,$00,$00,$21,$00,$00,$00,$45,$00,$00,$00,$48,$00,$00,$00,$29,$00,$00,$00,$49,$03, $59       ; 23
+  .db $57,$00,$03,$41,$34,$34,$34,$18,$34,$34,$34,$36,$34,$34,$34,$35,$34,$34,$34,$10,$34,$34,$34,$40,$03, $59       ; 24
+  .db $00,$00,$03,$42,$00,$00,$00,$19,$00,$00,$00,$44,$00,$00,$00,$47,$00,$00,$00,$11,$00,$00,$00,$49,$03, $19       ; 25
+
+  .db $00,$00,$03,$42,$00,$00,$00,$2C,$00,$00,$00,$44,$00,$00,$00,$47,$00,$00,$00,$2E,$00,$00,$00,$49,$03, $19       ; 26 R30
+  .db $54,$00,$03,$42,$00,$00,$00,$21,$00,$00,$00,$45,$00,$00,$00,$48,$00,$00,$00,$27,$00,$00,$00,$49,$03, $59       ; 27
+  .db $57,$00,$03,$41,$34,$34,$34,$16,$34,$34,$34,$36,$34,$34,$34,$35,$34,$34,$34,$10,$34,$34,$34,$40,$03, $59       ; 28
+  .db $00,$00,$03,$42,$00,$00,$00,$17,$00,$00,$00,$44,$00,$00,$00,$47,$00,$00,$00,$11,$00,$00,$00,$49,$03, $19       ; 29
+
+  .db $00,$00,$03,$42,$00,$00,$00,$2C,$00,$00,$00,$44,$00,$00,$00,$47,$00,$00,$00,$2D,$00,$00,$00,$49,$03, $19       ; 2A R20
+  .db $53,$00,$03,$42,$00,$00,$00,$21,$00,$00,$00,$45,$00,$00,$00,$48,$00,$00,$00,$25,$00,$00,$00,$49,$03, $59       ; 2B
+  .db $57,$00,$03,$41,$34,$34,$34,$14,$34,$34,$34,$36,$34,$34,$34,$35,$34,$34,$34,$10,$34,$34,$34,$40,$03, $59       ; 2C
+  .db $00,$00,$03,$42,$00,$00,$00,$15,$00,$00,$00,$44,$00,$00,$00,$47,$00,$00,$00,$11,$00,$00,$00,$49,$03, $19       ; 2D
+
+  .db $00,$00,$03,$42,$00,$00,$00,$2C,$00,$00,$00,$44,$00,$00,$00,$47,$00,$00,$00,$00,$00,$00,$00,$49,$03, $19       ; 2E R10
+  .db $52,$00,$03,$42,$00,$00,$00,$21,$00,$00,$00,$45,$00,$00,$00,$48,$00,$00,$00,$23,$00,$00,$00,$49,$03, $59       ; 2F
+  .db $57,$00,$03,$41,$34,$34,$34,$12,$34,$34,$34,$36,$34,$34,$34,$35,$34,$34,$34,$10,$34,$34,$34,$40,$03, $59       ; 30
+  .db $00,$00,$03,$42,$00,$00,$00,$13,$00,$00,$00,$44,$00,$00,$00,$47,$00,$00,$00,$11,$00,$00,$00,$49,$03, $19       ; 31
+  
+  .db $50,$00,$03,$42,$00,$00,$00,$00,$00,$00,$00,$44,$00,$00,$00,$47,$00,$00,$00,$00,$00,$00,$00,$49,$03, $59       ; 32 RG
+  .db $51,$00,$05,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$31,$04, $41,$18   ; 33
+
+  .db $00,$00,$03,$00,$00,$00,$00,$00,$00,$00,$00,$D5,$E5,$E5,$E5,$F5,$00,$00,$00,$00,$00,$00,$00,$00,$03, $19       ; 34 R-Post
+  .db $00,$00,$D4,$F4,$F4,$E6,$E4,$F4,$F4,$F4,$C6,$D6,$E6,$F6,$C3,$C4,$03,$03,$03,$03,$03,$03,$03,$06,$04, $19       ; 35
+  .db $00,$00,$C5,$C5,$C5,$C5,$C5,$C5,$C5,$C5,$C7,$D7,$E7,$F7,$C5,$C5,$C5,$C5,$C5,$C5,$C5,$C5,$C5,$C5,$C5, $2C,$4D   ; 36
+
+  .db $02, $D2,$80,$90,$A0,$B0,$C0,$D0,$00,$E0,$F0,$D1,$86,$96,$A6,$B6,$C6,$D6,$E6,$F6   ; 37 L-Packers
+  .db $02, $D3,$81,$91,$A1,$B1,$C1,$D1,$00,$E1,$F1,$D1,$87,$97,$A7,$B7,$C7,$D7,$E7,$F7   ; 38
+  .db $02, $D4,$82,$92,$A2,$B2,$C2,$D1,$00,$E2,$F2,$D1,$88,$98,$A8,$B8,$C8,$D8,$E8,$F8   ; 39
+  .db $03,     $83,$93,$A3,$B3,$C3,$D1,$00,$E3,$F3,$D1,$89,$99,$A9,$B9,$C9,$D9,$E9,$F9   ; 3A
+  .db $03,     $84,$94,$A4,$B4,$C4,$D1,$00,$E4,$F4,$D1,$8A,$9A,$AA,$BA,$CA,$DA,$EA,$FA   ; 3B
+  .db $03,     $85,$95,$A5,$B5,$C5,$D5,$00,$E5,$F5,$D1,$8B,$9B,$AB,$BB,$CB,$DB,$EB,$FB   ; 3C
+
+  .db $0A,     $DE,$EE,$FE       ; 3D C-Packers
+  .db $09, $8C,$9C,$AC,$BC,$CC   ; 3E
+  .db $09, $8D,$9D,$AD,$BD,$CD   ; 3F
+  .db $09, $8E,$9E,$AE,$BE,$CE   ; 40
+  .db $09, $8F,$9F,$AF,$BF,$CF   ; 41
+  .db $0A,     $DF,$EF,$FF       ; 42
+  
+  .db $03, $80,$90,$A0,$B0,$C0,$D0,$E0,$F0,$86,$96,$A6,$B6,$C6,$D6,$E6   ; 43 R-Packers
+  .db $03, $81,$91,$A1,$B1,$C1,$D1,$E1,$F1,$87,$97,$A7,$B7,$C7,$D7,$E7   ; 44
+  .db $03, $82,$92,$A2,$B2,$C2,$D2,$E2,$F2,$88,$98,$A8,$B8,$C8,$D8,$E8   ; 45
+  .db $03, $83,$93,$A3,$B3,$C3,$D3,$E3,$F3,$89,$99,$A9,$B9,$C9,$D9,$E9   ; 46
+  .db $03, $84,$94,$A4,$B4,$C4,$D4,$E4,$F4,$8A,$9A,$AA,$BA,$CA,$DA,$EA   ; 47
+  .db $03, $85,$95,$A5,$B5,$C5,$D5,$E5,$F5,$8B,$9B,$AB,$BB,$CB,$DB,$EB   ; 48
+
+  .bank 16
+  .org $0000
+  .incbin "NFL.chr"

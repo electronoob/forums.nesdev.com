@@ -1,0 +1,256 @@
+SPRITES = $0200
+
+.enum $0000
+	dma_needed .dsb 1
+	drawing_needed .dsb 1
+	ppu_update_needed .dsb 1
+	sleep .dsb 1
+	reg2000 .dsb 1
+	reg2001 .dsb 1
+
+	length .dsb 1
+	buffer .db $20,$20,$00
+		   .db $02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02
+		   .db $02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02
+		   .db $00
+.ende
+
+; ines header
+.db "NES",$1a
+.db $01
+.db $01
+.db $00
+.dsb 9,$00
+
+.base $c000
+
+reset:
+	sei
+	cld
+	ldx #$ff
+	txs
+	inx
+	stx $2000
+	stx $2001
+	stx $4010
+
+	; clear vblank flag
+	lda $2002
+
+	; wait for first vblank
+  - lda $2002
+	bpl -
+
+	; clear ram
+    txa
+  - sta $0000,x
+	sta $0100,x
+	sta $0300,x
+	sta $0400,x
+	sta $0500,x
+	sta $0600,x
+	sta $0700,x
+	inx
+	bne -
+	
+	; set oam ram to $fe to avoid junk sprites
+  - lda #$fe
+	sta $0200,x
+	inx
+	bne -
+
+	; wait for second vblank
+  - lda $2002
+	bpl -
+
+	jsr init_graphics
+	jsr init_input
+	jsr init_sound
+
+	; set up ppu
+	lda $2002
+	lda #%10001000
+	sta $2000
+	lda #%00011110
+	sta $2001
+	
+	; reset scroll
+	lda $2002
+	lda #$00
+	sta $2005
+	sta $2005	
+	sta $2006
+	sta $2006
+
+	cli
+
+main_loop:
+    jsr wait_for_vblank
+	
+	lda #$01
+	sta dma_needed
+	sta drawing_needed
+	
+	jsr process_input
+	jmp main_loop
+
+wait_for_vblank:
+	inc sleep
+  - lda sleep
+	bne -
+	rts
+
+; nmi routine
+nmi:
+	; backup registers in case nmi fires during other code
+    pha
+    txa
+    pha
+    tya
+    pha
+
+	; check if sprite oam is needed
+	lda dma_needed
+	beq +
+	; perform sprite transfer
+	lda #<SPRITES
+	sta $2003
+	lda #>SPRITES
+	sta $4014
+
+	; check if drawing is needed
+  + lda drawing_needed
+	beq +
+	; process draw buffer
+	jsr process_buffer
+
+	; check if ppu register update is needed
+  + lda ppu_update_needed
+	beq nmi_done
+	; update registers
+	lda reg2001
+	sta $2001
+	lda reg2000
+	sta $2000
+
+    ; restore backed up registers before returning
+nmi_done:
+	lda #$00
+	sta sleep
+
+	; no scrolling required
+	lda $2002
+	lda #$00
+	sta $2005
+	sta $2005
+	sta $2006
+	sta $2006
+
+	pla
+    tay
+    pla
+    tax
+    pla
+
+    rti
+
+; irq routine, not used
+irq:
+	rti
+
+; initialise graphics
+init_graphics:
+	jsr load_sprites
+	jsr load_palettes
+	jsr load_nametables
+
+	rts
+
+load_sprites:
+	ldx #$00
+  - lda sprites,x
+	sta $0200,x
+	inx
+	cpx #$10
+	bne -
+	
+	rts
+
+load_palettes:
+	lda $2002
+	lda #$3f
+	ldx #$00
+	sta $2006
+	stx $2006
+
+	ldx #$00
+  -	lda palettes,x
+	sta $2007
+	inx
+	cpx #$20
+	bne -
+
+	rts
+
+load_nametables:
+	jsr process_buffer
+	rts
+	
+init_input:
+	rts
+
+process_input:
+	rts
+
+init_sound:
+	rts
+
+process_buffer:	
+	ldx #$00
+	; load length in to y
+  -	ldy buffer, x
+	sty length
+	; zero signifies end of data
+	beq buffer_empty
+	
+	; read high addr
+	inx
+	lda buffer, x
+	sta $2006
+	; read low addr
+	inx
+	lda buffer, x
+	sta $2006
+	
+	; read length bytes of data
+read_data:
+	inx
+	lda buffer, x
+	sta $2007
+  	inx
+  	; skip length, high_addr and low_addr
+  	cpx length + 4
+  	; read new data
+  	beq -
+	jmp read_data
+	
+buffer_empty:
+	sty drawing_needed
+	rts
+
+palettes:
+	.db $0e,$00,$0e,$19,$00,$00,$00,$00,$00,$00,$00,$00,$01,$00,$01,$21
+	.db $0e,$20,$22,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+
+sprites:
+	.db $80,$00,$00,$80
+	.db $80,$01,$00,$88
+
+; interrupt vectors
+.org $fffa
+.dw nmi
+.dw reset
+.dw irq
+
+; chr-rom
+.incbin "tiles.chr"

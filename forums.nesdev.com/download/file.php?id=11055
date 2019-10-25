@@ -1,0 +1,1264 @@
+  .inesprg 1  ; 1x 16KB PRG code
+  .ineschr 4   ; 1x  8KB CHR data
+  .inesmap 4   ; mapper 0 = NROM, no bank swapping
+  .inesmir 2   ; background mirroring
+  
+
+;;;;;;;;;;;;;;;
+    .rsset $0000  ;;start variables at ram location 0
+  
+
+speed .rs 1
+pcoodenates .rs 2
+rect .rs 3
+NMIB .rs 4
+switchrender .rs 7
+buffer .rs 2
+sdir .rs 2
+sp1 .rs 1
+paletteswap     .rs 32
+scroll     .rs 3
+D     .rs 2 
+scrolly     .rs 1 
+gravity    .rs 1
+buttons    .rs 4
+gamestate  .rs 4
+progress   .rs 1
+buttonslay .rs 1
+player     .rs 6
+pdirection .rs 5
+Fr .rs 1
+Timer1 .rs 12
+ANT .rs 4
+T .rs 1
+Srt .rs 6
+L .rs 1
+BCount .rs 16
+JumpState .rs 3
+BankS .rs 1
+
+nametable  .rs 1
+nametabley  .rs 1  ;  ; which nametable to use, 0 or 1
+columnLow  .rs 1  ; low byte of new column address
+columnHigh .rs 1  ; high byte of new column address
+sourceLow  .rs 1  ; source for column data
+sourceHigh .rs 1
+columnNumber .rs 1
+columnNumber2 .rs 1
+sourceLow2  .rs 1  ; source for column data
+sourceHigh2 .rs 1
+columnLow2  .rs 1  ; low byte of new column address
+columnHigh2 .rs 1  ; hi
+
+col .rs 32
+  ; which column of level data to
+
+
+
+GROUND     = $B1  ;
+
+
+
+;;;;;;;;;;;;;;;
+
+
+  .bank 0
+  .org $C000
+  
+  vblankwait:
+  BIT $2002
+  BPL vblankwait
+  RTS
+  
+  
+  RESET:
+  SEI          ; disable IRQs
+  CLD          ; disable decimal mode
+  LDX #$40
+  STX $4017    ; disable APU frame IRQ
+  LDX #$FF
+  TXS          ; Set up stack
+  INX          ; now X = 0
+  STX $2000    ; disable NMI
+  STX $2001    ; disable rendering
+  STX $4010    ; disable DMC IRQs
+  lda #%00000001
+  sta $4015 ;enable Square 1
+  
+    ;square 1
+  lda #%00000000 ;Duty 10, Length Counter Disabled, Saw Envelopes disabled, Volume F
+  sta $4000
+    
+  lda #$C9    ;0C9 is a C# in NTSC mode
+  sta $4002   ;low 8 bits of period
+  lda #$00
+  sta $4003 
+  
+	
+  JSR vblankwait     
+
+clrmem:
+  LDA #$00
+  STA $0000, x
+  STA $0100, x
+  STA $0300, x
+  STA $0400, x
+  
+  STA $0600, x
+  STA $0700, x
+  LDA #$FE
+  STA $0200, x
+  STA $0500, x
+  INX
+  BNE clrmem
+   
+   JSR vblankwait   
+
+  
+LoadPalettes:
+  LDA $2002    ; read PPU status to reset the high/low latch
+  LDA #$3F
+  STA $2006    ; write the high byte of $3F00 address
+  LDA #$00
+  STA $2006    ; write the low byte of $3F00 address
+  LDX #$00
+LoadPalettesLoop:
+  LDA palette, x        ;load palette byte
+  
+  
+  
+  STA $2007             ;write to PPU
+  INX                   ;set index to next byte
+  CPX #$20            
+  BNE LoadPalettesLoop 
+
+  LoadPalettesLoop1:
+  LDA palette, x        ;load palette byte
+  
+  
+  
+  STA paletteswap, x             ;write to PPU
+  INX                   ;set index to next byte
+  CPX #$20            
+  BNE LoadPalettesLoop1   ;if x = $20, 32 bytes copied, all done
+  
+  
+  
+LoadPSprites:
+  
+  
+  LDX #$00              ; start at 0
+LoadSpritesLoopP:
+  LDA Playersprites, x        ; load data from address (sprites +  x)
+  STA $0200, x          ; store into RAM address ($0200 + x)
+  INX                   ; X = X + 1
+  CPX #$20             ; Compare X to hex $20, decimal 32
+  BNE LoadSpritesLoopP   ; Branch to LoadSpritesLoop if compare was Not Equal to zero
+  
+
+
+   
+  
+InitializeNametables:
+  LDA #$01
+  STA nametable
+  LDA #$00
+  STA scroll
+  STA columnNumber
+InitializeNametablesLoop:
+  JSR DrawNewColumn
+  ; draw bg column
+  LDA scroll            ; go to next column
+  CLC
+  ADC #$08
+  STA scroll
+  
+
+
+  INC columnNumber
+  
+GoA:
+  JSR Dump
+  LDA columnNumber      ; repeat for first nametable 
+  CMP #$20
+  BNE InitializeNametablesLoop
+  
+  LDA #$00
+  STA nametable
+  LDA #$00
+  STA scroll
+  JSR DrawNewColumn     ; draw first column of second nametable
+  INC columnNumber
+  
+  LDA #$00              ; set back to increment +1 mode
+  STA $2000
+InitializeNametablesDone:
+
+
+InitializeAttributes:
+  LDA #$01
+  STA nametable
+  LDA #$00
+  STA scroll
+  STA columnNumber
+InitializeAttributesLoop:
+  JSR DrawNewAttributes     ; draw attribs
+  LDA scroll                ; go to next column
+  CLC
+  ADC #$20
+  STA scroll
+
+  LDA columnNumber      ; repeat for first nametable 
+  CLC 
+  ADC #$04
+  STA columnNumber
+  CMP #$20
+  BNE InitializeAttributesLoop
+  
+  LDA #$00
+  STA nametable
+  LDA #$00
+  STA scroll
+  JSR DrawNewAttributes     ; draw first column of second nametable
+  JSR chane217
+  ldy #$00
+  JSR Dump2
+InitializeAttributesDone:
+  
+  
+  LDA #$21
+  STA columnNumber
+
+
+  
+  
+  LDA #$10
+  STA paletteswap
+  
+  LDA #$00
+  STA JumpState
+  
+  LDA #$80
+  STA player
+  
+  
+  
+  LDA #$80
+  STA player+1
+  
+  LDA #$08
+  STA pdirection+1
+  
+  LDA #$06
+  STA ANT
+  
+  LDA #$08
+  STA ANT+1
+  
+  LDA #$0A
+  STA ANT+2
+  
+  LDA #$06
+  STA ANT+3
+  
+  LDA #$06
+  STA Srt
+  
+  LDA #$01
+  STA gamestate+1
+  
+  LDA #$01
+  STA speed
+  
+  
+
+
+  
+  
+  
+  LDA #%10110000   ; enable NMI, sprites from Pattern Table 0, background from Pattern Table 1
+  STA $2000
+
+  LDA #%00011000   ; enable sprites, enable background, no clipping on left side
+  STA $2001
+
+Forever:
+  
+  
+  
+
+ 
+  jsr ReadController1 ;read controllers
+  
+
+  jsr Player ;Determins posistion and hitbox postion
+  jsr Direction
+  
+  JSR AniFrame
+  
+  
+  LDA #$00
+  STA NMIB+1
+  
+  
+waitforframe:
+  
+  
+  
+  lda NMIB+1
+  Cmp #$00
+  beq waitforframe
+  
+NTSwapCheck:
+  LDA scroll ; check if the scroll just wrapped from 255 to 0
+  BNE NTSwapCheckP2  
+NTSwap:
+  LDA nametable         ; load current nametable number (0 or 1)
+  EOR #$01              ; exclusive OR of bit 0 will flip that bit
+  STA nametable         ; so if nametable was 0, now 1
+                        ;    if 
+NTSwapCheckP2:
+  
+ 
+    
+  
+  
+  
+NewAttribCheck:
+  LDA scroll
+  AND #%00011111            ; check for multiple of 32
+  BNE NewAttribCheckDone    ; if low 5 bits = 0, time to write new attribute bytes
+  jsr DrawNewAttributes
+  
+NewAttribCheckDone:
+
+  
+   
+NewColumnCheck:
+  LDA scroll
+  AND #%00000111
+  ; throw away higher bits to check for multiple of 8
+  BNE NewColumnCheckDone    ; done if lower bits != 0
+
+  JSR DrawNewColumn         ; if lower bits = 0, time for new column
+  
+
+
+  lda columnNumber
+  clc
+  adc #$01             ; go to next column
+  and #%11111111       ; only 128 columns of data, throw away top bit to wrap
+  sta columnNumber
+
+  
+NewColumnCheckDone:
+
+  
+
+  
+  
+ 
+
+  
+
+   ;;This is the PPU clean up section, so rendering the next frame starts properly.
+  LDA #%10110000   ; enable NMI, sprites from Pattern Table 0, background from Pattern Table 1
+  ORA nametable    ; select correct nametable for bit 0
+  STA $2000
+  
+  LDA #%00011000   ; enable sprites, enable background, no clipping on left side
+  STA $2001
+  
+  
+
+  LDA scroll
+  STA $2005
+  LDA scroll+1
+  SEC
+  SBC #$10
+  STA $2005; a
+  
+  
+  jmp Forever
+  
+  
+  
+DrawNewColumn:
+  LDA scroll       ; calculate new column address using scroll register
+  LSR A
+  LSR A
+  LSR A            ; shift right 3 times = divide by 8
+  STA columnLow    ; $00 to $1F, screen is 32 tiles wide
+
+  LDA nametable     ; calculate new column address using current nametable
+  EOR #$01          ; invert low bit, A = $00 or $01
+  ASL A             ; shift up, A = $00 or $02
+  ASL A             ; $00 or $04
+  STA switchrender
+  CLC
+  ADC #$20          ; add high byte of nametable base address ($2000) can change to lower name table $2000 = ADC #$20 $2800 = ADC #$28
+  STA columnHigh    ; now address = $20 or $24 for nametable 0 or 1
+
+  LDA columnNumber  ; column number * 32 = column data offset
+  ASL A
+  ASL A
+  ASL A
+  ASL A
+  ASL A             
+  STA sourceLow
+  LDA columnNumber
+  LSR A
+  LSR A
+  LSR A
+  STA sourceHigh
+  
+  JSR levelselect
+  
+
+DrawColumn:
+  LDA #%00100100        ; set to increment +32 mode
+  LDA #%00100100        ; set to increment +32 mode
+  STA $2000
+  
+  LDA $2002             ; read PPU status to reset the high/low latch
+  LDA columnHigh
+  STA $2006             ; write the high byte of column address
+  LDA columnLow
+  STA $2006             ; write the low byte of column address
+  LDX #$1E  ; copy 30 bytes
+  
+  LDY #$00
+  
+DrawColumnLoop:
+  
+  LDA [sourceLow], y
+  STA $0700,y
+  INY  
+	
+  DEX
+  BNE DrawColumnLoop
+  
+  
+  RTS
+  
+DrawNewAttributes:
+  LDA nametable
+            ; invert low bit, A = $00 or $01
+  ASL A             ; shift up, A = $00 or $02
+  ASL A             ; $00 or $04
+  STA switchrender+4
+  CLC
+  ADC #$23
+  ; add high byte of attribute base address ($23C0)
+  STA columnHigh    ; now address = $23 or $27 for nametable 0 or 1
+  
+  LDA scroll
+  LSR A
+  LSR A
+  LSR A
+  LSR A
+  LSR A
+  CLC
+  ADC #$C0
+  sta switchrender+5
+  STA columnLow     ; attribute base + scroll / 32
+
+  LDA columnNumber  ; (column number / 4) * 8 = column data offset
+  AND #%11111100
+  ASL A
+  STA sourceLow
+  LDA columnNumber
+  LSR A
+  LSR A
+  LSR A
+  LSR A
+  LSR A
+  LSR A
+  LSR A
+  STA sourceHigh
+  STA switchrender+1
+  
+  LDA sourceLow       ; column data start + offset = address to load column data from
+  CLC 
+  ADC #LOW(attribData)
+  STA sourceLow
+  STA switchrender+2
+  LDA sourceHigh
+  ADC #HIGH(attribData)
+  STA sourceHigh
+  STA switchrender+1
+  
+  LDY #00
+  LDA $2002             ; read PPU status to reset the high/low latch
+DrawNewAttributesLoop3:
+  LDA columnHigh
+  STA $2006             ; write the high byte of column address
+  LDA columnLow
+  STA $2006             ; write the low byte of column address
+  LDA [sourceLow], y    ; copy new attribute byte
+  STA $071F,y
+  
+  INY
+  CPY #$08             ; copy 8 attribute bytes
+  BEQ DrawNewAttributesLoopDone3 
+  
+  LDA columnLow         ; next attribute byte is at address + 8
+  CLC
+  ADC #$08
+  STA columnLow
+  JMP DrawNewAttributesLoop3
+DrawNewAttributesLoopDone3:
+
+  
+  RTS
+  
+  
+  
+
+
+  
+
+
+
+ 
+levelselect:
+
+  LDA gamestate+1
+  CMP #$00
+  BEQ l00
+  
+  LDA sourceLow       ; column data start + offset = address to load column data from
+  CLC 
+  ADC #LOW(columnDatay)
+  STA sourceLow
+  LDA sourceHigh
+  ADC #HIGH(columnDatay)
+  STA sourceHigh
+  
+  RTS
+l00:
+
+  LDA sourceLow       ; column data start + offset = address to load column data from
+  CLC 
+  ADC #LOW(columnData)
+  STA sourceLow
+  LDA sourceHigh
+  ADC #HIGH(columnData)
+  STA sourceHigh
+  
+  RTS
+attrselect:
+
+  LDA gamestate+1
+  CMP #$00
+  BEQ m00
+  
+  LDA sourceLow       ; column data start + offset = address to load column data from
+  CLC 
+  ADC #LOW(columnDatay)
+  STA sourceLow
+  LDA sourceHigh
+  ADC #HIGH(columnDatay)
+  STA sourceHigh
+  
+  RTS
+
+m00:
+
+  LDA sourceLow       ; column data start + offset = address to load column data from
+  CLC 
+  ADC #LOW(columnData)
+  STA sourceLow
+  LDA sourceHigh
+  ADC #HIGH(columnData)
+  STA sourceHigh
+  
+  RTS
+  
+  
+  
+  
+  
+  
+  
+  jmp Forever
+
+  
+  
+  
+  
+  
+  JMP Forever     ;jump back to Forever, infinite loop
+  
+
+
+
+  
+  
+NMI:
+
+  PHA
+  
+  TXA
+  PHA
+  TYA
+  pha
+  
+  
+  LDA scroll
+  AND #%00000111
+  BEQ Noe
+  
+  JSR chane207
+  JSR Dump 
+  
+  
+Noe:
+  
+  LDA scroll
+  AND #%00011111
+  BEQ No2r
+  
+  JSR chane217
+  ldy #00
+  JSR Dump2
+  ldy #00
+No2r:
+  
+  LDA #$00
+  STA $2006        
+  STA $2006
+
+  
+
+  LDA #$00
+  STA $2003       
+  LDA #$02
+  STA $4014       ; sprite DMA from $0200
+  
+  LDA #%10110000
+  ora nametable
+  sta $2000  
+	
+    
+  LDA #$00
+  STA $2005
+  STA $2005; add one to our scroll variable each frame
+  
+
+ 
+  
+  
+  
+  
+  
+
+  
+  
+        
+
+  
+  
+ 
+  
+  
+    
+  
+  
+  
+ 
+ 
+  
+
+  
+
+  
+  
+  
+  
+  LDA #$00
+  STA T
+  
+  
+  
+  LDA #$00
+  STA D
+  
+  LDA #$00
+  STA D+1
+  
+
+  LDA buttons
+  AND #%10000000 ; only look at bit 0
+  BEQ ReadADone   ; branch to ReadADone if button is NOT pressed (0)
+
+  INC scroll
+  LDA JumpState
+  CMP #$01
+  BCS ReadADonep1
+  
+  LDA #$01
+  STA JumpState
+ReadADonep1:  
+  
+  
+  
+  LDA #$01
+  STA JumpState
+ReadADone:    
+  
+  
+
+  ; save sprite X position
+ReadADone:  
+  
+ LDA buttons
+ AND #%00000001 ; only look at bit 0
+  BEQ ReadRightDone   ; branch to ReadADone if button is NOT pressed (0)
+							
+  
+  LDA #$01
+  STA D
+  
+  LDA player       
+  CLC             
+  ADC speed        
+  STA player
+  
+  LDA #$00
+  STA pdirection
+  
+  LDA #$01
+  STA T
+  ; save sprite X position
+ReadRightDone: 
+
+ LDA buttons
+ AND #%00000010 ; only look at bit 0
+  BEQ ReadLeftDone   ; branch to ReadADone if button is NOT pressed (0)
+                  
+  LDA player       
+  SEC             
+  SBC speed        
+  STA player
+  
+  LDA #$01
+  STA pdirection
+  
+  LDA #$01
+  STA T
+  ; save sprite X position
+ReadLeftDone: 
+
+  
+  LDA buttons
+  AND #%00000100 ; only look at bit 0
+  BEQ ReadDownDone
+  
+  
+   
+  INC scroll+1
+  
+  
+ReadDownDone:
+  LDA buttons
+  AND #%00001000 ; only look at bit 0
+  BEQ ReadUpDone
+  
+  LDA scroll+1
+  SEC
+  SBC #$01
+  STA scroll+1
+  
+  
+  
+  
+ReadUpDone:; run normal game engine code here
+ ; reading from controllers, etc
+  
+  LDA #$01
+  STA NMIB+1
+  
+  
+  
+  PLA
+  TAY
+  PLA
+  TAX
+  PLA
+  
+  RTI             ; return from interrupt
+ 
+
+
+  
+  
+
+ 
+ 
+  
+  
+
+;;;;;;;;;;;;;;  
+chane217:
+  LDA switchrender+4
+  CLC
+  ADC #$23
+  sta switchrender+6
+  
+  
+  
+  LDY #00
+  LDA $2002             ; read PPU status to reset the high/low latch 
+  
+  
+  RTS
+
+Dump2:
+  
+  LDA switchrender+6
+  STA $2006             ; write the high byte of column address
+  LDA switchrender+5
+  STA $2006             ; write the low byte of column address
+  LDA $071F, y    ; copy new attribute byte
+  STA $2007
+  
+  INY
+  cpy #$08; copy 8 attribute bytes
+  BEQ DrawNewAttributesLoopDone 
+  
+  LDA switchrender+5         ; next attribute byte is at address + 8
+  CLC
+  ADC #$08
+  STA switchrender+5
+  JMP Dump2
+  
+DrawNewAttributesLoopDone:
+  RTS
+  
+  
+  
+  
+ 
+chane207:
+  
+  LDA #%00100100        ; set to increment +32 mode
+  LDA #%00100100        ; set to increment +32 mode
+  STA $2000
+  
+  LDA $2002             ; read PPU status to reset the high/low latch
+  LDA columnHigh
+  STA $2006             ; write the high byte of column address
+  LDA columnLow
+  STA $2006             ; write the low byte of column address
+  
+  
+  
+  RTS
+
+Dump:
+  
+  ;increment 
+  ldy #0
+  nmiloop2:
+  lda $0700,y;4 cycles
+  sta $2007;4 cycles
+  CLC 
+  ADC #$01
+  STA $2007
+  iny  ;2 cycles
+  cpy #15;2 cycles
+  bne nmiloop2;3 cycles 
+  
+  LDA switchrender
+  CLC 
+  ADC #$28
+  STA columnHigh
+  
+  LDA columnHigh
+  STA $2006             ; write the high byte of column address
+  LDA columnLow
+  STA $2006  
+ 
+  
+  ldy #15
+  nmiloop3:
+  lda $0700,y;4 cycles
+  sta $2007;4 cycles
+  CLC 
+  ADC #$01
+  STA $2007
+  iny  ;2 cycles
+  cpy #30;2 cycles
+  bne nmiloop3;3 cycle
+  LDA #$00
+  STA buffer+1  
+  
+  RTS
+  
+Collision:
+  
+  
+  
+  
+  RTS
+  
+
+Player:
+  INC player+1 
+  
+  LDA player+1
+  CLC
+  ADC #$01
+  STA rect
+  
+  
+  
+  
+  
+  
+  
+  
+Render:
+
+
+  
+  
+  LDA rect
+  CMP #$00
+  BEQ Changscr
+  
+  JMP Sto
+  
+  
+Changscr:
+  
+  
+  LDA player+4
+  CMP #$01
+  BEQ cha0
+  
+  
+  
+  LDA #$01
+  STA player+4
+  
+  JMP Sto
+  
+cha0:
+
+  
+  LDA #$00
+  STA player+4
+  
+Sto:
+  LDA rect
+  STA $0208
+
+  LDA player+4
+  CMP #$01
+  BEQ STu
+  
+  LDA player+1
+  SEC
+  SBC scroll+1
+  STA pcoodenates+1
+  
+  LDA player+1
+  cMP pcoodenates+1
+  BCS Noa
+  
+  JMP Now
+  
+  
+STu:
+  
+  LDA scroll+1
+  EOR  #%11111111
+  
+  STA rect+1
+  
+  LDA rect+1
+  
+  CLC 
+  ADC player+1
+  
+  STA pcoodenates+1
+  
+  
+  LDA pcoodenates+1
+  cMP rect+1
+  BCS Noa
+  
+  JMP Now
+  
+Scvluehange:
+ 
+  LDA player
+  SEC
+  SBC scroll
+  STA pcoodenates
+  
+  
+  
+  
+  
+  
+Now:  
+  LDA #$FF
+  STA pcoodenates+1
+  
+Noa:
+ 
+
+
+
+Dun:
+  
+  RTS
+  
+AniFrame:
+
+  
+  
+  LDA Srt
+  STA $0211
+  CLC
+  ADC #$01
+  STA $0215
+  
+  LDA Srt+1
+  STA $0209
+  
+  LDA Srt+2
+  STA $020D
+  
+  LDA JumpState
+  STA $0219
+  
+  LDA JumpState+1
+  STA $021B
+  
+  LDA Timer1+1
+  STA $021A
+  
+  
+  
+Vertical:
+
+  
+  
+  
+  LDA pcoodenates+1
+  STA $0200
+  
+  LDA pcoodenates+1
+  STA $0204
+
+ 
+Direction:
+  LDA pdirection
+  CMP #$01
+  BCS Right
+  
+  LDA #$00
+  STA pdirection+1
+  
+  LDA #$00
+  STA pdirection+3
+  
+  LDA #$08
+  STA pdirection+2
+  
+  BCC DDIR
+  
+Right:
+
+  LDA #$08
+  STA pdirection+1
+  
+  LDA #$40
+  STA pdirection+3
+  
+  LDA #$00
+  STA pdirection+2
+  
+DDIR:
+  
+  LDA pdirection+3
+  STA $0202
+  STA $0206
+  
+  
+  LDA pcoodenates
+  CLC
+  ADC pdirection+2
+  STA $0207
+  
+  LDA pcoodenates
+  CLC
+  ADC pdirection+1
+  STA $0203
+
+  
+    
+    RTS
+	
+Anim:
+  
+
+ReadController1:
+  
+  
+  
+  
+  LDA #$01
+  STA $4016
+  LDA #$00
+  STA $4016
+  LDX #$08
+ReadController1Loop:
+  LDA $4016
+  LSR A            ; bit0 -> Carry
+  ROL buttons
+  LSR A            ; bit0 -> Carry
+  ROL buttons+1 ; bit0 <- Carry
+  DEX
+  BNE ReadController1Loop
+  
+ReadController12:
+  LDA buttons+1
+  ORA buttons
+  STA buttons
+  
+  
+  RTS
+
+  
+
+
+;LoadPalettes2:
+
+
+ ; LDA #%00000000        
+  ;STA $2000
+ ; 
+ ; LDA $2002    ; read PPU status to reset the high/low latch
+ ; LDA #$3F
+  ;STA $2006    ; write the high byte of $3F00 address
+;  LDA #$00
+ ; STA $2006    ; write the low byte of $3F00 address
+ ; LDX #$00
+  
+;LP2:
+  
+ ;LDA paletteswap, x        ;load; ;palette byte
+  
+  
+  
+;  STA $0300 ,x             ;write to PPU
+ ; INX                   ;set index to next byte
+ ; CPX #$20            
+  ;BNE LP2 
+;Fin:
+
+
+  ;LDA #%00100100        ; set to increment +32 mode
+  ;STA $2000
+  
+;  RTS
+ 
+    
+
+  
+  
+  
+  
+  
+  
+
+
+  
+  
+ 
+;;;;;;;;;;;;;;  
+  
+  
+  
+  .bank 1
+  .org $E000
+palette:
+  .db $22,$30,$00,$0F,$22, $37,$17,$07,$22,$2A,$19,$0A,$22,$16,$05,$0f
+  .db $22,$0F,$16,$37,$01,$0F,$07,$37,$02,$1C,$15,$14,$02,$0F,$07,$37
+  
+palette3:
+  .db $02,$11,$01,$0F,$02, $04,$36,$37,$02,$39,$3A,$3B,$02,$16,$05,$0f
+  .db $02,$16,$20,$38,$01,$0F,$07,$37,$02,$1C,$15,$14,$02,$0F,$07,$37
+  
+Playersprites:
+   ; Player
+   ;vert tile attr horiz
+  .db $80, $00, $1C, $80   ;sprite 0
+  .db $80, $02, $1C, $88 
+
+  .db $20, $02, $1C, $88    ;sprite 2
+  
+  
+;Bullets
+Bullets:
+  
+  
+  
+  ;sprite 3
+  
+columnData:
+  
+  
+  
+  
+  .incbin "KitsuneTaleslevel.bin"
+  
+  
+  
+columnDatay:
+  .incbin "KitsuneTaleslevel2.bin"
+
+attribData:
+  .incbin "KitsuneTalesattrib.bin"
+  
+attribDatay:
+  .incbin "KitsuneTalesattrib2.bin"
+  
+  
+
+  
+  
+  
+  .org $FFFA     ;first of the three vectors starts here
+  .dw NMI        ;when an NMI happens (once per frame if enabled) the 
+                   ;processor will jump to the label NMI:
+  .dw RESET      ;when the processor first turns on or is reset, it will jump
+                   ;to the label RESET:
+  .dw 0          ;external interrupt IRQ is not used in this tutorial
+  
+  
+;;;;;;;;;;;;;;  
+  
+  
+  .bank 2
+  .org $0000
+  .incbin "Electro_and_Shiro.chr"
+  ;;;;;;;;;;;;;;;;;;;;
+  .bank 3
+  .org $A000
+  .incbin "Kitsunetales.chr"
+  .bank 3
+  .org $C000
+  .incbin "Tanuki.chr"
+ ;;;;;;;;;;;;;;;;;;;
+ 
+ .bank 4
+  .org $E000  
+ .bank 5
+  .org $0000
+     

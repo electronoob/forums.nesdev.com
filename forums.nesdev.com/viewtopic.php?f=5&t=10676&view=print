@@ -1,0 +1,228 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Nintendo PPU-data format</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Nintendo PPU-data format</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=5&amp;t=10676">http://forums.nesdev.com/viewtopic.php?f=5&amp;t=10676</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>oRBIT2002</b> [ Tue Nov 12, 2013 9:14 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Nintendo PPU-data format</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I've discovered that Nintendo often uses the same way of storing PPU data into their NES-games. I was on my way writing some kind of ripper-tool but got a bit bored so I might never finish it, so perhaps someone else is interested in my findings.<br />The structure looks like this:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">dc.w PPUAddress (hi+lowbyte)<br />dc.b CONTROL<br />dc.b DATA (*CONTROL.LENGTH)<br /></div><br />The structure can be repeated as a list (PPUAddress,Control,Data,PPUAddress,Control,Data etc.) and is terminated by a $0.<br /><br />CONTROL has a few features:<br />bit 5-0 = LENGTH (number of bytes to insert). <br />bit 6 = RLE mode (1=Active)<br />bit 7 = PPU Write mode (0=Increment by 1, 1=Increment by 32)<br /><br />When RLE mode is active (=1), DATA byte is inserted &lt;CONTROL.LENGTH&gt; number of times.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Movax12</b> [ Tue Nov 12, 2013 10:11 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Nintendo PPU-data format</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Slightly modified code from Super Mario Brothers to write such data to PPU: (using HL macros in ca65)<br /><br />Note this is sub-optimal code: it's pretty slow compared to some techniques, but fast enough for many games:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">.proc WriteVRAMBufferToScreen&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;<br /><br />&nbsp; &nbsp; ; Note: execution is to start at label: UpdateScreen<br />&nbsp; &nbsp; ; register y is used to index the Buffer<br />&nbsp; &nbsp; ; needed: <br />&nbsp; &nbsp; ;&nbsp; &nbsp; define location for temp_word<br />&nbsp; &nbsp; ;&nbsp; &nbsp; define Mirror_PPU_CTRL<br /><br />&nbsp; &nbsp; .export ResetScroll, UpdateScreen<br /><br />&nbsp; &nbsp; VRAM_Buffer_pointer = temp_word<br />&nbsp; &nbsp; <br />&nbsp; &nbsp; repeat<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; ; set PPU vram address:<br />&nbsp; &nbsp; &nbsp; &nbsp; mb PPU_ADDRESS := a<br />&nbsp; &nbsp; &nbsp; &nbsp; iny<br />&nbsp; &nbsp; &nbsp; &nbsp; mb PPU_ADDRESS := (VRAM_Buffer_pointer)&#91; y &#93;<br />&nbsp; &nbsp; &nbsp; &nbsp; iny<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; ; load next third byte in stream, shift to the left and save in stack:<br />&nbsp; &nbsp; &nbsp; &nbsp; mb a := (VRAM_Buffer_pointer)&#91; y &#93; &lt;&lt; 1<br />&nbsp; &nbsp; &nbsp; &nbsp; pha<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; set ppu to increment by 32 by default<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; mb a := Mirror_PPU_CTRL | #%00000100<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; if d7 of third byte was clear, ppu will increment address by 1 byte every write:<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if carry clear<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; mb a := a &amp; #%11111011<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; endif<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; write contents of A to PPU_CTRL:<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; sta PPU_CTRL<br />&nbsp; &nbsp; &nbsp; &nbsp; ; restore a<br />&nbsp; &nbsp; &nbsp; &nbsp; pla<br />&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; ; if d6 of third byte is set, repeat byte:<br />&nbsp; &nbsp; &nbsp; &nbsp; if a &lt;&lt; 1 == carry set<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; set d1, which will be shifted right and become carry<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; and increment the index by one only<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ora #%00000010<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; iny<br />&nbsp; &nbsp; &nbsp; &nbsp; endif<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; ; shift back to the right twice to restore length value<br />&nbsp; &nbsp; &nbsp; &nbsp; ; carry will be set now if repeat byte bit was set<br />&nbsp; &nbsp; &nbsp; &nbsp; mb a := a &gt;&gt; 2<br />&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; ; copy length into x<br />&nbsp; &nbsp; &nbsp; &nbsp; mb x := a<br />&nbsp; &nbsp; &nbsp; &nbsp; ; loop and write data to vram:<br />&nbsp; &nbsp; &nbsp; &nbsp; repeat<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; only increment index if this is not a repeating value:<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if carry clear<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; iny&nbsp; &nbsp; &nbsp; &nbsp;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; endif<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; mb PPU_DATA := (VRAM_Buffer_pointer)&#91; y &#93;<br />&nbsp; &nbsp; &nbsp; &nbsp; until dex == zero<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; ; add end length plus one to the indirect at VRAM_Buffer_pointer<br />&nbsp; &nbsp; &nbsp; &nbsp; sec<br />&nbsp; &nbsp; &nbsp; &nbsp; ; copy index to a<br />&nbsp; &nbsp; &nbsp; &nbsp; mb a := y<br />&nbsp; &nbsp; &nbsp; &nbsp; ; add index to pointer base:<br />&nbsp; &nbsp; &nbsp; &nbsp; mb VRAM_Buffer_pointer&nbsp; &nbsp; &nbsp; := a +c VRAM_Buffer_pointer<br />&nbsp; &nbsp; &nbsp; &nbsp; mb VRAM_Buffer_pointer&#91; 1 &#93; := VRAM_Buffer_pointer&#91; 1 &#93; + C<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; ; start here:<br />&nbsp; &nbsp; &nbsp; &nbsp; UpdateScreen:<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; ; reset latch and load y with index zero<br />&nbsp; &nbsp; &nbsp; &nbsp; ldx PPU_STATUS<br />&nbsp; &nbsp; &nbsp; &nbsp; ldy #0<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; ; if not zero, write to vram again:<br />&nbsp; &nbsp; until lda (VRAM_Buffer_pointer)&#91; y &#93; == zero<br /><br />&nbsp; &nbsp; ResetScroll:<br />&nbsp; &nbsp; sta PPU_SCROLL<br />&nbsp; &nbsp; sta PPU_SCROLL<br />&nbsp; &nbsp; rts<br />.endproc<br /></div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>qbradq</b> [ Wed Nov 13, 2013 3:16 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Nintendo PPU-data format</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />That's pretty cool that they had some sort of shared libraries back in the day. When I was working on my NES software projects (before falling into the tool building trap <img src="./images/smilies/icon_redface.gif" alt=":oops:" title="Embarassed" /> ) I used a similar, all-be-it more simplistic format for my PPU updates.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>cpow</b> [ Thu Nov 14, 2013 7:02 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Nintendo PPU-data format</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">qbradq wrote:</div><div class="quotecontent">(before falling into the tool building trap <img src="./images/smilies/icon_redface.gif" alt=":oops:" title="Embarassed" /> )</div><br />Ah yes...&quot;I'd rather write programs that help write programs than write programs.&quot;  Been there, living that!   <img src="./images/smilies/icon_lol.gif" alt=":lol:" title="Laughing" /> <br />The quote is referenced in a <a href="http://www.dreamingincode.com/" class="postlink">wonderful book</a> I wish everyone in software management and software development would read.  Sadly, though, as the author mentions [in quoting Joel Spolsky], &quot;most software engineers don't read enough [or anything] about their own field.&quot;
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Thu Nov 14, 2013 7:39 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Nintendo PPU-data format</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Tool building has clearer requirements and needs less art.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>qbradq</b> [ Thu Nov 14, 2013 7:49 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Nintendo PPU-data format</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tepples wrote:</div><div class="quotecontent">Tool building has clearer requirements and needs less art.</div><br /><br />Word.<br /><br />Plus, once I'm done with the tool I'll be able to pump out games lightning fast!<br /><br /> <img src="./images/smilies/icon_lol.gif" alt=":lol:" title="Laughing" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

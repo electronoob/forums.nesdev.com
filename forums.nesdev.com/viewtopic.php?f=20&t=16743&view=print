@@ -1,0 +1,354 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Beast Fighter and Window Function, does it work on hardware?</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Beast Fighter and Window Function, does it work on hardware?</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=20&amp;t=16743">http://forums.nesdev.com/viewtopic.php?f=20&amp;t=16743</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Alyosha_TAS</b> [ Sat Nov 25, 2017 6:05 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Beast Fighter and Window Function, does it work on hardware?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Hi all,<br /><br />I am working on the Sachen game Beast Fighter and I notice the status bar at the bottom of the screen doesn't show up.<br /><br /><a href="https://imgbb.com/" class="postlink"><img src="https://image.ibb.co/kjD03R/bf_screen.png" alt="Image" /></a> &lt;-- Normal Frame<br /><a href="https://imgbb.com/" class="postlink"><img src="https://image.ibb.co/hApexm/bf_window.png" alt="Image" /></a> &lt;-- The one loading frame where we can see the status bar.<br /><br />The window is set to 0,0. <br /><br />On the one frame where the rest of the screen if off during loading, you can see that the status bar shows up correctly. In this case the game turns the window on at line 0 and just runs to the end.<br /><br />But, on normal frames after loading, it does this:<br /><br />- LY = LYC interrupt at sacnline 114<br />- turn on the window<br />- turn off the window again at vblank.<br /><br />My understanding is that when you first turn the window on it always begins at the location specified by the window coordinates, regardless of the current LY value. So is the correct behaviour to not draw the status bar as above? Some videos online never the less show the status bar, what is the correct behaviour here?<br /><br />Thanks for any insight, it's either one way or the other but I don't know which is correct.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>nitro2k01</b> [ Sun Nov 26, 2017 9:56 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Beast Fighter and Window Function, does it work on hardw</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />If the WX, WY and window on flag conditions are all true at the same time, the PPU goes into window rendering mode. It then draws the window on each following line, starting at X position specified by WX, and the line counter is incremented for each consecutive line. (What I'm calling the line counter selects which line from the map is drawn for that LCD line.) However, if you set the window bit to 0, you can pause the rendering of the window. Once the bit is enabled again later in the same frame, rendering will resume at the same line counter value. Or put differently, this allows you to split an image into two parts, if you wanted.<br /><br />If it turns off the window in the VBlank period, and doesn't touch WY during the frame, the PPU should never go into window rendering mode. If it does so at some point after line 0 has started (perhaps still in the VBlank interrupt handler) window rendering mode could be entered and that could be used to resume it later on in the frame. <br /><br />So my follow-up question would be, could you log any writes to LCDC, WY and perhaps also WX and note at which line they each happen?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Shonumi</b> [ Sun Nov 26, 2017 10:25 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Beast Fighter and Window Function, does it work on hardw</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">nitro2k01 wrote:</div><div class="quotecontent">If the WX, WY and window on flag conditions are all true at the same time, the PPU goes into window rendering mode. It then draws the window on each following line, starting at X position specified by WX, and the line counter is incremented for each consecutive line. (What I'm calling the line counter selects which line from the map is drawn for that LCD line.) However, if you set the window bit to 0, you can pause the rendering of the window. Once the bit is enabled again later in the same frame, rendering will resume at the same line counter value. Or put differently, this allows you to split an image into two parts, if you wanted.<br /></div><br /><br />Star Trek: 25th Anniversary does that iirc, when displaying messages or showing the map. Quite annoying behavior to figure out if you haven't heard anything about it beforehand.<br /><br /><div class="quotetitle">Alyosha_TAS wrote:</div><div class="quotecontent">The window is set to 0,0. <br /></div><br /><br />Be careful with Window X. Though it's set to 0, it can still render. Even though Nintendo explicitly said values under 7 shouldn't be used, values of 0-6 apparently act as 0 anyway. For future reference (if you start emulating GBC stuff) Star Wars Episode I - Racer does uses this behavior briefly when drawing your pod in the garage. It puzzled me for a long time because I thought if window offsets were out of range (7 supposedly being the minimum x value) it wouldn't draw, but that's not the case.<br /><br />It sounds like Beast Fighter ought to be changing WY during the LYC interrupt, similar to how Mega Man I - V handle their status bars via the window. They trigger an LYC interrupt on some line (128?) but the relevant window tiles are at the bottom portion, so WY is adjusted accordingly.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>nitro2k01</b> [ Sun Nov 26, 2017 10:31 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Beast Fighter and Window Function, does it work on hardw</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Shonumi wrote:</div><div class="quotecontent">Even though Nintendo explicitly said values under 7 shouldn't be used, values of 0-6 apparently act as 0 anyway. </div>I've come across this by accident when developing a game, and at least on GBC it produced garbage tile data for the first few pixels of a line. I would need to research this more at some point.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Shonumi</b> [ Sun Nov 26, 2017 10:43 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Beast Fighter and Window Function, does it work on hardw</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Fwiw, I'm just assuming values of 1-6 of WX get translated to 0. I never got around to making a test ROM myself. I believe that garbage data is supposed to be drawn to the screen, but the window in SW EP1 - Racer is all black, so even when it ends up pulling &quot;random&quot; values, the BG/WIN data in VRAM is all the same, making it moot. I've had the game since I was a kid, so I can verify that it looks fine on real hardware. It's the only commercial game I know that does this with WX, and now that you mention it, looks like the devs came up with a workaround.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Alyosha_TAS</b> [ Sun Nov 26, 2017 4:15 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Beast Fighter and Window Function, does it work on hardw</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Thanks for the help so far.<br /><br />I do still draw the window when WindowX is 0, so that part at least is not the issue. Actually the game never writes to WindowX or WindowY anyway.<br /><br />(The LY=LYC interrupt happens on 104 not 114 like I wrote in the OP, my mistake.)<br />Here are all the writes to the PPU regs that happen in a frame:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">SL, Reg, (ID), value written<br />144 FF43 (SCX) 0x00<br />144 FF42 (SCY) 0x00<br />144 FF46 (DMA) 0xC0<br />146 FF40 (LCDC) 0xD3<br />104 FF40 (LCDC) 0xEB <br />104 FF42 (SCY) 0x00<br />104 FF43 (SCX) 0x00 </div><br /><br />So, it definitely turns off the window in vblank and doesn't turn it back on until LY=LYC interrupt. Maybe the writes to SCY and SCX at the interrupt are supposed to be writes to the window instead of scroll, but the whole interrupt routing is just this:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">====IRQ==== <br />0048:&nbsp; F3&nbsp; &nbsp; &nbsp; &nbsp; DI&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; A:00 F:70 B:00 C:10 D:C0 E:A0 H:CF L:10 SP:C1FD Cy:91196112 LY:104 zNHCie<br />0049:&nbsp; CD AE 02&nbsp; CALL #02AEh&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;A:00 F:70 B:00 C:10 D:C0 E:A0 H:CF L:10 SP:C1FD Cy:91196116 LY:104 zNHCie<br />02AE:&nbsp; F5&nbsp; &nbsp; &nbsp; &nbsp; PUSH AF&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;A:00 F:70 B:00 C:10 D:C0 E:A0 H:CF L:10 SP:C1FB Cy:91196140 LY:104 zNHCie<br />02AF:&nbsp; C5&nbsp; &nbsp; &nbsp; &nbsp; PUSH BC&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;A:00 F:70 B:00 C:10 D:C0 E:A0 H:CF L:10 SP:C1F9 Cy:91196156 LY:104 zNHCie<br />02B0:&nbsp; D5&nbsp; &nbsp; &nbsp; &nbsp; PUSH DE&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;A:00 F:70 B:00 C:10 D:C0 E:A0 H:CF L:10 SP:C1F7 Cy:91196172 LY:104 zNHCie<br />02B1:&nbsp; E5&nbsp; &nbsp; &nbsp; &nbsp; PUSH HL&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;A:00 F:70 B:00 C:10 D:C0 E:A0 H:CF L:10 SP:C1F5 Cy:91196188 LY:104 zNHCie<br />02B2:&nbsp; 3E EB&nbsp; &nbsp; &nbsp;LD&nbsp; &nbsp;A,#EBh&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;A:00 F:70 B:00 C:10 D:C0 E:A0 H:CF L:10 SP:C1F3 Cy:91196204 LY:104 zNHCie<br />02B4:&nbsp; E0 40&nbsp; &nbsp; &nbsp;LDH&nbsp; (#FF40h),A&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;A:EB F:70 B:00 C:10 D:C0 E:A0 H:CF L:10 SP:C1F3 Cy:91196212 LY:104 zNHCie<br />02B6:&nbsp; FA 03 C2&nbsp; LD&nbsp; &nbsp;A,(#C203h)&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;A:EB F:70 B:00 C:10 D:C0 E:A0 H:CF L:10 SP:C1F3 Cy:91196224 LY:104 zNHCie<br />02B9:&nbsp; E0 42&nbsp; &nbsp; &nbsp;LDH&nbsp; (#FF42h),A&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;A:00 F:70 B:00 C:10 D:C0 E:A0 H:CF L:10 SP:C1F3 Cy:91196240 LY:104 zNHCie<br />02BB:&nbsp; 3E 00&nbsp; &nbsp; &nbsp;LD&nbsp; &nbsp;A,#00h&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;A:00 F:70 B:00 C:10 D:C0 E:A0 H:CF L:10 SP:C1F3 Cy:91196252 LY:104 zNHCie<br />02BD:&nbsp; E0 43&nbsp; &nbsp; &nbsp;LDH&nbsp; (#FF43h),A&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;A:00 F:70 B:00 C:10 D:C0 E:A0 H:CF L:10 SP:C1F3 Cy:91196260 LY:104 zNHCie<br />02BF:&nbsp; E1&nbsp; &nbsp; &nbsp; &nbsp; POP&nbsp; HL&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;A:00 F:70 B:00 C:10 D:C0 E:A0 H:CF L:10 SP:C1F3 Cy:91196272 LY:104 zNHCie<br />02C0:&nbsp; D1&nbsp; &nbsp; &nbsp; &nbsp; POP&nbsp; DE&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;A:00 F:70 B:00 C:10 D:C0 E:A0 H:CF L:10 SP:C1F5 Cy:91196284 LY:104 zNHCie<br />02C1:&nbsp; C1&nbsp; &nbsp; &nbsp; &nbsp; POP&nbsp; BC&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;A:00 F:70 B:00 C:10 D:C0 E:A0 H:CF L:10 SP:C1F7 Cy:91196296 LY:104 zNHCie<br />02C2:&nbsp; F1&nbsp; &nbsp; &nbsp; &nbsp; POP&nbsp; AF&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;A:00 F:70 B:00 C:10 D:C0 E:A0 H:CF L:10 SP:C1F9 Cy:91196308 LY:104 zNHCie<br />02C3:&nbsp; C9&nbsp; &nbsp; &nbsp; &nbsp; RET&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;A:00 F:70 B:00 C:10 D:C0 E:A0 H:CF L:10 SP:C1FB Cy:91196320 LY:104 zNHCie<br />004C:&nbsp; FB&nbsp; &nbsp; &nbsp; &nbsp; EI&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; A:00 F:70 B:00 C:10 D:C0 E:A0 H:CF L:10 SP:C1FD Cy:91196336 LY:104 zNHCie<br />004D:&nbsp; D9&nbsp; &nbsp; &nbsp; &nbsp; RETI&nbsp; &nbsp;</div><br /><br />So yeah, seems like it shouldn't really be drawn. Any ideas?<br /><br />EDIT: Also, If i don't draw the window at all the status bar displays just fine since it's also available in the BG. So, maybe it's really not drawing the window somehow afterall?<br /><br />EDIT2: Does CGB boot up with WX and WY as 0xFF instead of 0x00? GB seems to boot to (0,0) according to Gekkio's tests, meaning the window would hide the status bar, but if CGB boots to (0xFF,0xFF) it would be really disabled and the the BG version of it would show through. Plausible?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>nitro2k01</b> [ Mon Nov 27, 2017 5:08 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Beast Fighter and Window Function, does it work on hardw</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Do you have a link to a working dump and info about the mapper so I can test it on hardware?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Alyosha_TAS</b> [ Mon Nov 27, 2017 9:27 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Beast Fighter and Window Function, does it work on hardw</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />The mapper is Sachen MMC2 as described here:<br /><br /><!-- m --><a class="postlink" href="https://web.archive.org/web/20170803195356/https://wiki.tauwasser.eu/view/Sachen_Mappers">https://web.archive.org/web/20170803195 ... en_Mappers</a><!-- m --><br /><br />I'm not sure what the policy is here regarding linking to ROM sites, but if you search for 'sachen beast fighter rom' it should be one of the first things that pops up.<br /><br />The mapper does some tricky stuff to display 'sachen' instead of nintendo in the boot process. So alternatively it might be easier to make a test rom that tries to display a window without writing to window x,y and see if it behaves differently on GB and CGB.<br /><br />Either way I'll be interested to see what the results are. Good Luck!
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tmk</b> [ Wed Nov 29, 2017 3:57 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Beast Fighter and Window Function, does it work on hardw</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />It does work.<br /><a href="http://ibb.co/cZiaQG" class="postlink"><img src="http://thumb.ibb.co/cZiaQG/IMG_20171129_110053.jpg" alt="Image" /></a><br />I'd say that window bit is some code leftover since, as you've noticed, the status bar works anyway.<br />I don't know why window is not displayed but in CGB manual they state that:<br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Attempting to display multiple windows by switching the window ON and OFF during H-blanking may result in the lower window not being displayed.</div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Alyosha_TAS</b> [ Wed Nov 29, 2017 5:26 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Beast Fighter and Window Function, does it work on hardw</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Cool thanks for testing. So it definitely works on CGB. Do you also have an original gameboy (DMG) to test on? If it also works on a DMG model then I'm definitely not understanding why.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tmk</b> [ Wed Nov 29, 2017 6:50 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Beast Fighter and Window Function, does it work on hardw</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Well, it also works on DMG - I've just tried it.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Alyosha_TAS</b> [ Wed Nov 29, 2017 8:37 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Beast Fighter and Window Function, does it work on hardw</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tmk wrote:</div><div class="quotecontent">Well, it also works on DMG - I've just tried it.</div><br /><br />Dang, now I'm really stumped.<br /><br />Thanks for testing though.<br /><br />I guess I could have an error somewhere else that actually turns the window off, but it sure doesn't look like it. It turns it off once in VBlank and turns it on once in LY=LYC.<br /><br />If anyone has any ideas I'm open to suggestions.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

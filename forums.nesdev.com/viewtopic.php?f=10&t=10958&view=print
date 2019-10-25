@@ -1,0 +1,312 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Fast 16bit modulus? (Y scroll for values &gt; 240)</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Fast 16bit modulus? (Y scroll for values &gt; 240)</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=10&amp;t=10958">http://forums.nesdev.com/viewtopic.php?f=10&amp;t=10958</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>pops</b> [ Thu Jan 30, 2014 1:26 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Fast 16bit modulus? (Y scroll for values &gt; 240)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />For my game, I want to be able to freely scroll in all four directions (single screen mirroring makes this easy, and the graphical artifacts aren't that bad). X scrolling is great, but Y scrolling is problematic.<br /><br />I think what I need to do is divide my 16bit y scroll value by 240, and use the remainder as the scroll value that I use when resetting the scroll during NMI.<br /><br />Two questions: First, is this right - or am I barking up the wrong tree entirely? Second, is there a 16bit modulus algorithm that I could use that wouldn't be too slow to use once-per-frame?<br /><br />Thanks so much!
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Thu Jan 30, 2014 1:30 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Fast 16bit modulus? (Y scroll for values &gt; 240)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I don't know what kind of input data you have, but in a some cases something like this might be good enough for that:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">while (y &gt;= 240) y -= 240;</div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Kasumi</b> [ Thu Jan 30, 2014 1:56 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Fast 16bit modulus? (Y scroll for values &gt; 240)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I have two bytes for both the regular 16 bit scroll (scrolly), and for the y scroll whose low byte wraps at &gt; 239. (scrollyscreen)<br /><br />I add the same value to both whenever the game scrolls on the y axis. For scrollyscreen, I just check if the low byte is higher than 239 and add an extra 16 in that case, then update the high byte accordingly.<br /><br />For subtraction, when the carry is clear after passing zero, subtract an additional 16.<br /><br />All that said, I also have subroutine that can pull the correct scrollyscreen value from the regular scrolly. But I use it only when the regular scroll is forced in bounds by the bottom of the level map. (And only for safety, I'm pretty sure even that's not needed with how I do things.) You can just subtract from scrollyscreen how far scrolly was ejected and never need to call this.<br /><br />Here it is anyway:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">pullyscreenfromyscroll:;{<br />&nbsp; &nbsp;ldx #$FF;FF because an extra 1 is always added<br />&nbsp; &nbsp;lda &lt;scrollyhigh<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;sec<br />yscreenfromyscrollbigadd:<br />&nbsp; &nbsp;inx;We add 1 to X for every time $0F can be subtracted from scrollyhigh<br />&nbsp; &nbsp;sbc #$0F<br />&nbsp; &nbsp;bcs yscreenfromyscrollbigadd<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;ldy highzerotosixteen,x;We then &quot;add&quot; $10 for every $0F in scrollyscreenhigh<br />&nbsp; &nbsp;sty &lt;scrollyscreenhigh<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;ldx &lt;scrollylow<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;adc #$0F;Fixing the remainder, since an extra $0F is always subtracted<br />&nbsp; &nbsp;beq yscreenfromyscrollfinalcheck<br />&nbsp; &nbsp;tay;Store the remainder in Y<br />&nbsp; &nbsp;txa<br />yscreenfromyscrollhighcheck.loopcheck:<br />&nbsp; &nbsp;sec<br />yscreenfromyscrollhighcheck.2loopcheck:<br />&nbsp; &nbsp;sbc #$F0<br />&nbsp; &nbsp;inc &lt;scrollyscreenhigh<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;bcs yscreenfromyscrollhighcheck.2loopcheck<br />&nbsp; &nbsp;dey<br />&nbsp; &nbsp;bne yscreenfromyscrollhighcheck.loopcheck<br />&nbsp; &nbsp;tax<br />yscreenfromyscrollfinalcheck:<br />&nbsp; &nbsp;txa<br />&nbsp; &nbsp;cmp #$F0<br />&nbsp; &nbsp;bcc yscreenfromyscrollfinaladd<br />&nbsp; &nbsp;;sec<br />&nbsp; &nbsp;sbc #$F0<br />&nbsp; &nbsp;inc &lt;scrollyscreenhigh<br />&nbsp; &nbsp;<br />yscreenfromyscrollfinaladd:<br />&nbsp; &nbsp;sta &lt;scrollyscreenlow<br /><br />&nbsp; &nbsp;rts;}<br /><br />highzerotosixteen:<br />&nbsp; &nbsp;.db $00, $10, $20, $30, $40, $50, $60, $70<br />&nbsp; &nbsp;.db $80, $90, $A0, $B0, $C0, $D0, $E0, $F0<br /></div><br /><br />It could probably be much faster, but what I've got is WAY faster than how it used to be, heh. And that was when it was called every frame. <br /><br />It depends on how big your level is (and also probably fails if your level is taller than 239 screens), but in the bottom of my tallest vertical level (2304 pixels tall) at the moment it runs at 164 cycles. Certainly fast enough to call every frame, I'd say.<br /><br />Edit: Hah, this can probably be made faster by messing with the txa/tax instructions. But honestly? I'm too scared of breaking it right now.  <img src="./images/smilies/icon_wink.gif" alt=":wink:" title="Wink" /> <br />This seems like it'd work:<br />Edit 2: Nope, it wouldn't so removed it. There's gotta be a way, but the savings would be miniscule for that small change anyway. New, faster methods are welcome, though. I'm not exactly a 6502 magician.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Thu Jan 30, 2014 2:04 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Fast 16bit modulus? (Y scroll for values &gt; 240)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">pops wrote:</div><div class="quotecontent">I think what I need to do is divide my 16bit y scroll value by 240, and use the remainder as the scroll value that I use when resetting the scroll during NMI.</div><br />I faced this problem once, and my solution was to get rid of the division altogether. For this I introduced a second Y scroll (it's called NTCameraY or something similar), which is relative to the name tables, and I update both values as the engine runs. NTCameraY always starts as 0, and is updated by the same amounts as the real CameraY every time it's changed. You can check for overflows and underflows of NTCameraY after each modification, to make sure it stays in the 0-240 range.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Two questions: First, is this right - or am I barking up the wrong tree entirely? Second, is there a 16bit modulus algorithm that I could use that wouldn't be too slow to use once-per-frame?</div><br />I don't know of any tricks to do this faster than using an actual division (which can be optimized to some extent), which might not even be too slow to perform a couple of times per frame (you might need to calculate more than one Y coordinate per frame if you're updating a row at the bottom of the screen, for example), but I'd much rather get rid of the division.<br /><br /><div class="quotetitle">rainwarrior wrote:</div><div class="quotecontent"><div class="codetitle"><b>Code:</b></div><div class="codecontent">while (y &gt;= 240) y -= 240;</div></div><br />This could be very slow in tall levels.<br /><br />EDIT: Apparently my solution is very similar to Kasumi's!
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Thu Jan 30, 2014 2:15 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Fast 16bit modulus? (Y scroll for values &gt; 240)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tokumaru wrote:</div><div class="quotecontent"><div class="quotetitle">rainwarrior wrote:</div><div class="quotecontent"><div class="codetitle"><b>Code:</b></div><div class="codecontent">while (y &gt;= 240) y -= 240;</div></div><br />This could be very slow in tall levels.</div><br /><br />Yes, I don't recommend it for routinely large values of y, obviously, but what I was suggesting is that trying to do a modulus isn't necessarily the best way to go about this. As I said, I don't know what the OP has in mind, specifically, but there are a lot of ways you could potentially keep the values of y in a low range where a full modulus is no longer necessary.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>pops</b> [ Thu Jan 30, 2014 2:47 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Fast 16bit modulus? (Y scroll for values &gt; 240)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">rainwarrior wrote:</div><div class="quotecontent">I don't know what kind of input data you have, but in a some cases something like this might be good enough for that:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">while (y &gt;= 240) y -= 240;</div></div><br />That's a very simple and clever response. Maximum scroll would be 4096 (0-17 iterations) for the map size I'm currently working on, with a maximum size of 8192 (0-34 iterations) for larger maps.<br /><br />For anyone else who has this problem, this is the code I wrote to get the modulus of a 16bit number divided by a constant value (here, 240).<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp;.alias value_hi $01<br />&nbsp; &nbsp;.alias value_lo $00<br />&nbsp; &nbsp;`SetMemory value_hi, 1<br />&nbsp; &nbsp;`SetMemory value_lo, 1<br />&nbsp; &nbsp;ldx value_hi<br />&nbsp; &nbsp;ldy value_lo<br />Mod240X:<br />&nbsp; &nbsp;cpx #0&nbsp; &nbsp;&nbsp; &nbsp;; 2&nbsp; &nbsp;<br />&nbsp; &nbsp;bne +&nbsp; &nbsp;&nbsp; &nbsp;; 2/3<br />&nbsp; &nbsp;cpy #240&nbsp; &nbsp;; 2<br />&nbsp; &nbsp;bcs +&nbsp; &nbsp;&nbsp; &nbsp;; 2/3<br />&nbsp; &nbsp;rts&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;; 6<br />*&nbsp; &nbsp;sec&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;; 2<br />&nbsp; &nbsp;tya&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;; 2<br />&nbsp; &nbsp;sbc #240&nbsp; &nbsp;; 2<br />&nbsp; &nbsp;tay&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;; 2<br />&nbsp; &nbsp;bcs Mod240X&nbsp; &nbsp;; 2/3<br />&nbsp; &nbsp;dex&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;; 2<br />&nbsp; &nbsp;bcc Mod240X&nbsp; &nbsp;; 2/3</div><br />Not super speedy, but fast enough, I suppose, for running once a frame. Thanks rainwarrior!<br /><br /><div class="quotetitle">tokumaru wrote:</div><div class="quotecontent">I introduced a second Y scroll (it's called NTCameraY or something similar), which is relative to the name tables, and I update both values as the engine runs. NTCameraY always starts as 0, and is updated by the same amounts as the real CameraY every time it's changed. You can check for overflows and underflows of NTCameraY after each modification, to make sure it stays in the 0-240 range.</div><br />tokukaru, Kasumi, that's a great idea as well.<br /><br />I think I'll use tokumaru's idea for frame-by-frame modification of ScrollY, but I'll still need the modulus solution for initially setting the value of ScrollY. Again - thanks so much for the excellent suggestions!
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Thu Jan 30, 2014 3:37 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Fast 16bit modulus? (Y scroll for values &gt; 240)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">pops wrote:</div><div class="quotecontent">I think I'll use tokumaru's idea for frame-by-frame modification of ScrollY, but I'll still need the modulus solution for initially setting the value of ScrollY. Again - thanks so much for the excellent suggestions!</div><br />I don't think you have to use the modulo at all (I don't, in my engine). Think about it: the only reason you want to calculate the initial scroll Y is because you want row 0 of the level map to be rendered to row 0 in the name table... but that doesn't bring any benefits. What good is having the very first row aligned to the top of the name table if the next 256-pixel boundary won't be? And the one after that won't be either? My point is that you'll lose sync with the name tables very soon after scrolling down a bit, so this alignment is completely irrelevant.<br /><br />This is why I said that in my engine, no matter the value of ScrollY, NTScrollY always starts at 0-15 (i.e. the first row of metatiles), because I can start at any map vs. name table alignment I want. It doesn't matter if row 13 of the level map gets rendered to row 7 of the name table, because that will eventually happen anyway when the screen scrolls down during gameplay.<br /><br />Unless your engine for some reason depends on this initial alignment, but I can't think of any reason for that. At first I too though I needed to vertically align the level map with the name tables, but after giving some thought to it I realized I really didn't. Please take a look at your engine and decide if this alignment really affects anything, because that might save you some ROM and a few cycles that could be better spent on actual game logic.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Kasumi</b> [ Thu Jan 30, 2014 3:45 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Fast 16bit modulus? (Y scroll for values &gt; 240)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">but I'll still need the modulus solution for initially setting the value of ScrollY.</div><br />Or just use two bytes to store that in your level header, so when you load the level ScrollY can just be set to the right value immediately with no calculation whatsoever. (Well... whatever exports your level exporter would need to figure it out)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>pops</b> [ Thu Jan 30, 2014 7:40 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Fast 16bit modulus? (Y scroll for values &gt; 240)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />These are all excellent ideas, and if I were starting from scratch, I'd definitely try to implement them. However, my time to program is limited, and once I have something working without bugs, I'm loathe to touch it again. I now have my scrolling working, using a mixture of the modulus code and tracking a separate Screen_Y value that rolls over at 240, as opposed to Scroll_Y, which rolls over at 256.<br /><br />Thanks again everyone! I really appreciate how helpful people in this community are.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Fri Jan 31, 2014 6:56 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Fast 16bit modulus? (Y scroll for values &gt; 240)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Kasumi wrote:</div><div class="quotecontent">Or just use two bytes to store that in your level header, so when you load the level ScrollY can just be set to the right value immediately with no calculation whatsoever.</div><br />...OR, you can set the secondary ScrollY to any value (it has to be metatile-align, but the upper bits don't matter at all) like I've been saying all along. Really, I dare you guy find one reason why the secondary Y scroll can't be anything when the scroll engine is initialized.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

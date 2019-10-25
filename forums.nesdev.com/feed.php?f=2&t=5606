@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=2&amp;t=5606" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2009-10-05T05:24:43-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=2&amp;t=5606</id>
+<entry>
+<author><name><![CDATA[tokumaru]]></name></author>
+<updated>2009-10-05T05:24:43-07:00</updated>
+<published>2009-10-05T05:24:43-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=5606&amp;p=51103#p51103</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=5606&amp;p=51103#p51103"/>
+<title type="html"><![CDATA[A NES Disassembler]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=5606&amp;p=51103#p51103"><![CDATA[
+<div class="quotetitle">InvalidComponent wrote:</div><div class="quotecontent"><br />If you feel some glitching, that's because this code is taking up too much time<br /></div><br />Yeah, looping through the sprites flipping them is hardly something you'd do during VBlank when you're about to DMA them.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=95">tokumaru</a> — Mon Oct 05, 2009 5:24 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[InvalidComponent]]></name></author>
+<updated>2009-10-04T23:04:40-07:00</updated>
+<published>2009-10-04T23:04:40-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=5606&amp;p=51101#p51101</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=5606&amp;p=51101#p51101"/>
+<title type="html"><![CDATA[A NES Disassembler]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=5606&amp;p=51101#p51101"><![CDATA[
+Well, seems to me like I maybe didn't supply enough instructions here. But, that can be fixed: here's a short tutorial.<br /><br /><strong>InvalidComponent's guide to easy romhacking with ANDA</strong><br /><br />Hi kids! Tonight we're gonna fix that Mario's game for good! And I am, of course, talking about doing something fun with Dr. Mario.<br /><br />We'll start up by firing up an emulator which supports the log format described in the .nfo file (y'all windows folks probably want to open it in notepad) and playing the game a bit. (Yay!)<br />This is probably the hardest step, since at the moment, no official emulators seem to do the trick, so you'll probably be better off just rolling the feature in your own.<br /><br />Alright, let's play the game a little bit... due to the nature of the disassembler, you have to play the game so that all code you want disassembled is traveled upon at least once. Also, if your game uses some nasty tricks to do jumping, there's a high chance you're going to have to write those addresses accessed in that way down in the log file yourself. ("push bytes to stack, then rts" nasty)<br /><br />Then, let us run anda!<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">invalidco@localhost ~/anda $ ./anda drm.nes drm.s drm.chr drm.jumps</div><br />After ANDA warns you about indirect jumps, it'll write the output to drm.s and the graphics to drm.chr. Since this disassembler is still a beta versision, you'll want to make sure the assembler didn't screw anything up and fire up ophis already with the just-disassembled rom:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">invalidco@localhost ~/anda $ ophis drm.s test.nes</div><br />And check for differences between files...<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">invalidco@localhost ~/anda $ md5sum test.nes drm.nes<br />d3ec44424b5ac1a4dc77709829f721c9   test.nes<br />d3ec44424b5ac1a4dc77709829f721c9   drm.nes</div><br />Looks good to go, so let's get cracking!<br /><br />The first thing we need to do is find some unused space to use to store our code. After some search, we'll find something that looks like a padding pattern or something similar at nearly the end of the drm.s. These bytes look like they store nothing significant, (I get a feeling that $0, $ff pattern is a leftover from the eeprom or some other low-level electronics thing) so we'll erase 'em and replace it with our padding code:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">supercoolfunction:<br />         rts<br />.advance $ffd0<br />sub_b1_ffd0:</div><br />Since we'll have to be careful in order not to mess the bytes up, we'll just stick a label, an rts and an assembler directive to pad the rest with zeroes. Now, let's find someplace to inject! If you look for the address $4014, you'll find the OAM subroutine pretty fast! There's the usual addresses being written to registers, we'll cut the second one and copy it to our own subroutine, leaving the sprite update routine in the following condition:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">sub_b0_b788:<br />         lda #$0<br />         sta $2003<br />         jsr supercoolfunction<br />         rts<br />.advance $b793<br />sub_b0_b793:</div><br />Note that we need to the padding, again, because there are far more complex dependencies hidden in there than I have the time to explain.<br />Now, we'll do something fun in the supercoolfunction subroutine, like flip all sprites vertically:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">supercoolfunction:<br />         ldx #$00<br />*<br />         lda #$80<br />         eor $0202,x<br />         sta $0202,x<br />         inx<br />         inx<br />         inx<br />         inx<br />         bne -<br />         lda #$02<br />         sta $4014<br />         rts</div><br />Now, assemble, test and feel the newly acquired power coursing through your veins!<br /><br />EDIT: If you feel some glitching, that's because this code is taking up too much time, you might want to try to restrict the flipped sprites to only a few of the first or use some code that has been optimized a bit better.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3625">InvalidComponent</a> — Sun Oct 04, 2009 11:04 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Celius]]></name></author>
+<updated>2009-10-04T22:45:58-07:00</updated>
+<published>2009-10-04T22:45:58-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=5606&amp;p=51100#p51100</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=5606&amp;p=51100#p51100"/>
+<title type="html"><![CDATA[A NES Disassembler]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=5606&amp;p=51100#p51100"><![CDATA[
+If you took a look at my disassembler, I did include support for CDL files and it also had a nice GUI to it (It was made with Visual Basic). The version that I posted was not the version I had on my computer before it kind of died on me. The last version had support for labels, and you could define how you wanted labels to be displayed. And also, it disassembles in chunks rather than disassembling the entire ROM at once. You simply tell it where you want to start disassembling from, and then you say how many lines of code you want to disassemble per "step". You can say that you want to disassemble something like 200 lines, and when you click the "step" button, it disassembles 200 lines of code (or data if it's mixed in with code). It also outputs 3 different disassemblies. One is assembler friendly, the next one is informative (It basically just contains the address next to each instruction), and then the last one just outputs .db statements. Another thing I added was defining the data statement. Some assemblers use .db and some use .data or something, and the disassembler allows you to change the statement to whatever you want. You could even lie to it and say that your assembler uses ".barbie" as the data definition statement, haha.<br /><br />Anyways, it's not the best disassembler, but I started making it and I think it had some good potential. Unfortunately I am missing the source code, so I would have to start over.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=138">Celius</a> — Sun Oct 04, 2009 10:45 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[thefox]]></name></author>
+<updated>2009-10-04T21:58:48-07:00</updated>
+<published>2009-10-04T21:58:48-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=5606&amp;p=51097#p51097</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=5606&amp;p=51097#p51097"/>
+<title type="html"><![CDATA[A NES Disassembler]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=5606&amp;p=51097#p51097"><![CDATA[
+<div class="quotetitle">Celius wrote:</div><div class="quotecontent"><br />I was wondering if you implemented support for Code/Data logs for FCEUXD or anything like that.<br /></div><br />I had the same idea, and I hope somebody will implement it some day. I have way too many projects at the moment to do it unfortunately. <img src="http://forums.nesdev.com/images/smilies/icon_smile.gif" alt=":)" title="Smile" /><br /><br />Another useful feature would be interactive GUI, like in <a href="http://www.hex-rays.com/idapro/" class="postlink">IDA</a>, where you can interactively add comments, labels, structures and stuff like that and also tell the disassembler which blocks are code/data.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=80">thefox</a> — Sun Oct 04, 2009 9:58 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tokumaru]]></name></author>
+<updated>2009-10-04T20:38:49-07:00</updated>
+<published>2009-10-04T20:38:49-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=5606&amp;p=51093#p51093</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=5606&amp;p=51093#p51093"/>
+<title type="html"><![CDATA[A NES Disassembler]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=5606&amp;p=51093#p51093"><![CDATA[
+<div class="quotetitle">Dwedit wrote:</div><div class="quotecontent"><br />Protip: NFO files are plain text files.  Do not attempt to open them with Microsoft System Information, or whatever Windows gives you as the default file association.<br /></div><br />Yeah, Windows is pretty dumb since all it uses to identify file types is a 3 letter combination, so it's no surprise that it will get it wrong pretty often.<br /><br />If you can't open a file by double-clicking, be it because the program associated to that extension doesn't recognize it or because there is no association at all, try looking at it in a text editor. Many times they are just text files, and many other times the first few bytes can give you a clue about what kind of file it actually is.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=95">tokumaru</a> — Sun Oct 04, 2009 8:38 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Dwedit]]></name></author>
+<updated>2009-10-04T20:17:04-07:00</updated>
+<published>2009-10-04T20:17:04-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=5606&amp;p=51092#p51092</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=5606&amp;p=51092#p51092"/>
+<title type="html"><![CDATA[A NES Disassembler]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=5606&amp;p=51092#p51092"><![CDATA[
+Protip: NFO files are plain text files.  Do not attempt to open them with Microsoft System Information, or whatever Windows gives you as the default file association.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=53">Dwedit</a> — Sun Oct 04, 2009 8:17 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Hamtaro126]]></name></author>
+<updated>2009-10-04T20:10:23-07:00</updated>
+<published>2009-10-04T20:10:23-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=5606&amp;p=51091#p51091</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=5606&amp;p=51091#p51091"/>
+<title type="html"><![CDATA[A NES Disassembler]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=5606&amp;p=51091#p51091"><![CDATA[
+Version 0.666b?<br /><br />Be careful, Something is suspisious about this!<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=287">Hamtaro126</a> — Sun Oct 04, 2009 8:10 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Celius]]></name></author>
+<updated>2009-10-04T18:14:08-07:00</updated>
+<published>2009-10-04T18:14:08-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=5606&amp;p=51079#p51079</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=5606&amp;p=51079#p51079"/>
+<title type="html"><![CDATA[A NES Disassembler]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=5606&amp;p=51079#p51079"><![CDATA[
+The NFO file didn't work for me for some reason, sorry.<br /><br />I was wondering if you implemented support for Code/Data logs for FCEUXD or anything like that. A while back, towards around March, I was messing around with Visual Basic and attempted to write a little disassembler of my own. I had some success, and it wasn't a command line utility. You can check it out here: <!-- m --><a class="postlink" href="http://www.freewebs.com/the_bott/DisasmTest2.rar">http://www.freewebs.com/the_bott/DisasmTest2.rar</a><!-- m --> . The thread about it I wrote was here: <!-- m --><a class="postlink" href="http://nesdev.com/bbs/viewtopic.php?t=4905">http://nesdev.com/bbs/viewtopic.php?t=4905</a><!-- m --> . I'm a Windows XP user, so I only made a Windows Executable for it.<br /><br />The ReadMe included defines what everything does, pretty much. The UI might take a little getting used to, but I found it to be pretty handy after a while. Some of my programming was sloppy, but since I didn't get much feedback for the disassembler, I didn't think people really were interested in a public release, so I didn't try and fix some of the minor inconveniences. The main thing was that I made support for including a CDL file so that it would automatically output code and data correctly. Also, one could choose what to output for data statements, depending on the assembler they want to use to reassemble the disassembly. That was actually my main reason for making it. I wanted to make a disassembler that would output assembler-compatible disassembly.<br /><br />Anyways, I'd be interested in seeing the capabilities of your disassembler, but the NFO file isn't working for me. Perhaps you could include a text file or something that describes all the capabilities?<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=138">Celius</a> — Sun Oct 04, 2009 6:14 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[InvalidComponent]]></name></author>
+<updated>2009-10-04T13:28:35-07:00</updated>
+<published>2009-10-04T13:28:35-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=5606&amp;p=51062#p51062</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=5606&amp;p=51062#p51062"/>
+<title type="html"><![CDATA[A NES Disassembler]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=5606&amp;p=51062#p51062"><![CDATA[
+So, I got fed up with the NES disassemblers I had tried, and wrote this.<br /><!-- m --><a class="postlink" href="http://sooda.dy.fi/kassu/?p=projects#anda-1">http://sooda.dy.fi/kassu/?p=projects#anda-1</a><!-- m --><br />If you report a bug, please include an md5sum of your rom dump, so I can make sure I'll debug with the same ROM dump.<br />Also, I haven't actually tested the Windows build.<br />The .nfo file should answer all of your questions, if not, ask those here.<br /><br />I'm already planning on implementing some more funky functionality:<br />* data access trace table import<br />* where-from-called (inter-bank) table import<br />I'll just leave this list open for you to fill...<br /><br />Lastly, if you're an emulator author, please either include a tracing feature that outputs a list of jumps like that, or invent(/have invented) a better trace file format.<br /><br />EDIT: The .exe in the .tar.bz2 file was actually accidentally an ELF file, fixed now. (thanks for the actual Win32 build go to thefox) :)<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3625">InvalidComponent</a> — Sun Oct 04, 2009 1:28 pm</p><hr />
+]]></content>
+</entry>
+</feed>

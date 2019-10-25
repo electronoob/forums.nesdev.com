@@ -1,0 +1,417 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Question about MoonEye test</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Question about MoonEye test</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=20&amp;t=14293">http://forums.nesdev.com/viewtopic.php?f=20&amp;t=14293</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>DarkMoe</b> [ Tue May 24, 2016 10:37 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Question about MoonEye test</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Hi all, I've been trying to iron out some of the many bugs that my emulator still has. Fortunately, each day I manage to fix most of them, and today I think my compatibility ratio for commercial games is near 100%.<br /><br />I've been trying to fix edge case scenarios, so for starters, this test:<br /><!-- m --><a class="postlink" href="https://github.com/Gekkio/mooneye-gb/blob/master/tests/acceptance/add_sp_e_timing.s#L21">https://github.com/Gekkio/mooneye-gb/bl ... ming.s#L21</a><!-- m --><br /><br />Which fails on BGB, kigb, NefustoGB (my emu), but works perfect on higan (byuu always manage to emulate everything wow).<br /><br />So, I'm a little confused with it, the first test says it's expecting OAM to be locked for the argument parameter for instruction E9 (add sp,e), but not for the instruction reading phase (the E9 itself)<br /><br />My emulator, returns 0xFF for all the memory map (except high ram) when DMA is being done. When I reach PC = 0xFDFF, my DMA routine already finished and I read instruction as: E9 42, the 42 being the first byte on the OAM memory. This is wrong, the expected value in the test is: E9 FF.<br /><br />If I adjust my OAM to take 4 more cycles (or 1 machine cycle), I get FF as the instruction (instead of E9), and since that's a restart to 0x38, the flow goes elsewhere and does nothing more. This is even worse.<br /><br />I'm guessing I don't have to lock all memory when there's a DMA, or maybe when a new instruction is fetch, it's supposed to bypass the DMA lock ?<br /><br />Any leads on this ? <br />Thanks,
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>gekkio</b> [ Tue May 24, 2016 10:50 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Question about MoonEye test</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />It sounds like you are reading both bytes of the instruction at the same time.<br />This is incorrect, because the hardware will only read one byte per 1 machine cycle.<br />If your emulator uses a big table of instruction lengths like many emulators do, unfortunately that won't be enough to pass many tests like this.<br /><br />That's what the comments on the top of the file try to explain:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">; ADD SP, e is expected to have the following timing:<br />; M = 0: instruction decoding<br />; M = 1: memory access for e<br />; M = 2: internal delay<br />; M = 3: internal delay<br /></div><br /><br />The total duration of this instruction is 4 machine cycles:<br /><br /><ul><li> the first cycle consists of reading $E9 and finding out that we are doing an ADD SP, e instruction</li><li> the second cycle consists of reading the parameter e, which in this case is either $42 if DMA is not running, or $FF if the DMA is still running</li><li> the third and fourth cycles are internal delays with no memory accesses</li></ul>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>DarkMoe</b> [ Tue May 24, 2016 11:33 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Question about MoonEye test</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Yeah, I know .. I'm not reading them all at once, I have it separated it like that, and it passes blarggs instructions timings tests.<br /><br />This is what Im doing:<br /><br />execute OAM ...<br />eventually, I reach pc = 0xFDFF:<br />read memory: 0xE9<br />advance clocks<br /><br />read memory: 0x42  (this is wrong, I should get 0xFF in here)<br />advance clocks<br /><br />I changed it so OAM execution lasts one more machine cycle, this is the result:<br /><br />read 0xE9 (I get 0xFF) .. wrong !!<br /><br />I don't understand how to get this:<br /><br />read memory: 0xE9<br />advance clocks<br />(here DMA should still be locked,but somehow it wasn't locked to read this instruction ?)<br /><br />read memory: 0xFF (DMA locked, gets FF instead of 0x42)<br /><br />but if memory is still locked from DMA, how do you get 0xE9 instead of 0xFF for the instruction ?<br /><br />Thanks
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>gekkio</b> [ Tue May 24, 2016 11:53 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Question about MoonEye test</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Ah, I understand now. You had the right idea earlier:<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">I'm guessing I don't have to lock all memory when there's a DMA</div><br /><br />Only the OAM area returns $FF when OAM DMA is running. The other areas are readable and writable, but you can get bus conflict scenarios if you access an area used by DMA.<br />You should be able to pass that test ROM by only blocking OAM, but fully emulating OAM DMA is more complicated. I still need to run some tests to verify the behaviour of the bus conflicts.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>DarkMoe</b> [ Tue May 24, 2016 12:01 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Question about MoonEye test</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Wow, really ? I've been using BGB logic to lock everything, I will analyze it a little and fix it.<br /><br />I wonder how the anti emulator protection works for &quot;airaki&quot; with this logic, since it's supposed to do a DMA and then jump to bank 0. this changes everything.<br /><br />Thanks for your time, and your awesome tests, I will test the next one =D
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>DarkMoe</b> [ Tue May 24, 2016 6:44 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Question about MoonEye test</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Ok awesome, I managed to fix my emu, and now it can pass 6 more of your diabolic tests.<br /><br />I'm still failing most of the &quot;gpu&quot; ones, which are cumbersome.<br /><br />However, how about this timer related one ?<br /><!-- m --><a class="postlink" href="https://github.com/Gekkio/mooneye-gb/blob/master/tests/acceptance/timer/rapid_toggle.s">https://github.com/Gekkio/mooneye-gb/bl ... d_toggle.s</a><!-- m --><br /><br />Do you have any reference for those unexpected timer behaviours ? That sounds like a pain to emulate properly.<br /><br />Thanks again !
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>nitro2k01</b> [ Tue May 24, 2016 8:23 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Question about MoonEye test</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">DarkMoe wrote:</div><div class="quotecontent">Wow, really ? I've been using BGB logic to lock everything, I will analyze it a little and fix it.<br /><br />I wonder how the anti emulator protection works for &quot;airaki&quot; with this logic, since it's supposed to do a DMA and then jump to bank 0. this changes everything.<br /><br />Thanks for your time, and your awesome tests, I will test the next one =D</div><br />I should answer that. Airaki doesn't actually have emulator detection originally. I added that in the dump I offer for download, for trolling purposes. (Look at the page background from a shallow angle and you might see an easter egg.) Iirc, my check is more advanced than Furrtek's original check in Super Connard, since it jumps to inaccessible memory instead of just reading it and confirming the value. <br /><br />The protection works by initiating a OAM DMA from $3Fxx and then loading the data at address 3270. If it matches the actual value at that address, $CD, the test is marked as a failure.<br /><br />If the value isn't $CD, a call to $3E04 is done. Now, one of two things can happen. <br /><br />If bus conflicts are emulated accurately, the CPU will read a bunch of $00 bytes from the OAM data stream. (You could do something more interesting here to enforce absolute correctness of timings if you wanted.) Eventually it will reach a ret instruction at $3FFF and return to HRAM and do... some fun stuff meant to give people disassembling the code a headache (but that's outside the scope of this post) and eventually it will return with a success.<br /><br />If you do sloppy emulation and just return $FF for memory that is inaccessible due to DMA, the call to $3E04 will read $FF, the instruction rst $38, a shorthand for call $0038. $0038 in turn will then also read $FF and will call itself recursively for the duration of the DMA. It will eventually run the ld [bc],a when the memory becomes accessible, which should be harmless, then run the ret at $0039 which winds down the stack from the recursive call. Eventually, the CPU returns to $3E05 and takes the same path to the ret at $3FFF and returns a success of the test.<br /><br />The other check is based on writing to DIV ($FF04) which resets the master divider which is used for various stuff. The test is done by triggering a note on sound channel 1 with a length set. DIV causes the length counter to not expire, which is checked with the NR52 &quot;on&quot; bit for channel 1. Just like the DMA test, this is a low granularity test which doesn't test exact timings, but rather the general presence or non-presence of the quirk in question.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>DarkMoe</b> [ Wed May 25, 2016 7:59 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Question about MoonEye test</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />That's good to know. BGB is doing the looping FF in 0x38. I implemented those reads as 0. Since my sound emulation is still WIP, I wasn't even turning off channel 1 when the length hit 0, so that worked haha, I still added the code to reset the sound timers when FF04 is written to.<br /><br />Now the game boots but for some reason I'm getting some garbage tiles. I will have to look into that later.<br /><br />Anyone who can help with the timer test ?<br /><br />Thanks !
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>gekkio</b> [ Wed May 25, 2016 9:03 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Question about MoonEye test</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">DarkMoe wrote:</div><div class="quotecontent">Anyone who can help with the timer test ?</div><br /><br />Check out AntonioND's docs: <a href="https://github.com/AntonioND/giibiiadvance/tree/master/docs" class="postlink">https://github.com/AntonioND/giibiiadvance/tree/master/docs</a><br />His emulator is the only one that passes those tests.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>DarkMoe</b> [ Tue Jul 12, 2016 8:56 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Question about MoonEye test</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Managed to get all timer tests passing ! That was a lot of work, but timing looks much more accurate now.<br /><br />Now I'm trying to understand one of your new tests, stat_irq_blocking<br /><br />Altered Space 3D is using all those stat 1 interrupts, and it's one of the few games which don't work ok (sprites are a mess, and I get a lot of DMA lock reads and writes). I expect that your test may help improve the emulation of that game.<br /><br />Any tips on what's the exact behaviour of this stat_irq_blocking ?<br /><br />Right now, it seems the only way to trigger the first stat interrupt, is that weird stat bug (write to FF41 in MODE = 0 or 1).<br /><br />Any low level info on the stat bug ? What else am I missing ?<br /><br />Thanks,
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>gekkio</b> [ Tue Jul 12, 2016 12:54 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Question about MoonEye test</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />STAT interrupt behaviour is not yet 100% understood, but see my comments <a href="http://board.byuu.org/phpbb3/viewtopic.php?p=25527#p25531" class="postlink">here</a> and <a href="http://board.byuu.org/phpbb3/viewtopic.php?f=8&amp;t=1120#p26292" class="postlink">here</a>.<br />That should be enough to pass that test although I've got more coming at some point <img src="./images/smilies/icon_wink.gif" alt=";)" title="Wink" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>binji</b> [ Thu Jul 14, 2016 10:46 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Question about MoonEye test</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Yeah, Altered Space works in <a href="https://github.com/binji/binjgb" class="postlink">my emulator</a>, and I'm pretty sure stat_irq_blocking is necessary.<br /><br />The trickiest part about STAT I've done so far is all the stuff to make Wilbert Pol's fork of mooneye-gb's tests pass. Not sure if the tests are accurate, but assuming they are, there are many tests that just didn't pass without some significant restructuring of my PPU code. In particular, they seem to require that the interrupts are triggered 1 M-cycle before IF is set for the vblank or y-compare interrupts, but not for the hblank and mode 2 interrupts (where IF is set immediately). Similarly, there seems to be a distinction between when the internal STAT flag is triggered and when it is cleared. I found that it is only edge-triggered (transition between states) for mode2 and y-compare, but isn't cleared until it leaves that state. I guess it makes some sense, but this does not seem to be the case for hblank and vblank, which can be triggered at any point. <br /><br />And of course, everything gets more complicated because the timing when the LCD turns on is slightly different, and the behavior of various modes and interrupts is often delayed by 1 M-cycle, but not consistently. For example: normally LY=LYC triggers exactly when LY changes. But it seems you can trigger a y-compare interrupt for LY=153 (which only lasts 1 M-cycle) by writing to LYC when it is has transitioned to LY=0, and y-compare for LY=0 is not triggered at this point, but delayed until the next M-cycle.<br /><br />I'm not sure I have it completely right, but you can take a look at the ppu_mcycle, check_stat, check_ly_eq_lyc and write_io functions to see how I handle all this stuff.<br /><br />Oh, I should mention that I'm only trying to emulate DMG, so a lot of this is completely different for CGB.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>DarkMoe</b> [ Tue Jul 19, 2016 6:19 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Question about MoonEye test</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Nice info.<br /><br />I finally had Altered Space working, but that irq blocking test still fails. So Im not really sure if I want to keep working on the PPU without accurate information, which at the moment seems nobody has it.<br /><br />I will continue with the audio emulation, which is terrible on my emulator
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>binji</b> [ Thu Jul 21, 2016 2:19 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Question about MoonEye test</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">I finally had Altered Space working, but that irq blocking test still fails.</div><br /><br />Weird, I wonder why? One thing I noticed while I was playing around with the timing is that sometimes the 3d isometric part works but the intro animation will be busted. For example, when the big spaceship flies in from the right, it just looks like garbage data. Another time the small spaceship seemed to stop in a different location, but then the animation just kind of stopped, the big spaceship never came in. But you could still press start and the game would play normally. Just something to look out for, I guess. I almost didn't notice these things... before I added fast-forward it was boring waiting through the intro, so I'd just hit start to skip everything. <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>DarkMoe</b> [ Tue Jul 26, 2016 6:36 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Question about MoonEye test</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />The game has lots of weird programming choices.<br /><br />On startup for example, the game will attempt to erase the graphic memory (area 0x8000 onwards) while the screen is on and not even checking the stat mode, so some of the data is not erased.<br /><br />It looks like the original developers just made it work without really understanding the hardware by pure luck.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

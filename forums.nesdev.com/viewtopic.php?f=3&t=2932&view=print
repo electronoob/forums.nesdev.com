@@ -1,0 +1,429 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - NMI/IRQ edge cases and last cycle testing</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">NMI/IRQ edge cases and last cycle testing</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=3&amp;t=2932">http://forums.nesdev.com/viewtopic.php?f=3&amp;t=2932</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>byuu</b> [ Fri Feb 09, 2007 11:13 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>NMI/IRQ edge cases and last cycle testing</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />This is for a bug I recently came across with Mortal Kombat II. It applies both to NES and SNES, as they have virtually identical underpinnings, so I'm hoping someone here has experimented at this low level of detail and can shed some insight on this matter for me.
+<br />
+<br />This is really deep into clock-perfect timing, so this is not for the inexperienced or faint of heart. You probably won't be able to help unless you really know this stuff inside and out.
+<br />
+<br />Here is my IRQ log:
+<br /><!-- m --><a class="postlink" href="http://byuu.cinnamonpirate.com/temp/irq.txt">http://byuu.cinnamonpirate.com/temp/irq.txt</a><!-- m -->
+<br />
+<br />The second block is the problem.
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">80f826 stx $4200&nbsp; &nbsp; &nbsp;&#91;$804200&#93; A:00c2 X:0020 Y:0000 S:01fb D:0000 DB:80 nVMxdIzC V:215 H:1346<br />- 1346 &lt;opfetch&gt;<br />- 1352 &lt;$00 fetch&gt;<br />- 1358 &lt;$42 fetch&gt;<br />-&nbsp; &nbsp; 0 &lt;$4200 write start&gt;<br />-&nbsp; &nbsp; 6 &lt;$4200 actual write&gt;<br />&lt;lastcycle test&gt;<br />-&nbsp; &nbsp; 6 &lt;$4201 write start&gt;<br />-&nbsp; &nbsp;12 &lt;$4201 actual write&gt;<br />-&nbsp; &nbsp;12 &lt;opend&gt;<br />80f829 cli&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;A:00c2 X:0020 Y:0000 S:01fb D:0000 DB:80 nVMxdIzC V:216 H:&nbsp; 12</div>
+<br />
+<br />$4200 is the SNES NMI/IRQ enable register. As we know, a write that happens immediately at the same time as the lastcycle test does not get processed on that lastcycle event. It's as if the $4200 register holds its' previous value for the IRQ test (meaning lastcycle is tested first before the write takes event), or the IRQ test is simply blocked for this lastcycle event (eg a simple delay is needed).
+<br />
+<br />What I do currently is implement a tiny delay by 2 clock ticks, to prevent the lastcycle test from succeeding here, because the former would require SNES CPU pipeline emulation to detect lastcycle edge before the previous cycles' write completes. The problem is that I then test to trigger IRQs again two ticks later, and now I see that V=215, and VIRQs are enabled on line 215, so I internally say "ok, we need to generate a VIRQ". cli doesn't occur until V=216, but an IRQ triggers here anyway because once the /IRQ line is raised, it stays raised. Hardware disagrees with me on this specific test. Note that on real hardware, if the lastcycle test were to happen 6 clocks sooner, it really would fire a second IRQ. So yes, this game will actually completely break, even on real hardware, if timing is adjusted by a mere <em>four hertz on a 21mhz clock</em>. And people say cycle-accurate emulation isn't necessary :P
+<br />
+<br />Anyway, I'm kind of at a loss on how to fix this. The reason it sees V=216,HCLOCK=6 as being valid for V=215 IRQ is because of the delay between your IRQ/NMI positions and when they actually trigger. For NMI, the delay is 2 clocks, just like the NES NMI. For SNES IRQs, the delay is 10 clocks for VIRQ, 14 clocks for [V]HIRQ. So, subtract 10 from V216, HCLOCK6, and you get V215,HCLOCK1360. It thinks V==VTIME, so /IRQ gets ticked.
+<br />
+<br />What I'm thinking is happening, is that because the write happened to $4200 right at the lastcycle edge, it isn't acknowledged here, and the lastcycle event doesn't set the flag to say "ok, we need to trigger another IRQ". And indeed, that's what happens with bsnes now. However, on the next clock, which is not a lastcycle edge, bsnes tests again (it tests every clock because range testing is a <em>major</em> PITA), and sees "ok, NOW the IRQ is valid, let's trigger it on the next lastcycle edge". Note that even range testing wouldn't fix this, as in this case if the SNES really were range testing (highly improbable), the range from immediately after the lastcycle edge would be tested and valid, so the IRQ would trigger anyway on the next lastcycle edge.
+<br />
+<br />Is it possible that the real hardware doesn't actually raise the NMI/IRQ pins immediately when the clock hits their positions, and instead only raises them when the IRQ values are within range during lastcycle edges? The only way to verify this for sure would be with an oscilloscope watching the /NMI and /IRQ lines.
+<br />
+<br />If bsnes were to ignore the "IRQ needs to fire" message at that lastcycle edge due to $4200 write at the same time, and then continued to ignore the message until the next lastcycle edge, no IRQ would trigger. Does this seem like the correct fix, or am I perhaps missing something else?
+<br />
+<br />The problem with this theory is that it would screw with the four-clock "line raised to acknowledgement" delay. You know, say with NMI, it gets raised at clock 2, and then after the delay, the NMI won't fire until clock 6. So I would have to test the IRQ every clock tick, and then when the /IRQ line ticks, and the four-clock delay completes, then set another intermediate variable that says "ok we have an IRQ ready, but we need to wait until lastcycle to actually set the flag that says the IRQ <em>has</em> to fire, and give lastcycle a chance to dismiss this flag". Yet another layer of indirection to triggers the interrupts, doesn't sound correct to me either.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>dvdmth</b> [ Fri Feb 09, 2007 1:29 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Wow, a game for SNES that's as cycle-picky as Battletoads?  Never thought I'd see the day...
+<br />
+<br />The NES's IRQ handling is very different from the SNES, so it's very hard to rely on the NES architecture in figuring out what's going on in your case.  For one thing, there's no such thing as HIRQ's, and VIRQ's exist only with certain cartridge mappers (MMC3, MMC5, MMC6, and certain third-party mappers) and only work when the PPU is rendering (i.e. no IRQ's during V-Blank, except through the "manual" IRQ trigger that can be done with the MMC3/6).
+<br />
+<br />If I understand right, you're getting an IRQ when there shouldn't be one and are wondering what may cause it not to fire.  My guess is that there's probably a latency in the IRQ being enabled.  What happens if you turn on an HIRQ on the precise cycle it would fire?  What happens if you enable it two clocks before/after that time?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>byuu</b> [ Fri Feb 09, 2007 2:34 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Oh yes, it's quite picky. It sets up an HIRQ to get to the near-end of the scanline, then enables VIRQs on the next scanline. You can change the HIRQ position (each 1 value change results in a 4-clock timing difference, plus rounding). Go to 0x86db in the Mortal Kombat II ROM, and this is the 16-bit HIRQ dot position to trigger at. It should be 0x18,0x01 (0x0118 HIRQ). Move it one forward, and it works in bsnes. Move it one backwards (to 0x17), or maybe two to 0x16, and the game will break on real hardware. Wonderful design, hm?
+<br />
+<br />Anyway, I think I have an idea of what it might be. Have to wait until I get home tonight to test on hardware, but I'm thinking my WAI implementation timing might be wrong. If so, that would be a ~6-12 clock timing difference, which would be enough to "fix" MK2, and hopefully show that there isn't a (known) problem with my current IRQ implementation.
+<br />
+<br />How does the NES implement WAI? Does it only execute the opcode one time and "stick" inside that opcode until an interrupt flag is set, or does it keep executing the opcode without incrementing regs.pc, over and over until an interrupt triggers? Or does it not even have WAI? Heh.
+<br />
+<br />Lastly, from what I've seen here, the NES and SNES interrupt mechanisms seem extremely similar to me. Obviously the NES only has NMI, but it has the same "test on last cycle edge", the same "wait 4 clocks from triggering", the same "read NMI status during those four clocks of /NMI hold time, and the value stays set", the same ability to retrigger NMIs multiple times during the same frame, etc.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Fri Feb 09, 2007 2:52 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Just my $0.02 about this : I've a NTSC Mortal Kombat II cartridge working fine on my PAL SNES, so it just cannot be as tricky as Battletoads &amp; cie.
+<br />
+<br />However, HIRQs and VIRQs are generated by the SNES PPU itself, not by the cartridge, so they are just in sync for both NTSC or PAL, however, the CPU frequency is different I guess, just like the NES but 2x faster (or 3x for FastROMs).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>byuu</b> [ Fri Feb 09, 2007 3:10 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Lame! The NES has no WAI instruction. How do you reliably poll when an NMI triggered on the NES, other than by making the NES NMI routine set a RAM variable to tell you it triggered, then? If you poll the NMI triggered register you have both the potential to block the NMI from occurring (I think), as well as to read the value as being set twice. Quite dangerous.
+<br />
+<br />As far as MK2 working on a PAL SNES, sure. They have the same number of clocks per scaline. It's the number of scanlines per frame that is different. This HIRQ routine should perform identically on both systems. Even though the S-CPU frequencies between NTSC and PAL are slightly different (the NTSC one being optimized for NTSC color subcarrier crystal clock speed * 6; no idea where the PAL timing comes from), the IRQ and the V/H counters both use the same oscillator, so the results would be identical.
+<br />
+<br />It may not be as tricky as Battletoads, but failing because timing is off by one five-millionth of a second is pretty bad nonetheless. The other emulators run this game because they don't support an edge case with IRQ triggering, and so the IRQ that "should" fire in them does not. I couldn't tell you which edge case they're missing, since I didn't write the code for them. I tested this by setting my test ROM to trigger a little sooner, where the interrupt should fire on hardware, and no other emulator fires the second IRQ at all. I do so love when bugs allow games to work, heh. Makes me feel better about all of the comments such as, "but such and such can run it just fine, and with only a 66mhz toaster oven!"
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Fri Feb 09, 2007 3:20 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">byuu wrote:</div><div class="quotecontent">Lame! The NES has no WAI instruction. How do you reliably poll when an NMI triggered on the NES, other than by making the NES NMI routine set a RAM variable to tell you it triggered, then?</div><br />Commercial NES games that don't use the run-entire-game-in-an-NMI-handler method of <em>Super Mario Bros.</em> detect vblank by having the NMI routine change the value of a variable in RAM.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">I do so love when bugs allow games to work, heh. Makes me feel better about all of the comments such as, "but such and such can run it just fine, and with only a 66mhz toaster oven!"</div>
+<br />A simplified model of the hardware has its uses.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Fri Feb 09, 2007 3:41 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Lame! The NES has no WAI instruction. How do you reliably poll when an NMI triggered on the NES, other than by making the NES NMI routine set a RAM variable to tell you it triggered, then?</div>
+<br />Another option is to go the Final Fantasy way : Call a subroutine wich enables NMI, and turn itself in an infinite jump. When NMI hits, clear the flag disables NMIs, discard the saved adress and status on the stack and return from the first subroutine.
+<br />However, myself, I prefer have some code in NMI and some other code out of NMI, it keep things well organised and simple.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>byuu</b> [ Fri Feb 09, 2007 3:59 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Commercial NES games that don't use the run-entire-game-in-an-NMI-handler method of Super Mario Bros. detect vblank by having the NMI routine change the value of a variable in RAM.</div><br /><br />Ah, what I was thinking, then. That works too, but has additional overhead since you basically have to test, loop, test, loop, test, loop; rather than just test, test, test. So you potentially lose more time using the - lda $00 : beq - approach. Ah well.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">A simplified model of the hardware has its uses.</div>
+<br />
+<br />Absolutely. Especially for purity's sake. I've actually considered doing that, writing an emulator that ignores all of the pesky complex edge cases; I just don't have the time to maintain two emulators myself.
+<br />
+<br />The idea would be: it would run on slower hardware, it would allow you to see if your own personal game (or someone else's) relied on an edge case (hence it probably won't work in many emulators and you should fix it), etc.
+<br />
+<br />However, I don't agree with any current SNES implementations of such a concept. They all go for compatibility, add hacks, and add just enough accuracy to get games working, rather than keeping the design pure and simple.
+<br />
+<br />For the SNES, I'd recommend:
+<br />- no bus hold delays for H/DMA
+<br />- synchronization on opcode edges and each H/DMA byte transfer only
+<br />- simplistic NMI / IRQ handler with no edge cases
+<br />- no DRAM refresh or long dots, no missing dots, no variable scanlines on interlace mode
+<br />- overscan enable is cached, takes effect at the start of the next even frame
+<br />- all PPU regs completely locked outside of blanking period
+<br />- DMA/HDMA/NMI/IRQ trigger points are always constant and where expected
+<br />- V/H blank flag set positions always constant and where expected
+<br />- clock rates run at manual specifications, rather than observed average variances (EWJ2 (E) breaks using stock S-SMP clock speed, relies on the fact that 100% of oscilloscope-tested SNES units run ~0.125% faster than stock speed)
+<br />- etc
+<br />
+<br />I would welcome, encourage, and contribute free code to such a project, however. It would be cool if others would go back and patch other poorly programmed games to work under this model, as well. Authenticity is nice, but it's quite different when the original game only works by fluke.
+<br />
+<br />Both extreme accuracy and extreme simplicity have their purpose in my book. Middle of the road emulators only help out in the interim while low-end hardware is not capable of running the accurate emulators, they will not serve a purpose in the future, same as NESticle, as soon as even cell phones can run the accurate ones at full speed. Let's hope Moore's Law keeps up though so that can become a reality :)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Fri Feb 09, 2007 9:39 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">byuu wrote:</div><div class="quotecontent">I would welcome, encourage, and contribute free code to such a project, however. It would be cool if others would go back and patch other poorly programmed games to work under this model, as well.</div><br />It had better work on the full model (and on a Super NES as well), or Bananmos will b*tch your head off.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Both extreme accuracy and extreme simplicity have their purpose in my book. Middle of the road emulators only help out in the interim while low-end hardware is not capable of running the accurate emulators, they will not serve a purpose in the future, same as NESticle, as soon as even cell phones can run the accurate ones at full speed. Let's hope Moore's Law keeps up though so that can become a reality <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" /></div>
+<br />The problem is that it becomes harder to run homebrew code on platforms with a D-pad as newer, faster platforms come out. GBA homebrew was easy after 6 months, but it took roughly 18 months (May 2006) to make homebrew on Nintendo DS easy to get started with. PSP is just an endless game of cat-and-mouse with Sony. Mobile phones are often locked down to run only applications approved by the network operator, and (except for N-Gage) they don't have a D-pad.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>byuu</b> [ Sat Feb 10, 2007 9:34 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Found the problem. My IRQ support is fine, it was due to bad WAI timing. Not that anyone in the NES emu dev forum cares, but the proper way to handle WAI is:
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">wai&#40;0xcb&#41; &#123;<br />//last_cycle&#40;&#41; will set event.wai to false<br />//once an NMI / IRQ edge is reached<br />1:event.wai = true;<br />&nbsp; while&#40;event.wai&#41; &#123;<br />&nbsp; &nbsp; last_cycle&#40;&#41;;<br />&nbsp; &nbsp; op_io&#40;&#41;;<br />&nbsp; &#125;<br />2:op_io&#40;&#41;;<br />&#125;</div>
+<br />
+<br />Guess it was an SNES problem after all, sorry about that.
+<br />
+<br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">The problem is that it becomes harder to run homebrew code on platforms with a D-pad as newer, faster platforms come out. GBA homebrew was easy after 6 months, but it took roughly 18 months (May 2006) to make homebrew on Nintendo DS easy to get started with. PSP is just an endless game of cat-and-mouse with Sony. Mobile phones are often locked down to run only applications approved by the network operator, and (except for N-Gage) they don't have a D-pad.</div>
+<br />
+<br />Yes, DRM will always be beatable, but what most people don't understand is that as the industry refines it, it will become harder and harder to circumvent, and take more and more time. Eventually, products will have to be virtually ubiquitous to get hacked. Sony's bullshit cost them a customer for their PSP. I might pick one up after the product is discontinued, and the final BIOS is hacked, but not sooner. I've personally always considered phones phones, so I'm not too upset, but it would be nice to be able to run third party apps on them. I really can't see why they would be so against outside applications that would make their phones more valuable to own. There's no risk of piracy in allowing homebrew for them.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Sun Feb 11, 2007 2:18 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">I might pick one up after the product is discontinued, and the final BIOS is hacked, but not sooner.</div>
+<br />That's just what I told to myself. I agree 100% with you on this point, heh.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Sun Feb 11, 2007 11:59 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">byuu wrote:</div><div class="quotecontent">I've personally always considered phones phones, so I'm not too upset, but it would be nice to be able to run third party apps on them. I really can't see why they would be so against outside applications that would make their phones more valuable to own. There's no risk of piracy in allowing homebrew for them.</div>
+<br />They run the risk of people downloading homebrew instead of buying marked-up apps from the network operator's online store.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

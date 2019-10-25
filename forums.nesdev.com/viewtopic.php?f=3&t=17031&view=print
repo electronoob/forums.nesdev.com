@@ -1,0 +1,144 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Code review request - symbolic execution engine</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Code review request - symbolic execution engine</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=3&amp;t=17031">http://forums.nesdev.com/viewtopic.php?f=3&amp;t=17031</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>russellsprouts</b> [ Tue Feb 06, 2018 12:36 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Code review request - symbolic execution engine</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I've been working on a sort-of emulator for the 6502 as part of a compiler project. Here's the <a href="https://github.com/RussellSprouts/6502-enumerator" class="postlink">github repo</a>. It symbolically executes 6502 code.<br /><br />I was hoping to get more eyes on the emulator code. I've probably got some bugs in there. In the repo, emulator.h is the core of the 6502 emulation. The emulator takes a machine (virtual 6502 processor) and a single instruction, and applies the instruction to the machine. (Repeat as desired). There are two machine implementations -- random_machine.h is a processor with randomized actual numbers for all of its state. abstract_machine.h is a processor with symbolic values (like algebraic variables), and after each instruction the state is a formula for the resulting state in terms of the initial state. I wrote emulator so that it can take both types of machines. Note that I'm using my own representation for the instructions, with a byte for the operation (adc, plp, etc), followed by a nybble for the addressing mode (absolute, indirect y, etc), and a nybble for the operand.<br /><br />Any help would be great!<br />I'm also open to suggestions to expand this. I want to add the unofficial opcodes for the 2a03, and maybe modes for other 6502 variants -- 65c02, etc. I also want to parameterize it by the set of live variables, especially the flags.<br /><br /><span style="font-size: 150%; line-height: normal">More info about the project:</span><br /><br />Using the <a href="https://github.com/Z3Prover/z3" class="postlink">z3</a> theorem prover, I created a symbolic execution engine for the 6502. It can run small sequences of 6502 instructions and prove equivalences between them.<br /><br />It's not able to run all programs. There are some limitations:<br /><ol style="list-style-type: decimal"><li> Except the first instruction, none of the instructions can be the target of a jump. This is meant for basic blocks, not full programs.</li><li> All instructions are supported except <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">brk</tt> and <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">jsr</tt>, because they create implicit jump targets (control flow returns after <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">rts</tt> or <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">rti</tt>).</li><li> There are a limited set of operands:<br />   <ol style="list-style-type: decimal">     <li> Up to three 16-bit addresses (for absolute, jump/branch targets, etc.). Called absolute0, absolute1, absolute2<br />     </li><li> Up to four 8-bit addresses (for zp, indirect, etc.). Called zp0, zp1, zp2, zp3.<br />     </li><li> Two 8-bit literals, c0 and c1. In addition, these operands are valid for immediate mode: #0, #1, #c0, #c1, #(c0+1), #(c1+1), #(c0+c1)<br />   </li></ol></li></ol><br />Think of the operands as unknown variables. c0 could be any 8-bit value, absolute0 could be any 16-bit value.<br /><br />My program can find somewhat equivalences like this:<br /><br /><tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">lsr; bmi Absolute0</tt> &lt;-&gt; <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">lsr</tt><br />(This is true because after lsr, the high bit of a is guaranteed to be 0). (Yes, I use a 16-bit value as the operand for branch instructions. Just think of it as the result of adding the signed 8-bit offset)<br /><br />I have code that basically tries all instruction sequences up to a certain length and compares them to build up a database of optimizations. There are a bunch of tricks to speed this up (see <a href="https://theory.stanford.edu/~aiken/publications/papers/asplos06.pdf" class="postlink">this paper</a> if that interests you). That code (enumerator.cpp) is really messy and not quite working yet -- I don't need a code review for it now.<br /><br />edit: fixed paper url
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Rahsennor</b> [ Tue Feb 06, 2018 6:01 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Code review request - symbolic execution engine</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Sweet! This is exactly the sort of thing I wanted for my compiler. I even read the same paper!<br /><br />Don't have time to look it over now (and won't for a good long while) but I'll be back to help if I get half a chance.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

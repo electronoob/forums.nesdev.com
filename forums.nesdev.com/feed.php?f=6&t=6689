@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=6&amp;t=6689" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2010-07-29T04:47:29-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=6&amp;t=6689</id>
+<entry>
+<author><name><![CDATA[neilbaldwin]]></name></author>
+<updated>2010-07-29T04:47:29-07:00</updated>
+<published>2010-07-29T04:47:29-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6689&amp;p=65078#p65078</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6689&amp;p=65078#p65078"/>
+<title type="html"><![CDATA[Question about ADSR envelopes]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6689&amp;p=65078#p65078"><![CDATA[
+I rewrote my ADSR routine for this new tracker. I'm quite please with it because it only takes two thirds of a scan-line (worst case).<br /><br />I'd be interested if anyone could optimise this further while retaining the same functionality.<br /><br />Link here too, I normally don't use forum-friendly formatting <img src="http://forums.nesdev.com/images/smilies/icon_smile.gif" alt=":)" title="Smile" /><br /><br /><!-- m --><a class="postlink" href="http://dl.dropbox.com/u/5493868/adsr.asm">http://dl.dropbox.com/u/5493868/adsr.asm</a><!-- m --><br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent"><br />;---------------------------------------------------------------<br />; ADSR Routine<br />;<br />; Neil Baldwin, 2010<br />;<br />; Taken from my new &quot;Pulsar&quot; project.<br />; Feel free to use it if it's any use to you<br />;<br />;---------------------------------------------------------------<br />;<br />; Requires RAM variables<br />;<br />;envelopeCounter   DB 0<br />;envelopeSpeed   DB 0<br />;envelopeAmp   DB 0<br />;envelopePhase   DB 0<br /><br />initPhase      EQU 5   ;set &quot;envelopePhase&quot; to this value to start it<br />attackPhase      EQU 4<br />decayPhase      EQU 3<br />sustainPhase   EQU 2<br />releasePhase   EQU 1<br />offPhase      EQU 0   ;envelope stops at this stage<br /><br />;<br />;Test ADSR settings<br />;<br />;For A, D, S &amp; R, the higher the number, the quicker the speed<br />;For gateTime, the higher the number, the longer the sustain phase<br />;<br />attack   DB $30   ;speed to go from 0 to F amplitude, if speed set to 0, envelope starts at max &#40;0F&#41; amplitude<br />decay   DB $10   ;speed to go from max &#40;0F&#41; to sustain level<br />sustain   DB $08   ;level at which envelope is held, see gateTime<br />release   DB $10   ;speed to go from sustain level to 0<br />gateTime   DB $40   ;controls the release phase. 0=hold forever, anything else is number of frames<br />      ;sustain level held until release phase is triggered<br /><br />;<br />;Call this routine every audio engine refresh<br />;<br />;Of course, if you want to use it on multiple voices, you'll need to either use indexing on the RAM variables<br />;or turn it into a macro.<br />;<br />doADSR:   ldy envelopePhase      ;get phase address &#40;-1&#41;<br />   lda envelopePhasesHi,y      ;and push onto stack for RTS trick<br />   pha<br />   lda envelopePhasesLo,y<br />   pha<br />   rts<br /><br />envelopePhasesLo<br />   DL adsrOff-1,adsrRelease-1,adsrSustain-1,adsrDecay-1,adsrAttack-1,adsrInit-1<br />envelopePhasesHi<br />   DH adsrOff-1,adsrRelease-1,adsrSustain-1,adsrDecay-1,adsrAttack-1,adsrInit-1<br /><br />   <br />adsrInit:   lda #$00         ;initialise amplitude, counter      <br />   sta envelopeAmp<br />   sta envelopeCounter<br />   dec envelopePhase      ;then move to Attack phase<br />            ;drop through<br /><br />adsrAttack:   lda attack         ;if Attack = 0, set max amp and move to Decay<br />   bne @a<br />   lda #$0F<br />   sta envelopeAmp<br />   dec envelopePhase<br />   rts<br />   <br />@a   clc         ;otherwise, add Attack rate to counter<br />   adc envelopeCounter<br />   sta envelopeCounter<br />   lda envelopeAmp      ;if counter overflows, carry is set and the ADC #$00<br />   adc #$00         ;will increment amplitude<br />   cmp #$10         ;exceeded max &#40;0F&#41;?<br />   bcc @b<br />   dec envelopePhase      ;yes, move to Decay      <br />   rts<br />@b   sta envelopeAmp      ;no, store new amplitude value<br />   rts<br /><br /><br />adsrDecay:   lda decay         ;if Decay = 0, move to Sustain phase<br />   bne @a<br />   dec envelopePhase<br />   rts<br />   <br />@a   clc         ;otherwise, add Decay speed to counter<br />   adc envelopeCounter<br />   sta envelopeCounter      ;if counter overflow, carry is set<br />   ror a         ;this time we need to subtract from amplitude<br />   eor #$80         ;so use ROR A to push carry into bit 7<br />   asl a         ;invert bit 7 and push back into carry<br />   lda envelopeAmp      ;so that SBC #$00 will subtract 1 if carry set after overflow<br />   sbc #$00<br />   cmp sustain         ;reached sustain level &#40;or 0&#41;?<br />   bmi @b<br />   bcc @b<br />   sta envelopeAmp      ;no, store new amplitude<br />   rts<br />@b   dec envelopePhase      ;yes, move to Sustain phase<br />   lda #$00         ;and zero counter because it will be indeterminate at this point<br />   sta envelopeCounter<br />   rts<br />   <br />adsrSustain:         <br />   lda gateTime      ;if Gate Time = 0, sustain forever. In practicality, you'd<br />            ;only use 0 gate time if you had a command to force the envelope<br />            ;into the release phase, as in a MIDI Key Off command<br />   beq @a         <br />   inc envelopeCounter      ;otherwise, increment counter until &gt;= Gate Time<br />   cmp envelopeCounter<br />   bcs @a<br />   dec envelopePhase      ;the move to Release Phase<br />@a   rts<br />      <br />adsrRelease:<br />   lda decay         ;add Release speed to counter<br />   clc<br />   adc envelopeCounter<br />   sta envelopeCounter<br />   ror a         ;same trick as Decay, invert the carry and do a SBC #$00<br />   eor #$80<br />   asl a<br />   lda envelopeAmp      <br />   sbc #$00<br />   bmi @a         ;subtract 1 from amplitude until &gt;=$00         <br />   sta envelopeAmp<br />   rts<br />@a   dec envelopePhase      ;move to Off phase, envelope done<br />   rts<br />      <br />adsrOff:<br />   lda #$00         ;could replace with just &quot;STY envelopAmp&quot; becase Y=0 at this point<br />   sta envelopeAmp<br />   rts<br /></div><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3896">neilbaldwin</a> — Thu Jul 29, 2010 4:47 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Bregalad]]></name></author>
+<updated>2010-07-27T11:47:57-07:00</updated>
+<published>2010-07-27T11:47:57-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6689&amp;p=64974#p64974</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6689&amp;p=64974#p64974"/>
+<title type="html"><![CDATA[Question about ADSR envelopes]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6689&amp;p=64974#p64974"><![CDATA[
+In the simple music engine, I don't have ADSR really but I have a system that let the volume decrease a couple of ticks before it ends. On a fast tempo, this will last a couple of frames and won't be very audible, but on slower tempos, this will last quite a few frames, and will be audible.<br /><br />This is a "cheap" system. On a more advanced one you'd want a system with parametrable note % that is held before the release phase, or a system with key-off commands like MIDI.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=38">Bregalad</a> — Tue Jul 27, 2010 11:47 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Drag]]></name></author>
+<updated>2010-07-27T11:01:35-07:00</updated>
+<published>2010-07-27T11:01:35-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6689&amp;p=64971#p64971</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6689&amp;p=64971#p64971"/>
+<title type="html"><![CDATA[Question about ADSR envelopes]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6689&amp;p=64971#p64971"><![CDATA[
+To do ADSR, you need to keep track of something called "key-on"<br /><br />Key On is when the note starts, and Key Off is when the note ends. In most musical situations, you'll be given the option to either use a Key Off, or just a simple Rest to end your notes (which just cuts the notes to silence).<br /><br />Anyway, to do ADSR, you basically just do this:<br /><br />Key On!<br /><br />Volume = whatever<br />A Phase: Volume += A<br />Repeat until Volume = Maximum<br />D Phase: Volume -= D<br />Repeat until Volume &lt;= S<br />Volume = S<br />Wait here until Key Off<br />R Phase: Volume -= R<br /><br />End<br /><br />Key Off is just a command entered by the composer. It's entirely possible for the composer to just ignore adding the Key Offs to the song. In that case, each note will just go through attack and decay, pausing at sustain until the next note, which will interrupt the previous note, and also go through attack and decay.<br /><br />As for the timing of the envelopes, I think it's best kept independent of the song tempo, like Neil said.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=21">Drag</a> — Tue Jul 27, 2010 11:01 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[mic_]]></name></author>
+<updated>2010-07-27T09:50:26-07:00</updated>
+<published>2010-07-27T09:50:26-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6689&amp;p=64966#p64966</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6689&amp;p=64966#p64966"/>
+<title type="html"><![CDATA[Question about ADSR envelopes]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6689&amp;p=64966#p64966"><![CDATA[
+One thing you may want to have though is a rate scaling feature (as seen on some FM chips), where the envelope narrows at higher frequencies, according to a scaling value.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=1181">mic_</a> — Tue Jul 27, 2010 9:50 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tokumaru]]></name></author>
+<updated>2010-07-27T09:35:51-07:00</updated>
+<published>2010-07-27T09:35:51-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6689&amp;p=64963#p64963</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6689&amp;p=64963#p64963"/>
+<title type="html"><![CDATA[Question about ADSR envelopes]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6689&amp;p=64963#p64963"><![CDATA[
+Thanks for the insight, Neil. I'm still getting the hand of this music thing!<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=95">tokumaru</a> — Tue Jul 27, 2010 9:35 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[neilbaldwin]]></name></author>
+<updated>2010-07-27T04:08:49-07:00</updated>
+<published>2010-07-27T04:08:49-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6689&amp;p=64959#p64959</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6689&amp;p=64959#p64959"/>
+<title type="html"><![CDATA[Question about ADSR envelopes]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6689&amp;p=64959#p64959"><![CDATA[
+Personally I don't think the volume envelope should be tied to the note length. If you think about plucking one string on a guitar, the volume of the sound doesn't decay faster/slower depending on how quickly you pluck the string again.<br /><br />What you should have is a gate on timer which controls when the envelope passes into the release phase for a held note, or use key-off commands to do the same thing if you want to truncate your note early.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3896">neilbaldwin</a> — Tue Jul 27, 2010 4:08 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2010-07-26T16:21:40-07:00</updated>
+<published>2010-07-26T16:21:40-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6689&amp;p=64926#p64926</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6689&amp;p=64926#p64926"/>
+<title type="html"><![CDATA[Question about ADSR envelopes]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6689&amp;p=64926#p64926"><![CDATA[
+Some playing styles use an effect called "staccato" in which every note is followed by silence. For example, in S3M and IT, the SC4 effect cuts the playing note 4 frames after the start of this row.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Mon Jul 26, 2010 4:21 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tokumaru]]></name></author>
+<updated>2010-07-26T14:45:48-07:00</updated>
+<published>2010-07-26T14:45:48-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6689&amp;p=64923#p64923</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6689&amp;p=64923#p64923"/>
+<title type="html"><![CDATA[Question about ADSR envelopes]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6689&amp;p=64923#p64923"><![CDATA[
+So you only get to hear the decay of notes that are followed by silence?<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=95">tokumaru</a> — Mon Jul 26, 2010 2:45 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2010-07-26T13:17:53-07:00</updated>
+<published>2010-07-26T13:17:53-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6689&amp;p=64917#p64917</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6689&amp;p=64917#p64917"/>
+<title type="html"><![CDATA[Question about ADSR envelopes]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6689&amp;p=64917#p64917"><![CDATA[
+Release is just a decay state that begins at the note-off command in the sequence. It's not very audible on voice-poor synthesizers like the NES APU because it gets preempted by the next note-on.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Mon Jul 26, 2010 1:17 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tokumaru]]></name></author>
+<updated>2010-07-26T13:00:57-07:00</updated>
+<published>2010-07-26T13:00:57-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6689&amp;p=64915#p64915</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6689&amp;p=64915#p64915"/>
+<title type="html"><![CDATA[Question about ADSR envelopes]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6689&amp;p=64915#p64915"><![CDATA[
+How do you guys handle the R(elease) part in engines with dynamic tempo? I mean, I believe it's necessary to know the length of the notes (in frames) to properly apply that last part of the envelope, but I can't think of an efficient way to do it... Any ideas?<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=95">tokumaru</a> — Mon Jul 26, 2010 1:00 pm</p><hr />
+]]></content>
+</entry>
+</feed>

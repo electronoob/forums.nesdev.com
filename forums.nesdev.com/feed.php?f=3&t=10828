@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=3&amp;t=10828" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2013-12-28T21:21:28-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=3&amp;t=10828</id>
+<entry>
+<author><name><![CDATA[Dwedit]]></name></author>
+<updated>2013-12-28T21:21:28-07:00</updated>
+<published>2013-12-28T21:21:28-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10828&amp;p=123022#p123022</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10828&amp;p=123022#p123022"/>
+<title type="html"><![CDATA[Re: SMB 3 spiked ceilings in castles bug]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10828&amp;p=123022#p123022"><![CDATA[
+I tested out Slalom, and can see that the scrolling code is buggy.  But MMC3 emulation is solid enough to run my Chu Chu Rocket game correctly.  So weird to see Chu Chu Rocket running correctly, but other games getting completely screwed up.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=53">Dwedit</a> — Sat Dec 28, 2013 9:21 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[ulfalizer]]></name></author>
+<updated>2013-12-28T15:25:48-07:00</updated>
+<published>2013-12-28T15:25:48-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10828&amp;p=123004#p123004</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10828&amp;p=123004#p123004"/>
+<title type="html"><![CDATA[Re: SMB 3 spiked ceilings in castles bug]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10828&amp;p=123004#p123004"><![CDATA[
+<div class="quotetitle">miker00lz wrote:</div><div class="quotecontent"><br /><div class="quotetitle">Zepper wrote:</div><div class="quotecontent">Post your IRQ code from mapper 4 source/VBlank.<br /></div><br /><br />I do this at the start of each frame where I turn off the vblank flag for the first scanline:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">   if (cartridge.mapper == 4) map4-&gt;irqcounter = map4-&gt;irqlatch;<br /></div></div><br /><br />This shouldn't be needed. The MMC3 itself doesn't keep track of frames.<br /><br /><br /><div class="quotetitle">miker00lz wrote:</div><div class="quotecontent"><br />At the beginning of every scanline I run map4work() which is:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">void map4work() {<br />   if (cartridge.mapper == 4) {<br />      if (map4-&gt;irqenable &amp;&amp; map4-&gt;irqcounter == 0) irq6502();<br />      if (map4-&gt;irqcounter == 0) map4-&gt;irqcounter = map4-&gt;irqlatch;<br />      if (PPU-&gt;bgvisible || PPU-&gt;sprvisible) map4irqdecrement();<br />   }<br />}<br /></div><br /></div><br /><br />With this approach you'd want everything to be conditional on <em>PPU-&gt;bgvisible || PPU-&gt;sprvisible</em>. That's required for the MMC3 to see scanlines, and the scanline clocks are what trigger other events. Also note that reloading and decrementing <strong>irqcounter</strong> is an <em>either-or</em> thing: You should never both reload and decrement it during the same clock.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=5911">ulfalizer</a> — Sat Dec 28, 2013 3:25 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[ulfalizer]]></name></author>
+<updated>2013-12-28T14:46:48-07:00</updated>
+<published>2013-12-28T14:46:48-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10828&amp;p=123003#p123003</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10828&amp;p=123003#p123003"/>
+<title type="html"><![CDATA[Re: SMB 3 spiked ceilings in castles bug]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10828&amp;p=123003#p123003"><![CDATA[
+<div class="quotetitle">miker00lz wrote:</div><div class="quotecontent"><br /><div class="quotetitle">ulfalizer wrote:</div><div class="quotecontent">Are you setting the period counter to zero when $C001 is written? Do you reload it with the <em>most recent</em> value written to $C000 when it's clocked by the scanline counter while being zero?<br /><br />I'd mark up lines where IRQs are being asserted and look at that along with a textual trace of MMC3 IRQs.<br /></div><br /><br />AH! I was doing this on write to $C000/$C001:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">            if (addr &amp; 1) map4-&gt;irqcounter = 0;<br />               else map4-&gt;irqlatch = value;<br /></div><br /><br /><br />Changing it to this:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">            if (addr &amp; 1) map4-&gt;irqcounter = map4-&gt;irqlatch;<br />               else map4-&gt;irqlatch = value;<br /></div></div><br /><br />The old version before the change is what I have. <strong>irqcounter</strong> is only ever reloaded from <strong>irqlatch</strong> as the result of a clock from the scanline counter - never as a result of writing one of the MMC3 registers.<br /><br />To be more specific, <strong>irqlatch</strong> is copied to <strong>irqcounter</strong> when you get a clock from the scanline counter and <strong>irqcounter</strong> equals zero.<br /><br />The fact that your change &quot;almost&quot; fixes things suggests something might be wrong with your scanline counting or reloading logic. Normally the value of <strong>irqcounter</strong> would go <em>0, irqlatch, irqlatch - 1, ...</em>, where the initial 0 is from the $C001 write and the decrements are from scanline clocks. In your version it'll go <em>irqlatch, irqlatch - 1, irqlatch - 2, ...</em> instead, which probably is why it's off by one. I would check that the <em>0-to-irqlatch</em> transition on the first scanline clock is working as expected first.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=5911">ulfalizer</a> — Sat Dec 28, 2013 2:46 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2013-12-28T14:07:18-07:00</updated>
+<published>2013-12-28T14:07:18-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10828&amp;p=123002#p123002</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10828&amp;p=123002#p123002"/>
+<title type="html"><![CDATA[Re: SMB 3 spiked ceilings in castles bug]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10828&amp;p=123002#p123002"><![CDATA[
+In most MMC3 games, your map4work should be done at the first sprite fetch (dot 261 of the line), not at the beginning of the line. (Actually, it should be done when the PPU address switches from $0xxx or $2xxx to $1xxx for the first time in each scanline.)<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Sat Dec 28, 2013 2:07 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[miker00lz]]></name></author>
+<updated>2013-12-28T13:33:35-07:00</updated>
+<published>2013-12-28T13:33:35-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10828&amp;p=123001#p123001</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10828&amp;p=123001#p123001"/>
+<title type="html"><![CDATA[Re: SMB 3 spiked ceilings in castles bug]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10828&amp;p=123001#p123001"><![CDATA[
+<div class="quotetitle">Zepper wrote:</div><div class="quotecontent"><br />Post your IRQ code from mapper 4 source/VBlank.<br /></div><br /><br />I do this at the start of each frame where I turn off the vblank flag for the first scanline:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">   if (cartridge.mapper == 4) map4-&gt;irqcounter = map4-&gt;irqlatch;<br /></div><br /><br /><br />At the beginning of every scanline I run map4work() which is:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">void map4work() {<br />   if (cartridge.mapper == 4) {<br />      if (map4-&gt;irqenable &amp;&amp; map4-&gt;irqcounter == 0) irq6502();<br />      if (map4-&gt;irqcounter == 0) map4-&gt;irqcounter = map4-&gt;irqlatch;<br />      if (PPU-&gt;bgvisible || PPU-&gt;sprvisible) map4irqdecrement();<br />   }<br />}<br /></div><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4572">miker00lz</a> — Sat Dec 28, 2013 1:33 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[miker00lz]]></name></author>
+<updated>2013-12-28T13:39:04-07:00</updated>
+<published>2013-12-28T13:30:26-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10828&amp;p=123000#p123000</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10828&amp;p=123000#p123000"/>
+<title type="html"><![CDATA[Re: SMB 3 spiked ceilings in castles bug]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10828&amp;p=123000#p123000"><![CDATA[
+<div class="quotetitle">WedNESday wrote:</div><div class="quotecontent"><br /><div class="quotetitle">3gengames wrote:</div><div class="quotecontent">irq? sprite 0?<br /></div><br /><br />AFAIK there is no Sprite 0 timing in SMB3. It looks like IRQ to me alright.<br /><br />How is the rest of the game? How are other Mapper 004 games? Does your emu pass the MMC3 tests?</div><br /><br />The game is still fully playable. I don't pass the MMC3 tests. I tried using them a while back, but I wasn't getting anywhere with them. Asking about things here usually helps more. <img src="http://forums.nesdev.com/images/smilies/icon_smile.gif" alt=":)" title="Smile" /><br /><br />Most other mapper 4 games have odd glitches to some extent too. TMNT 2 for example:<br /><br /><img src="http://rubbermallet.org/tmnt2bug.png" alt="Image" /><br /><br />Looks like the wrong CHR bank is being used there or something.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4572">miker00lz</a> — Sat Dec 28, 2013 1:30 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[miker00lz]]></name></author>
+<updated>2013-12-28T13:58:25-07:00</updated>
+<published>2013-12-28T13:27:39-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10828&amp;p=122999#p122999</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10828&amp;p=122999#p122999"/>
+<title type="html"><![CDATA[Re: SMB 3 spiked ceilings in castles bug]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10828&amp;p=122999#p122999"><![CDATA[
+<div class="quotetitle">ulfalizer wrote:</div><div class="quotecontent"><br />Are you setting the period counter to zero when $C001 is written? Do you reload it with the <em>most recent</em> value written to $C000 when it's clocked by the scanline counter while being zero?<br /><br />I'd mark up lines where IRQs are being asserted and look at that along with a textual trace of MMC3 IRQs.<br /></div><br /><br />AH! I was doing this on write to $C000/$C001:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">            if (addr &amp; 1) map4-&gt;irqcounter = 0;<br />               else map4-&gt;irqlatch = value;<br /></div><br /><br /><br />Changing it to this:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">            if (addr &amp; 1) map4-&gt;irqcounter = map4-&gt;irqlatch;<br />               else map4-&gt;irqlatch = value;<br /></div><br /><br /><br />Gives me this:<br /><br /><img src="http://rubbermallet.org/smb3bug2.png" alt="Image" /><br /><br /><br />Much better, but my mapper 4 implementation is still slightly off though. You can see how the first scanlines where the IRQs happen are shifted sideways a bit. Also, when vertically scrolling the screen (i.e. Mario flying or the spiked ceilings moving) everything under where the IRQ scanline was is a little unstable. It's tough to explain. If you want to see what I mean, here's the exe I just compiled:<br /><br /><!-- m --><a class="postlink" href="http://rubbermallet.org/currentmoarnes.zip">http://rubbermallet.org/currentmoarnes.zip</a><!-- m --><br /><br />Turn into raccoon Mario on the first level of SMB 3 and start flying up into the sky and watch the status bar as you do it to see what I mean!<br />BTW, there are four quicksave slots in MoarNES. F1 through F4 saves state, F5 through F8 loads them again.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4572">miker00lz</a> — Sat Dec 28, 2013 1:27 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Zepper]]></name></author>
+<updated>2013-12-28T09:37:51-07:00</updated>
+<published>2013-12-28T09:37:51-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10828&amp;p=122991#p122991</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10828&amp;p=122991#p122991"/>
+<title type="html"><![CDATA[Re: SMB 3 spiked ceilings in castles bug]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10828&amp;p=122991#p122991"><![CDATA[
+Post your IRQ code from mapper 4 source/VBlank.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=39">Zepper</a> — Sat Dec 28, 2013 9:37 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[ulfalizer]]></name></author>
+<updated>2013-12-28T06:23:37-07:00</updated>
+<published>2013-12-28T06:23:37-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10828&amp;p=122986#p122986</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10828&amp;p=122986#p122986"/>
+<title type="html"><![CDATA[Re: SMB 3 spiked ceilings in castles bug]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10828&amp;p=122986#p122986"><![CDATA[
+Are you setting the period counter to zero when $C001 is written? Do you reload it with the <em>most recent</em> value written to $C000 when it's clocked by the scanline counter while being zero?<br /><br />I'd mark up lines where IRQs are being asserted and look at that along with a textual trace of MMC3 IRQs.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=5911">ulfalizer</a> — Sat Dec 28, 2013 6:23 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[WedNESday]]></name></author>
+<updated>2013-12-28T04:37:58-07:00</updated>
+<published>2013-12-28T04:37:58-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10828&amp;p=122984#p122984</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10828&amp;p=122984#p122984"/>
+<title type="html"><![CDATA[Re: SMB 3 spiked ceilings in castles bug]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10828&amp;p=122984#p122984"><![CDATA[
+<div class="quotetitle">3gengames wrote:</div><div class="quotecontent"><br />irq? sprite 0?<br /></div><br /><br />AFAIK there is no Sprite 0 timing in SMB3. It looks like IRQ to me alright.<br /><br />How is the rest of the game? How are other Mapper 004 games? Does your emu pass the MMC3 tests?<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=191">WedNESday</a> — Sat Dec 28, 2013 4:37 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[3gengames]]></name></author>
+<updated>2013-12-28T01:52:15-07:00</updated>
+<published>2013-12-28T01:52:15-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10828&amp;p=122977#p122977</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10828&amp;p=122977#p122977"/>
+<title type="html"><![CDATA[Re: SMB 3 spiked ceilings in castles bug]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10828&amp;p=122977#p122977"><![CDATA[
+irq? sprite 0?<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4311">3gengames</a> — Sat Dec 28, 2013 1:52 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[miker00lz]]></name></author>
+<updated>2013-12-27T23:42:28-07:00</updated>
+<published>2013-12-27T23:42:28-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10828&amp;p=122975#p122975</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10828&amp;p=122975#p122975"/>
+<title type="html"><![CDATA[SMB 3 spiked ceilings in castles bug]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10828&amp;p=122975#p122975"><![CDATA[
+Well, I know there's something wrong with my mapper 4 implementation (probably IRQ counter related) that has to be causing this one. Any idea which aspect of it I should be looking at first that could be making this nastiness happen?<br /><br /><img src="http://rubbermallet.org/smb3bug.png" alt="Image" /><br /><br /> <img src="http://forums.nesdev.com/images/smilies/icon_mad.gif" alt=":x" title="Mad" /><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4572">miker00lz</a> — Fri Dec 27, 2013 11:42 pm</p><hr />
+]]></content>
+</entry>
+</feed>

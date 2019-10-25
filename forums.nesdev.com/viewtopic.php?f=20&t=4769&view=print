@@ -1,0 +1,436 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - LDH syntax inconvenience, improvements?</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">LDH syntax inconvenience, improvements?</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=20&amp;t=4769">http://forums.nesdev.com/viewtopic.php?f=20&amp;t=4769</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Thu Jan 22, 2009 6:22 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>LDH syntax inconvenience, improvements?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />The LDH instruction is the Game Boy's equivalent of zero-page addressing, faster than the usual three-byte instructions that can address any byte of memory. It is encoded in two bytes, with the second forming the low byte of the address. The high byte is fixed at $FF, so the page is at the end of memory, which is where the I/O registers and $80 bytes of RAM are located.
+<br />
+<br />The syntax of the LDH instruction is inconvenient when dealing with symbolic address constants. For example, to access NR52 symbolically, one must subtract $FF00 when using LDH (using wla-dx), or define the constant as just the low byte, which makes it error-prone with all other instructions
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">; First approach: subtract $FF00 when using LDH<br />.define NR52 $FF26<br />LDH A,&#40;NR52-$FF00&#41;&nbsp; ; LD A,&#40;$FF26&#41;<br /><br />; Second approach: define with $FF00 already subtracted, then remember to add $FF00 when using other instructions<br />.define NR52 $26<br />LDH A,&#40;NR52&#41;&nbsp; &nbsp; ; LD A,&#40;$FF26&#41;<br />LD&nbsp; HL,NR52+$FF00<br />XXX &#40;HL&#41;<br />LD&nbsp; BC,NR52&nbsp; &nbsp; &nbsp;; oops, forgot to add $FF00<br />XXX &#40;BC&#41;&nbsp; &nbsp; &nbsp; &nbsp; ; so this accesses $0026 rather than $FF26</div><br />In my code I've been using macros named LDA and STA, which internally do the subtraction. This way, I can always work in terms of the actual addresses.<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">.macro LDA ; addr<br />&nbsp; &nbsp; LDH A,&#40;\1 - $FF00&#41;<br />.endm<br /><br />.macro STA ; addr<br />&nbsp; &nbsp; LDH &#40;\1 - $FF00&#41;,A<br />.endm<br /><br />.define NR52 $FF26<br />LDA NR52&nbsp; &nbsp; &nbsp; ; macro expands to LDH A,&#40;$26&#41;<br />STA NR52&nbsp; &nbsp; &nbsp; ; macro expands to LDH &#40;$26&#41;,A</div><br />In my opinion, the assembler syntax for LDH should have been such that the address was a normal one that is in the range $FF00-$FFFF, with the assembler dealing with the encoding. This would have allowed code to be unconcerned with the details:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">; Hypothetical; NOT how GB-Z80 assemblers work!<br />LDH A,&#40;$FF26&#41;&nbsp; ; encoded as $E0 $26<br />LDH &#40;$FF26&#41;,A&nbsp; ; encoded as $F0 $26</div><br /><br />Am I overlooking something that eliminates this issue entirely? wla-dx includes some automatic usage of LDH, similar to how 65xx assemblers use it when the high byte of an address is zero, but wla-dx requires that the address be of the form $FF00+offset, and I'd rather not rely on a non-standard transformation like this, as lots of my code depends on timing.<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">LD A,&#40;$FF00+$26&#41;&nbsp; ; wla-dx automatically optimizes this into LDH A,&#40;$26&#41;<br />LD A,&#40;$FF26&#41;&nbsp; &nbsp; &nbsp; ; wla-dx does not optimize this</div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Dwedit</b> [ Thu Jan 22, 2009 10:23 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Go macro crazy?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Fri Jan 23, 2009 2:26 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I don't think WLA will optimize anything automatically, WLA-6502 requires you to either choose zero-page or word as default, and when using the other you'll have to always type .w or .b after your instructions which is annoying. I guess I can't count how many time I got the "Argument out of 8-bit range" because of that.
+<br />
+<br />Probably you were supposed to type something like that :
+<br />LDH A,(&lt;Adress)
+<br />So that only the low byte is taken in account ? This somewhat remembers me Nesasm.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Fri Jan 23, 2009 3:51 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I can't believe I missed LDH A,(&lt;addr). Still, it's silly that the assembler syntax doesn't do that implicitly. Then LDH A,($FF24) would work, but if you tried to do LDH A,($1234), you'd get an assembler error. Checking the operands for valid ranges is nothing new; LD A,$1234 will fail, as will LD HL,$12345.
+<br />
+<br />BTW, wla-dx does convert LD A,($FF00+&lt;addr) into LDH A,(&lt;addr); I just double-checked. It doesn't convert something like LD A,((&lt;addr)+$FF00) though.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Fri Jan 23, 2009 3:56 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">BTW, wla-dx does convert LD A,($FF00+&lt;addr) into LDH A,(&lt;addr); I just double-checked. It doesn't convert something like LD A,((&lt;addr)+$FF00) though.</div>
+<br />Well, it's really weird. What about if you actually wanted a 16-bit LD instruction for some reason ? I guess there is not much reason anyway. On 6502 :
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">ldx #$01<br />lda $ff,X&nbsp; &nbsp; &nbsp; &nbsp; ;Reads from $00<br />lda $00ff,X&nbsp; &nbsp; ;Reads from $100</div>
+<br />So there is a difference. Since there is no indexed adressing on the GB-Z80, it's probably assummed there is no reason you want to use LD when you could use LDH.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Dwedit</b> [ Fri Jan 23, 2009 5:38 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />The assembler looks specifically for the $FF00+ symbol, as if it's a different instruction.  So the $FF00 is more like an IX or IY than an address.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Fri Jan 23, 2009 7:01 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />And on the 65816:
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">pea $1234<br />pld&nbsp; &nbsp; &nbsp; &nbsp; ; direct page = $1234, rather than the default of $0000<br />lda $34&nbsp; &nbsp; ; accesses $0034 if assembled to AD 34 00, $1268 if assembled to A5 34</div><br />And on the SPC-700:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">setp&nbsp; &nbsp; &nbsp; &nbsp;; direct page = $100<br />mov a,$34&nbsp; ; accesses $0034 if assembled to E5 34 00, $0134 if assembled to E4 34</div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Fri Jan 23, 2009 9:11 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I remember having to do a lot of manual defines when working with direct page 1 on the SPC-700 instead of the default '0'. WLA-SPC700 didn't handle it very efficiently. Not counting the fact that often WLA-SPC700 didn't even assemble what I wrote due to bugs, but it's the only SPC700 assembler in the wolrd so...
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lai</b> [ Sat Jan 31, 2009 6:52 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Is wla-dx where it's at these days? rgbasm should handle ldh like you want, but I guess it's a pain in the rear to switch assembler once you're used to the other one.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Celius</b> [ Sat Jan 31, 2009 10:39 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">lai wrote:</div><div class="quotecontent">Is wla-dx where it's at these days?</div>
+<br />
+<br />I'm actually rather surprised at how much wla-dx is used in the GB Dev forum. But I'm pretty sure for 6502/NES programming, I and like two other people use it. Everyone else seems to use other assemblers. But I never took the time to look for a GB-Z80 assembler, since I had the WLA bundle it was included so I just used that because it was there.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Dwedit</b> [ Sun Feb 01, 2009 10:43 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I just use TASM.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Sun Feb 01, 2009 11:26 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">lai wrote:</div><div class="quotecontent">Is wla-dx where it's at these days? rgbasm should handle ldh like you want, but I guess it's a pain in the rear to switch assembler once you're used to the other one.</div>
+<br />wla-dx is all there is for some processors, so some of us begrudgingly use it. I encounter obscure bugs every day I use it. Working with the source code, it's an awful mess inside, so it's not surprising. I looked at rgbasm and it uses lots of unconventional syntax that looks like asm from 20 years ago, different from all the other assemblers I've used. For example, directives don't start with . as in modern assemblers. I'll have to give it a try, along with TASM (assuming TASM's source is also available).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Sun Feb 01, 2009 11:40 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I've had encounter an incredible number of bugs for WLA-SPC700, in fact very often it just didn't assemble to what I told it to but if you add parenthesis arround the argument of your opcode or if you change the order of the instructions it fixes up by itself.
+<br />For WLA-6502 I never encountered such bugs, but there is a lack of features (which assembler doesn't have any ?), for instance it assumes your code is running from ROM and make your life harder if you code for a machine where the code is downloaded to RAM, such as the C64.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lai</b> [ Sun Feb 01, 2009 12:15 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">I looked at rgbasm and it uses lots of unconventional syntax that looks like asm from 20 years ago, different from all the other assemblers I've used. For example, directives don't start with . as in modern assemblers. I'll have to give it a try, along with TASM (assuming TASM's source is also available).</div>
+<br />
+<br />When I use other assemblers than rgbasm I feel the other ones are strange and unnatural. Guess I'm in the minority. :)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>baisoku</b> [ Mon Feb 02, 2009 11:09 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I used RGBASM for several commercial titles. While the syntax is kind of wacky, as many have noted, it was *way* more stable and had more features than the official assemblers from Nintendo.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

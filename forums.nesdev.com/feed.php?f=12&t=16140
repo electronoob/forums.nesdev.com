@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=12&amp;t=16140" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2017-07-10T07:59:19-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=12&amp;t=16140</id>
+<entry>
+<author><name><![CDATA[Revenant]]></name></author>
+<updated>2017-07-10T07:59:19-07:00</updated>
+<published>2017-07-10T07:59:19-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=16140&amp;p=199926#p199926</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=16140&amp;p=199926#p199926"/>
+<title type="html"><![CDATA[Re: SPC700 instruction cycle breakdown]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=16140&amp;p=199926#p199926"><![CDATA[
+I know blargg's test would fail, but I'm curious if using all those extra wait states would manage to somehow reproduce the issue on some consoles where using certain values with those tests makes the SMP appear to become totally unresponsive.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6992">Revenant</a> — Mon Jul 10, 2017 7:59 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[byuu]]></name></author>
+<updated>2017-07-09T21:28:08-07:00</updated>
+<published>2017-07-09T21:28:08-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=16140&amp;p=199907#p199907</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=16140&amp;p=199907#p199907"/>
+<title type="html"><![CDATA[Re: SPC700 instruction cycle breakdown]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=16140&amp;p=199907#p199907"><![CDATA[
+I can already guarantee blargg's test_speed ROMs will fail. He wasn't aware of these alternate timing numbers.<br /><br />I'll try smptesttest tomorrow.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=375">byuu</a> — Sun Jul 09, 2017 9:28 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Revenant]]></name></author>
+<updated>2017-07-09T21:21:19-07:00</updated>
+<published>2017-07-09T21:21:19-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=16140&amp;p=199906#p199906</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=16140&amp;p=199906#p199906"/>
+<title type="html"><![CDATA[Re: SPC700 instruction cycle breakdown]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=16140&amp;p=199906#p199906"><![CDATA[
+How do smptesttest and test_timer_speed* behave when using 248 wait states?<br /><br />I double-checked test_timer_speed on my SNES and it hangs as early as 2A, rather than CA, for whatever reason. Not sure if the same issue is at play here.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6992">Revenant</a> — Sun Jul 09, 2017 9:21 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[byuu]]></name></author>
+<updated>2017-07-09T14:39:08-07:00</updated>
+<published>2017-07-09T14:39:08-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=16140&amp;p=199872#p199872</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=16140&amp;p=199872#p199872"/>
+<title type="html"><![CDATA[Re: SPC700 instruction cycle breakdown]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=16140&amp;p=199872#p199872"><![CDATA[
+I was bored, so make of this what you will ...<br /><br /><img src="http://i.imgur.com/N877MiD.png" alt="Image" /><br /><br /><img src="http://i.imgur.com/iIzz3qK.png" alt="Image" /><br /><br />Basically ... the cycle wait states of {2, 4, 10, 20} become {2, 4, ???, 248}, but <em>only</em> for internal wait states. External wait states are still {2, 4, 10, 20}, and timer wait states are still {2, 4, 8, 16}.<br /><br />That's a hell of a jump from 20 to 248 ... I can't make any sense of how this would change between models so drastically. The missing internal[2] value could be 10, or it could be 124, or something else entirely. Obviously we can't test it if every real system locks up when we try.<br /><br />I have no idea if I should even bother emulating this behavior with a switch in the code for documentation purposes.<br /><br />Super unoptimized code, modified to match Revenant's values:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">auto SMP::wait(maybe&lt;uint16&gt; addr) -&gt; void {<br />  static const uint cycleWaitStatesInternal&#91;4&#93; = {2, 4, 10, 248};  //10 is unverified<br />  static const uint cycleWaitStatesExternal&#91;4&#93; = {2, 4, 10,  20};<br />  static const uint timerWaitStates        &#91;4&#93; = {2, 4,  8,  16};<br /><br />  bool internal = false;<br />  if(!addr) internal = true;  //idle cycles<br />  else if((*addr &amp; 0xfff0) == 0x00f0) internal = true;  //IO registers<br />  else if(*addr &gt;= 0xffc0 &amp;&amp; io.iplromEnable) internal = true;  //IPLROM<br /><br />  step(internal ? cycleWaitStatesInternal&#91;io.internalWaitStates&#93; : cycleWaitStatesExternal&#91;io.externalWaitStates&#93;);<br />  stepTimers(internal ? timerWaitStates&#91;io.internalWaitStates&#93; : timerWaitStates&#91;io.externalWaitStates&#93;);<br />}</div><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=375">byuu</a> — Sun Jul 09, 2017 2:39 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[AWJ]]></name></author>
+<updated>2017-07-04T11:23:01-07:00</updated>
+<published>2017-07-04T11:23:01-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=16140&amp;p=199576#p199576</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=16140&amp;p=199576#p199576"/>
+<title type="html"><![CDATA[Re: SPC700 instruction cycle breakdown]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=16140&amp;p=199576#p199576"><![CDATA[
+<div class="quotetitle">byuu wrote:</div><div class="quotecontent"><br />By the way, I should note that AWJ referred to the SPC700 assembler syntax as &quot;opcode target,source&quot; ... however, Overload's PDF uses &quot;opcode source,target&quot;<br /><br />For instance, see 14b. Indirect (x+):<br />Cycle 3 is marked as condition (5) =&gt; internal operation for MOV A,(X+)<br />Cycle 4 is marked as condition (6) =&gt; internal operation for MOV (X+),A<br /><br />The read version that loads (X+) and puts the value into A has cycle 4 as the idle cycle.<br />The write version that writes A into (X+) has cycle 3 as the idle cycle.<br /></div><br /><br />You're right, Overload has these two backwards.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent"><br />Also see 6d. Direct dp:<br />Cycle 4 is marked as condition (8) =&gt; internal operation for ADDW, SUBW, and MOVW YA,dp<br />Which would mean that this condition doesn't apply for MOVW dp,YA<br /><br />But it's clear that the three condition (8) instructions are the ones that read from direct page, not write to it.<br /></div><br /><br />This one is consistent with the official syntax. <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">ADDW YA,dp</tt>, <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">SUBW YA,dp</tt>, and <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">MOVW YA,dp</tt> are all read instructions and all have an internal operation on cycle 4.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3737">AWJ</a> — Tue Jul 04, 2017 11:23 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[byuu]]></name></author>
+<updated>2017-07-04T09:52:15-07:00</updated>
+<published>2017-07-04T09:52:15-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=16140&amp;p=199571#p199571</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=16140&amp;p=199571#p199571"/>
+<title type="html"><![CDATA[Re: SPC700 instruction cycle breakdown]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=16140&amp;p=199571#p199571"><![CDATA[
+Okay, I fixed both ADDW,SUBW,MOVW(read) idle cycle 4, plus BBC,BBS,CBNE idle cycle 4.<br /><br />All of blargg's and Revenant's tests are passing nicely now. Thanks again, everyone!<br /><br />...<br /><br />By the way, I should note that AWJ referred to the SPC700 assembler syntax as &quot;opcode target,source&quot; ... however, Overload's PDF uses &quot;opcode source,target&quot;<br /><br />For instance, see 14b. Indirect (x+):<br />Cycle 3 is marked as condition (5) =&gt; internal operation for MOV A,(X+)<br />Cycle 4 is marked as condition (6) =&gt; internal operation for MOV (X+),A<br /><br />The read version that loads (X+) and puts the value into A has cycle 4 as the idle cycle.<br />The write version that writes A into (X+) has cycle 3 as the idle cycle.<br /><br />Also see 6d. Direct dp:<br />Cycle 4 is marked as condition (8) =&gt; internal operation for ADDW, SUBW, and MOVW YA,dp<br />Which would mean that this condition doesn't apply for MOVW dp,YA<br /><br />But it's clear that the three condition (8) instructions are the ones that read from direct page, not write to it.<br /><br />Not too important, it's just ... one more reason why I hate the official SPC700 assembler syntax.<br /><br />I have a lot of ideas about how to make that PDF more readable, but I don't have the time or interest in trying to improve it myself.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=375">byuu</a> — Tue Jul 04, 2017 9:52 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2017-07-03T15:35:09-07:00</updated>
+<published>2017-07-03T15:35:09-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=16140&amp;p=199534#p199534</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=16140&amp;p=199534#p199534"/>
+<title type="html"><![CDATA[Re: SPC700 instruction cycle breakdown]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=16140&amp;p=199534#p199534"><![CDATA[
+<div class="quotetitle">AWJ wrote:</div><div class="quotecontent"><br />!0 being false is PHP-tier insanity<br /></div><br /><a href="https://pineight.com/mw/index.php?title=PHP" class="postlink">In my experience</a>, PHP is no more or less insane than JavaScript. Several stylistic recommendations by Douglas Crockford in <em>JavaScript&#058; The Good Parts</em> apply equally to PHP.<br /><br />But what are the semantics of <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">java.lang.Integer</tt> in boolean context?<br /><br /><div class="quotetitle">byuu wrote:</div><div class="quotecontent"><br />Then you have crazy people like me bringing back cooperative threading like it's 1989.<br /></div><br />Or like the JavaScript programmers who have rediscovered <a href="https://en.wikipedia.org/wiki/Asynchronous_method_invocation" class="postlink">asynchronous concurrency</a>.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Mon Jul 03, 2017 3:35 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[AWJ]]></name></author>
+<updated>2017-07-03T12:26:59-07:00</updated>
+<published>2017-07-03T12:26:59-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=16140&amp;p=199528#p199528</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=16140&amp;p=199528#p199528"/>
+<title type="html"><![CDATA[Re: SPC700 instruction cycle breakdown]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=16140&amp;p=199528#p199528"><![CDATA[
+<div class="quotetitle">byuu wrote:</div><div class="quotecontent"><br />C++14 added optional&lt;T&gt; as well. nall/maybe is equivalent in functionality to that, only it has a few other small features in addition.<br /></div><br /><br />optional&lt;T&gt; is only standard in C++17; it's experimental in C++14. And even if it's standard, using it with integer types, or with any type which has an implicit bool conversion of its own (e.g. a container which is false when empty) strikes me as a dangerous thing to do.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3737">AWJ</a> — Mon Jul 03, 2017 12:26 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[byuu]]></name></author>
+<updated>2017-07-03T12:29:05-07:00</updated>
+<published>2017-07-03T12:09:29-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=16140&amp;p=199527#p199527</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=16140&amp;p=199527#p199527"/>
+<title type="html"><![CDATA[Re: SPC700 instruction cycle breakdown]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=16140&amp;p=199527#p199527"><![CDATA[
+&gt; !0 being false is PHP-tier insanity and makes all my programming senses scream in anguish.<br /><br />C++14 added optional&lt;T&gt; as well. nall/maybe is equivalent in functionality to that, only it has a few other small features in addition.<br /><br />&gt; don't be surprised when everyone except your most devoted followers prefers to fork older versions of your code that don't contain quite as much black magic.<br /><br />If they want to use your fork from 2010 that's full of all of my various coding styles from 2004 to 2010 (hooray, ppu-balanced!), plus your own coding style changes, they're more than welcome to.<br /><br />You may even end up with more users than people running higan official. That's fine, it's not a popularity contest to me. Hopefully not to you, either. One of these days, someone is going to come along and write a fast+accurate SNES emulator like gambatte, mGBA, BlastEm, etc. And overnight, bsnes/higan and all 18+ forks of it are going to be mostly abandoned by users, frontend emulators (RA, Openemu, Bizhawk), etc.<br /><br />Basically, you get to choose between clean code and running fast. Clean code is also way easier to work with and improve, which is good for idiots like me (and I do mean that, I'm not very smart, never claimed to be.) The tricky part of clean code is that reasonable people disagree on what is cleaner. You have people on one extreme like endrift writing all code in C. You have people on the other extreme like Nemesis creating separate C++ classes for every individual CPU instruction. Then you have crazy people like me bringing back cooperative threading like it's 1989.<br /><br />Anyway, as long as you're not outright disparaging, I'm willing to continue talking with you to better both of our emulator versions.<br /><br />You may've been wrong on maybe this time, but you also may've been right. I appreciate you were trying to help fix a bug in my codebase either way.<br /><br />In general, I'd just really like more civility in emudev. I know I was awful at it in the past, but I really am trying to be nice going forward. The MAME dev comments finally slowed down, and now the Bizhawk team has just been savagely condescending lately with my stuff, and it's really wearing me down.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=375">byuu</a> — Mon Jul 03, 2017 12:09 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[AWJ]]></name></author>
+<updated>2017-07-03T11:44:50-07:00</updated>
+<published>2017-07-03T11:44:50-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=16140&amp;p=199526#p199526</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=16140&amp;p=199526#p199526"/>
+<title type="html"><![CDATA[Re: SPC700 instruction cycle breakdown]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=16140&amp;p=199526#p199526"><![CDATA[
+See, even I'm not right all the time <img src="http://forums.nesdev.com/images/smilies/icon_mrgreen.gif" alt=":mrgreen:" title="Mr. Green" /><br /><br />!0 being false is PHP-tier insanity and makes all my programming senses scream in anguish. If it makes sense to you then go ahead and keep on doing it that way, but don't be surprised when everyone except your most devoted followers prefers to fork older versions of your code that don't contain quite as much black magic.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3737">AWJ</a> — Mon Jul 03, 2017 11:44 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[byuu]]></name></author>
+<updated>2017-07-03T11:25:44-07:00</updated>
+<published>2017-07-03T11:25:44-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=16140&amp;p=199525#p199525</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=16140&amp;p=199525#p199525"/>
+<title type="html"><![CDATA[Re: SPC700 instruction cycle breakdown]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=16140&amp;p=199525#p199525"><![CDATA[
+&gt; Are you absolutely sure about that?<br /><br />I am absolutely sure, yes. You read the post before I had a chance to update it with the actual bug.<br /><br />There was an &quot;addw $00&quot; instruction, and I was performing a read instead of an idle for cycle 4. $1A meant the idle would've been slower than the read, hence the test was completing too quickly.<br /><br />The test completes properly now, as do all other tests thus far. You're right that I'm being a bit too clever with maybe&lt;uint16&gt;, but well ... you know me &gt;_&gt;<br /><br />I didn't want to have to type out &quot;wait(0, true)&quot; for idle(), and &quot;wait(addr, false)&quot; for read(), write().<br /><br />Anyway ... I think we finally did it! A million thanks to you, Revenant, Cydrak, and Overload! We finally have the TEST register fully emulated in bsnes/higan, after thirteen long years of mystery! :D<br /><br />Tangent: I thought about passing the address bus value along with idle() just so whatever inherits from Processor::SPC700 could spy on the value if there were some need for it ... but honestly it's just gonna be a source of confusion. Nothing else that we emulate is ever gonna use an SPC700, so it's just busy work for a side effect that is irrelevant to emulation. Much like emulating a CIC, for example. Overload's PDF has that information, so that's good enough for technical documentation on it.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=375">byuu</a> — Mon Jul 03, 2017 11:25 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[AWJ]]></name></author>
+<updated>2017-07-03T11:22:23-07:00</updated>
+<published>2017-07-03T11:22:23-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=16140&amp;p=199524#p199524</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=16140&amp;p=199524#p199524"/>
+<title type="html"><![CDATA[Re: SPC700 instruction cycle breakdown]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=16140&amp;p=199524#p199524"><![CDATA[
+<div class="quotetitle">byuu wrote:</div><div class="quotecontent"><br />Unfortunately, that's not correct.<br /><br />if(!addr) is testing the explicit operator bool() const of maybe&lt;uint16&gt;, which returns true if the maybe has a value in it, false if it's nothing. It won't see an address of zero until executing *addr to get the underlying value.<br /></div><br /><br />Are you absolutely sure about that? If I apply the following change in bsnes-classic so that address 0 is treated as internal:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">diff --git a/bsnes/snes/smp/memory/memory.cpp b/bsnes/snes/smp/memory/memory.cpp<br />index b577ca6..8fdd4cd 100644<br />--- a/bsnes/snes/smp/memory/memory.cpp<br />+++ b/bsnes/snes/smp/memory/memory.cpp<br />@@ -175,6 +175,7 @@ alwaysinline void SMP::op_buswrite(uint16 addr, uint8 data) {<br /> }<br /> <br /> unsigned SMP::speed(uint16 addr) const {<br />+  if(addr == 0) return status.clock_speed;<br />   if((addr &amp; 0xfff0) == 0x00f0) return status.clock_speed;<br />   if(addr &gt;= 0xffc0 &amp;&amp; status.iplrom_enabled) return status.clock_speed;<br />   return status.ram_speed;</div><br /><br />then blargg's timer tests fail exactly the same way as they do for you.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3737">AWJ</a> — Mon Jul 03, 2017 11:22 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[byuu]]></name></author>
+<updated>2017-07-03T11:23:02-07:00</updated>
+<published>2017-07-03T11:04:37-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=16140&amp;p=199522#p199522</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=16140&amp;p=199522#p199522"/>
+<title type="html"><![CDATA[Re: SPC700 instruction cycle breakdown]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=16140&amp;p=199522#p199522"><![CDATA[
+Cydrak disassembled the test.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">8f4af0        mov $f0, #$4a   ; set timings (modified per test)<br />8f81f1        mov $f1, #$81   ; enable IPL, timer 0<br />8f00fa        mov $fa, #$00   ; set timer 0<br />8f0100        mov $00, #$01<br />8f0001        mov $01, #$00   ; $0000 = 1<br />  <br />e4fd          lda $fd         ; reset ticks<br />e800          lda #$00<br />8d00          ldy #$00<br />f8fdf0fc      -; ldx $fd; beq -           ; wait on timer tick<br />7a00f8fdf0fa  -; adw $00; ldx $fd; beq -  ; count loops to next tick<br />  <br />8f0af0        mov $f0, #$0a   ; restore default timings<br />daf6          stw $f6         ; post loop results and sync S-CPU<br />8f55f4        mov $f4, #$55<br />e8dd64f4d0fc  lda #$dd; -; cmp $f4; bne -<br />  <br />5fc0ff        jmp $ffc0       ; return to IPL</div><br /><br />Here are the expected ranges.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">  ; TEST  loops<br />  ;  $0a   $0a8f &lt;= X &lt; $0ac6<br />  ;  $1a   $0656 &lt;= X &lt; $0677<br />  ;  $2a   $0384 &lt;= X &lt; $0397<br />  ;  $3a   $01dd &lt;= X &lt; $01e6<br />  ;  $4a   $07eb &lt;= X &lt; $0814<br />  ;  $5a   $0548 &lt;= X &lt; $0563<br />  ;  $6a   $032a &lt;= X &lt; $033b<br />  ;  $7a   $01c2 &lt;= X &lt; $01cb<br />  ;  $ca   $032b &lt;= X &lt; $033c<br />  ;  $da   $02a4 &lt;= X &lt; $02b1<br />  ;  $ea   $01fa &lt;= X &lt; $0205<br />  ;  $fa   $0151 &lt;= X &lt; $0158</div><br /><br />The problem turned out to be that I missed the (8) footnote on 6d. I probably missed the (9) footnote on 11 as well. It's a little tricky reading this PDF. Here is a crude fix:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">auto SPC700::instructionDirectReadWord(fpw op) -&gt; void {<br />  uint8 address = fetch();<br />  uint16 data = load(address + 0);<br />  if(op == &amp;SPC700::algorithmLDW) load(address + 0);<br />  else idle();<br />  data |= load(address + 1) &lt;&lt; 8;<br />  YA = alu(YA, data);<br />}</div><br /><br />(the other MOVW is in DirectWriteWord.)<br /><br />But anyway, all the tests pass now, hooray!<br /><br />&gt; Excessive C++ cleverness has bitten you in the back. This code is failing to distinguish between an argument of 0 and no argument, and turning accesses to address 0 (which is RAM) into internal accesses.<br /><br />Unfortunately, that's not correct.<br /><br />if(!addr) is testing the explicit operator bool() const of maybe&lt;uint16&gt;, which returns true if the maybe has a value in it, false if it's nothing. It won't see an address of zero until executing *addr to get the underlying value.<br /><br />&gt; Also, you've changed the order things happen in read() and write(). Before you were doing the read/write and then advancing the timers, now you're advancing the timers and then doing the read/write.<br /><br />Yeah, we had $2137/$4201 to confirm that difference on the CPU side. It probably exists on the SMP side too, but this new emulation code makes this very difficult. And I'm not even sure when the reads happen when the divider is not set to 0 (or effectively 2 cycles.)<br /><br />&gt; Remember that the S-DSP outputs a clock to the S-SMP and the S-SMP divides that clock and outputs it back to the S-DSP--it's a mutual interaction.<br /><br />Ah well. It's not like we're gonna be emulating the chance of crashing with this register anyway :/<br /><br />&gt; Changing the subject, I just noticed that in higan you're initializing the S-DSP ENDX to random(0), which means that Magical Drop will never work if randomization is disabled. Surely it should be random(0xff) instead (that's what I've done in bsnes-classic).<br /><br />There's no option to disable randomization currently. I'll keep that in mind though.<br /><br />It seems you know about the oddities with that title's game over screen. We can make a separate topic to work through that if you'd like. I'm very interested in what's going on there. But again, we'll need to confirm things before I'll make changes, and this one's probably not gonna have an &quot;easy mode&quot; like the SMP courtesy of Overload, heheh.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=375">byuu</a> — Mon Jul 03, 2017 11:04 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[AWJ]]></name></author>
+<updated>2017-07-04T09:26:17-07:00</updated>
+<published>2017-07-03T08:16:42-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=16140&amp;p=199521#p199521</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=16140&amp;p=199521#p199521"/>
+<title type="html"><![CDATA[Re: SPC700 instruction cycle breakdown]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=16140&amp;p=199521#p199521"><![CDATA[
+<div class="quotetitle">byuu wrote:</div><div class="quotecontent"><br />Okay, relevant files are uploaded:<br /><br /><!-- m --><a class="postlink" href="https://gitlab.com/higan/higan/blob/master/higan/processor/spc700/instructions.cpp">https://gitlab.com/higan/higan/blob/mas ... ctions.cpp</a><!-- m --><br /><!-- m --><a class="postlink" href="https://gitlab.com/higan/higan/blob/master/higan/processor/spc700/instruction.cpp">https://gitlab.com/higan/higan/blob/mas ... uction.cpp</a><!-- m --><br /><!-- m --><a class="postlink" href="https://gitlab.com/higan/higan/blob/master/higan/sfc/smp/timing.cpp">https://gitlab.com/higan/higan/blob/mas ... timing.cpp</a><!-- m --><br /><!-- m --><a class="postlink" href="https://gitlab.com/higan/higan/blob/master/higan/sfc/smp/memory.cpp">https://gitlab.com/higan/higan/blob/mas ... memory.cpp</a><!-- m --><br /><br />AWJ, did you disassemble test_timer_speed as well already? Do you know what instructions it's executing during its timer tick counting loop?<br /></div><br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">auto SMP::wait(maybe&lt;uint16&gt; addr) -&gt; void {<br />  static const uint cycleWaitStates&#91;4&#93; = {2, 4, 10, 20};<br />  static const uint timerWaitStates&#91;4&#93; = {2, 4,  8, 16};<br /><br />  uint waitStates = io.externalWaitStates;<br />  if(!addr) waitStates = io.internalWaitStates;<br />//snip rest</div><br /><br /><s>Excessive C++ cleverness has bitten you in the back. This code is failing to distinguish between an argument of 0 and no argument, and turning accesses to address 0 &#40;which is RAM&#41; into internal accesses. I haven&#39;t bothered to disassemble the timer tests &#40;since they worked for me on the first try&#41; but I can tell from the debugger that they do use address 0.</s><br /><br />Also, you've changed the order things happen in read() and write(). Before you were doing the read/write and then advancing the timers, now you're advancing the timers and then doing the read/write. I don't think this is the cause of the failure or even that it's necessarily wrong, just pointing it out because you do have to pay close attention to these things (for the S-CPU in particular, it makes a big difference to many edge cases exactly what order things are done in CPU::read() and CPU::write())<br /><br />Aside, I don't think the glitchiness with dividers of 8 or 16 has anything to do with &quot;being divisible by 12&quot;. Dividing by n and then dividing by m is arithmetically equivalent to dividing by (m * n). Whether m is divisible by n or n is divisible by m is irrelevant. I think the S-DSP just isn't happy when the S-SMP's clock output is too slow. Remember that the S-DSP outputs a clock to the S-SMP and the S-SMP divides that clock and outputs it back to the S-DSP--it's a mutual interaction.<br /><br />ETA:<br /><br />Changing the subject, I just noticed that in higan you're initializing the S-DSP ENDX to random(0), which means that Magical Drop will never work if randomization is disabled. Surely it should be random(0xff) instead (that's what I've done in bsnes-classic).<br /><br />Here's my hypothesis for what is going on with the S-DSP initial state on real hardware. The initial state of each voice is completely random, which means that each voice <em>is playing</em> (from a random sample address and with random parameters) when the chip is powered on. If software doesn't touch any of the registers for a voice, eventually it will finish playing (it'll read a BRR header byte that has the END bit set and the LOOP bit clear) and set its corresponding bit in ENDX. There are two cases where this can fail to happen: if the random chunk of RAM that a voice is playing from happens to parse as a looping sample (and never gets overwritten by software to something that <em>doesn't</em> parse as a looping sample), or if the voice has a frequency of 0. Thus, by the time the IPL ROM passes control to an uploaded program, ENDX is usually 0xFF but occasionally one or two bits are clear, and those bits may or may not eventually get set depending on random chance and RAM contents.<br /><br />This would explain why Magical Drop occasionally fails on certain real consoles, but certainly doesn't fail 25% of the time.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3737">AWJ</a> — Mon Jul 03, 2017 8:16 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[byuu]]></name></author>
+<updated>2017-07-03T05:35:06-07:00</updated>
+<published>2017-07-03T05:35:06-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=16140&amp;p=199517#p199517</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=16140&amp;p=199517#p199517"/>
+<title type="html"><![CDATA[Re: SPC700 instruction cycle breakdown]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=16140&amp;p=199517#p199517"><![CDATA[
+Okay, relevant files are uploaded:<br /><br /><!-- m --><a class="postlink" href="https://gitlab.com/higan/higan/blob/master/higan/processor/spc700/instructions.cpp">https://gitlab.com/higan/higan/blob/mas ... ctions.cpp</a><!-- m --><br /><!-- m --><a class="postlink" href="https://gitlab.com/higan/higan/blob/master/higan/processor/spc700/instruction.cpp">https://gitlab.com/higan/higan/blob/mas ... uction.cpp</a><!-- m --><br /><!-- m --><a class="postlink" href="https://gitlab.com/higan/higan/blob/master/higan/sfc/smp/timing.cpp">https://gitlab.com/higan/higan/blob/mas ... timing.cpp</a><!-- m --><br /><!-- m --><a class="postlink" href="https://gitlab.com/higan/higan/blob/master/higan/sfc/smp/memory.cpp">https://gitlab.com/higan/higan/blob/mas ... memory.cpp</a><!-- m --><br /><br />AWJ, did you disassemble test_timer_speed as well already? Do you know what instructions it's executing during its timer tick counting loop?<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=375">byuu</a> — Mon Jul 03, 2017 5:35 am</p><hr />
+]]></content>
+</entry>
+</feed>

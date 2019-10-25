@@ -1,0 +1,481 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - What's going on with the MMC5 counter?</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">What's going on with the MMC5 counter?</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=9&amp;t=7653">http://forums.nesdev.com/viewtopic.php?f=9&amp;t=7653</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>4</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Drag</b> [ Wed Apr 13, 2011 10:35 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>What's going on with the MMC5 counter?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Might as well have this too. <img src="./images/smilies/icon_razz.gif" alt=":P" title="Razz" />
+<br /><a href="http://nesdev.com/bbs/viewtopic.php?t=658" class="postlink">Blargg did some RE work on it</a>
+<br /><a href="http://wiki.nesdev.com/w/index.php/MMC5" class="postlink">Here's the wiki page for it</a>
+<br /><a href="http://www.romhacking.net/docs/362/" class="postlink">Disch's mapper docs are valuable too</a>
+<br />
+<br />So unless there's been some kind of breakthrough that hasn't been posted or documented anywhere, I'm going to assume that, since these sources all say they don't know how the IRQ counter specifically detects scanlines, I'm going to assume nobody knows how it works.
+<br />
+<br />The current theory is that the MMC5 monitors the PPU address lines to detect scanlines. The MMC5 already has to monitor the address lines so that it knows when to inject its own extended tile/attribute data into the PPU.
+<br />
+<br />The current theory is that the MMC5 watches for the two dummy nametable reads that occur at the end of each scanline. The easiest way I can think of to get this to work is to just check to see if the PPU fetches the same address twice in a row.
+<br />
+<br />In theory, the PPU will never fetch from an address twice in a row. (This is unless the garbage nametable fetches during sprite fetches can be the same, but if the sprite fetches use the same circuit as the bg fetch, wouldn't it be a garbage nametable fetch, and then a garbage attribute fetch? That would always be two different addresses) The only time it <em>does</em> fetch from the same address twice is during those two dummy fetches at the end of the scanline.
+<br />
+<br />
+<br />
+<br />However, there's also another potential way to get this to work:
+<br />
+<br />Conveniently, A13 toggles for each tile, because the PPU fetches nametable/attribute data, and then pattern table data. A13 is high during the nametable fetch and the attribute fetch, and it's low during the pattern table fetches.
+<br />
+<br />Since the MMC5 is likely already monitoring A13 to detect tiles, maybe it's also counting how many times A13 rises per scanline? A13 will rise exactly 43 times each scanline: 32 times for the BG tiles, 8 times for the sprites, 2 times for the two tiles of the next scanline, and then once for the two dummy nametable reads at the end of the scanline.
+<br />
+<br />This probably isn't how it's done though, because the MMC5 seems to know exactly when a scanline starts, such that it can set the in-frame flag on the next scanline, when the PPU rendering is activated mid-scanline that is.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>qbradq</b> [ Thu Apr 14, 2011 6:35 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I have to agree that watching for those two consecutive read accesses to the $2000-$2FFF address range seems to be how it is done. Thinking from the hardware side I can see a very convenient (and low pin-count) way of detecting this.
+<br />
+<br />You will need to capture the CHR A11, CHR A12 and CHR /RD signals. This should only add two input pins as CHR A11 is already used for name table mirroring.
+<br />
+<br />Here is what the <a href="http://myhdl.org/doku.php" class="postlink">MyHDL</a> code might look like:
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">@always&#40;chr_rd_n.negedge&#41;<br />def irq_clock&#40;&#41;:<br />&nbsp; &nbsp;if chr_a12 == 0 or chr_a11 == 1:<br />&nbsp; &nbsp;&nbsp; &nbsp;flags_irq_nt_fetch_last_frame.next = 0<br />&nbsp; &nbsp;elif flags_irq_nt_fetch_last_frame == 0:<br />&nbsp; &nbsp;&nbsp; &nbsp;flags_irq_nt_fetch_last_frame.next = 1<br />&nbsp; &nbsp;else:<br />&nbsp; &nbsp;&nbsp; &nbsp;flags_irq_nt_fetch_last_frame.next = 0<br />&nbsp; &nbsp;&nbsp; &nbsp;flags_irq_in_frame.next = 1<br />&nbsp; &nbsp;&nbsp; &nbsp;irq_counter.next = irq_counter + 1<br />&nbsp; &nbsp;&nbsp; &nbsp;if irq_counter + 1 == irq_target:<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;flags_irq_pending.next = 1<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;out_irq_n.next = 0<br /></div>
+<br />
+<br />I actually like this better than the MMC3 IRQ counter's implementation <img src="./images/smilies/icon_biggrin.gif" alt=":D" title="Very Happy" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Drag</b> [ Thu Apr 14, 2011 9:42 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">qbradq wrote:</div><div class="quotecontent">You will need to capture the CHR A11, CHR A12 and CHR /RD signals. This should only add two input pins as CHR A11 is already used for name table mirroring.</div>
+<br />Why CHR A11? That's the vertical nametable select bit.
+<br />
+<br />I was thinking you'd need to latch A6-A9 when A13 is high and A12 is low, then check to see if A6-A9 is the same for two consecutive fetches. A6-A9 is 1111 during attribute fetches, and less than 1111 during "normal" nametable fetches. However, if you set the internal PPU registers improperly (as in, set the Y scrolling &gt;= $F0, or set the scrolling by writing $03C0 to $2006), then the nametable could fetch attribute data as nametable data, in which case, the MMC5 would see a whole bunch of double %xxxxx1111xxxxxx fetches. Depending on how the MMC5 compares the reads, this could either cause 34 extra scanline clocks (if the MMC5 simply checks to see if A6-A9 is the same) for up to 16 scanlines, or the scanline counter would be delayed by up to 16 scanlines (if the MMC5 specifically checks for two reads where A6-A9 != 1111)
+<br />
+<br />However, if the MMC5 checks the entire PPU address to see if it access the exact same byte twice, then improperly setting the scrolling as I've stated above will cause exactly one extra scanline clock on up to 8 scanlines, as the ppu accesses %10xx1111111111 twice during visible scanline rendering (once as a nametable fetch, and the other as an attribute fetch)
+<br />
+<br />This is pretty cool, because these are all situations that are easily testable on an MMC5 cart, using just software, and if any of those quirks occur, then we know for certain that it looks for duplicate sequential reads. <img src="./images/smilies/icon_biggrin.gif" alt=":D" title="Very Happy" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>qbradq</b> [ Thu Apr 14, 2011 10:58 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Ah, now I see why folks have been saying it looks for three consecutive reads from the $2000-$2FFF range. We can use the same method if we revise the code to clock on the third consecutive read to that address range.
+<br />
+<br />This does not address the issue of setting the in_frame flag, but I am not worried about that for my purposes <img src="./images/smilies/icon_biggrin.gif" alt=":D" title="Very Happy" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>qbradq</b> [ Fri Apr 15, 2011 7:13 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I've hit a snag. How does the MMC5 detect the end of the frame? Perhaps by listening for the idle bus during scanline 241? If so, how would this be accomplished? Some sort of counter maybe? Clocked by M2?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Fri Apr 15, 2011 7:55 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Do you really have to stick to the exact same technique used by an actual MMC5? As long as the scanline counter is reliable and the same registers are used to interface with it, the exact internal workings shouldn't matter, right?
+<br />
+<br />Can anyone think of a decent way to count scanlines that will not break with different pattern table and sprite sizes configurarions? I don't think it has to be the exact same solution used by the MMC5, specially considering the MMC5 doesn't work on clones (not sure if the scanline counter has anything to do with this, but still).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Fri Apr 15, 2011 8:04 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tokumaru wrote:</div><div class="quotecontent">Do you really have to stick to the exact same technique used by an actual MMC5?</div>
+<br />If we want programs to be testable in existing emulators during development, we have to use either A. the same technique or B. another technique where all behavioral differences between the techniques are documented. That's one reason why we want to know exactly how the MMC5 behaves: so we can document the differences between it and a subset clone. Otherwise, the maker of these cartridge boards will have to arrange for mapper plug-ins to be made available for some emulator on each major PC platform. We don't want to develop programs that rely on emulator behaviors that differ from the actual hardware.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Fri Apr 15, 2011 8:42 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />What I mean is that as long as the same regirsters are used to interface with the mapper, and the overall timing is the same (i.e. interrupts fire at the same time in the scanline) the actual scanline counting method doesn't matter. Emulators will not be able to tell the difference... as far as they are concerned the software will appear to be using an MMC5.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>qbradq</b> [ Fri Apr 15, 2011 9:29 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I didn't know the MMC5 does not work on clone systems. Now I finally have an excuse to grab a copy of Laser Invasion or Uncharted Waters and try it <img src="./images/smilies/icon_biggrin.gif" alt=":D" title="Very Happy" />
+<br />
+<br />Anyhow, I am open to trying different scan line detection methods. My major problem is I do not have a logic analyzer or scope, so I have to guess at what the NOAC is actually doing. Perhaps it does not make the dummy NT reads at the end of the scan line?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Fri Apr 15, 2011 10:48 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I have a Gemfire card I was planning to sacrifice one day anyways, so if someone can make test ROMs for the scanline counter but can't test them because of the lack of the possibility to test them on a MMC5, I could handle that.
+<br />
+<br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">What I mean is that as long as the same regirsters are used to interface with the mapper, and the overall timing is the same (i.e. interrupts fire at the same time in the scanline) the actual scanline counting method doesn't matter. Emulators will not be able to tell the difference... as far as they are concerned the software will appear to be using an MMC5.</div><br />If both methods are extremely accurate and works every time, and give an IRQ on the same cycle, then yes. Otherwise....<br /><br />For example, at first glance you could say that with the MMC3's counter. However :<br />- it will count if you do $2006 writes that will clock it<br />- it will screw up if you use sprites from the BG pattern table<br />- it will screw up if you enter into forced blanking mode<br />etc... etc...<br /><br />That's why it's important to get the exact behavior of the mapper.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">I didn't know the MMC5 does not work on clone systems.</div>
+<br />I think most clone systems have CIRAM /CE and CHR /A13 wired together internally. So any cart who tries to do something fancy with nametables, such as 4-screen mirroring or using VROM for nametables, or adding an extra nametable will not work.
+<br />
+<br />In addition to that the MMC5 might use the CHR A13 or CHR /A13 lines for counting because it toggles accurately between each pattern and nametable reads, no matter how the chip is programmed (the only condition for this is that the PPU is not in forced VBlank mode).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>qbradq</b> [ Fri Apr 15, 2011 12:05 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Bregalad wrote:</div><div class="quotecontent">I have a Gemfire card I was planning to sacrifice one day anyways, so if someone can make test ROMs for the scanline counter but can't test them because of the lack of the possibility to test them on a MMC5, I could handle that.</div><br /><br />I can write up the test ROM. I am working on one anyway <img src="./images/smilies/icon_biggrin.gif" alt=":D" title="Very Happy" /> Do you have a clone system to test on as well? That would help me out a ton.<br /><br />What exactly do you want tested?<br /><br /><div class="quotetitle">Bregalad wrote:</div><div class="quotecontent">In addition to that the MMC5 might use the CHR A13 or CHR /A13 lines for counting because it toggles accurately between each pattern and nametable reads, no matter how the chip is programmed (the only condition for this is that the PPU is not in forced VBlank mode).</div>
+<br />
+<br />Yuck, that really bites if you're a fan of CV3. The sub-set I am interested in does not do anything of the sort though, so I might be OK on that front. Thanks for the info.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>qbradq</b> [ Fri Apr 15, 2011 1:35 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Speculation on Detecting PPU Idle Time
+<br />
+<br />Ok, so here's the revised plan of checking for CPU idling. I'll use HDL pseudo-code as that seems appropriate.
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">On the falling edge of CHR /RD:<br />&nbsp; &nbsp;Set flag_ppu_reading True<br />&nbsp; &nbsp;If CHR A11 == 0 and CHR A12 == 1: // Reading from $2000-$2FFF, or $6000-$6FFF, etc.<br />&nbsp; &nbsp;&nbsp; &nbsp;Increment ppu_nt_read_count<br />&nbsp; &nbsp;Else:<br />&nbsp; &nbsp;&nbsp; &nbsp;Set ppu_nt_read_count to 0<br />&nbsp; &nbsp;If ppu_nt_read_count &gt;= 3:<br />&nbsp; &nbsp;&nbsp; &nbsp;// CLOCK IRQ COUNTER HERE<br /><br />On the rising edge of PRG M2:<br />&nbsp; &nbsp;If flag_ppu_reading is False:<br />&nbsp; &nbsp;&nbsp; &nbsp;If flag_ppu_not_reading_last_clock is True:<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;Set flag_ppu_idle True<br />&nbsp; &nbsp;&nbsp; &nbsp;Else:<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;Set flag_ppu_not_reading_last_clock False<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;// RESET IRQ STATE MACHINE HERE<br />&nbsp; &nbsp;Set flag_ppu_reading False<br /></div>
+<br />
+<br />With this logic we would detect the PPU idle state in a minimum of 6 PPU cycles (NTSC) or a maximum of 9 (I think). This should skip over single idle PPU cycles flawlessly.
+<br />
+<br />Can someone find the flaw here?
+<br />
+<br />As for testing if this is how the MMC5 detects the end of frame, I don't think we can.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Drag</b> [ Fri Apr 15, 2011 2:50 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tokumaru wrote:</div><div class="quotecontent">Do you really have to stick to the exact same technique used by an actual MMC5? As long as the scanline counter is reliable and the same registers are used to interface with it, the exact internal workings shouldn't matter, right?</div><br />No, we don't have to use the absolutely exact implementation as the real MMC5. However, if we know what the <em>real</em> hardware implementation of the MMC5 is, it's helpful for how we approximate it. For example, if we know the exact workings of the MMC5, we know exactly which pixel the IRQ fires on (versus a rough estimate), we know about any oddball quirks (such as the 3 I mentioned in my previous post), and just stuff like that.<br /><br /><div class="quotetitle">tokumaru wrote:</div><div class="quotecontent">Can anyone think of a decent way to count scanlines that will not break with different pattern table and sprite sizes configurarions?</div><br />Yeah, use the Gameboy. <img src="./images/smilies/icon_wink.gif" alt=";)" title="Wink" /><br />haha, I'm kidding. However, once again, I'd say the MMC5's scanline counter is probably the best we'll get for the time being. I mean, it avoids the exact problems you just mentioned. <img src="./images/smilies/icon_razz.gif" alt=":P" title="Razz" /> From the sounds of it, the MMC5 is very robust.<br /><br /><div class="quotetitle">tokumaru wrote:</div><div class="quotecontent">I don't think it has to be the exact same solution used by the MMC5, specially considering the MMC5 doesn't work on clones (not sure if the scanline counter has anything to do with this, but still).</div>
+<br />Even if we don't know how the MMC5 counter really works, we have a number of hypotheses as to how it <em>could</em> work, and any of those theories could be implemented in a custom mapper right now and work just fine.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Drag</b> [ Fri Apr 15, 2011 2:58 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Disch's Mapper Doc wrote:</div><div class="quotecontent">The IRQ will trip at the *start* of the desired scanline.  Or, more precisely, near the very end of the previous scanline (closest I can figure is dot 336).  That is... if the trigger line is set to 1, the IRQ will trip on dot 336 of scanline 0.</div>
+<br />PPU cycle 336 is when the first dummy nametable fetch is made, 339 is when the second dummy fetch ends. 340 is the last cycle of the scanline.
+<br />If this is the case, then there's no way the MMC5 can be looking for 3 duplicate fetches (as in, the two dummy nametable fetches, and then the first nametable fetch of the next scanline).
+<br />
+<br />So if the MMC5 looks for duplicate fetches, it'd only be looking for the two at the end of the scanline.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Fri Apr 15, 2011 3:08 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />MMC5 has to count horizontal fetches to tell sprite banks from background banks and figure out at what point on the scanline to vertically split.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>4</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

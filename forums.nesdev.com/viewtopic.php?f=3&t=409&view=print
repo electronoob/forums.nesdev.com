@@ -1,0 +1,535 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - ppu loading rom or using ram</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">ppu loading rom or using ram</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=3&amp;t=409">http://forums.nesdev.com/viewtopic.php?f=3&amp;t=409</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>mattmatteh</b> [ Fri Jul 15, 2005 4:57 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>ppu loading rom or using ram</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />i have been reading the tech doc's and they say that the nes has 16 kB of internal ram.  and it says that the cart maight have vrom and it is loaded into the ppu memory at reset.
+<br />
+<br />if the nes has 16 kB ppu ram, does that include the mirroring ?
+<br />
+<br />if a cart has chr-rom, how is that loaded into the ppu memory ? is it copied, mapped to the cart and the internal ram is not used ?
+<br />
+<br />i am working on an nes emulator and stumped on how to code ppu memory and load the game to it.
+<br />
+<br />
+<br />matt
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Fri Jul 15, 2005 5:18 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />The PPU has 16k of <span style="text-decoration: underline">addressing space</span>.  This does NOT translate to 16k of RAM.  AFAIK the only memory that actually exists on the PPU are the palettes, sprite RAM, and the two nametables... which totals <em>under</em> 3k (nowhere near 16k).
+<br />
+<br />CHR-ROM and CHR-RAM both exist on the cartridge, so when the PPU needs tiles it takes them from the cart -- regardless of whether the game uses CHR-ROM or RAM.
+<br />
+<br />As for implimenting PPU space in an emulator, you'll probably have to end up  checking the PPU address on writes/reads to $2007 and access certain memory depending on the address.  here's some pseudo-code which might help clarify:
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">case 0x2007:<br /><br />Uint16 adr = ppu_addr &amp; 0x3FFF;&nbsp; /* PPU space mirrored every $4000 bytes&nbsp; */<br /><br />if&#40; adr &lt; 0x2000 &#41;<br />&#123;<br />&nbsp;/* game is trying to write to CHR -- write to the game's CHR space &#40;if CHR-RAM -- can't write to ROM obviously&#41;&nbsp; */<br />&#125;<br />else if&#40;adr &lt; 0x3F00&#41;<br />&#123;<br />&nbsp; /* Nametable space&nbsp; */<br />&nbsp; adr &amp;= 0x0FFF;&nbsp; /* $3xxx page mirrors the $2xxx page.&nbsp; Only low 12 bits important */<br /><br />&nbsp; pNameTables&#91;adr &gt;&gt; 10&#93;&#91;adr &amp; 0x03FF&#93; = value_to_write; /* write the value to the proper nametable **see below!!!**&nbsp; &nbsp;*/<br />&#125;<br />else <br />&#123;<br />&nbsp; /* The rest is palette space */<br />&nbsp; adr &amp;= 0x1F;&nbsp; /* only low 5 bits important -- it's mirrored after that*/<br />&nbsp; if&#40;!&#40;adr &amp; 0x03&#41;&#41;&nbsp; adr &amp;= 0x0F;&nbsp; /* 3F10 -&gt; 3F00, 3F14 -&gt; 3F04, etc */<br /><br />&nbsp; Palette&#91;adr&#93; = value_to_write &amp; 0x3F;<br />&#125;<br /></div>
+<br />
+<br />my 'pNameTables' var above would be declared like this:
+<br />
+<br />Uint8* pNameTables[4];
+<br />
+<br />This is not the actual Nametable space, but pointers which point to nametables.  This way when the game switches mirroring modes, all you have to do to emulate that is change which nametables pNameTables points to.  In your emulator, you should make another array which actually contains the nametable data.  At least 2k in size (Although you might want to just go with 4k so that 4-screen mirroring can be emulated easily).  However -- you emulator shouldn't access that array directly on $2007 reads/writes or when rendering -- instead it should always go through pNameTables pointers so that the current mirroring mode is applied.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>mattmatteh</b> [ Mon Jul 18, 2005 12:12 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />ok thanks, i got that.
+<br />
+<br />i looked at the sta save format and it has in it 16K or 4000h of the ppu ram.  i assume its the current page of rom that is mapped?
+<br />
+<br />how does the sta format save the page mapping from the mappers ?
+<br />
+<br />thanks
+<br />matt
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Zepper</b> [ Mon Jul 18, 2005 8:01 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Well, the "STA" format reminds me NESticle save state. Yes, it's a 4000h bank as described below:
+<br />
+<br />0000-1FFF Patterns (CHR-RAM / graphics)
+<br />2000-3EFF Nametables (screen tilegrids)
+<br />3F00-3F1F Palette RAM
+<br />3F20-3FFF Palette RAM mirroring (always &amp; 1Fh)
+<br />
+<br />That's it, buddy. Now, don't ask me about the STA format. ^_^;;
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>mattmatteh</b> [ Mon Jul 18, 2005 8:36 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />are there any other save formats that are common ?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Mon Jul 18, 2005 8:39 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />NESticle is hardly common anymore.  Or at least it shouldn't be (it's very poor and outdated).
+<br />
+<br />FCEUltra would probably be a good emu to consider adding savestate support for.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Quietust</b> [ Mon Jul 18, 2005 10:33 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Once upon a time, there was a savestate format named "SNSS" designed to be compatible with multiple emulators. Unfortunately, it contained some truely braindead design flaws - using BIG ENDIAN to store multibyte values (considering that most systems, including the NES itself, use LITTLE ENDIAN), storing nametable mirroring as part of the PPU state (which is technically part of the MAPPER state), storing PRG/CHR bank numbers (rather than allowing the mapper state to encode them), and then exactly 128 bytes of mapper-specific data (for some mappers, this is far more than needed, while for others it is insufficient).
+<br />It was only used in a few emulators (the only ones I can name are NESten 0.6x and Nintendulator 0.900) before it was abandoned in favor of custom savestate formats (NESten never saw a new release, but Nintendulator eventually evolved to use its own format).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Mon Jul 18, 2005 12:03 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />The nester family of emus alos use SNSS, iirc (Nester, NesterJ, NNNesterJ, possibly NesterDC and other nester ports).  I considered using it myself, but I was rather dissatisfied with its lack of attention to some areas (mainly timing and APU stuff)... along with the reasons you listed.
+<br />
+<br />Actually, perhaps we should collectively come up with a more modern version of SNSS that isn't weird.  It's very likely we'll be able to get Xodnizel on board in supporting it in Nintencer, perhaps someone could even add it to FCEU, and maybe even Q could have Nintendulator come on board.
+<br />
+<br />It would really have to cover every detail, though.  Right down to CPU/PPU timestamps, detailed DMC info (so stolen cycles will be accounted for properly), NTSC/PAL mode toggle, APU frame sequencer stuff.... all of it.  Savestates should be a geniune snapshot of the current state of emulation -- not the bare minimum necessary to pick up where you left off.  I believe that was the biggest flaw with SNSS, and why most people opted for their own, more exact savestate formats.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>baisoku</b> [ Mon Jul 18, 2005 4:52 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>SNSS.</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I'm certainly open to revise and/or scrap SNSS.  I attempted to drum up interest at several points in time, but never had any luck.  It never was fully complete, and i can't say that i ever liked some of the design decisions in the actual code.
+<br />
+<br />I can offer to put together a more 'sane' proposal, if someone who has familiarity with some of the more exotic/exquisite boards would offer to spend some time working on it, or at least give it a good thorough design and code review.
+<br />
+<br />Of historical value: <!-- m --><a class="postlink" href="http://snss.baisoku.org">http://snss.baisoku.org</a><!-- m -->
+<br />
+<br />Oh yeah, it would also be essential to take blargg's "sands of time" stuff into consideration when working on this.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Mon Jul 18, 2005 5:50 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Some of the things I wanted/needed for my emu that SNSS didn't cover:
+<br />
+<br />- bit to signal NTSC/PAL emulation.  If the state was saved when emulating PAL, it doesn't make much sense to load it into NTSC.  And vice versa
+<br />
+<br />- bit to signal the odd frame when emulating NTSC.  Every odd frame on NTSC is one PPU cycle shorter.
+<br />
+<br />- Joypad strobe state.  Was the last write to $4016 0?  or 1?
+<br />
+<br />- $2005/2006 write toggle state
+<br />
+<br />- PPU temporary address (Loopy_T)  (how was this left out of SNSS?)
+<br />
+<br />- CPU/APU/PPU timestamps.  Rounding cycles off to the last frame is dropping data, which could potentially (although granted, unlikely) desync when doing movies or something.  No data should need to be lost when saving a state -- all timestamps should be saved.
+<br />
+<br />- APU Frame sequencer stuff.  SNSS didn't cover $4017 writes at all.  Things like:
+<br />
+<br />-- Frame IRQs enabled?
+<br />-- Frame IRQ currently pending?
+<br />-- 5 or 4 step sequence?
+<br />-- which step are we on?
+<br />-- how many cycles until the next step?
+<br />
+<br />
+<br />- More detailed DMC operations:
+<br />
+<br />-- How many cycles until the next bit in the DMC output unit is shifted out?  (this affects stolen cycles and IRQ timings)
+<br />-- How many bits are left to play in the DMC output unit?  (for same reasons as above)
+<br />-- is the DMC sample buffer empty or full?
+<br />-- If full, what is it filled with?
+<br />-- how many bytes are left in the currently playing DMC sample?
+<br />
+<br />
+<br />- $2002 status (although i suppose this will always be 0 if you do the savestate right before rendering -- however see my notes at the bottom)
+<br />
+<br />- Fine horizontal scroll value
+<br />
+<br />- Background color (color to render when PPU is switched off)
+<br />
+<br />- contents of the $2007 read buffer
+<br />
+<br />- As has already been mentioned, 128 bytes for mapper info is no good.  Why not make it variable?
+<br />
+<br />- Perhaps some more detailed APU stuff.  recording the last value written to $4015 doesn't matter much at all.  What should be done instead of that is tracking each channel's length counter and the tri's linear counter.  Decay and sweep stuff might also be recorded, however the worst that can happen if they're not is some minor audio distortion under very specific circumstances -- nothing that could affect the flow of emulation at all.
+<br />
+<br />
+<br />
+<br />As I briefly touched on with my $2002 note, is that it needs to be more clear when in the frame the state was saved.  Personally, I've adopted BT's scanline counting method where you have VBlank at the start of the frame rather than at the end.  If that method is used, recording $2002 status is necessary since it's not reset until the end of vblank.  However either place would work.
+<br />
+<br />As for timestamps, they should be relative to the number of cycles that have spilled into this frame.  It's rather unlikely that the last executed instruction ended <strong>exactly</strong> at the start of the scanline.  So the CPU/PPU/APU timestamps would be relative to the number of cycles each area has run past the designated start of the frame (whether it be at the start of VBlank or at the start of rendering).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Quietust</b> [ Mon Jul 18, 2005 7:36 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />No "timestamps" are necessary for the CPU/PPU/APU state. The APU just needs the various counters on each sound channel (and the frame timer) and the PPU needs the scanline and cycle numbers. The <strong>only</strong> sort of timestamp that would be useful in a savestate would be the number of frames elapsed since reset (for movie recording purposes); if you're emulating the system correctly, then your CPU, PPU, and APU should be completely synchronized with each other before you start writing the savestate data.
+<br />
+<br />However, to keep things relatively simple, I would recommend only saving the state during the 'dead' scanline between the end of the frame and NMI:
+<br />
+<br />-1 - 'Garbage' scanline, required to prefill the background render pipeline
+<br />0-239 - Visible screen, 240 scanlines
+<br />240 - PPU inactive, perfect place to save state
+<br />241-[260/310] - VBLANK (NMI generated at the very beginning of scanline 241)
+<br />
+<br />There are several reasons to do this:
+<br />1. Most games will read the controllers during VBLANK (and it's best to save state BEFORE they do that, rather than after)
+<br />2. If you always save during Scanline 240 (preferably near the beginning), you'll never have to worry about pending NMIs (and IRQs won't be as big of a problem)
+<br />3. If you save during rendering, you'll have to save the [partial] frame buffer as well as all of the PPU's internal rendering-related buffers - if you always save during VBLANK (or during the dead scanline before VBLANK), the states of these are totally irrelevant (except maybe for the image on the screen, whether you restore the full image or simply store a thumbnail for preview purposes when selecting states)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Mon Jul 18, 2005 8:09 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />It seems that you'd need at least a one byte value for the CPU timestamp, since most of the time the scanline starts when the CPU is halfway through the instruction (and most emus run instruction at a time, rather than CPU cycle at a time).  Althought... I'm not sure of a 'friendly' way to handle it.  You couldn't really go by CPU cycles, since the start of the scanline might even be mid-cycle (since there are 3 [ntsc] or 3.2 [pal] ppu cycles per CPU cycle).  The way I'm doing it currently is multiplying NTSC CPU cycles by 15 and PAL CPU cycles by 16 (that timestamp / 5 would be the PPU cycle) -- but that probably isn't very compatible with other emus.
+<br />
+<br />an APU timestamp wouldn't be necessary, you're right.  Or at least, it could have the same timestamp as the CPU (since there's no reason why you wouldn't be able to sync up the APU to the exact CPU cycle).
+<br />
+<br />A PPU timestamp of sorts wouldn't be needed at all if you save on an inactive scanline, since as you pointed out it doesn't matter exactly where the PPU is on that line, because it's inactive until way far into scanline -1 anyway.
+<br />
+<br />So yeah, I agree totally.  The savestate shouldn't be at the start of scanline 0, or anywhere during.  Start of VBlank is also not ideal because of the issue of pending NMIs.  The dead scanline after rendering does seem like a good place for it.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Quietust</b> [ Mon Jul 18, 2005 8:21 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I don't save states at the <strong>exact</strong> beginning of scanline 240 - I wait until the current CPU instruction is finished, <em>then</em> I save, storing both the scanline number (always 240, though it may change later) AND the PPU cycle number within that scanline (0-340, usually below 20 or so).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Mon Jul 18, 2005 8:31 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />That's the kind of CPU timestamp I'm talking about -- how far into the scanline the state is saved.  Doing it in PPU cycles would work for NTSC, but for PAL it seems sort of problematic, since the end of a CPU cycle might not land exactly on a PPU cycle (3.2 ppu cycles to 1 CPU cycle, unless i'm mistaken).  I know realistically, being off by a fraction of a PPU cycle won't cause any emulation problems, but I have this nagging desire of not wanting to lose <em>anything</em> when save/loading a state.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Quietust</b> [ Mon Jul 18, 2005 8:32 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Disch wrote:</div><div class="quotecontent">That's the kind of CPU timestamp I'm talking about -- how far into the scanline the state is saved.  Doing it in PPU cycles would work for NTSC, but for PAL it seems sort of problematic, since the end of a CPU cycle might not land exactly on a PPU cycle (3.2 ppu cycles to 1 CPU cycle, unless i'm mistaken).  I know realistically, being off by a fraction of a PPU cycle won't cause any emulation problems, but I have this nagging desire of not wanting to lose <em>anything</em> when save/loading a state.</div>
+<br />
+<br />I just realized that case as well - when that's the case, then just store it in the PPU state as sub-cycles.
+<br />
+<br />I also realized that my emu doesn't properly cover that case, so I decided to store it in the upper 4 bits of the 16-bit 'PPU cycles' (0-340) value (with the added bonus that it retains 100% backwards compatibility).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

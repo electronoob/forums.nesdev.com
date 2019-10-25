@@ -1,0 +1,445 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Big Bird's Hide and Speak sample compression</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Big Bird's Hide and Speak sample compression</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=8675">http://forums.nesdev.com/viewtopic.php?f=2&amp;t=8675</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Sat Mar 03, 2012 8:13 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Big Bird's Hide and Speak sample compression</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Tepples made a comment about this game's samples being a little bit obscure and I guess I took it as a dare to figure it out.<br /><br />Python decoder:<br /><a href="http://rainwarrior.ca/projects/nes/bigbird_samples.py" class="postlink">http://rainwarrior.ca/projects/nes/bigbird_samples.py</a><br /><br />Dumped samples:<br /><a href="http://rainwarrior.ca/projects/nes/Sesame%20Street%20-%20Big%20Bird's%20Hide%20&amp;%20Speak%20(USA).wav" class="postlink">http://rainwarrior.ca/projects/nes/Sesame%20Street%20-%20Big%20Bird's%20Hide%20&amp;%20Speak%20(USA).wav</a><br /><br />So, the samples actually decode to 8-bit samples, which is a bit bizarre. They just get an LSR before writing $4011. The reason it's so strange is because the compressed sample format is a fixed 5-bits per sample stream which index a 32 byte lookup table for the output; at the beginning of the stream, and at every 20th sample, the lookup table is reset with a 4-bit selection code; there are 16 different lookup tables which map to different ranges of output samples. So... they're decompressing 5-bit samples into 8-bit samples then throwing away a bit, so really they're only getting a compression ratio a bit worse than 5/7. A 5-bit value of 0 halts the sample and returns from playback.<br /><br />I figured out the locations of samples by hand; there's a bunch of contiguous blocks. (Not sure if I missed any.) There's a mechanism to load and play a sample by a 3-byte pointer (basically bank select + pointer + a few extra bits of data). All of these pointers are stored in bank 2 but some of them are contiguous, some are not; there's not convenient table here. Where there's contiguous ones, they tend to splice words/sentences together out of the consecutive sounds.<br /><br />As Tepples mentioned, the consonant sounds are often separated (and I think are used as common to many words). Some samples are broken into parts, I think so playback can return for an instant to do animation or something else quickly. The alphabet gets really weird; they tend to be stored in strings of ~30 sample blocks, or other strange combinations.<br /><br />The following code is the decoding loop. It reads and outputs 8 5-bit samples from 5 bytes of memory, selecting a new lookup table every 20 bytes. It also bankswitches if the end of a bank is reached. Note that the code is interspersed with time wasting NOPs and JSRs to keep the samplerate consistent.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">;-------------------------------------------------------------------------------<br />; entry into sample playback (MMC1 bank has been selected, ($02) is address of sample)<br />; sample playback also returns here to reset the lookup table every 13 bytes or so<br />; this first block selects the sample output lookup table<br />;-------------------------------------------------------------------------------<br />__f378:&nbsp; &nbsp; &nbsp;LDY #$01&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f378: a0 01&nbsp; &nbsp; &nbsp;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; LDA ($02),y&nbsp; &nbsp; &nbsp; &nbsp; ; $f37a: b1 02&nbsp; &nbsp; &nbsp;; load $02+1 ---0<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; LSR&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f37c: 4a&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; DEY&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f37d: 88&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; LDA ($02),y&nbsp; &nbsp; &nbsp; &nbsp; ; $f37e: b1 02&nbsp; &nbsp; &nbsp;; load $02+0 210-<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ROL&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f380: 2a&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; AND #$0f&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f381: 29 0f&nbsp; &nbsp; &nbsp;; table = 4 bit value in A<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; STY $09&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f383: 84 09&nbsp; &nbsp; &nbsp;; $09 = 0 (used later)<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ASL&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f385: 0a&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ASL&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f386: 0a&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ASL&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f387: 0a&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ASL&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f388: 0a&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ASL&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f389: 0a&nbsp; &nbsp; &nbsp; &nbsp; ; A = table 210----- (low 3 bits as high 3 bits of A)<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ROL $09&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f38a: 26 09&nbsp; &nbsp; &nbsp;; store table bit 3 in $09 temporarily<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ADC #$17&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f38c: 69 17&nbsp; &nbsp; &nbsp;; A = A + $17 (tables all start at +$17 offset, note carry = 0 here)<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; STA $06&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f38e: 85 06&nbsp; &nbsp; &nbsp;; store low byte of table address<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; LDA $09&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f390: a5 09&nbsp; &nbsp; &nbsp;; A = table -------3 (high bit)<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ADC #$fb&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f392: 69 fb&nbsp; &nbsp; &nbsp;; A = A + $FB (FB17 is address of lowest table, 4 byte value selects from 16 tables)<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; STA $07&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f394: 85 07&nbsp; &nbsp; &nbsp;; store high byte, ($06) now stores table<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; LDX #$03&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f396: a2 03&nbsp; &nbsp; &nbsp;; X = 3 (return here after 3 loops)<br />;-------------------------------------------------------------------------------<br />; load the first sample before entering 5-byte / 8-sample loop<br />;-------------------------------------------------------------------------------<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; LDA ($02),y&nbsp; &nbsp; &nbsp; &nbsp; ; $f398: b1 02&nbsp; &nbsp; &nbsp;; load $02 76543<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; LSR&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f39a: 4a&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; LSR&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f39b: 4a&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; LSR&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f39c: 4a&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; BEQ __f40a&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f39d: f0 6b&nbsp; &nbsp; &nbsp;; terminating 0<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; INC $02&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f39f: e6 02&nbsp; &nbsp; &nbsp;; inc $02<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; BNE __f3a8&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f3a1: d0 05&nbsp; &nbsp; &nbsp;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; INC $03&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f3a3: e6 03&nbsp; &nbsp; &nbsp;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; JMP __f3ad&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f3a5: 4c ad f3&nbsp; <br />__f3a8:&nbsp; &nbsp; &nbsp;NOP&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f3a8: ea&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; NOP&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f3a9: ea&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; JMP __f3ad&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f3aa: 4c ad f3&nbsp; <br />__f3ad:&nbsp; &nbsp; &nbsp;JSR __f520&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f3ad: 20 20 f5&nbsp; ; write sample<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; JMP __f3b3&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f3b0: 4c b3 f3&nbsp; ; return to top of loop<br />;-------------------------------------------------------------------------------<br />; top of sample decoding loop<br />;-------------------------------------------------------------------------------<br />__f3b3:&nbsp; &nbsp; &nbsp;LDA ($02),y&nbsp; &nbsp; &nbsp; &nbsp; ; $f3b3: b1 02&nbsp; &nbsp; &nbsp;; load $02 54321<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; LSR&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f3b5: 4a&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; AND #$1f&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f3b6: 29 1f&nbsp; &nbsp; &nbsp;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; BEQ __f40a&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f3b8: f0 50&nbsp; &nbsp; &nbsp;; terminating 0<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; JSR __f514&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f3ba: 20 14 f5&nbsp; ; delay<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; NOP&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f3bd: ea&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; NOP&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f3be: ea&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; NOP&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f3bf: ea&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; NOP&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f3c0: ea&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; NOP&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f3c1: ea&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; NOP&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f3c2: ea&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; JSR __f520&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f3c3: 20 20 f5&nbsp; ; do sample<br />;-------------------------------------------------------------------------------<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; LDA ($02),y&nbsp; &nbsp; &nbsp; &nbsp; ; $f3c6: b1 02&nbsp; &nbsp; &nbsp;; load $02 ---76<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ASL&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f3c8: 0a&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ROL&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f3c9: 2a&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ROL&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f3ca: 2a&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; AND #$03&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f3cb: 29 03&nbsp; &nbsp; &nbsp;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; STA $09&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f3cd: 85 09&nbsp; &nbsp; &nbsp;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; JSR __f50a&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f3cf: 20 0a f5&nbsp; ; inc $02<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; LDA ($02),y&nbsp; &nbsp; &nbsp; &nbsp; ; $f3d2: b1 02&nbsp; &nbsp; &nbsp;; load $02 210--<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; AND #$07&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f3d4: 29 07&nbsp; &nbsp; &nbsp;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ASL&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f3d6: 0a&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ASL&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f3d7: 0a&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ORA $09&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f3d8: 05 09&nbsp; &nbsp; &nbsp;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; BEQ __f40a&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f3da: f0 2e&nbsp; &nbsp; &nbsp;; terminating 0<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; JSR __f51d&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f3dc: 20 1d f5&nbsp; ; delay<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; NOP&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f3df: ea&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; NOP&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f3e0: ea&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; NOP&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f3e1: ea&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; NOP&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f3e2: ea&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; NOP&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f3e3: ea&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; NOP&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f3e4: ea&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; NOP&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f3e5: ea&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; JMP __f3e9&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f3e6: 4c e9 f3&nbsp; <br />__f3e9:&nbsp; &nbsp; &nbsp;JSR __f520&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f3e9: 20 20 f5&nbsp; ; do sample<br />;-------------------------------------------------------------------------------<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; LDA ($02),y&nbsp; &nbsp; &nbsp; &nbsp; ; $f3ec: b1 02&nbsp; &nbsp; &nbsp;; load $02 76543<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; LSR&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f3ee: 4a&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; LSR&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f3ef: 4a&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; LSR&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f3f0: 4a&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; BEQ __f40a&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f3f1: f0 17&nbsp; &nbsp; &nbsp;; terminating 0<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; JSR __f50a&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f3f3: 20 0a f5&nbsp; ; inc $02<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; JSR __f517&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f3f6: 20 17 f5&nbsp; ; delay<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; JMP __f3fc&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f3f9: 4c fc f3&nbsp; <br />__f3fc:&nbsp; &nbsp; &nbsp;NOP&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f3fc: ea&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; JSR __f520&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f3fd: 20 20 f5&nbsp; ; do sample<br />;-------------------------------------------------------------------------------<br />; every third pass through the loop we reset the table and restart<br />;-------------------------------------------------------------------------------<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; DEX&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f400: ca&nbsp; &nbsp; &nbsp; &nbsp; ; decrement X<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; BNE __f406&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f401: d0 03&nbsp; &nbsp; &nbsp;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; JMP __f378&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f403: 4c 78 f3&nbsp; ; reset the lookup table if X = 0<br />;-------------------------------------------------------------------------------<br />__f406:&nbsp; &nbsp; &nbsp;LDA ($02),y&nbsp; &nbsp; &nbsp; &nbsp; ; $f406: b1 02&nbsp; &nbsp; &nbsp;; load $02 43210<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; AND #$1f&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f408: 29 1f&nbsp; &nbsp; &nbsp;<br />__f40a:&nbsp; &nbsp; &nbsp;BEQ __f483&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f40a: f0 77&nbsp; &nbsp; &nbsp;; terminating 0<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; JSR __f514&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f40c: 20 14 f5&nbsp; ; delay<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; NOP&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f40f: ea&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; NOP&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f410: ea&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; NOP&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f411: ea&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; NOP&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f412: ea&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; NOP&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f413: ea&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; NOP&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f414: ea&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; JSR __f520&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f415: 20 20 f5&nbsp; ; do sample<br />;-------------------------------------------------------------------------------<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; LDA ($02),y&nbsp; &nbsp; &nbsp; &nbsp; ; $f418: b1 02&nbsp; &nbsp; &nbsp;; load $02 --765<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ASL&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f41a: 0a&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ROL&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f41b: 2a&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ROL&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f41c: 2a&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ROL&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f41d: 2a&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; AND #$07&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f41e: 29 07&nbsp; &nbsp; &nbsp;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; STA $09&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f420: 85 09&nbsp; &nbsp; &nbsp;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; JSR __f50a&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f422: 20 0a f5&nbsp; ; inc $02<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; LDA ($02),y&nbsp; &nbsp; &nbsp; &nbsp; ; $f425: b1 02&nbsp; &nbsp; &nbsp;; load $02 10---<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; AND #$03&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f427: 29 03&nbsp; &nbsp; &nbsp;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ASL&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f429: 0a&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ASL&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f42a: 0a&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ASL&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f42b: 0a&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ORA $09&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f42c: 05 09&nbsp; &nbsp; &nbsp;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; BEQ __f483&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f42e: f0 53&nbsp; &nbsp; &nbsp;; terminating 0<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; NOP&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f430: ea&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; NOP&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f431: ea&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; NOP&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f432: ea&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; NOP&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f433: ea&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; NOP&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f434: ea&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; NOP&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f435: ea&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; JMP __f439&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f436: 4c 39 f4&nbsp; <br />__f439:&nbsp; &nbsp; &nbsp;JSR __f520&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f439: 20 20 f5&nbsp; ; do sample<br />;-------------------------------------------------------------------------------<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; LDA ($02),y&nbsp; &nbsp; &nbsp; &nbsp; ; $f43c: b1 02&nbsp; &nbsp; &nbsp;; load $02 65432<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; LSR&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f43e: 4a&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; LSR&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f43f: 4a&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; AND #$1f&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f440: 29 1f&nbsp; &nbsp; &nbsp;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; BEQ __f483&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f442: f0 3f&nbsp; &nbsp; &nbsp;; terminating 0<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; JSR __f514&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f444: 20 14 f5&nbsp; ; delay<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; NOP&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f447: ea&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; NOP&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f448: ea&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; NOP&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f449: ea&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; NOP&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f44a: ea&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; NOP&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f44b: ea&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; JMP __f44f&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f44c: 4c 4f f4&nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; JSR __f520&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f44f: 20 20 f5&nbsp; ; do sample<br />;-------------------------------------------------------------------------------<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; LDA ($02),y&nbsp; &nbsp; &nbsp; &nbsp; ; $f452: b1 02&nbsp; &nbsp; &nbsp;; load $02 ----7<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ASL&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f454: 0a&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; JSR __f50a&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f455: 20 0a f5&nbsp; ; inc $02<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; LDA ($02),y&nbsp; &nbsp; &nbsp; &nbsp; ; $f458: b1 02&nbsp; &nbsp; &nbsp;; load $02 3210-<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ROL&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f45a: 2a&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; AND #$1f&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f45b: 29 1f&nbsp; &nbsp; &nbsp;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; BEQ __f483&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f45d: f0 24&nbsp; &nbsp; &nbsp;; terminating 0<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; JSR __f517&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f45f: 20 17 f5&nbsp; ; delay<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; JSR __f520&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f462: 20 20 f5&nbsp; ; do sample<br />;-------------------------------------------------------------------------------<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; LDY #$01&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f465: a0 01&nbsp; &nbsp; &nbsp;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; LDA ($02),y&nbsp; &nbsp; &nbsp; &nbsp; ; $f467: b1 02&nbsp; &nbsp; &nbsp;; load $02+1 0----<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; LSR&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f469: 4a&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; DEY&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f46a: 88&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; LDA ($02),y&nbsp; &nbsp; &nbsp; &nbsp; ; $f46b: b1 02&nbsp; &nbsp; &nbsp;; load $02+0 -7654<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; JSR __f50a&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f46d: 20 0a f5&nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ROR&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f470: 6a&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; LSR&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f471: 4a&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; LSR&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f472: 4a&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; LSR&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f473: 4a&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; BEQ __f483&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f474: f0 0d&nbsp; &nbsp; &nbsp;; terminating 0<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; JSR __f549&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f476: 20 49 f5&nbsp; ; triggers a bankswitch if appropriate<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; NOP&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f479: ea&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; NOP&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f47a: ea&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; NOP&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f47b: ea&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; NOP&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f47c: ea&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; JSR __f520&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f47d: 20 20 f5&nbsp; ; do sample<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; JMP __f3b3&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f480: 4c b3 f3&nbsp; ; loop<br />;-------------------------------------------------------------------------------<br />; when a 0 sample is read, this handles the very last sample<br />;-------------------------------------------------------------------------------<br />__f483:&nbsp; &nbsp; &nbsp;JSR __f50a&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f483: 20 0a f5&nbsp; ; do last sample<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; RTS&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f486: 60&nbsp; &nbsp; &nbsp; &nbsp; ; end of loop<br /><br />;...............................................................................<br />; purpose of $f487 - $f509 not known, omitted<br />;...............................................................................<br /><br />;-------------------------------------------------------------------------------<br />; increment ($02) address (sample data pointer)<br />;-------------------------------------------------------------------------------<br />__f50a:&nbsp; &nbsp; &nbsp;INC $02&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f50a: e6 02&nbsp; &nbsp; &nbsp;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; BNE __f511&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f50c: d0 03&nbsp; &nbsp; &nbsp;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; INC $03&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f50e: e6 03&nbsp; &nbsp; &nbsp;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; RTS&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f510: 60&nbsp; &nbsp; &nbsp; &nbsp; <br />__f511:&nbsp; &nbsp; &nbsp;NOP&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f511: ea&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; NOP&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f512: ea&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; RTS&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f513: 60&nbsp; &nbsp; &nbsp; &nbsp; <br /><br />;-------------------------------------------------------------------------------<br />; various delay subroutines<br />;-------------------------------------------------------------------------------<br />__f514:&nbsp; &nbsp; &nbsp;JSR __f51d&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f514: 20 1d f5&nbsp; <br />__f517:&nbsp; &nbsp; &nbsp;JSR __f51d&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f517: 20 1d f5&nbsp; <br />__f51a:&nbsp; &nbsp; &nbsp;JSR __f51d&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f51a: 20 1d f5&nbsp; <br />__f51d:&nbsp; &nbsp; &nbsp;NOP&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f51d: ea&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; NOP&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f51e: ea&nbsp; &nbsp; &nbsp; &nbsp; <br />__f51f:&nbsp; &nbsp; &nbsp;RTS&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f51f: 60&nbsp; &nbsp; &nbsp; &nbsp; <br /><br />;-------------------------------------------------------------------------------<br />; looks up a table value from the table at ($06) based on the value in A<br />; delays for a bit, then stores the value (right shifted by 1) in 4011<br />;-------------------------------------------------------------------------------<br />__f520:&nbsp; &nbsp; &nbsp;TAY&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f520: a8&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; LDA ($06),y&nbsp; &nbsp; &nbsp; &nbsp; ; $f521: b1 06&nbsp; &nbsp; &nbsp;; lookup sample<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; JMP __f53f&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f523: 4c 3f f5&nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; .hex 00 00 00 00&nbsp; &nbsp;; $f526: 00 00 00 00 ; empty space in code?<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; .hex 00 00 00 00&nbsp; &nbsp;; $f52a: 00 00 00 00<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; NOP&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f52e: ea&nbsp; &nbsp; &nbsp; &nbsp; <br />__f52f:&nbsp; &nbsp; &nbsp;NOP&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f52f: ea&nbsp; &nbsp; &nbsp; &nbsp; <br />__f530:&nbsp; &nbsp; &nbsp;NOP&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f530: ea&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; NOP&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f531: ea&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; NOP&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f532: ea&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; NOP&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f533: ea&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; NOP&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f534: ea&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; NOP&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f535: ea&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; NOP&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f536: ea&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; NOP&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f537: ea&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; NOP&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f538: ea&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; NOP&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f539: ea&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; NOP&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f53a: ea&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; NOP&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f53b: ea&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; NOP&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f53c: ea&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; NOP&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f53d: ea&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; NOP&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f53e: ea&nbsp; &nbsp; &nbsp; &nbsp; <br />__f53f:&nbsp; &nbsp; &nbsp;LDY #$15&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f53f: a0 15&nbsp; &nbsp; &nbsp;; end of &quot;empty&quot; space?<br />__f541:&nbsp; &nbsp; &nbsp;DEY&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f541: 88&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; BNE __f541&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f542: d0 fd&nbsp; &nbsp; &nbsp;; loop 15 times to delay<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; LSR&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f544: 4a&nbsp; &nbsp; &nbsp; &nbsp; ; discard pesky 8th bit<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; STA $4011&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f545: 8d 11 40&nbsp; ; play sample<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; RTS&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f548: 60&nbsp; &nbsp; &nbsp; &nbsp; <br /><br />;-------------------------------------------------------------------------------<br />; automatically bankswitch if end of bank is reached<br />;-------------------------------------------------------------------------------<br />__f549:&nbsp; &nbsp; &nbsp;PHA&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f549: 48&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; LDA $03&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f54a: a5 03&nbsp; &nbsp; &nbsp;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; CMP #$bf&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f54c: c9 bf&nbsp; &nbsp; &nbsp;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; BNE __f572&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f54e: d0 22&nbsp; &nbsp; &nbsp;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; LDA $02&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f550: a5 02&nbsp; &nbsp; &nbsp;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; CMP #$c0&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f552: c9 c0&nbsp; &nbsp; &nbsp;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; BCS __f558&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f554: b0 02&nbsp; &nbsp; &nbsp;; if ($02) &gt; $bfc0<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; PLA&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f556: 68&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; RTS&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f557: 60&nbsp; &nbsp; &nbsp; &nbsp; <br />__f558:&nbsp; &nbsp; &nbsp;INC $019c&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f558: ee 9c 01&nbsp; ; increment bank in $019c<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; LDA $019c&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f55b: ad 9c 01&nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; JSR __f578&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f55e: 20 78 f5&nbsp; ; bankswitch to bank in $019c<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; LDA $02&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f561: a5 02&nbsp; &nbsp; &nbsp;; ($02) -= $3fc0<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; SEC&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f563: 38&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; SBC #$c0&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f564: e9 c0&nbsp; &nbsp; &nbsp;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; STA $02&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f566: 85 02&nbsp; &nbsp; &nbsp;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; LDA $03&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f568: a5 03&nbsp; &nbsp; &nbsp;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; SBC #$bf&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f56a: e9 bf&nbsp; &nbsp; &nbsp;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ORA #$80&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; $f56c: 09 80&nbsp; &nbsp; &nbsp;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; STA $03&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f56e: 85 03&nbsp; &nbsp; &nbsp;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; PLA&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f570: 68&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; RTS&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $f571: 60&nbsp; &nbsp; &nbsp; &nbsp; <br /><br />;...............................................................................<br />; sample lookup tables are stored at $fb17<br />;...............................................................................</div><br />The unannotated disassembly was produced by DISASM6 v1.4, with help from FCEUX. The command line was:<br />disasm6 romname.nes -o 0xC000 -fs 0x3C010 -i
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Dwedit</b> [ Sat Mar 03, 2012 9:05 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I just played the WAV file backwards looping.  It's quite strange and disturbing.
+<br />Nice job!
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Sun Mar 04, 2012 10:16 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Thank you for figuring this out.
+<br />
+<br />Of course, we homebrewers don't need to implement this codec directly in our projects. We just need to use it as a sort of "pace car" to see if our own codecs are better or worse than the state of the art was during the NES's commercial era. (The M.C. Kids post-mortems are the same way.)
+<br />
+<br />I still use Ubuntu 11.10, which has Python 2.7 by default, which has different semantics for str and bytes from the Python 3.x series. I had to make a small change to load_rom() to get the program to work:
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">def load_rom&#40;&#41;:<br />&nbsp; &nbsp; from array import array<br />&nbsp; &nbsp; f = open&#40;filename_rom,'rb'&#41;<br />&nbsp; &nbsp; rom = array&#40;'B', f.read&#40;&#41;&#41;<br />&nbsp; &nbsp; f.close&#40;&#41;<br />&nbsp; &nbsp; print&#40;'Loaded ROM: %s &#40;%d bytes&#41;' % &#40;filename_rom, len&#40;rom&#41;&#41;&#41;<br />&nbsp; &nbsp; return rom<br /></div><br />Some samples are stored in CHR ROM. How does the playback work for those? I seem to remember that a lot of older emulators used to show garbage tiles for Big Bird's sprites when some samples were playing and/or freeze when Big Bird says "Go". Perhaps they were screwing up the MMC1 bankswitching.<br /><br />I investigated the format of the sixteen tables. Apart from entry 0 which appears to duplicate entry 16 (both are always 128 in both tables), they appear to just be linear PCM at 30 different scale factors:<br />[30, 34, 40, 46, 54, 62, 70, 82, 94, 108, 124, 144, 166, 192, 220, 254]<br /><br />Here's the code I used to prove this out:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">def print_tables&#40;rom&#41;:<br />&nbsp; &nbsp; tables = rom&#91;0x3FB27:0x3FB27 + 32 * 16&#93;<br />&nbsp; &nbsp; tables = &#91;tables&#91;i:i + 32&#93;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; for i in range&#40;0, 512, 32&#41;&#93;<br />&nbsp; &nbsp; scalefactors = &#91;&#40;row&#91;31&#93; - row&#91;1&#93;&#41; for row in tables&#93;<br />&nbsp; &nbsp; deltas = &#91;&#91;&#40;i - 1, round&#40;&#40;s - row&#91;1&#93;&#41; * 30 / &#40;row&#91;31&#93; - row&#91;1&#93;&#41;, 2&#41;&#41;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; for &#40;i, s&#41; in list&#40;enumerate&#40;row&#41;&#41;&#91;2:&#93;&#93;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; for row in tables&#93;<br /><br />&nbsp; &nbsp; print&#40;&quot;Raw tables:&quot;&#41;<br />&nbsp; &nbsp; print&#40;&quot;\n&quot;.join&#40;repr&#40;row&#41; for row in tables&#41;&#41;<br />&nbsp; &nbsp; print&#40;&quot;Volume scale factors:&quot;&#41;<br />&nbsp; &nbsp; print&#40;scalefactors&#41;<br />&nbsp; &nbsp; print&#40;&quot;Expected levels vs. relative levels:&quot;&#41;<br />&nbsp; &nbsp; print&#40;&quot;\n&quot;.join&#40;'Row %d:\n%s' % &#40;i, repr&#40;row&#41;&#41;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; for &#40;i, row&#41; in enumerate&#40;deltas&#41;&#41;&#41;<br /></div>
+<br />Even delta PCM would have let them use 4-bit samples and a simpler playback routine, like I did <a href="http://nesdev.com/bbs/viewtopic.php?t=3712&amp;start=15" class="postlink">here</a>, and keep roughly the same audio quality.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Sun Mar 04, 2012 12:28 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Yeah, this is unnecessarily complicated and far from optimal.
+<br />
+<br />Mistake #1 was starting with 8-bit samples to begin with. I do suspect as you do that a modified 4-bit VOX decoder would be almost as good for this purpose, save more space, and would reduce the complexity of the code down to just two bit-block decoding stages rather than 10 (far fewer branches to try and time correctly too).
+<br />
+<br />If you check the game's credit screen, the voice stuff was written by another company; perhaps it was a solution for a different 6502 platform (with 8-bit playback) that they purchased and adapted.
+<br />
+<br />Though, despite this criticism, it works, and it saved I think 80kb or so vs 8-bit samples, so it did its job somewhat. The game shipped, and plays just fine for what it is. It's a very simple and robust game. I think it's a bit more playable and engaging than the other Sesame Street NES games I've seen (i.e. the same company's Sesame Street Countdown, and Rare's Sesame Street ABC).
+<br />
+<br />I don't know enough about how the iNES format handles banks or how the MMC1 should be implemented to know how the hell they used samples in CHR ROM, but they seem to be there, and the relevant sounds (e.g. "Grover") are heard in game and don't seem to be duplicates. There could be a duplicate decoder hiding in the code somewhere, but I didn't find it if there is one. In FCEUX's PPU viewer I don't see any "noise" data or flickering in the CHR pages while the samples are playing, so I think it manages to bankswitch the data into $8000 somehow.
+<br />
+<br />Edit: there is a duplicate decompressor, and it loads in blocks of data from CHR ROM just after NMI when playing these samples. See below for more specific information.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Dwedit</b> [ Sun Mar 04, 2012 1:07 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />It's just reading it out of CHR-ROM during Vblank time into NES RAM using an unrolled loop.  Nothing special.
+<br />It also seems to be playing previously decoded data at the same time as well.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Sun Mar 04, 2012 1:11 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />And all this sound data fit inside a NES ROM ? This is surprising to say the least.
+<br />Even using some kind of 4-bit-per-sample ADPCM-ish compression (teeple's algorithm, not mine) I could only get several seconds of sound before getting some ridiculously large data.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Dwedit</b> [ Sun Mar 04, 2012 1:17 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />It's 384KB in size, that is pretty big for a NES game.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Sun Mar 04, 2012 1:31 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Ah, found the code that does it. It reads a block from CHR ROM to RAM, and then runs a second implementation of the decompressor that works on that RAM address.
+<br />
+<br />The CHR reading code starts at around $F592 in the code bank, and it gets executed just after an NMI (reads a block of data to $0280). I guess playback for these samples halts briefly after NMI to do this and then the code at $F8E1-$F9B5 looks really similar to the 8-sample decoder cycle that I annotated above from $F3B3-$F480.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Dwedit</b> [ Sun Mar 04, 2012 1:34 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Playback doesn't halt, there are 4011 writes mixed in with the reading.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Sun Mar 04, 2012 1:39 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Ah, you're right. There's three pre-decoded samples written to $4011 during the CHR ROM loading code.
+<br />
+<br />Also, this is hardly "nothing special". <img src="./images/smilies/icon_wink.gif" alt=";)" title="Wink" /> The detail in the timing of this code is very impressive.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Sun Mar 04, 2012 4:14 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />It's &quot;nothing special&quot; compared to <a href="https://pineight.com/mw/?title=Mozer_compression" class="postlink">Forrest Mozer's codecs for ESS</a>. Those are ridiculously efficient for the time, producing understandable speech around 4 kbps, comparable to an LPC vocoder but algorithmically much simpler to decode.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Sun Mar 04, 2012 4:58 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />The speech stuff for this game was written by ESS, actually. (Check the title screens.)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Sun Mar 04, 2012 5:36 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />That leaves two possibilities: <ol style="list-style-type: lower-alpha"><li>The fidelity loss from using the MX codec was unacceptable for an early childhood edutainment game in which clear diction and Spinney's iconic voice are of paramount importance. In the <a href="http://www.the-commodore-zone.com/articlelive/articles/1/2/Speech-Box/Page2.html" class="postlink">sample page</a>, hear how warbly the "gbusters scream" and "imission scream" samples are. </li><li>ESS was willing to sell an LPCM solution for a much cheaper royalty than a solution based on MX, and the royalty difference outweighed the difference in replication cost between the smaller cart that used MX and the bigger cart that used LPCM. </li></ol>
+<br />I'll go with c. All of the above.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bananmos</b> [ Mon Mar 05, 2012 1:00 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">In the sample page, hear how warbly the "gbusters scream" and "imission scream" samples are</div>
+<br />
+<br />Hmm, this makes me wonder whether the samples there are quantized to 4-bit (as they were in those C=64 games) or not. That could potentially make quite a difference. Maybe not in the "warbliness", but at least in general perceptive quality. 
+<br />
+<br />My first guess would be no such quantization is done by this player, and this is then how good a sample with this codex could possibly be rendered without those 4-bit quantization limitations. But I can't tell for sure from the playback.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Mon Mar 05, 2012 9:46 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />The ghostbusters thing doesn't sound like fixed bit compression to me. If I had to guess what's going on there, I'd say it cuts the sound into short segments and replaces each segment with a single cycling waveform that is a close match.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

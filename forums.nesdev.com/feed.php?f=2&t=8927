@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=2&amp;t=8927" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2012-05-30T23:43:14-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=2&amp;t=8927</id>
+<entry>
+<author><name><![CDATA[Drag]]></name></author>
+<updated>2012-05-30T23:43:14-07:00</updated>
+<published>2012-05-30T23:43:14-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8927&amp;p=94850#p94850</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8927&amp;p=94850#p94850"/>
+<title type="html"><![CDATA[Palette fading techniques]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8927&amp;p=94850#p94850"><![CDATA[
+<strong>TL;DR: You basically can just walk between two colors, as though the palette is a 2D map, but you need to make some exceptions depending on how far apart two colors are, or when you're going from a color to a gray, or vice versa.</strong><br /><br />After playing around, I figured out an algorithm that seems to work when I play around in yychr. <img src="http://forums.nesdev.com/images/smilies/icon_razz.gif" alt=":P" title="Razz" /><br /><br />Assume a 5 step fade; ColorA is the start color, and ColorB is the target color. ColorDiff is the shortest distance between ColorA and ColorB. (For example, if A was $12 and B was $1C, you'd go $12, $11, $1C, and ColorDiff would be 2.)<br /><br /><ul><li>if ColorDiff &lt; 5<br /><ul><li>Hue is a linear slide from A to B, moving along the shortest distance</li></ul></li><li>if ColorDiff == 5<br /><ul><li>Hue follows these steps: (+ moves towards B, - moves towards A, both move along the shortest distance)<br /><ul><li>A</li><li>A+1</li><li>Gray</li><li>B-1</li><li>B</li></ul></li></ul></li><li>if ColorDiff == 6<br /><ul><li>Fade degenerates into a 3-step fade: (stretched out into 5 steps, that is)<br /><ul><li>A</li><li>Gray</li><li>B</li></ul></li></ul></li></ul><br /><br />ColorDiff == 6 is a degenerate case because there's no shortest distance between ColorA and ColorB. That means, ColorA and ColorB are complements, and a fade between them would have no hue slide; the <em>saturation</em> would slide to 0, the hue would flip from A to B, and the saturation would slide back up. However, the NES offers no saturation control, so flipping to gray is the best I can do.<br /><br />ColorDiff == 5 doesn't immediately go to gray like this because even though the colors are <em>close</em> to being complements, they aren't, and there's still a shortest distance you can slide the hue along. However, the saturation would still get close to 0 in the middle of the fade, and coincidentally, this is the only case where you'd need to skip a hue to get from ColorA to ColorB, so I just stuck the skip in the middle and hid it with the gray. At the same time, step 2 is ColorA one hue closer to its complement (which isn't a bad approximation for desaturating a color), and step 4 is ColorB one hue closer to its complement. The result seems to work, anyway. <img src="http://forums.nesdev.com/images/smilies/icon_razz.gif" alt=":P" title="Razz" /><br /><br />The specific gray you use is the $x0 gray that's on the previous row of the color. So the equivalent gray for $3x would be $20, $2x would be $10, $1x would be $00, and $0x would be $0F. Again, this seemed to look the best when I was playing around.<br /><br />To fade from a color to a gray (or vice versa), treat the hue as though it's a 2-step fade where one step is color and the other step is gray. <br /><br />In <em>all</em> cases, a fade between two different <em>brightnesses</em> would just be linear. To fade from a color on row 0 to a color on row 3, you'd pass through rows 1 and 2, no matter what the hue or saturation is doing. So basically, the upper nybble of the color is always a linear slide (but remember to use the gray from the previous row, when you need to display a gray)<br /><br />Of course, you can make exceptions when you're fading to/from $0F or to/from $30; treat those as just adding or subtracting $10 from the color each step.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=21">Drag</a> — Wed May 30, 2012 11:43 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Drag]]></name></author>
+<updated>2012-05-29T17:06:54-07:00</updated>
+<published>2012-05-29T17:06:54-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8927&amp;p=94768#p94768</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8927&amp;p=94768#p94768"/>
+<title type="html"><![CDATA[Palette fading techniques]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8927&amp;p=94768#p94768"><![CDATA[
+Sorry for the huge wall of text, but I had no life today. <img src="http://forums.nesdev.com/images/smilies/icon_biggrin.gif" alt=":D" title="Very Happy" /><br /><br />I "simulated" a hypothetical display system where the colorburst has 16 samples to it (giving 16 distinct colors), and added each possible color together to figure out the hue and saturation of the resulting midpoint between the two colors.<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">FEDA852101258ADE Hue 1; Sat 15<br />FEDA852101258ADE Hue 1; Sat 15<br />FEDA852101258ADE Hue 1; Sat 15<br />'-.           .- |<br />   -_       _-   |<br />     .     .     |<br />      -._.-      |<br />FEDA852101258ADE Hue 1; Sat 15<br />EFEDA852101258AD Hue 2; Sat 15<br />EEDB9631001369BD Hue 1.5; Sat 14<br />--.            . |<br />   '.        .'  |<br />     -      -    |<br />      '.__.'     |<br />FEDA852101258ADE Hue 1; Sat 15<br />DEFEDA852101258A Hue 3; Sat 15<br />EEECA753111357AC Hue 2; Sat 13<br />---_           _ |<br />    -         -  |<br />     '.     .'   |<br />       '...'     |<br />FEDA852101258ADE Hue 1; Sat 15<br />ADEFEDA852101258 Hue 4; Sat 15<br />CDDCB9642112469B Hue 2.5; Sat 12<br />_.._             |<br />    '.        .' |<br />      -_    _-   |<br />        -..-     |<br />FEDA852101258ADE Hue 1; Sat 15<br />8ADEFEDA85210125 Hue 5; Sat 15<br />BCDCB97543234579 Hue 3; Sat 11<br /> _._             |<br />'   '.         . |<br />      '._   _.'  |<br />         '-'     |<br />FEDA852101258ADE Hue 1; Sat 15<br />58ADEFEDA8521012 Hue 6; Sat 15<br />ABBBBA8754334578 Hue 3.5; Sat 8<br />                 |<br />-''''-_        _ |<br />       '._  _.'  |<br />          ''     |<br />FEDA852101258ADE Hue 1; Sat 15<br />258ADEFEDA852101 Hue 7; Sat 15<br />89AAA98765555567 Hue 4; Sat 5<br />                 |<br />_.---._          |<br />       '-.....-' |<br />                 |<br />FEDA852101258ADE Hue 1; Sat 15<br />1258ADEFEDA85210 Hue 8; Sat 15<br />8899998877666677 Hue 4.5; Sat 3<br />                 |<br />__....__         |<br />        ''----'' |<br />                 |<br />FEDA852101258ADE Hue 1; Sat 15<br />01258ADEFEDA8521 Hue 9; Sat 15<br />7777877777778777 Hue -; Sat 0<br />                 |<br />    _       _    |<br />'''' ''''''' ''''|<br />                 |<br />FEDA852101258ADE Hue 1; Sat 15<br />101258ADEFEDA852 Hue 10; Sat 15<br />8776666778899998 Hue 13.5; Sat 3<br />                 |<br />_        __...._ |<br /> ''----''        |<br />                 |<br />FEDA852101258ADE Hue 1; Sat 15<br />2101258ADEFEDA85 Hue 11; Sat 15<br />876555556789AAA9 Hue 14; Sat 5<br />                 |<br />_         _.---. |<br /> '-.....-'       |<br />                 |<br />FEDA852101258ADE Hue 1; Sat 15<br />52101258ADEFEDA8 Hue 12; Sat 15<br />A8754334578ABBBB Hue 14.5; Sat 8<br />                 |<br />-_        _-'''' |<br />  '._  _.'       |<br />     ''          |<br />FEDA852101258ADE Hue 1; Sat 15<br />852101258ADEFEDA Hue 13; Sat 15<br />B97543234579BCDC Hue 15; Sat 11<br />             _._ |<br />'.         .'    |<br />  '._   _.'      |<br />     '-'         |<br />FEDA852101258ADE Hue 1; Sat 15<br />A852101258ADEFED Hue 14; Sat 15<br />CB9642112469BCDD Hue 15.5; Sat 12<br />_            _.. |<br /> '.        .'    |<br />   -_    _-      |<br />     -..-        |<br />FEDA852101258ADE Hue 1; Sat 15<br />DA852101258ADEFE Hue 15; Sat 15<br />ECA753111357ACEE Hue 16; Sat 13<br />-_           _-- |<br />  -         -    |<br />   '.     .'     |<br />     '...'       |<br />FEDA852101258ADE Hue 1; Sat 15<br />EDA852101258ADEF Hue 1; Sat 15<br />EDB9631001369BDE Hue 16.5; Sat 14<br />-.            .- |<br />  '.        .'   |<br />    -      -     |<br />     '.__.'      |</div><br /><br />I'm probably the only one that'll find this interesting, but there it is. <img src="http://forums.nesdev.com/images/smilies/icon_razz.gif" alt=":P" title="Razz" /><br />I hypothesize that colors with different luminances will behave the same way, hue and sat wise, but the luminance will be a linear fade. Different saturations, I don't know, but it's not important for the NES anyway.<br /><br />Also, I calculated "hue" as the location of the highest point of the wave, and the saturation is just the difference between the highest and lowest points on the wave.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=21">Drag</a> — Tue May 29, 2012 5:06 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Drag]]></name></author>
+<updated>2012-05-28T23:43:45-07:00</updated>
+<published>2012-05-28T23:43:45-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8927&amp;p=94747#p94747</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8927&amp;p=94747#p94747"/>
+<title type="html"><![CDATA[Palette fading techniques]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8927&amp;p=94747#p94747"><![CDATA[
+<div class="quotetitle">tepples wrote:</div><div class="quotecontent"><br /><div class="quotetitle">Drag wrote:</div><div class="quotecontent">When they generated this table, I wonder if they faded the colors in YIQ space, or if they interpolated to RGB and back.<br /></div><br />It'd be the same thing, as the conversion from YIQ to device-RGB is linear.</div><br />You're right, I just confused myself because I was testing with arbitrary RGB colors instead of the NES's actual colors (in which the luminance of all colors in a row are the same).<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=21">Drag</a> — Mon May 28, 2012 11:43 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2012-05-28T15:21:37-07:00</updated>
+<published>2012-05-28T15:21:37-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8927&amp;p=94720#p94720</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8927&amp;p=94720#p94720"/>
+<title type="html"><![CDATA[Palette fading techniques]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8927&amp;p=94720#p94720"><![CDATA[
+<div class="quotetitle">Drag wrote:</div><div class="quotecontent"><br />When they generated this table, I wonder if they faded the colors in YIQ space, or if they interpolated to RGB and back.<br /></div><br />It'd be the same thing, as the conversion from YIQ to device-RGB is linear.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Mon May 28, 2012 3:21 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Drag]]></name></author>
+<updated>2012-05-28T14:12:15-07:00</updated>
+<published>2012-05-28T14:12:15-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8927&amp;p=94719#p94719</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8927&amp;p=94719#p94719"/>
+<title type="html"><![CDATA[Palette fading techniques]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8927&amp;p=94719#p94719"><![CDATA[
+I looked into the Tiny Toons cartoon maker for NES, and there's a large lookup table at CPU$FEDB that the game uses to fade arbitrary colors to color $02 and back, in 1/3 increments.<br /><br />When they generated this table, I wonder if they faded the colors in YIQ space, or if they interpolated to RGB and back.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=21">Drag</a> — Mon May 28, 2012 2:12 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Drag]]></name></author>
+<updated>2012-05-25T22:06:33-07:00</updated>
+<published>2012-05-25T22:06:33-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8927&amp;p=94524#p94524</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8927&amp;p=94524#p94524"/>
+<title type="html"><![CDATA[Palette fading techniques]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8927&amp;p=94524#p94524"><![CDATA[
+TL;DR: Walking across the palette as though it's 2D is <em>close</em>, when dealing with only hues (not grays), but there's still some funkiness with saturation that may be hard (not impossible!) to deal with on the NES.<br /><br />Long version:<br />After giving it a bunch of thought, I basically figured out what's going on, in terms of the NTSC signal.<br /><br />Let's say color 21 looks like this:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">¯¯¯¯¯¯______¯¯¯¯¯¯______</div><br />...and color 25 looks like this:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">____¯¯¯¯¯¯______¯¯¯¯¯¯__</div><br /><br />50% of 21 combined with 50% of 25 should look something like this:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">----¯¯----__----¯¯----__</div><br /><br />It's still a wave that's oscillating at the colorburst frequency, so it'd be considered a valid color, however, it's much less saturated than either of the colors alone. As for which HUE this is, I'm not sure... it's probably hue 23 (half way between 21 and 25) or something, but again, It's at 1/3 the SATURATION of both 21 and 25.<br /><br />Let's take color 21 again:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">¯¯¯¯¯¯______¯¯¯¯¯¯______</div><br />...and color 27, its complement:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">______¯¯¯¯¯¯______¯¯¯¯¯¯</div><br /><br />Combine 50% of 21 with 50% of 27, and you get this:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">------------------------</div><br /><br />...which is a gray color, the same luminance as the two colors. On the NES, this isn't completely possible, because there isn't a shade of gray available that represents the half-way point between color 20 and 2D.<br /><br /><br />So, when fading between two hues of the same brightness (let's call them A and B), the halfway point is more and more desaturated, the closer B is to A's complement.<br /><br />Ok, so that's how the hue and saturation works, fading between two colors of different brightnesses would simply be linear. For instance, fading between color 21 and color 17, the high nybble would act the same way as if you were fading between 21 and 11.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=21">Drag</a> — Fri May 25, 2012 10:06 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2012-05-23T13:28:57-07:00</updated>
+<published>2012-05-23T13:28:57-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8927&amp;p=94354#p94354</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8927&amp;p=94354#p94354"/>
+<title type="html"><![CDATA[Palette fading techniques]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8927&amp;p=94354#p94354"><![CDATA[
+<div class="quotetitle">Drag wrote:</div><div class="quotecontent"><br />Finally, take a look at the Tiny Toons cartoon maker thing for NES, it fades to blue, but it might be using a LUT for that.<br /></div><br />I don't have that game, but I can tell you this: The fade code used for cut scenes in Thwaite is based on subtracting $10, $20, or $30. It reassigns $F0 (what you get when you subtract $10 from dark gray) to $02 (dark blue), $0D (sync-fooling black) to $0F, and any other "negative" value ($80-$FF) to $0F.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Wed May 23, 2012 1:28 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Bisqwit]]></name></author>
+<updated>2012-05-23T13:36:45-07:00</updated>
+<published>2012-05-23T13:19:26-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8927&amp;p=94352#p94352</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8927&amp;p=94352#p94352"/>
+<title type="html"><![CDATA[Palette fading techniques]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8927&amp;p=94352#p94352"><![CDATA[
+<div class="quotetitle">slobu wrote:</div><div class="quotecontent"><br />I guess I don't understand why creating your own arranged 2d array of colors wont work.<br /><br />If you pre-calculate the table then most of the math goes away, right?<br /></div><br />Such precalculated arrays might require too much space for some purposes.<br /><br />In any case, here's a little comparison between two algorithms.<br />On the left, angular fading. On the right, precalculated table using a search for smallest color difference against linearly interpolated RGB color.<br /><img src="http://bisqwit.iki.fi/kala/snap/cv2_fade_multi.gif" alt="Image" /><br />(Pay attention to the highlight in the ground pieces and the rock below it.)<br /><br />In the angular fading, both the source and the target colors are split into level and color. If both colors are 1..12, the colors are translated into 0..11 range and linearly interpolated along nearest wrapping direction. Otherwise, the colors are just linearly interpolated. Levels are linearly interpolated. Then the level and color is merged back to form the resulting color.<br />In PHP, <div class="codetitle"><b>Code:</b></div><div class="codecontent">        $level1 = $c1 &gt;&gt; 4; $color1 = $c1 &amp; 0x0F;<br />        $level2 = $c2 &gt;&gt; 4; $color2 = $c2 &amp; 0x0F;<br />        <br />        $level = &#40;int&#41;&#40;$level1 + &#40;$level2-$level1&#41; * $mix&#41;;<br />          <br />        if&#40;$color1 &gt;= 1 &amp;&amp; $color1 &lt;= 13<br />        &amp;&amp; $color2 &gt;= 1 &amp;&amp; $color2 &lt;= 13&#41;<br />        &#123;  <br />          $angle1 = &#40;$color1-1&#41;;<br />          $angle2 = &#40;$color2-1&#41;;<br />          <br />          if&#40;abs&#40;$angle2 - $angle1&#41; &gt; 6&#41;<br />          &#123;<br />            if&#40;$angle2 &lt; $angle1&#41; $angle2 += 12; else $angle1 += 12;<br />          &#125;<br />          $angle = &#40;int&#41;&#40;$angle1 + &#40;$angle2-$angle1&#41; * $mix&#41;;<br />          $color = 1 + &#40;$angle%12&#41;;<br />        &#125;<br />        else<br />        &#123;<br />          $color = &#40;int&#41;&#40;$color1 + &#40;$color2-$color1&#41; * $mix&#41;;<br />        &#125;<br />        <br />        $c = $level*16 + $color;<br />        $rgb = get_nes_rgb_actual&#40;$c&#41;;</div><br />And the precalculated way was this:<div class="codetitle"><b>Code:</b></div><div class="codecontent">      // Which color we want?<br />      $goal = Array&#40; $a&#91;0&#93; + $power * &#40;$b&#91;0&#93;-$a&#91;0&#93;&#41;,<br />                     $a&#91;1&#93; + $power * &#40;$b&#91;1&#93;-$a&#91;1&#93;&#41;,<br />                     $a&#91;2&#93; + $power * &#40;$b&#91;2&#93;-$a&#91;2&#93;&#41; &#41;;<br /><br />      // Figure out which color best represents this<br />      $best_diff = null;<br />      $best_color= null;<br />      <br />      foreach&#40;$nes_rgb as $m =&gt; $c&#41;<br />      &#123;<br />        $diff = ColorDifference&#40;$goal, $c&#41;;<br />        if&#40;$m == 0 || $diff &lt; $best_diff&#41;<br />          &#123; $best_diff = $diff; $best_color = $m; &#125;<br />      &#125;<br /><br />      $mixtable&#91;$c1&#93;&#91;$c2&#93;&#91;$index&#93; = $best_color;</div><br />I also tried the flickering method, but it <a href="http://bisqwit.iki.fi/kala/snap/cv2_fade_multi2.gif" class="postlink">did not look nearly as nice as I hoped</a>...<br /><br />EDIT: Actually, if I reduce the maximum difference between the two constituting colors in the pair that is flickered, it DOES begin to look quite nice: <a href="http://bisqwit.iki.fi/kala/snap/cv2_fade_multi2b.gif" class="postlink">image</a>...<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=5043">Bisqwit</a> — Wed May 23, 2012 1:19 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Drag]]></name></author>
+<updated>2012-05-23T13:17:47-07:00</updated>
+<published>2012-05-23T13:17:47-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8927&amp;p=94351#p94351</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8927&amp;p=94351#p94351"/>
+<title type="html"><![CDATA[Palette fading techniques]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8927&amp;p=94351#p94351"><![CDATA[
+The most common method I've seen for fading in and out is just by adding or subtracting 10.<br /><br />For instance, to fade out, you start with your normal colors, and just subtract 10 for each step, and underflow to 0F.<br /><br />To fade in, start at brightness 0x (but with your hues filled in), and add 10 to each color that hasn't reached its target yet.<br /><br />Alternatively, you can take advantage of the fact that the upper 2 bits of the palette are unused, so you could start out by subtracting 40 from your target palette, and add 10 each step, replacing values bigger than $40 with color $0F. This at least gets your fade-in to look the same as your fade-out.<br /><br />Finally, take a look at the Tiny Toons cartoon maker thing for NES, it fades to blue, but it might be using a LUT for that.<br /><br />You can't simply walk across the palette space like it's 2D, because complementary colors (like blue and orange) naturally cancel each other out when fading from one to the other, so they'd need to pass through a shade of gray in the process. However, you <em>can</em> do if if you're fading between two colors whose hues are close enough together.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=21">Drag</a> — Wed May 23, 2012 1:17 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[slobu]]></name></author>
+<updated>2012-05-23T13:19:03-07:00</updated>
+<published>2012-05-23T13:01:59-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8927&amp;p=94349#p94349</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8927&amp;p=94349#p94349"/>
+<title type="html"><![CDATA[Palette fading techniques]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8927&amp;p=94349#p94349"><![CDATA[
+I guess I don't understand why creating your own arranged 2d array of colors wont work.<br /><br />If you pre-calculate the table then most of the math goes away, right?<br /><br />UPDATE:  Thank you Drag!<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4942">slobu</a> — Wed May 23, 2012 1:01 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Bregalad]]></name></author>
+<updated>2012-05-23T12:42:39-07:00</updated>
+<published>2012-05-23T12:42:39-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8927&amp;p=94348#p94348</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8927&amp;p=94348#p94348"/>
+<title type="html"><![CDATA[Palette fading techniques]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8927&amp;p=94348#p94348"><![CDATA[
+It will never work at all since the NES can only output completely monochrome or completely saturated colours.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=38">Bregalad</a> — Wed May 23, 2012 12:42 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Bisqwit]]></name></author>
+<updated>2012-05-23T12:26:44-07:00</updated>
+<published>2012-05-23T12:26:44-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8927&amp;p=94345#p94345</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8927&amp;p=94345#p94345"/>
+<title type="html"><![CDATA[Palette fading techniques]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8927&amp;p=94345#p94345"><![CDATA[
+The problem with angular palette fades suggested by many here is that fades between monochrome and colored do not work at all.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=5043">Bisqwit</a> — Wed May 23, 2012 12:26 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Bisqwit]]></name></author>
+<updated>2012-05-23T12:23:00-07:00</updated>
+<published>2012-05-23T12:23:00-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8927&amp;p=94343#p94343</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8927&amp;p=94343#p94343"/>
+<title type="html"><![CDATA[Palette fading techniques]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8927&amp;p=94343#p94343"><![CDATA[
+<div class="quotetitle">Bregalad wrote:</div><div class="quotecontent"><br />For example if you use color $20, then with your sequence it will become $20, $20, $00, $00, which is not what you want since you probably wanted sometihng like $20, $10, $00, $0f.<br /></div><br />Actually Simon's Quest partially solves this problem by setting palette[x] into<br />min(origpalette[x], (origpalette[x] &amp; 0x0F) | fadelevel) where fadelevel goes from 0x00 to 0x30 or from 0x30 to 0x00.<br />This gets $00,$10,$20,$20 instead of $00,$00,$20,$20. For $13, it gets $03,$13,$13,$13. For $34, it gets $04,$14,$24,$34...<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=5043">Bisqwit</a> — Wed May 23, 2012 12:23 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[slobu]]></name></author>
+<updated>2012-05-23T12:19:30-07:00</updated>
+<published>2012-05-23T12:19:30-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8927&amp;p=94342#p94342</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8927&amp;p=94342#p94342"/>
+<title type="html"><![CDATA[Palette fading techniques]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8927&amp;p=94342#p94342"><![CDATA[
+Could you just treat all the NES colors as a 2d array and "walk" the source color to the destination color?  A 2D grid of 52 colors should take too much ROM space, right?<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4942">slobu</a> — Wed May 23, 2012 12:19 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Bregalad]]></name></author>
+<updated>2012-05-23T12:09:53-07:00</updated>
+<published>2012-05-23T12:09:53-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8927&amp;p=94339#p94339</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8927&amp;p=94339#p94339"/>
+<title type="html"><![CDATA[Palette fading techniques]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8927&amp;p=94339#p94339"><![CDATA[
+I think there is a problem if you use the AND-ing approach.<br /><br />For example if you use color $20, then with your sequence it will become $20, $20, $00, $00, which is not what you want since you probably wanted sometihng like $20, $10, $00, $0f.<br /><br />Personally I use the method to substract $10 every time, and if the result is negative I use $0f to get black. After 4 passes, all colors will be black.<br /><br />If I were to fade between two arbitrary palettes, I would probably separate into hue and brightness and gradually decrease or increase each of them until you get the right value. It might be tricky to code, but you get the idea.<br /><br />For example to fade from $13 to $3a you'd get something like :<br />$13, $12, $21, $2c, $3b, $3a<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=38">Bregalad</a> — Wed May 23, 2012 12:09 pm</p><hr />
+]]></content>
+</entry>
+</feed>

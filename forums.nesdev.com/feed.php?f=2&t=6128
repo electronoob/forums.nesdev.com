@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=2&amp;t=6128" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2010-03-08T11:25:21-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=2&amp;t=6128</id>
+<entry>
+<author><name><![CDATA[Drag]]></name></author>
+<updated>2010-03-08T11:25:21-07:00</updated>
+<published>2010-03-08T11:25:21-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6128&amp;p=57714#p57714</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6128&amp;p=57714#p57714"/>
+<title type="html"><![CDATA[Efficient number scaling?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6128&amp;p=57714#p57714"><![CDATA[
+Thanks Blargg! I just tried the multiplication like you said (I knew that's how integer multiplication worked (shifting and adding), but I didn't know you could use a variation for decimals too), and it works like a charm. I went with your solution because it didn't need any LUTs, and looked uncostly enough to get away without one.<br /><br />I think I'm going to throw out the rounding; the result sounds good enough without it, and it would add extra cycles without providing much of a significant impact.<br /><br />I also made sure to have the routine just simply be skipped if the note volume is 0 or F (0 using a constant instead, F just leaving the value untouched)<br /><br />It definitely sounds a whole lot better than the simple subtraction-based method I was using before! <img src="http://forums.nesdev.com/images/smilies/icon_biggrin.gif" alt=":D" title="Very Happy" /><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=21">Drag</a> — Mon Mar 08, 2010 11:25 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[blargg]]></name></author>
+<updated>2010-03-07T18:23:52-07:00</updated>
+<published>2010-03-07T18:23:52-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6128&amp;p=57676#p57676</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6128&amp;p=57676#p57676"/>
+<title type="html"><![CDATA[Efficient number scaling?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6128&amp;p=57676#p57676"><![CDATA[
+How about a simple 4-bit fixed-point multiply?<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">    lda note_volume<br />    lsr env_volume<br />    bcs :+<br />    lsr a<br />:   lsr env_volume<br />    bcc :+<br />    adc note_volume<br />:   lsr a<br />    lsr env_volume<br />    bcc :+<br />    adc note_volume<br />:   lsr a<br />    lsr env_volume<br />    bcc :+<br />    adc note_volume<br />:   lsr a</div><br />Looks to work fine:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">  0123456789ABCDEF<br />  ----------------<br />0|0000000000000000<br />1|0000000011111111<br />2|0000011111222222<br />3|0000111122223333<br />4|0001112223334444<br />5|0011122233444555<br />6|0011223334455666<br />7|0011223344556677<br />8|0112233455667788<br />9|0112334456678899<br />A|01223445667889AA<br />B|0122345567889ABB<br />C|012344567889ABCC<br />D|01234566789ABCDD<br />E|0123456789ABCDEE<br />F|0123456789ABCDEF</div><br /><br /><strong>Edit:</strong> whoops, didn't read your specs closely. You'd have to invert one of them, since you use an attenuation rather than gain, and add some kind of rounding so that anything non-zero comes out as non-zero unless fully attenuated.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=17">blargg</a> — Sun Mar 07, 2010 6:23 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2010-03-07T17:42:23-07:00</updated>
+<published>2010-03-07T17:42:23-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6128&amp;p=57675#p57675</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6128&amp;p=57675#p57675"/>
+<title type="html"><![CDATA[Efficient number scaling?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6128&amp;p=57675#p57675"><![CDATA[
+You can do n-bit by n-bit multiplication using a 2^(n + 1)-entry lookup table. Start with some algebra:<br /><br />a^2 + b^2 + 2ab = (a + b)^2<br />2ab = (a + b)^2 - a^2 - b^2<br />ab = (a + b)^2/2 - a^2/2 - b^2/2<br /><br />So you'd have a table of (a^2)/2 for a = 0 to 30, and then compute (a + b)^2, a^2, and b^2. It could be as easy as this (untested):<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">scale_volume:<br />  clc<br />  lda env_volume<br />  adc note_volume<br />  tax<br />  lda squared,x<br />  sec<br />  ldx env_volume<br />  sbc squared,x<br />  ldx note_volume<br />  sbc squared,x<br /><br />  ; divide result by 16 and round up<br />  lsr a<br />  lsr a<br />  lsr a<br />  lsr a<br />  adc #0<br />  rts<br /></div><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Sun Mar 07, 2010 5:42 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Drag]]></name></author>
+<updated>2010-03-07T16:42:13-07:00</updated>
+<published>2010-03-07T16:42:13-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6128&amp;p=57670#p57670</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6128&amp;p=57670#p57670"/>
+<title type="html"><![CDATA[Efficient number scaling?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6128&amp;p=57670#p57670"><![CDATA[
+That's a good method, but I would like to avoid large LUTs if I can.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=21">Drag</a> — Sun Mar 07, 2010 4:42 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Disch]]></name></author>
+<updated>2010-03-07T16:22:19-07:00</updated>
+<published>2010-03-07T16:22:19-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6128&amp;p=57668#p57668</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6128&amp;p=57668#p57668"/>
+<title type="html"><![CDATA[Efficient number scaling?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6128&amp;p=57668#p57668"><![CDATA[
+If you don't mind a 256-byte lookup table you can just do 4bit * 4bit multiplication and shift down:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">4x4_table:<br />.byte 0*0, 0*1, 0*2, ... 0*15<br />.byte 1*0, 1*1, 1*1 ... 1*15<br /><br /><br />lda volume<br />asl a<br />asl a<br />asl a<br />asl a<br />ora scale<br />tax<br />lda 4x4_table,x<br />lsr a<br />lsr a<br />lsr a<br />lsr a<br /><br />; a is now your new volume<br /></div><br /><br />you can remove the LSRs if you make the table specific to volumes instead of a general 4x4 multiplication table.<br /><br />And you can get rid of the ASLs if you make another 16-byte shifter table:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">table:<br />.byte 0*0 &gt;&gt; 4, ...<br />.byte 1*0 &gt;&gt; 4, ...<br /><br />shifttable:<br />.byte 0&lt;&lt;4, 1&lt;&lt;4, 2&lt;&lt;4, ...<br /><br />ldx volume<br />lda shifttable,x<br />ora scale<br />tax<br />lda table,x<br /><br />; a is now your volume<br /></div><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=33">Disch</a> — Sun Mar 07, 2010 4:22 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Drag]]></name></author>
+<updated>2010-03-07T16:11:31-07:00</updated>
+<published>2010-03-07T16:11:31-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6128&amp;p=57666#p57666</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6128&amp;p=57666#p57666"/>
+<title type="html"><![CDATA[Efficient number scaling?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6128&amp;p=57666#p57666"><![CDATA[
+This specifically is for APU volumes, but in the end, this is general 6502 and math, so that's why I'm posting it here instead of the music forum.<br /><br />Basically, I want to be able to scale volumes linearly.<br /><br />For example, at scale 0 (full scale, i.e. identity), we have:<br />[code]0123456789ABCDEF[/acode]<br /><br />At scale "F" (silent), we have:<br />&#91;code&#93;000000000000000&#91;/code&#93;<br /><br />At scale "E", I would like:<br />&#91;code&#93;011111111111111&#91;/code&#93;<br /><br />so at scale 7, I want:<br />&#91;code&#93;0112233445566778&#91;/code&#93;<br /><br />The method I currently have mapped out for this task is through integration (to keep the table small). First, if the volume is 0, we just leave it at 0. Second, if scale is 0, we leave the volume untouched. That means, I have a table with 15 entries, each entry having 15 bits (plus an extra bit for padding), so that's a 30 byte LUT.<br /><br />So if I have volume V, and I want to scale V to scale 7, I look at entry 7 at my LUT, which is:<br />&#91;code&#93;010101010101010x - x being the padding&#91;/code&#93;<br /><br />Now I need to do my integration, and I'll do it like this:<br /><br />&#91;code&#93;Copy LUT entry to scratch memory<br />OUT = V<br />Do {<br />  ASL copy of LUT entry<br />  If (Carry)<br />    Subtract 1 from OUT<br />Loop (V-1) Times<br />OUT = Volume&#91;/code&#93;<br /><br />This gives me the result I want, but in the worst case scenario, this code will be running 3 times (squares + noise) per frame, and that loop will have up to 14 iterations. Yes, I do realize there are ways to optimize the pseudo code for 6502, but I want to know if there's a more efficient way to scale my volumes.<br /><br />I realize I can just simply subtract the scaler from the input volume, but that's not linear, and the channel volumes will be out of proportion with each other nearly all the time.<br /><br />Is there a better way to do this, or am I being too confusing?<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=21">Drag</a> — Sun Mar 07, 2010 4:11 pm</p><hr />
+]]></content>
+</entry>
+</feed>

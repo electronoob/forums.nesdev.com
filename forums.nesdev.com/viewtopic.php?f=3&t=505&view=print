@@ -1,0 +1,440 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - timing... (attn: disch)</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">timing... (attn: disch)</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=3&amp;t=505">http://forums.nesdev.com/viewtopic.php?f=3&amp;t=505</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Anes</b> [ Fri Aug 19, 2005 9:44 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>timing... (attn: disch)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />i dont know what to do with timing in my emu. I know how i emulate ppu is crappy:
+<br />
+<br />i do the following:
+<br />
+<br />- has a "cc" counter that counts ppu cycles, this is inside the ppu emulate loop
+<br />- when the "cc" arrives at more or less "340" i increse another counter "cScanline"
+<br />- When "cScanLine" arrives at 262 it reset to 0;
+<br />- well all things happens inside this as 2C02 brad taylor's doc says
+<br />
+<br />In the emulation  main loop i do this:
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">EmulateCpu&#40;&#41;;<br />EmulatePPU&#40;cCurrentCycle * 3&#41;<br /></div>
+<br />(im not tanking account yet PAL)
+<br />
+<br />Disch told me about a method to keep emulating the cpu until something happens to the ppu that stop the cpu emulation and then executes the ppu as many cycles the cpu executed. I readed about it in a emulation doc too.., but i have problems, in other words i dont know how to implement it, i catch it "theorically" but i cant put it in the code  <img src="./images/smilies/icon_sad.gif" alt=":(" title="Sad" /> .
+<br />
+<br />Help plz!!
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Fri Aug 19, 2005 10:20 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I do the following:
+<br />
+<br />1)  Keep a CPU timestamp (obviously).  This timestamp, is in "master cycles" (see below)
+<br />
+<br />2)  Keep a PPU timestamp -- same idea as CPU timestamp.  Again, in "master cycles"
+<br />
+<br />3)  Keep a Scanline Counter (-1 through 240).
+<br />
+<br />4)  Keep a scanline cycle counter (0-340)
+<br />
+<br />5)  Keep a 'VBlank Time' var (this will be more or less constant, but it changes between PAL/NTSC modes).
+<br />
+<br />
+<br />I do the 'main' timestamps in what I call Master Cycles.  These are neither CPU nor PPU cycles -- rather they're a higher resolution so that the ratio between PAL CPU:PPU cycles can be manitained.
+<br />
+<br />- For every 1 NTSC CPU cycle that passes, I increment the CPU timestamp by 15
+<br />- For every 1 PAL CPU cycle that passes, I increment the CPU timestamp by 16
+<br />- For every 1 PPU cycle that passes (NTSC or PAL), I increment the PPU timestamp by 5
+<br />
+<br />I'd recommend you take PAL into account as soon as possible, as relying on the 3:1 NTSC ratio will make things a pain in the ass later when you finally do decide to add PAL support.
+<br />
+<br />
+<br />As for implimentation -- the two big functions of my program are RunCPU(int runto) and RunPPU(int runto).  RunCPU will emulate CPU instructions until the CPU timestamp reaches/passes the given 'runto' timestamp (typically, RunCPU is only called once in my emu and it told to run the CPU for an entire frame's worth of time).  RunPPU does the same thing, but runs the PPU (and renders pixels) until the given timestamp is reached (typically, RunPPU is called many times per frame).
+<br />
+<br />
+<br />Making these functions work together is simple.  If you keep the CPU timestamp updated as you emulate 6502 instructions -- you simply pass the CPU timestamp to RunPPU when you want the PPU to 'catch up' to the CPU.  You should have the PPU catch up everytime something on the system which affects drawing changes, and also when the status of the PPU will alter CPU action (in the case of register reads).  This includes (but is not necessarily limited to) PPU register writes/reads, Nametable mode changes, and CHR swapping.
+<br />
+<br />For instance when your game is swapping CHR -- updating the PPU would be as simple as something like the following:
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">void SwapCHR&#40;int where,int page&#41;<br />&#123;<br />&nbsp; RunPPU&#40; cpu_timestamp &#41;;<br /><br />&nbsp; // swap CHR here<br />&#125;<br /></div><br /><br /><br />The tricky part now, is making a RunPPU function which can be entered and exited on ANY given PPU cycle.  This is one reason why I keep those Scanline and Scanline Cycle counters I mentioned earlier.  If you keep track of the scanline and scanline cycle that the PPU is in, it makes PPU emulation easier.  But you also need to keep the main timestamp to keep it synced up with the CPU.<br /><br />My RunPPU function looks kind of like this:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">void RunPPU&#40; int runto &#41;<br />&#123;<br />&nbsp; if&#40; ppu_timestamp &lt; vblank_cycles &#41; /* vblank_cycles is the number of master cycles VBLank lasts.&nbsp; For example on NTSC this is &#40;20 * 341 * 5&#41; */<br />&nbsp; &#123;<br />&nbsp; &nbsp; &nbsp;ppu_timestamp = vblank_cycles;&nbsp; //do nothing in vblank<br />&nbsp; &nbsp; &nbsp;scanline = -1;&nbsp; // set scanline counter to pre-render scanline<br />&nbsp; &nbsp; &nbsp;scanline_cycle = 0;&nbsp; // start of cycle 0 of that scanline<br />&nbsp; &#125;<br /><br />&nbsp; if&#40; ppu_timestamp &gt;= runto &#41;&nbsp; return;&nbsp; /* see if we're done -- this should be done every time ppu_timestamp is adjusted */<br /><br />&nbsp; if&#40; scanline == -1 &#41;<br />&nbsp; &#123;<br />&nbsp; &nbsp; // do pre-render scanline stuff<br />&nbsp; &#125;<br /><br />&nbsp; while&#40; scanline &lt; 240 &#41;<br />&nbsp; &#123;<br />&nbsp; &nbsp; while&#40; scanline_cycle &lt; 256 &#41;<br />&nbsp; &nbsp; &#123;<br />&nbsp; &nbsp; &nbsp; &nbsp;/*render 1 pixel, load another tile if needed, adjust PPU address where needed, etc */<br /><br />&nbsp; &nbsp; &nbsp; &nbsp;scanline_cycle++;<br />&nbsp; &nbsp; &nbsp; &nbsp;ppu_timestamp += 5;<br />&nbsp; &nbsp; &nbsp; &nbsp;if&#40; ppu_timestamp &gt;= runto &#41;&nbsp; &nbsp;return;<br />&nbsp; &nbsp; &#125;<br /><br />&nbsp; &nbsp; while&#40; scanline_cycle &lt; 340 &#41;<br />&nbsp; &nbsp; &#123;<br />&nbsp; &nbsp; &nbsp; &nbsp;//similar things here<br />&nbsp; &nbsp; &#125;<br /><br />&nbsp; &nbsp; scanline_cycle = 0;<br />&nbsp; &nbsp; scanline++;<br />&nbsp; &#125;<br />&#125;<br /></div>
+<br />
+<br />
+<br />That's gives a rough idea.
+<br />
+<br />
+<br />Anyway -- there are rooms for optimizations.  The two big things I can think of are:
+<br />
+<br />- detecting $2002 read loops and running the PPU until $2002 status changes
+<br />
+<br />- having a faster version of RunPPU which renders full scanlines which can be called when the PPU is to render a full scanline.
+<br />
+<br />
+<br />Anyway, at the end of the frame, you'd make sure the PPU is caught up to the CPU again, then you subtract CPU/PPU timestamps by the number of cycles in that frame (do not reset the timestamps to 0!  Otherwise cycles which "spilled" over to the next frame would be lost).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Mon Aug 22, 2005 8:06 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />One thing I wanted to try with my NES emulator was seeing how efficient a PPU core could be if it rendered the whole screen at once. After thinking about the design Disch described, I realized that it does allow the optimization of the common case where dozens of scanlines are rendered without any relevant PPU writes between. It allows the standard approach to efficiency of first writing code that works in all cases and then optimizing the common operations.
+<br />
+<br />The design simulates cooperative threading, where each thread explicitly yields to another. It would be interesting to implement it with a proper cooperative threading library. The code below shows the differences:
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">// no threading<br />void f&#40;&#41;<br />&#123;<br />&nbsp; &nbsp; for &#40; int i = 0; i &lt; 10; i++ &#41;<br />&nbsp; &nbsp; &nbsp; &nbsp; g&#40;&#41;;<br /><br />&nbsp; &nbsp; h&#40;&#41;;<br />&#125;<br /><br />// manual threading<br />static int i;<br />static int phase;<br /><br />void f&#40;&#41;<br />&#123;<br />&nbsp; &nbsp; switch &#40; phase &#41;<br />&nbsp; &nbsp; &#123;<br />&nbsp; &nbsp; &nbsp; &nbsp; case 0:<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; i = 0;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; phase = 1;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; break;<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; case 1:<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; i = 0;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if &#40; i &lt; 10 &#41; &#123;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; g&#40;&#41;;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; i++;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &#125;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; else &#123;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; phase = 2;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &#125;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; break;<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; case 2:<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; h&#40;&#41;;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; phase = 3;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; break;<br />&nbsp; &nbsp; &#125;<br />&#125;<br /><br />// cooperative threading<br />void f&#40;&#41;<br />&#123;<br />&nbsp; &nbsp; for &#40; int i = 0; i &lt; 10; i++ &#41; &#123;<br />&nbsp; &nbsp; &nbsp; &nbsp; g&#40;&#41;;<br />&nbsp; &nbsp; &nbsp; &nbsp; yield&#40;&#41;;<br />&nbsp; &nbsp; &#125;<br /><br />&nbsp; &nbsp; h&#40;&#41;;<br />&#125;<br /></div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Anes</b> [ Tue Aug 23, 2005 12:39 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />thanks disch, i taked the "concept" i applied to my emu, its working better and with better performace, but i still have problems with battletoads, any help? thanks.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Tue Aug 23, 2005 1:07 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Battletoads relies on some pretty exact timing crap.  To get it working properly, make sure:
+<br />
+<br />
+<br />1)  You execute 1 instruction between the start of VBlank (when $2002.7 is raised) and when an NMI is actually triggered.  There appears to be some latency between the two.  This doesn't apply to battletoads, but this latency also exists when you enable NMIs from a disabled state when $2002.7 is high (failure to handle this latency will make Lolo games crash and burn -- failure to handle NMI triggering when NMI's are enabled when 2002.7 is high will cause problems with Captain Skyhawk)
+<br />
+<br />2)  PPU X address is incremented no earlier than every 4th cycle on the scanline (4, 12, 20, etc)
+<br />
+<br />3)  PPU Y address is incremented on cycle 252
+<br />
+<br />4)  PPU X address is reset on cycle 256
+<br />
+<br />Doing those 4 things should get Battletoads running without problems.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Quietust</b> [ Tue Aug 23, 2005 2:15 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Disch wrote:</div><div class="quotecontent">2)  PPU X address is incremented no earlier than every 4th cycle on the scanline (4, 12, 20, etc)<br /><br />3)  PPU Y address is incremented on cycle 252<br /><br />4)  PPU X address is reset on cycle 256</div>
+<br />
+<br />The actual values for these are 3/11/19/etc., 251, and 257 (all zero-based), verified by doing extremely precise PPU testing using Kevin Horton's "3-in-1 tester".
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Tue Aug 23, 2005 2:39 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />whoops -- I stand corrected.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Thu Aug 25, 2005 5:31 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Fx3 wrote:</div><div class="quotecontent">(from the thread "<a href="http://nesdev.com/bbs/viewtopic.php?t=516" class="postlink">Reading opcodes directly without read function</a>")<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">void cpu_run&#40;&#41; <br />&#123; <br />&nbsp; &nbsp;ppu_run&#40;&#41;; apu_run&#40;&#41;; <br />&nbsp; &nbsp;data = cpu-&gt;bank&#91;PC&gt;&gt;13&#93;&#91;PC &amp; 0x1fff&#93;; <br />&nbsp; &nbsp;//do stuff <br />&#125;<br /></div></div>
+<br />
+<br />Why do the PPU and APU need to be run every CPU instruction? Unless they can affect each other in some way, they can each be run separately and in any order.
+<br />
+<br />What you need is a way to ask the PPU and APU for a timestamp of the earliest time they can affect the CPU, then run the CPU until this time. Along the way the CPU might write to the APU or PPU in a way that changes the timestamp of their earliest effect, in which case you might need to stop the current CPU emulation run loop.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Zepper</b> [ Sun Aug 28, 2005 11:20 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Now you're messing up the things. Let me clear it - anyway, the PPU/APU is executed at every single CPU cycle. For the case above, 1 cycle to fetch the instruction. I'm not running CPU/APU for every instruction, but for every cycle.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Nessie</b> [ Sun Aug 28, 2005 11:57 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Of course, that makes much more sense.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Kinopio</b> [ Sat Sep 24, 2005 2:40 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Disch wrote:</div><div class="quotecontent"><br />4)  PPU X address is reset on cycle 256<br /><br /></div>
+<br />
+<br />
+<br />By reset do you mean it is reloaded with PPU X address
+<br />from the temp address (Loopy_t)?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Sat Sep 24, 2005 2:43 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Yes
+<br />
+<br />X Scroll reset logic:
+<br />
+<br />Loopy_V = (Loopy_V &amp; ~0x041F) | (Loopy_T &amp; 0x041F);
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

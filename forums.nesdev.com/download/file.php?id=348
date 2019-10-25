@@ -1,0 +1,377 @@
+-------------                      text by: naruko
+SUNSOFT-4 & 6                         date: 2013.02.02
+-------------                         mail: unagi.kaihatu<at>gmail.com
+
+この文書ではソフトが3種類だけの SUNSOFT-4 について記載します。
+ハードの設計がユニークなのでソフト個別に詳しく説明します。
+
+* SUNSOFT-4 の機能
+下記の機能があります。
+- program ROM bank x2 (可変x1, 固定x1)
+- workram interface
+- charcter ROM bank x4, nametable ROM bank x2
+- nametable ROM / RAM selector
+
+* SUNSOFT-4 の pinout
+ 1 i CPU PHI2         |40 s +5V
+ 2 i CPU ROMCS#       |39 i CPU R/W
+ 3 i CPU A14          |38 i CPU D6
+ 4 i CPU A13          |37 i CPU D5
+ 5 i CPU A12          |36 i CPU D4
+ 6 i PPU A13#         |35 i CPU D3
+ 7 i PPU A12          |34 i CPU D2
+ 8 i PPU A11          |33 i CPU D1
+ 9 i PPU A10          |32 i CPU D0
+10 s GND              |31 i OR A (PPU RD#)
+11 o Program ROM EN#  |30 i OR B (Charcter ROM CE#)
+12 o Charcter ROM A17 |29 o OR Y (Charcter ROM EN#)
+13 o Charcter ROM A16 |28 o VRAM CS#
+14 o Charcter ROM A15 |27 o Charcter ROM CE#
+15 o Charcter ROM A14 |26 o CPU $6000-$7fff# (Work RAM CS1#)
+16 o Charcter ROM A13 |25 o Program ROM A14
+17 o Charcter ROM A12 |24 o Program ROM A15
+18 o Charcter ROM A11 |23 o Program ROM A16
+19 o CHR/nametable A10|22 o Program ROM A17
+20 s GND              |21 o output port (Work RAM CS2)
+
+i=input only, o = output only, s = power supply
+
+19 pin: Charcter ROM A10, edge connector VRAM A10 に接続
+21 pin: 正論理, $f000 へ write bit4 に反応
+26 pin: 負論理, !(PHI2 & ROMCS# & A14 & A13)
+edge connector の CPU IRQ#, PPU A13, PPU WR# は基板内部に未接続
+SUNSOFT-4 には CPU D7 は未接続
+
+* メモリマップ
+[CPU - read]
+$6000-$7fff lower area (optional)
+$8000-$bfff Program ROM bank #0 (switchable)
+$c000-$ffff Program ROM bank #1 (fixed)
+
+[CPU - write]
+$8000-$8fff Charcter ROM bank #0 register
+$9000-$9fff Charcter ROM bank #1 register
+$a000-$afff Charcter ROM bank #2 register
+$b000-$bfff Charcter ROM bank #3 register
+$c000-$cfff Nametable ROM register #0 
+$d000-$dfff Nametable ROM register #1
+$e000-$efff Nametable config register
+$f000-$ffff Program ROM bank #0 / output port register
+
+[PPU - read]
+0x0000-0x07ff Charcter ROM bank #0
+0x0800-0x0fff Charcter ROM bank #1
+0x1000-0x17ff Charcter ROM bank #2
+0x1800-0x1fff Charcter ROM bank #3
+0x2000-0x23ff Nametable ROM/RAM bank #4
+0x2400-0x27ff Nametable ROM/RAM bank #5
+
+* レジスタ
+pinout に記載したように CPU の A11:0 と D7 はつながっていないので値は
+アドレス上位4bit が有効になり、データバスは D6:0 が有効です。
+
+[Charcter ROM bank #0 to #3 register]
+address: $8000-$8fff,$9000-$9fff,$a000-$afff,$b000-$bfff
+bit assignments
+----------------
+6:0 Charcter ROM address bit17:11
+
+[Nametable ROM bank #0 or #1 register]
+address: $c000-$cfff,$d000-$dfff
+bit assignments
+----------------
+6:0 Nametable ROM address bit16:10 (bit17 is fixed 1)
+
+[Nametable config register]
+address: $e000-$efff
+bit assignments
+----------------
+4   memory select bank #4 and #5, 0:System VRAM, 1:Chracter ROM
+1:0 RAM mode CHR/nametable A10 select 0:A10 (H) 1:A11 (V) 2:0 3:1
+1:0 ROM mode CHR/nametable A10 select 
+    0:#0,#1,#0,#1 1:#0,#0,#1,#1 2:#0,#0,#0,#0 3:#1,#1,#1,#1
+
+VRAM A10 select は PPU A11:10 の入力 0 から 3 に対して CHR/nametable 
+A10 (カートリッジの VRAM A10 へ接続) へ出力されるアドレスバスを指す。
+RAM mode では PPU のアドレスバスか固定値を接続し、ROM mode では 
+Nametable ROM register を接続する。
+
+[Program ROM bank #0 / output port register]
+address: $f000-$ffff
+bit assignments
+-----------------
+4   21pin output
+3:0 Program ROM address bit 17:14
+
+* カートリッジのバリエーション
+** アフターバーナー
+[主要な部品]
+Program ROM 128KB x1 (CRC32:88f202f0)
+Charcter ROM 256KB x1 (CRC32:a75cb06d) or 128KB x2 (10935d10, 0bc56f7a)
+
+[主要な配線]
+SUNSOFT-4
+----------
+OR A = GND
+OR B = GND
+
+Program ROM (28 pin)
+--------------------
+A16:14 = Program ROM A16:14 (from SUNSOFT-4)
+A13:0  = CPU A13:0 (from cardedge)
+EN#    = Program ROM EN#  (from SUNSOFT-4)
+
+Charcter ROM (32 pin x1)
+------------------------
+A17:11 = Charcter ROM A17:11 (from SUNSOFT-4)
+A10    = CHR/nametable A10 (from SUNSOFT-4)
+A9:0   = PPU A9:0 (from cardedge)
+OE#    = PPU RD# (from cardedge)
+CE#    = Charcter ROM CE# (from SUNSOFT-4)
+
+Charcter ROM (32 pin x2)
+------------------------
+A16:11 = Charcter ROM A16:11 (from SUNSOFT-4)
+A10    = CHR/nametable A10 (from SUNSOFT-4)
+A9:0   = PPU A9:0 (from cardedge)
+OE#    = PPU RD# (from cardedge)
+CE1#   = Charcter ROM CE# (from SUNSOFT-4)
+CE2    = Charcter ROM A17 (SUNSOFT-00, from SUNSOFT-4)
+CE2#   = Charcter ROM A17 (SUNSOFT-01, from SUNSOFT-4)
+
+[考察]
+Charcter ROM の個数によって基板が2通り存在するようです。
+Charcter ROM は 32pin となっており、 CE# は nametable 領域も含めた
+enable信号を接続します。対する OE# は PPU RD# で良いため、ROM へ直接接
+続しています。このため、 OR Y は未使用ゲートとなっています。
+
+基板が違ってもデータの内容は同じでした。
+
+** マハラジャ
+[主要な部品]
+Program ROM 128KB x1 (CRC32:fde79681)
+Work RAM 32KB x1 + battery
+Charcter ROM 128KB x1 (CRC32:fe011fb9)
+
+[主要な配線]
+SUNSOFT-4
+---------
+OR A = PPU RD#  (from cardedge)
+OR B = Charcter ROM CE# (from SUNSOFT-4)
+
+Program ROM (32 pin)
+--------------------
+未調査
+
+Work RAM
+--------
+OE#    = GND
+CS1    = output port (from SUNSOFT-4)
+CS2#   = CPU $6000-$7fff# (from SUNSOFT-4)
+
+Charcter ROM (28 pin)
+---------------------
+A16:11 = Charcter ROM A16:11 (from SUNSOFT-4)
+A10    = CHR/nametable A10 (from SUNSOFT-4)
+A9:0   = PPU A9:0 (from cardedge)
+EN#    = OR Y (from SUNSOFT-4)
+
+[考察]
+Charcter ROM が 28pin となっているので enable 信号は SUNSOFT-4 で生成
+して接続します。Charcter ROM は A17 が存在しないため、nametable 領域か
+ら Charcter ROM 全てが取得可能です。
+
+** なんてったってベースボール (メイン基板)
+[主要な部品]
+Program ROM 128KB x1 (CRC32:bddbc3b0)
+Work RAM 32KB x1 + battery
+Charcter ROM 128KB x1 (CRC32:c70a7c8e)
+30 pin edge connector (for subcartridge)
+
+[主要な配線]
+SUNSOFT-4, Work RAM, Charcter ROM (28pin)
+-----------------------------------------
+マハラジャと同じ
+
+Program ROM (32 pin)
+--------------------
+A16:14 = Program ROM A16:14 (from SUNSOFT-4)
+A13:0  = CPU A13:0 (from cardedge)
+OE#    = Program ROM EN# (from SUNSOFT-4)
+CE     = Program ROM A17 (from SUNSOFT-4)
+
+30 pin edge connector
+---------------------
+Program ROM A16:14
+CPU PHI2
+CPU A13:0
+CPU D7:0
+CPU R/W | CPU $6000-$7fff# | output port
+Program ROM A17 | Program ROM EN#
+
+[考察]
+Program ROM は page #8-#f を担当しており、CE は正論理です。
+サブカートリッジは page #0-#7 を担当し、未接続の場合は Hi-Z となります。
+
+** なんてったってベースボール (サブ基板, '91開幕編)
+[主要な部品]
+EPROM 27C256 (CRC32:d1d4a6a1)
+SUNSOFT-6
+
+[主要な配線]
+EPROM
+-----
+A16:14 = Program ROM A16:14 (27C256 なので A14 までが有効)
+OE#    = GND
+CE#    = SUNSOFT-6 out
+
+SUNSOFT-6
+---------
+PHI2 = CPU PHI2
+CE#  = Program ROM A17 | Program ROM EN#
+WR#  = CPU R/W | CPU $6000-$7fff# | output port
+
+[考察]
+SUNSOFT-6 は $6000-$7fff を監視することが出来る IC でプロテクトの役割
+を持つものと思われます。データバスは接続されていませんので、複雑な制御
+は出来ません。
+
+EPROM の容量は 0x8000 byte で、アドレス自体は全てデコードされています
+が、 address 0x0000-0x3fff と 0x4000-0x7fff で同様の内容が記録されてい
+ますので厳密にはミラーではありません。
+
+詳しくは次項にて説明します。
+
+* なんてったってベースボールの扱い方
+'91開幕編のデータをベースに解説しますので、別のサブカートリッジでは仕
+様が異なるかもしれません。
+
+** 追加レジスタ
+基本的に SUNSOFT-4 なのですが、$6000-$7fff の扱いが変わります。
+
+[CPU - write]
+$6000-$7fff SUNSOFT-6 timer reset
+$6000-$7fff Workram
+$f000-$ffff Program ROM bank #0 / Workram or SUNSOFT-6 select register
+
+[Program ROM bank #0 / Workram or SUNSOFT-6 select register]
+address: $f000-$ffff
+bit assignments
+-----------------
+4   device select for $6000-$7fff 0:SUNSOFT-6 1:Work RAM
+3   memory select 0:subcartridge 1:main ROM
+2:0 Program ROM address bit 16:14
+
+** アクセス方法
+subcartridge の ROM を選択する前には以下の手順を踏みます。
+- データを bit4:3 を 0 にして $f000 へ write
+- $6000-$7fff へ write する (データは何でも良い)
+- $8000-$bfff へアクセスする
+サブカートリッジの ROM は長期間使えませんので、バンク切り替えのついで
+に  Work RAM の使用をとめてから、 $6000 へも write する必要があります。
+
+** 逆アセンブル
+SUNSOFT-6 はアクセス許可後に、一定時間経過すると ROM が使用できなくな
+ります。この仕様を利用した簡単な判別プログラムがメインカートリッジ側の
+プログラムに入っています。("一定時間"の仕様は未調査)
+
+このプログラムにコメントを追加しました。SUNSOFT-6 がない場合は一部のプ
+ログラムを書き換えると起動しますが、パッチなしで動くようにエミュレータ
+を実装した方がよいでしょう。(mapper 番号が変わるかもしれません)
+
+C004:
+	lda	#$00
+	sta	$F000 ;SUNSOFT-4 maps subcartridge area for $8000-$bfff, addressing active to SUNSOFT-6
+	sta	$6000 ;SUNSOFT-6 timer reset
+	nop
+;loops 0x4700 times, it may increase SUNSOFT-6 internal timer
+	ldx	#$47
+C00F:
+	ldy	#$00
+C011:
+	dey
+	bne	$C011
+	nop
+	nop
+	nop
+	nop
+	nop
+	dex
+	bne	$C00F
+;read subcartridge ROM footer 'SUNSOFT'
+;try to 255 times
+;scanning success count branch:
+;0 -> bootup without Subrom
+;1 to 254 -> scan another footer -> bootup with Subrom 
+;255 -> SUNSOFT-6 timer is not found, subcartridge error!
+	ldx	#$FF ;set loop counter
+C01E:
+	lda	$BFF8
+	cmp	#$53
+	bne	$C055
+	lda	$BFF9
+	cmp	#$55
+	bne	$C055
+	lda	$BFFA
+	cmp	#$4E
+	bne	$C055
+	lda	$BFFB
+	cmp	#$53
+	bne	$C055
+	lda	$BFFC
+	cmp	#$4F
+	bne	$C055
+	lda	$BFFD
+	cmp	#$46
+	bne	$C055
+	lda	$BFFE
+	cmp	#$54
+	bne	$C055
+	dex
+	bne	$C01E ;To remove SUNSOFT-6's protection, hack opcode "bne $c05f" (0xd0 0x0d)
+	jmp	$C072 ;return error code
+;footer is not found
+C055:
+	dex
+	beq	$C05F
+	cpx	#$FE
+	bne	$C072
+	lda	#$00 ;boot standalone
+	rts
+;partical found
+C05F:
+	sta	$6000 ;re-active subcartrige for SUNSOFT-6
+	ldx	#$0F
+;scan footer "NANTTETATTE BB",0,0
+C064:
+	lda	$BFE0,x
+	cmp	$C075,x
+	bne	$C072
+	dex
+	bpl	$C064
+	lda	#$01 ;boot with SUB cartridge
+	rts
+C072:
+	lda	#$FF ;error
+	rts
+
+** ROM イメージの扱い方
+CPU から見えるデータという観点では、0x40000 byte の Program ROM データ
+を含んだ nes ファイルを作る方がよいと思われます。
+個別のデータ管理という点では 1 つのファイルにまとめるのはよいものとは
+思えません。
+
+nes ファイルでは下記のように収録することが良いと思います。
+0x00000-0x0000f iNES header
+0x00010-0x2000f sub ROM data / null data
+0x20010-0x4000f Program ROM main data
+0x40010-0x6000f Charctter ROM data
+
+- null data はサブカートリッジ未装着として 0xff で埋める
+- '91 開幕編は 0x8000 byte のデータを 4 度繰り返す (実質 0x4000 byte x8)
+
+* Special thanks
+- えるに氏 
+- NesCartDb http://bootgod.dyndns.org:7777/search.php?unif=SUNSOFT-4
+- nesdev wiki http://wiki.nesdev.com/w/index.php/INES_Mapper_068
+- MESS

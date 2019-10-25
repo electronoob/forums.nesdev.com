@@ -1,0 +1,2911 @@
+;----------------------------------------------------------------
+; CONSTANTS:
+;----------------------------------------------------------------
+
+PRGCOUNT = 1 ; 16kb = 1, 32kb = 2, etc.
+
+CHRCOUNT = 1
+
+MIRRORING = %0000 ; Horizontal =  %0000, Vertical =    %0001, Four Screen = %1000
+
+FALSE 				EQU #$00
+TRUE				EQU #$01
+
+STARTCHARACTER			= $00
+
+  ; $00 = Zelda
+  ; $01 = Mega Man
+  ; $02 = Red Mage
+  ; $03 = Punch Out
+  ; $04 = Higgens
+  ; $05 = Peach
+  ; $06 = Samus
+  ; $07 = Legend
+  ; $08 = Kirby
+  ; $09 = Pacman
+  ; $0A = Aerith
+
+State.Transform.Max		= $0B
+
+State.Game.Initialize 		= 0
+State.Game.Update		= 1
+State.Game.Deconstruct 		= 2
+
+State.Scene0			= 0
+
+Animation.Mario.Walking   	= 0
+Animation.Mario.Sliding		= 1
+Animation.Mario.Jumping		= 2
+Animation.BlockFlash 		= 3
+Animation.BlockStill 		= 4
+Animation.Cart.Spinning		= 5
+Animation.Mario.Stop		= 6
+
+State.Sprite.Player		= 0
+State.Sprite.Cart		= 1
+State.Sprite.Block		= 2
+
+VX.Max				= $01
+VX.Max.Sub			= $90
+
+VX.Cart.Max			= $00
+VX.Cart.Max.Sub			= $80
+
+VX.Max.Walk			= $00
+VX.Max.Walk.Sub			= $70
+
+VY.Max				= $06
+VY.Max.Sub			= $00
+
+AY.Gravity			= $00
+AY.Gravity.Sub			= $70
+
+AX.Friction			= $00
+AX.Friction.Sub			= $0A
+
+Y.Max				= $E0
+
+X.Jump				= $60
+
+Y.Block				= $AF
+X.Block				= $70
+
+X.Slide				= $90
+
+VX.Walk				= $01
+VX.Walk.Sub			= $00
+
+;----------------------------------------------------------------
+; VARIABLES:
+;----------------------------------------------------------------
+
+.enum $0000
+
+VAR.Scene  			.dsb 1
+VAR.Scene.Next  		.dsb 1
+VAR.Frame  			.dsb 1
+VAR.State.Game 			.dsb 1
+VAR.Current			.dsb 1
+VAR.State.Character		.dsb 1
+
+VAR.Kinematics.Selected		.dsb 1
+VAR.Kinematics			.dsb 3*16
+  VAR.Player.X			= VAR.Kinematics+0
+  VAR.Player.X.Sub		= VAR.Kinematics+1
+  VAR.Player.VX.Dir		= VAR.Kinematics+2
+  VAR.Player.VX			= VAR.Kinematics+3
+  VAR.Player.VX.Sub		= VAR.Kinematics+4
+  VAR.Player.AX.Dir		= VAR.Kinematics+5
+  VAR.Player.AX			= VAR.Kinematics+6
+  VAR.Player.AX.Sub		= VAR.Kinematics+7
+  VAR.Player.Y			= VAR.Kinematics+8
+  VAR.Player.Y.Sub		= VAR.Kinematics+9
+  VAR.Player.VY.Dir		= VAR.Kinematics+10
+  VAR.Player.VY			= VAR.Kinematics+11
+  VAR.Player.VY.Sub		= VAR.Kinematics+12
+  VAR.Player.AY.Dir		= VAR.Kinematics+13
+  VAR.Player.AY			= VAR.Kinematics+14
+  VAR.Player.AY.Sub		= VAR.Kinematics+15
+  VAR.Cart.X			= VAR.Kinematics+0+16
+  VAR.Cart.X.Sub		= VAR.Kinematics+1+16
+  VAR.Cart.VX.Dir		= VAR.Kinematics+2+16
+  VAR.Cart.VX			= VAR.Kinematics+3+16
+  VAR.Cart.VX.Sub		= VAR.Kinematics+4+16
+  VAR.Cart.AX.Dir		= VAR.Kinematics+5+16
+  VAR.Cart.AX			= VAR.Kinematics+6+16
+  VAR.Cart.AX.Sub		= VAR.Kinematics+7+16
+  VAR.Cart.Y			= VAR.Kinematics+8+16
+  VAR.Cart.Y.Sub		= VAR.Kinematics+9+16
+  VAR.Cart.VY.Dir		= VAR.Kinematics+10+16
+  VAR.Cart.VY			= VAR.Kinematics+11+16
+  VAR.Cart.VY.Sub		= VAR.Kinematics+12+16
+  VAR.Cart.AY.Dir		= VAR.Kinematics+13+16
+  VAR.Cart.AY			= VAR.Kinematics+14+16
+  VAR.Cart.AY.Sub		= VAR.Kinematics+15+16
+  VAR.Block.X			= VAR.Kinematics+0+16*2
+  VAR.Block.X.Sub		= VAR.Kinematics+1+16*2
+  VAR.Block.VX.Dir		= VAR.Kinematics+2+16*2
+  VAR.Block.VX			= VAR.Kinematics+3+16*2
+  VAR.Block.VX.Sub		= VAR.Kinematics+4+16*2
+  VAR.Block.AX.Dir		= VAR.Kinematics+5+16*2
+  VAR.Block.AX			= VAR.Kinematics+6+16*2
+  VAR.Block.AX.Sub		= VAR.Kinematics+7+16*2
+  VAR.Block.Y			= VAR.Kinematics+8+16*2
+  VAR.Block.Y.Sub		= VAR.Kinematics+9+16*2
+  VAR.Block.VY.Dir		= VAR.Kinematics+10+16*2
+  VAR.Block.VY			= VAR.Kinematics+11+16*2
+  VAR.Block.VY.Sub		= VAR.Kinematics+12+16*2
+  VAR.Block.AY.Dir		= VAR.Kinematics+13+16*2
+  VAR.Block.AY			= VAR.Kinematics+14+16*2
+  VAR.Block.AY.Sub		= VAR.Kinematics+15+16*2
+
+PTR.Background.Nametable	.dsw 1
+BUF.Palette.Background		.dsb 16
+BUF.Palette.Sprites		.dsb 16
+
+VAR.Player.Animation		.dsb 1
+VAR.Player.Animation.Data	.dsw 1
+VAR.Player.Animation.Frame	.dsb 1
+VAR.Player.Animation.Timer	.dsb 1
+
+VAR.Block.Animation		.dsb 1
+VAR.Block.Animation.Data	.dsw 1
+VAR.Block.Animation.Frame	.dsb 1
+VAR.Block.Animation.Timer	.dsb 1
+
+VAR.Cart.Animation		.dsb 1
+VAR.Cart.Animation.Data		.dsw 1
+VAR.Cart.Animation.Frame	.dsb 1
+VAR.Cart.Animation.Timer	.dsb 1
+
+FLAG.EnableRendering		.dsb 1
+FLAG.LoadBackground		.dsb 1
+FLAG.LoadPalette.Background	.dsb 1
+FLAG.LoadPalette.Sprites	.dsb 1
+FLAG.UpdateSprites		.dsb 1
+FLAG.UpdatePPU.Stack		.dsb 1
+FLAG.WaitingToJump		.dsb 1
+FLAG.InitJump			.dsb 1
+FLAG.WaitingToLand		.dsb 1
+FLAG.InitLand			.dsb 1
+FLAG.WaitingToBlock		.dsb 1
+FLAG.InitBlock			.dsb 1
+FLAG.WaitingToSettle		.dsb 1
+FLAG.InitSettle			.dsb 1
+FLAG.WaitingToCart		.dsb 1
+FLAG.InitCart			.dsb 1
+FLAG.WaitingToMoveCart		.dsb 1
+FLAG.InitMoveCart		.dsb 1
+FLAG.WaitingToSlide             .dsb 1
+FLAG.InitSlide                  .dsb 1
+FLAG.WaitingToStop		.dsb 1
+FLAG.InitStop			.dsb 1
+FLAG.WaitingToHit		.dsb 1
+FLAG.InitHit			.dsb 1
+FLAG.WaitToReset		.dsb 1
+
+FLAG.Transforming		.dsb 1
+VAR.Transforming.Timer          .dsb 1
+FLAG.Transforming.Timer.Enable  .dsb 1
+FLAG.Transforming.Timer.Stop	.dsb 1
+
+FLAG.PlayerEnabled		.dsb 1
+FLAG.BlockEnabled		.dsb 1
+FLAG.CartEnabled		.dsb 1
+
+FLAG.Reseting			.dsb 1
+VAR.Reseting.Timer		.dsb 1
+
+
+VAR.TEMP			.dsb 16
+
+.ende
+
+.enum $0200
+
+BUF.Sprites 			.dsb 256
+
+.ende
+
+.enum $0300
+
+VAR.UpdatePPU.Stack.Size	.dsb 1
+VAR.UpdatePPU.Stack.Low		.dsb 80
+VAR.UpdatePPU.Stack.High	.dsb 80
+VAR.UpdatePPU.Stack.Value	.dsb 80
+
+.ende
+
+
+;----------------------------------------------------------------
+; iNES header
+;----------------------------------------------------------------
+
+   .db "NES", $1a 			;identification of the iNES header
+   .db PRGCOUNT 			;number of 16KB PRG-ROM pages
+   .db CHRCOUNT				;number of 8KB CHR-ROM pages
+   .db $00|MIRRORING 			;mapper 0 and mirroring
+   .dsb 9, $00 				;clear the remaining bytes
+
+;----------------------------------------------------------------
+; CODE: Main Loop
+;----------------------------------------------------------------
+
+.base $10000-(PRGCOUNT*$4000)
+
+LBL.RESET:
+  SEI          ; disable IRQs
+  CLD          ; disable decimal mode
+
+  LDX #$40
+  STX $4017    ; disable APU frame IRQ
+  
+  LDX #$00
+  STX $2000    ; disable NMI
+  STX $2001    ; disable rendering
+  STX $4010    ; disable DMC IRQs
+
+  JSR LBL.ResetRAM
+  JSR LBL.ResetSprites
+
+  JSR LBL.VBlankWait
+  JSR LBL.VBlankWait
+
+  LDA #State.Scene0
+  STA VAR.Scene
+
+  LDA #State.Game.Initialize
+  STA VAR.State.Game
+
+  LDA #%10001000 ; Enable NMI
+  STA $2000
+
+  LDA #STARTCHARACTER
+  STA VAR.State.Character
+
+LBL.Main:
+  JSR LBL.Jumper.State.Game
+  JMP LBL.Main
+
+;--------------------------------------------------------------------
+;CODE:  Main Subroutines
+;--------------------------------------------------------------------
+
+LBL.ResetRAM:
+  LDA #$00
+  LDX #$00
+
+LBL.ResetRAM.Loop:
+  STA $0000, x
+  STA $0300, x
+  STA $0400, x
+  STA $0500, x
+  STA $0600, x
+  STA $0700, x
+  INX
+  BNE LBL.ResetRAM.Loop
+
+RTS
+
+;--------------------------------------------------------------------
+
+
+LBL.ResetSprites:
+  LDA #$FF
+  LDX #00
+
+LBL.ResetSprites.Loop:
+  STA BUF.Sprites, X
+  INX
+  BNE LBL.ResetSprites.Loop
+
+RTS
+
+;--------------------------------------------------------------------
+
+LBL.VBlankWait:
+  BIT $2002
+  BPL LBL.VBlankWait
+  RTS
+
+;--------------------------------------------------------------------
+
+LBL.Wait.Frame:
+  LDA VAR.Frame
+LBL.Wait.Frame.Loop:
+  CMP VAR.Frame
+  BEQ LBL.Wait.Frame.Loop
+  RTS
+
+;--------------------------------------------------------------------
+;CODE:  Scene Jumpers
+;--------------------------------------------------------------------
+
+LBL.Jumper.State.Game:
+  LDA VAR.State.Game
+  ASL
+  TAX
+  LDA TBL.State.Game + 1, x
+  PHA
+  LDA TBL.State.Game, x
+  PHA
+  RTS
+
+;--------------------------------------------------------------------
+
+LBL.Jumper.Scene.Initialize:
+  LDA VAR.Scene
+  ASL
+  TAX
+  LDA TBL.Scene.Initialize + 1, x
+  PHA
+  LDA TBL.Scene.Initialize, x
+  PHA
+  RTS
+
+;--------------------------------------------------------------------
+
+LBL.Jumper.Scene.Update:
+  LDA VAR.Scene
+  ASL
+  TAX
+  LDA TBL.Scene.Update + 1, x
+  PHA
+  LDA TBL.Scene.Update, x
+  PHA
+  RTS
+
+;--------------------------------------------------------------------
+
+LBL.Jumper.Scene.Deconstruct:
+  LDA VAR.Scene
+  ASL
+  TAX
+  LDA TBL.Scene.Deconstruct + 1, x
+  PHA
+  LDA TBL.Scene.Deconstruct, x
+  PHA
+  RTS
+
+;--------------------------------------------------------------------
+;CODE:  Game State Subroutines
+;--------------------------------------------------------------------
+
+LBL.State.Game.Initialize:
+  JSR LBL.Wait.Frame
+  JSR LBL.Jumper.Scene.Initialize
+  LDA #State.Game.Update
+  STA VAR.State.Game
+  RTS
+
+;--------------------------------------------------------------------
+
+LBL.State.Game.Update:
+  JSR LBL.Wait.Frame
+  JSR LBL.Jumper.Scene.Update
+  RTS
+
+;--------------------------------------------------------------------
+
+LBL.State.Game.Deconstruct:
+  JSR LBL.Jumper.Scene.Deconstruct
+  LDA VAR.Scene.Next
+  STA VAR.Scene
+  LDA #State.Game.Initialize
+  STA VAR.State.Game
+  RTS
+
+;--------------------------------------------------------------------
+;CODE:  NMI
+;--------------------------------------------------------------------
+
+LBL.NMI:
+
+  PHA
+  TXA
+  PHA
+  TYA
+  PHA
+  
+LBL.NMI.LoadBackground:
+  LDA FLAG.LoadBackground
+  BEQ LBL.NMI.LoadPalette.Background
+    LDA FALSE
+    STA FLAG.LoadBackground
+
+    LDA #$00 
+    STA $2001
+
+    LDA $2002
+    LDA #$20
+    STA $2006
+    LDY #$00
+    STY $2006
+
+    LDX #$04
+    LDY #$00
+
+LBL.LoadBackground.Nametable.Loop:
+    LDA (PTR.Background.Nametable), y
+    STA $2007
+    INY
+    BNE LBL.LoadBackground.Nametable.Loop
+      INC PTR.Background.Nametable + 1;
+      DEX
+        BNE LBL.LoadBackground.Nametable.Loop
+
+    PLA
+    TAY
+    PLA
+    TAX
+    PLA
+    RTI
+  
+LBL.NMI.LoadPalette.Background:
+  LDA FLAG.LoadPalette.Background
+  BEQ LBL.NMI.LoadPalette.Sprites
+
+    LDA $2002
+    LDA #$3F
+    STA $2006
+    LDA #$00
+    STA $2006
+    
+    LDX #$00
+    LBL.NMI.LoadPalettes.Background.Loop:
+      LDA BUF.Palette.Background, X
+      STA $2007
+      INX
+      CPX #$10
+      BNE LBL.NMI.LoadPalettes.Background.Loop
+
+LBL.NMI.LoadPalette.Sprites:
+  LDA FLAG.LoadPalette.Sprites
+  BEQ LBL.NMI.UpdateSprites
+
+    LDA $2002
+    LDA #$3F
+    STA $2006
+    LDA #$10
+    STA $2006
+    
+    LDX #$00
+
+LBL.NMI.LoadPalettes.Sprites.Loop:
+      LDA BUF.Palette.Sprites, X
+      STA $2007
+      INX
+      CPX #$10
+      BNE LBL.NMI.LoadPalettes.Sprites.Loop
+
+LBL.NMI.UpdateSprites:
+  LDA FLAG.UpdateSprites
+  BEQ LBL.NMI.UpdatePPU
+    LDA #$00
+    STA $2003
+    LDA #>BUF.Sprites
+    STA $4014
+
+LBL.NMI.UpdatePPU:
+   LDA FLAG.UpdatePPU.Stack
+   BEQ LBL.NMI.Continue    
+     LDX VAR.UpdatePPU.Stack.Size
+     BEQ LBL.NMI.Continue
+
+       LDA $2002
+       LDX #$00
+LBL.Burnstack.Loop:
+       LDA VAR.UpdatePPU.Stack.High, X
+       STA $2006
+       LDA VAR.UpdatePPU.Stack.Low, x
+       STA $2006
+       LDA VAR.UpdatePPU.Stack.Value, x
+       STA $2007
+       INX
+       CPX VAR.UpdatePPU.Stack.Size
+       BNE LBL.Burnstack.Loop
+         LDA #$00
+         STA VAR.UpdatePPU.Stack.Size
+
+LBL.NMI.Continue:
+
+  LDA FALSE
+  STA FLAG.LoadPalette.Background
+  STA FLAG.LoadPalette.Sprites
+  STA FLAG.UpdateSprites
+  STA FLAG.UpdatePPU.Stack
+
+  LDA #%10001000
+  STA $2000
+  LDA #%00011110
+  STA $2001
+  LDA #$00
+  STA $2005
+  STA $2005
+
+  INC VAR.Frame
+   
+  PLA
+  TAY
+  PLA
+  TAX
+  PLA
+
+  RTI
+
+
+;----------------------------------------------------------------
+; Scene0
+;----------------------------------------------------------------
+
+LBL.Scene0.Initialize
+  
+  LDA #<DAT.Scene0.Background.Nametable
+  STA PTR.Background.Nametable
+  LDA #>DAT.Scene0.Background.Nametable
+  STA PTR.Background.Nametable + 1
+
+  LDX #$00
+  LBL.Scene0.Initialize.Palettes:
+    LDA DAT.Scene0.Background.Palette,X
+    STA BUF.Palette.Background,X
+    LDA DAT.Scene0.Sprites.Palette,X
+    STA BUF.Palette.Sprites,X
+    INX
+    CPX #$10
+    BNE LBL.Scene0.Initialize.Palettes
+
+  LDA #$00
+  STA VAR.Player.X.Sub
+  STA VAR.Player.VX.Dir
+  STA VAR.Player.AX
+  STA VAR.Player.AX.Sub
+  STA VAR.Player.AX.Dir
+  STA VAR.Player.Y.Sub
+  STA VAR.Player.VY
+  STA VAR.Player.VY.Sub
+  STA VAR.Player.VY.Dir
+  STA VAR.Player.AY.Dir
+
+  STA VAR.Cart.X.Sub
+  STA VAR.Cart.Y.Sub
+  STA VAR.Cart.VX
+  STA VAR.Cart.VX.Sub
+  STA VAR.Cart.VX.Dir
+  STA VAR.Cart.VY
+  STA VAR.Cart.VY.Sub
+  STA VAR.Cart.VY.Dir
+  STA VAR.Cart.AX
+  STA VAR.Cart.AX.Sub
+  STA VAR.Cart.AX.Dir
+  STA VAR.Cart.AY
+  STA VAR.Cart.AY.Sub
+  STA VAR.Cart.AY.Dir
+
+  STA VAR.Block.VX
+  STA VAR.Block.VX.Sub
+  STA VAR.Block.VX.Dir
+  STA VAR.Block.VY
+  STA VAR.Block.VY.Sub
+  STA VAR.Block.VY.Dir
+  STA VAR.Block.AX
+  STA VAR.Block.AX.Sub
+  STA VAR.Block.AX.Dir
+  STA VAR.Block.AY
+  STA VAR.Block.AY.Sub
+  STA VAR.Block.AY.Dir
+
+  LDA #X.Block
+  STA VAR.Block.X
+
+  LDA #Y.Block
+  STA VAR.Block.Y
+
+  LDA #$00
+  STA VAR.Player.X
+
+  LDA #VX.Max
+  STA VAR.Player.VX
+
+  LDA #VX.Max.Sub
+  STA VAR.Player.VX.Sub
+
+  LDA #Y.Max
+  STA VAR.Player.Y
+
+  LDA #AY.Gravity
+  STA VAR.Player.AY
+  LDA #AY.Gravity.Sub
+  STA VAR.Player.AY.Sub
+
+  LDA #$70
+  STA VAR.Cart.X
+
+  LDA #$AE
+  STA VAR.Cart.Y
+
+  LDA TRUE
+  STA FLAG.LoadBackground
+  STA FLAG.LoadPalette.Background
+  STA FLAG.LoadPalette.Sprites
+  STA FLAG.WaitingToJump
+  STA FLAG.BlockEnabled
+  STA FLAG.PlayerEnabled
+
+  LDA VAR.Player.Animation
+  BEQ LBL.Plus
+    LDA FALSE
+    STA FLAG.LoadBackground
+    LDA TRUE
+    STA FLAG.UpdatePPU.Stack
+
+    LDX #$04
+    STX VAR.UpdatePPU.Stack.Size
+
+    LDX #$22
+    LDY #$8E
+    LDA #$00
+    STX VAR.UpdatePPU.Stack.High
+    STY VAR.UpdatePPU.Stack.Low
+    STA VAR.UpdatePPU.Stack.Value
+
+    LDX #$22
+    LDY #$8F
+    LDA #$00
+    STX VAR.UpdatePPU.Stack.High+1
+    STY VAR.UpdatePPU.Stack.Low+1
+    STA VAR.UpdatePPU.Stack.Value+1
+
+    LDX #$22
+    LDY #$AE
+    LDA #$00
+    STX VAR.UpdatePPU.Stack.High+2
+    STY VAR.UpdatePPU.Stack.Low+2
+    STA VAR.UpdatePPU.Stack.Value+2
+
+    LDX #$22
+    LDY #$AF
+    LDA #$00
+    STX VAR.UpdatePPU.Stack.High+3
+    STY VAR.UpdatePPU.Stack.Low+3
+    STA VAR.UpdatePPU.Stack.Value+3
+   
+LBL.Plus:
+
+  LDA FALSE
+  STA FLAG.UpdateSprites
+  STA FLAG.InitJump
+  STA FLAG.WaitingToLand
+  STA FLAG.InitLand
+  STA FLAG.WaitingToBlock
+  STA FLAG.InitBlock
+  STA FLAG.WaitingToSettle
+  STA FLAG.InitSettle
+  STA FLAG.WaitingToCart
+  STA FLAG.InitCart
+
+  LDA #Animation.Mario.Walking
+  STA VAR.Player.Animation
+  JSR LBL.SetAnimation.Player
+
+  LDA #Animation.BlockFlash
+  STA VAR.Block.Animation
+  JSR LBL.SetAnimation.Block
+
+  LDA #Animation.Cart.Spinning
+  STA VAR.Cart.Animation
+  JSR LBL.SetAnimation.Cart
+
+  JSR LBL.LoadCartPalette
+
+ RTS 
+;----------------------------------------------------------------
+
+LBL.LoadCartPalette:
+
+  LDA VAR.State.Character
+  ASL
+  ASL
+  TAX
+
+  LDA DAT.Cart.Palettes,X
+  STA BUF.Palette.Sprites+4
+  LDA DAT.Cart.Palettes+1,X
+  STA BUF.Palette.Sprites+5 
+  LDA DAT.Cart.Palettes+2,X
+  STA BUF.Palette.Sprites+6
+  LDA DAT.Cart.Palettes+3,X
+  STA BUF.Palette.Sprites+7
+
+  LDA TRUE
+  STA FLAG.LoadPalette.Sprites
+
+RTS
+
+;----------------------------------------------------------------
+
+LBL.LoadCharacterPalette:
+
+  LDA VAR.State.Character
+  ASL
+  ASL
+  TAX
+
+  LDA DAT.Player.Palettes,X
+  STA BUF.Palette.Sprites+4
+  LDA DAT.Player.Palettes+1,X
+  STA BUF.Palette.Sprites+5
+  LDA DAT.Player.Palettes+2,X
+  STA BUF.Palette.Sprites+6
+  LDA DAT.Player.Palettes+3,X
+  STA BUF.Palette.Sprites+7
+
+  ;  Needed for Mega Man and Red Mage
+  LDA DAT.Palette.Sprite3
+  STA BUF.Palette.Sprites+8
+  LDA DAT.Palette.Sprite3+1
+  STA BUF.Palette.Sprites+9
+  LDA DAT.Palette.Sprite3+2
+  STA BUF.Palette.Sprites+10
+  LDA DAT.Palette.Sprite3+3
+  STA BUF.Palette.Sprites+11
+
+  LDA VAR.State.Character
+  CMP #$04
+  BNE LBL.LoadCharacterPalette.Aerith
+    LDA DAT.Palette.Sprite3+4
+    STA BUF.Palette.Sprites+8
+    LDA DAT.Palette.Sprite3+5
+    STA BUF.Palette.Sprites+9
+    LDA DAT.Palette.Sprite3+6
+    STA BUF.Palette.Sprites+10
+    LDA DAT.Palette.Sprite3+7
+    STA BUF.Palette.Sprites+11
+
+LBL.LoadCharacterPalette.Aerith:
+  LDA VAR.State.Character
+  CMP #$0A
+  BNE LBL.LoadCharacterPalette.Exit
+    LDA DAT.Aerith.Palette.Full
+    STA BUF.Palette.Sprites
+    LDA DAT.Aerith.Palette.Full+1
+    STA BUF.Palette.Sprites+1
+    LDA DAT.Aerith.Palette.Full+2
+    STA BUF.Palette.Sprites+2
+    LDA DAT.Aerith.Palette.Full+3
+    STA BUF.Palette.Sprites+3
+
+    LDA DAT.Aerith.Palette.Full+8
+    STA BUF.Palette.Sprites+8
+    LDA DAT.Aerith.Palette.Full+9
+    STA BUF.Palette.Sprites+9
+    LDA DAT.Aerith.Palette.Full+10
+    STA BUF.Palette.Sprites+10
+    LDA DAT.Aerith.Palette.Full+11
+    STA BUF.Palette.Sprites+11
+
+    LDA DAT.Aerith.Palette.Full+12
+    STA BUF.Palette.Sprites+12
+    LDA DAT.Aerith.Palette.Full+13
+    STA BUF.Palette.Sprites+13
+    LDA DAT.Aerith.Palette.Full+14
+    STA BUF.Palette.Sprites+14
+    LDA DAT.Aerith.Palette.Full+15
+    STA BUF.Palette.Sprites+15
+  
+LBL.LoadCharacterPalette.Exit:
+  LDA TRUE
+  STA FLAG.LoadPalette.Sprites
+
+RTS
+
+;----------------------------------------------------------------
+
+LBL.SetAnimation.Player:
+
+  CLC
+  LDA VAR.Player.Animation
+  ASL
+  TAX
+
+  LDA DAT.Animation,X
+  STA VAR.Player.Animation.Data
+  LDA DAT.Animation+1,X
+  STA VAR.Player.Animation.Data+1
+
+  LDA #$00
+  STA VAR.Player.Animation.Frame
+  STA VAR.Player.Animation.Timer
+
+RTS
+
+;----------------------------------------------------------------
+
+LBL.SetAnimation.Block:
+
+  CLC
+  LDA VAR.Block.Animation
+  ASL
+  TAX
+
+  LDA DAT.Animation,X
+  STA VAR.Block.Animation.Data
+  LDA DAT.Animation+1,X
+  STA VAR.Block.Animation.Data+1
+
+  LDA #$00
+  STA VAR.Block.Animation.Frame
+  STA VAR.Block.Animation.Timer
+
+RTS
+
+;----------------------------------------------------------------
+
+LBL.SetAnimation.Cart:
+
+  CLC
+  LDA VAR.Cart.Animation
+  ASL
+  TAX
+
+  LDA DAT.Animation,X
+  STA VAR.Cart.Animation.Data
+  LDA DAT.Animation+1,X
+  STA VAR.Cart.Animation.Data+1
+
+  LDA #$00
+  STA VAR.Cart.Animation.Frame
+  STA VAR.Cart.Animation.Timer
+
+RTS
+
+;----------------------------------------------------------------
+
+LBL.Scene0.Update:
+
+  LDA #State.Sprite.Player
+  STA VAR.Kinematics.Selected
+  JSR LBL.Update.Kinematics.X
+  JSR LBL.Update.Kinematics.Y
+  JSR LBL.Update.Kinematics.VX
+  JSR LBL.Update.Kinematics.VY
+  JSR LBL.Update.Player.Bounds.VX
+  JSR LBL.Update.Player.Bounds.VY
+  JSR LBL.Update.Player.Bounds.Y
+  JSR LBL.Update.Player.Animation
+
+  LDA FLAG.BlockEnabled
+  BEQ LBL.SkipBlockUpdates
+    LDA #State.Sprite.Block
+    STA VAR.Kinematics.Selected
+    JSR LBL.Update.Kinematics.X
+    JSR LBL.Update.Kinematics.Y
+    JSR LBL.Update.Kinematics.VX
+    JSR LBL.Update.Kinematics.VY
+    JSR LBL.Update.Block.Bounds.VY
+    JSR LBL.Update.Block.Bounds.Y
+    JSR LBL.Update.Block.Animation
+
+LBL.SkipBlockUpdates:
+  
+  LDA FLAG.CartEnabled
+  BEQ LBL.SkipCartUpdates
+    LDA #State.Sprite.Cart
+    STA VAR.Kinematics.Selected
+    JSR LBL.Update.Kinematics.X
+    JSR LBL.Update.Kinematics.Y
+    JSR LBL.Update.Kinematics.VX
+    JSR LBL.Update.Kinematics.VY
+    JSR LBL.Update.Cart.Bounds.VY
+    JSR LBL.Update.Cart.Bounds.Y
+    JSR LBL.Update.Cart.Animation
+
+LBL.SkipCartUpdates:
+  JSR LBL.Update.JumpCheck
+  JSR LBL.Update.InitJump
+  JSR LBL.Update.LandCheck
+  JSR LBL.Update.InitLand
+  JSR LBL.Update.BlockCheck
+  JSR LBL.Update.InitBlock
+  JSR LBL.Update.SettleCheck
+  JSR LBL.Update.InitSettle
+  JSR LBL.Update.CartMoveCheck
+  JSR LBL.Update.InitMoveCart
+  JSR LBL.Update.SlideCheck
+  JSR LBL.Update.InitSlide
+  JSR LBL.Update.StopCheck
+  JSR LBL.Update.InitStop
+  JSR LBL.Update.HitCheck
+  JSR LBL.Update.InitHit
+  JSR LBL.Update.Transforming
+  JSR LBL.Update.TransformingTimer
+  JSR LBL.Update.InitWalk
+  JSR LBL.Update.ResetCheck
+  JSR LBL.Update.ResetTimer
+
+  JSR LBL.ResetSprites
+
+LBL.Update.Player:
+  LDA FLAG.PlayerEnabled
+  BEQ LBL.Update.Block
+    JSR LBL.Draw.Player
+
+LBL.Update.Block:
+  LDA FLAG.BlockEnabled
+  BEQ LBL.Update.Cart
+    JSR LBL.Draw.Block
+
+LBL.Update.Cart:
+  LDA FLAG.CartEnabled
+  BEQ LBL.Update.Exit
+    JSR LBL.Draw.Cart
+
+LBL.Update.Exit: 
+  
+
+RTS
+
+;----------------------------------------------------------------
+
+LBL.Scene0.Deconstruct:
+  RTS
+
+;----------------------------------------------------------------
+LBL.Update.ResetTimer:
+  LDA FLAG.Reseting
+  BEQ LBL.Update.ResetTimer.Exit
+    INC VAR.Reseting.Timer
+    BNE LBL.Update.ResetTimer.Exit
+      LDA #State.Game.Deconstruct
+      STA VAR.State.Game
+      LDA FALSE
+      STA FLAG.Reseting
+
+LBL.Update.ResetTimer.Exit:
+RTS
+;----------------------------------------------------------------
+LBL.Update.ResetCheck:
+  LDA VAR.Player.X
+  CMP #$FE
+  BCC LBL.Update.ResetCheck.Exit
+    LDA FLAG.WaitToReset
+    BEQ LBL.Update.ResetCheck.Exit
+      INC VAR.State.Character
+      LDA VAR.State.Character
+      CMP #State.Transform.Max
+      BNE LBL.Update.ResetCheck.Continue
+        LDA #$00
+        STA VAR.State.Character
+
+LBL.Update.ResetCheck.Continue:
+      LDA FALSE
+      STA FLAG.PlayerEnabled
+      STA FLAG.WaitToReset
+      LDA TRUE
+      STA FLAG.Reseting
+      LDA #$01
+      STA VAR.Reseting.Timer
+      JSR LBL.ResetSprites
+      LDA TRUE
+      STA FLAG.UpdateSprites
+
+LBL.Update.ResetCheck.Exit:
+RTS
+;----------------------------------------------------------------
+
+LBL.Update.InitWalk
+  LDA FLAG.Transforming.Timer.Stop
+  BEQ LBL.Update.InitWalk.Exit
+    INC VAR.Player.Animation
+    JSR LBL.SetAnimation.Player
+
+    LDA FALSE
+    STA FLAG.Transforming.Timer.Stop
+
+    LDA TRUE
+    STA FLAG.WaitToReset
+
+    ;LDA #$00
+    ;STA VAR.Player.VX
+    ;LDA #$00
+    ;STA VAR.Player.VX.Sub
+
+    LDA #VX.Walk
+    STA VAR.Player.VX
+    LDA #VX.Walk.Sub
+    STA VAR.Player.VX.Sub
+    LDA #$01
+    STA VAR.Player.VX.Dir
+
+    LDA VAR.State.Character
+    CMP #$0A
+    BNE LBL.Update.InitWalk.Exit
+      LDA DAT.Aerith.Palette.Full+4
+      STA BUF.Palette.Sprites+4
+      LDA DAT.Aerith.Palette.Full++5
+      STA BUF.Palette.Sprites+5
+      LDA DAT.Aerith.Palette.Full+6
+      STA BUF.Palette.Sprites+6
+      LDA DAT.Aerith.Palette.Full+7
+      STA BUF.Palette.Sprites+7
+      LDA TRUE
+      STA FLAG.LoadPalette.Sprites       
+
+LBL.Update.InitWalk.Exit:
+RTS
+
+;----------------------------------------------------------------
+
+LBL.Update.TransformingTimer:
+  LDA FLAG.Transforming.Timer.Enable
+  BEQ LBL.Update.TransformingTimer.Exit
+    INC VAR.Transforming.Timer
+    LDA VAR.Transforming.Timer
+    CMP #$40
+    BNE LBL.Update.TransformingTimer.Exit
+      LDA FALSE
+      STA FLAG.Transforming.Timer.Enable
+      LDA TRUE
+      STA FLAG.Transforming.Timer.Stop
+
+LBL.Update.TransformingTimer.Exit:
+RTS
+
+;----------------------------------------------------------------
+
+LBL.Update.Transforming:
+  LDA FLAG.Transforming
+  BEQ LBL.Update.Transforming.Exit
+    LDA FALSE
+    STA FLAG.Transforming
+
+    LDA TRUE
+    STA FLAG.Transforming.Timer.Enable
+    
+    LDA #$00
+    STA VAR.Transforming.Timer
+
+    JSR LBL.LoadCharacterPalette
+    LDA VAR.State.Character
+    ASL
+    CLC
+    ADC #$07
+    STA VAR.Player.Animation
+    JSR LBL.SetAnimation.Player
+
+    LDA TRUE
+    STA FLAG.LoadPalette.Sprites
+
+LBL.Update.Transforming.Exit:
+RTS
+
+;----------------------------------------------------------------
+
+LBL.Update.HitCheck:
+  LDA FLAG.WaitingToHit
+  BEQ LBL.Update.HitCheck.Exit
+    LDA VAR.Cart.X
+    CLC
+    ADC #$08
+    CMP VAR.Player.X
+    BCC LBL.Update.HitCheck.Exit:
+      LDA TRUE
+      STA FLAG.InitHit
+      LDA FALSE
+      STA FLAG.WaitingToHit
+
+LBL.Update.HitCheck.Exit:
+RTS
+
+;----------------------------------------------------------------
+
+LBL.Update.InitHit:
+  LDA FLAG.InitHit
+  BEQ LBL.Update.InitHit.Exit
+    LDA FALSE
+    STA FLAG.InitHit
+    STA FLAG.CartEnabled
+    
+    LDA TRUE
+    STA FLAG.Transforming
+   
+LBL.Update.InitHit.Exit:
+RTS
+
+;----------------------------------------------------------------
+
+LBL.Update.StopCheck:
+  LDA FLAG.WaitingToStop
+  BEQ LBL.Update.StopCheck.Exit
+    LDA VAR.Player.VX.Dir
+    BEQ LBL.Update.StopCheck.Exit
+       LDA TRUE
+       STA FLAG.InitStop
+       LDA FALSE
+       STA FLAG.WaitingToStop
+LBL.Update.StopCheck.Exit:
+RTS
+
+;----------------------------------------------------------------
+
+LBL.Update.InitStop:
+  LDA FLAG.InitStop
+  BEQ LBL.Update.InitStop.Exit
+    LDA FALSE
+    STA FLAG.InitStop
+
+    LDA #$00
+    STA VAR.Player.VX
+    STA VAR.Player.VX.Sub
+    STA VAR.Player.AX
+    STA VAR.Player.AX.Sub
+
+    LDA #$01
+    STA VAR.Player.VX.Dir
+
+    LDA #Animation.Mario.Stop
+    STA VAR.Player.Animation
+    JSR LBL.SetAnimation.Player
+
+    LDA TRUE
+    STA FLAG.WaitingToHit
+    
+LBL.Update.InitStop.Exit:
+RTS
+
+
+;----------------------------------------------------------------
+
+LBL.Update.SlideCheck:
+  LDA FLAG.WaitingToSlide
+  BEQ LBL.Update.SlideCheck.Exit
+    LDA #X.Slide
+    CMP VAR.Player.X
+    BCS LBL.Update.SlideCheck.Exit
+       LDA TRUE
+       STA FLAG.InitSlide
+       LDA FALSE
+       STA FLAG.WaitingToSlide
+LBL.Update.SlideCheck.Exit:
+RTS
+
+;----------------------------------------------------------------
+
+LBL.Update.InitSlide:
+  LDA FLAG.InitSlide
+  BEQ LBL.Update.InitSlide.Exit
+    LDA FALSE
+    STA FLAG.InitSlide
+    LDA #AX.Friction
+    STA VAR.Player.AX
+    LDA #AX.Friction.Sub
+    STA VAR.Player.AX.Sub
+    LDA #$01
+    STA VAR.Player.AX.Dir
+    LDA TRUE
+    STA FLAG.WaitingToStop
+    LDA #Animation.Mario.Sliding
+    STA VAR.Player.Animation
+    JSR LBL.SetAnimation.Player
+    
+LBL.Update.InitSlide.Exit:
+RTS
+
+
+;----------------------------------------------------------------
+
+
+LBL.Update.CartMoveCheck
+  LDA FLAG.WaitingToMoveCart
+  BEQ LBL.Update.CartMoveCheck.Exit
+    LDA #Y.Block
+    SEC
+    SBC #$10
+    CMP VAR.Cart.Y
+    BNE LBL.Update.CartMoveCheck.Exit
+      LDA VAR.Cart.VY.Dir
+      BNE LBL.Update.SettleCheck.Exit
+        LDA TRUE
+        STA FLAG.InitMoveCart
+        LDA FALSE
+        STA FLAG.WaitingToMoveCart
+LBL.Update.CartMoveCheck.Exit:
+RTS
+
+;----------------------------------------------------------------
+
+LBL.Update.InitMoveCart
+   LDA FLAG.InitMoveCart
+   BEQ LBL.Update.InitMoveCart.Exit
+     LDA #VX.Cart.Max
+     STA VAR.Cart.VX
+     LDA #VX.Cart.Max.Sub
+     STA VAR.Cart.VX.Sub
+     LDA FALSE
+     STA FLAG.InitMoveCart
+LBL.Update.InitMoveCart.Exit:
+RTS
+
+;----------------------------------------------------------------
+
+LBL.Update.SettleCheck
+  LDA FLAG.WaitingToSettle
+  BEQ LBL.Update.SettleCheck.Exit
+    LDA VAR.Block.Y
+    CMP #Y.Block
+    BCC LBL.Update.SettleCheck.Exit
+      LDA VAR.Block.VY.Dir
+      BNE LBL.Update.SettleCheck.Exit
+        LDA TRUE
+        STA FLAG.InitSettle
+        LDA FALSE
+        STA FLAG.WaitingToSettle
+LBL.Update.SettleCheck.Exit:
+RTS
+
+;----------------------------------------------------------------
+LBL.Update.InitSettle
+   LDA FLAG.InitSettle
+   BEQ LBL.Update.InitSettle.Exit
+     LDA FALSE
+     STA FLAG.BlockEnabled
+
+     LDA TRUE
+     STA FLAG.UpdatePPU.Stack
+
+     LDX #$04
+     STX VAR.UpdatePPU.Stack.Size
+
+     LDX #$22
+     LDY #$8E
+     LDA #$38
+     STX VAR.UpdatePPU.Stack.High
+     STY VAR.UpdatePPU.Stack.Low
+     STA VAR.UpdatePPU.Stack.Value
+
+     LDX #$22
+     LDY #$8F
+     LDA #$39
+     STX VAR.UpdatePPU.Stack.High+1
+     STY VAR.UpdatePPU.Stack.Low+1
+     STA VAR.UpdatePPU.Stack.Value+1
+
+     LDX #$22
+     LDY #$AE
+     LDA #$3A
+     STX VAR.UpdatePPU.Stack.High+2
+     STY VAR.UpdatePPU.Stack.Low+2
+     STA VAR.UpdatePPU.Stack.Value+2
+
+     LDX #$22
+     LDY #$AF
+     LDA #$3B
+     STX VAR.UpdatePPU.Stack.High+3
+     STY VAR.UpdatePPU.Stack.Low+3
+     STA VAR.UpdatePPU.Stack.Value+3
+	
+LBL.Update.InitSettle.Exit:
+RTS
+
+;----------------------------------------------------------------
+
+LBL.Update.BlockCheck:
+  LDA FLAG.WaitingToBlock
+  BEQ LBL.Update.BlockCheck.Exit
+    LDA #Y.Block
+    CLC
+    ADC #$10
+    CMP VAR.Player.Y
+    BCC LBL.Update.BlockCheck.Exit
+      LDA TRUE
+      STA FLAG.InitBlock
+      LDA FALSE
+      STA FLAG.WaitingToBlock
+
+LBL.Update.BlockCheck.Exit:
+RTS
+
+;----------------------------------------------------------------
+
+LBL.Update.InitBlock:
+  LDA FLAG.InitBlock
+  BEQ LBL.Update.InitBlock.Exit
+    LDA #Y.Block
+    CLC
+    ADC #$10
+    STA VAR.Player.Y
+    
+    LDA VAR.Player.VY
+    STA VAR.Block.VY
+
+    LDA VAR.Player.VY.Sub
+    STA VAR.Block.VY.Sub
+
+    LDA #VY.Max
+    STA VAR.Cart.VY
+    LDA #VY.Max.Sub
+    STA VAR.Cart.VY.Sub
+
+    LDA #$01
+    STA VAR.Block.VY.Dir
+    STA VAR.Cart.VY.Dir    
+
+    LDA #AY.Gravity
+    STA VAR.Block.AY
+    STA VAR.Cart.AY
+    LDA #AY.Gravity.Sub
+    STA VAR.Block.AY.Sub
+    STA VAR.Cart.AY.Sub
+
+    LDA #$00
+    STA VAR.Player.Y.Sub
+    STA VAR.Player.VY
+    STA VAR.Player.VY.Sub
+
+    LDA #Animation.BlockStill
+    STA VAR.Block.Animation
+    JSR LBL.SetAnimation.Block
+
+    LDA FALSE
+    STA FLAG.InitBlock
+
+    LDA TRUE
+    STA FLAG.WaitingToSettle
+    STA FLAG.CartEnabled
+    STA FLAG.WaitingToMoveCart
+
+LBL.Update.InitBlock.Exit:
+RTS
+
+;----------------------------------------------------------------
+
+LBL.Update.LandCheck:
+  LDA FLAG.WaitingToLand
+  BEQ LBL.Update.LandCheck.Exit
+    LDA VAR.Player.Y
+    CMP #Y.Max
+    BCC LBL.Update.LandCheck.Exit
+      LDA VAR.Player.VY.Dir
+      BNE LBL.Update.LandCheck.Exit
+        LDA TRUE
+        STA FLAG.InitLand
+        LDA FALSE
+        STA FLAG.WaitingToLand
+
+LBL.Update.LandCheck.Exit:
+RTS
+
+;----------------------------------------------------------------
+
+LBL.Update.InitLand:
+  LDA FLAG.InitLand
+  BEQ LBL.Update.InitLand.Exit
+
+    LDA FALSE
+    STA FLAG.InitLand
+    LDA #Animation.Mario.Walking
+    STA VAR.Player.Animation
+    JSR LBL.SetAnimation.Player
+
+    LDA TRUE
+    STA FLAG.WaitingToSlide
+
+LBL.Update.InitLand.Exit:
+RTS
+
+;----------------------------------------------------------------
+
+LBL.Update.JumpCheck:
+  LDA FLAG.WaitingToJump
+  BEQ LBL.Update.JumpCheck.Exit
+    LDA #X.Jump
+    CMP VAR.Player.X
+    BCS LBL.Update.JumpCheck.Exit
+      LDA TRUE
+      STA FLAG.InitJump
+      LDA FALSE
+      STA FLAG.WaitingToJump
+
+LBL.Update.JumpCheck.Exit:
+RTS
+
+;----------------------------------------------------------------
+
+LBL.Update.InitJump:
+  LDA FLAG.InitJump
+  BEQ LBL.Update.InitJump.Exit
+    LDA #VY.Max
+    STA VAR.Player.VY
+    LDA #VY.Max.Sub
+    STA VAR.Player.VY.Sub
+    LDA #$01
+    STA VAR.Player.VY.Dir
+    LDA FALSE
+    STA FLAG.InitJump
+    LDA TRUE
+    STA FLAG.WaitingToLand
+    STA FLAG.WaitingToBlock
+    LDA #Animation.Mario.Jumping
+    STA VAR.Player.Animation
+    JSR LBL.SetAnimation.Player
+
+  LBL.Update.InitJump.Exit:
+RTS
+
+;----------------------------------------------------------------
+
+LBL.Update.Player.Bounds.VX:
+  LDA #VX.Max
+  CMP VAR.Player.VX
+  BCC LBL.Player.Bounds.VX.SetMax
+  BNE LBL.Player.Bounds.VX.Exit
+    LDA #VX.Max.Sub
+    CMP VAR.Player.VX.Sub
+    BCC LBL.Player.Bounds.VX.SetMax
+      RTS
+
+LBL.Player.Bounds.VX.SetMax:
+  LDA #VX.Max
+  STA VAR.Player.VX
+  LDA #VX.Max.Sub
+  STA VAR.Player.VX.Sub
+
+LBL.Player.Bounds.VX.Exit:
+  RTS:
+
+;----------------------------------------------------------------
+
+LBL.Update.Player.Bounds.VY:
+  LDA #VY.Max
+  CMP VAR.Player.VY
+  BCC LBL.Player.Bounds.VY.SetMax
+  BNE LBL.Player.Bounds.VY.Exit
+    LDA #VY.Max.Sub
+    CMP VAR.Player.VY.Sub
+    BCC LBL.Player.Bounds.VY.SetMax
+      RTS
+
+LBL.Player.Bounds.VY.SetMax:
+  LDA #VY.Max
+  STA VAR.Player.VY
+  LDA #VY.Max.Sub
+  STA VAR.Player.VY.Sub
+
+LBL.Player.Bounds.VY.Exit:
+  RTS:
+
+;----------------------------------------------------------------
+
+LBL.Update.Block.Bounds.VY:
+  LDA #VY.Max
+  CMP VAR.Block.VY
+  BCC LBL.Block.Bounds.VY.SetMax
+  BNE LBL.Block.Bounds.VY.Exit
+    LDA #VY.Max.Sub
+    CMP VAR.Block.VY.Sub
+    BCC LBL.Block.Bounds.VY.SetMax
+      RTS
+
+LBL.Block.Bounds.VY.SetMax:
+  LDA #VY.Max
+  STA VAR.Block.VY
+  LDA #VY.Max.Sub
+  STA VAR.Block.VY.Sub
+
+LBL.Block.Bounds.VY.Exit:
+  RTS:
+
+
+;----------------------------------------------------------------
+
+LBL.Update.Cart.Bounds.VY:
+  LDA #VY.Max
+  CMP VAR.Cart.VY
+  BCC LBL.Cart.Bounds.VY.SetMax
+  BNE LBL.Cart.Bounds.VY.Exit
+    LDA #VY.Max.Sub
+    CMP VAR.Cart.VY.Sub
+    BCC LBL.Cart.Bounds.VY.SetMax
+      RTS
+
+LBL.Cart.Bounds.VY.SetMax:
+  LDA #VY.Max
+  STA VAR.Cart.VY
+  LDA #VY.Max.Sub
+  STA VAR.Cart.VY.Sub
+
+LBL.Cart.Bounds.VY.Exit:
+  RTS:
+
+
+;----------------------------------------------------------------
+
+LBL.Update.Player.Bounds.Y:
+  LDA #Y.Max
+  CMP VAR.Player.Y
+  BCS LBL.Bounds.Y.Exit
+    LDA #Y.Max
+    STA VAR.Player.Y
+    LDA #$00
+    STA VAR.Player.Y.Sub
+
+LBL.Bounds.Y.Exit:
+RTS
+
+;----------------------------------------------------------------
+LBL.Update.Block.Bounds.Y:
+  LDA #Y.Block
+  CLC
+  ADC #$01
+  CMP VAR.Block.Y
+  BCS LBL.Update.Block.Bounds.Y.Exit
+    LDA #Y.Block
+    STA VAR.Block.Y
+    LDA #$00
+    STA VAR.Block.Y.Sub
+
+LBL.Update.Block.Bounds.Y.Exit:
+RTS
+
+;----------------------------------------------------------------
+
+LBL.Update.Cart.Bounds.Y:
+  LDA #Y.Max
+  CMP VAR.Cart.Y
+  BCS LBL.Update.Cart.Bounds.Y.Test2
+    LDA #Y.Max
+    STA VAR.Cart.Y
+    LDA #$00
+    STA VAR.Cart.Y.Sub
+
+LBL.Update.Cart.Bounds.Y.Test2:
+  LDA #X.Block
+  CLC
+  ADC #$10
+  CMP VAR.Cart.X
+  BCC LBL.Update.Cart.Bounds.Y.Exit
+     LDA #Y.Block
+     SEC
+     SBC #$10
+     CMP VAR.Cart.Y
+     BCS LBL.Update.Cart.Bounds.Y.Exit     
+       STA VAR.Cart.Y
+       LDA #$00
+       STA VAR.Cart.Y.Sub
+
+LBL.Update.Cart.Bounds.Y.Exit:
+RTS
+
+;----------------------------------------------------------------
+
+LBL.Update.Player.Animation:
+  INC VAR.Player.Animation.Timer
+  LDA VAR.Player.Animation.Timer
+  LDY #$00
+  CMP (VAR.Player.Animation.Data),Y
+  BNE LBL.Update.Player.Animation.Continue
+    LDA #$00
+    STA VAR.Player.Animation.Timer
+    INC VAR.Player.Animation.Frame
+    LDA VAR.Player.Animation.Frame
+    LDY #$01
+    CMP (VAR.Player.Animation.Data),Y
+    BNE LBL.Update.Player.Animation.Continue
+      LDA #$00
+      STA VAR.Player.Animation.Frame
+
+LBL.Update.Player.Animation.Continue:
+RTS
+
+
+;----------------------------------------------------------------
+
+LBL.Update.Block.Animation:
+  INC VAR.Block.Animation.Timer
+  LDA VAR.Block.Animation.Timer
+  LDY #$00
+  CMP (VAR.Block.Animation.Data),Y
+  BNE LBL.Update.Player.Animation.Continue
+    LDA #$00
+    STA VAR.Block.Animation.Timer
+    INC VAR.Block.Animation.Frame
+    LDA VAR.Block.Animation.Frame
+    LDY #$01
+    CMP (VAR.Block.Animation.Data),Y
+    BNE LBL.Update.Block.Animation.Continue
+      LDA #$00
+      STA VAR.Block.Animation.Frame    
+
+LBL.Update.Block.Animation.Continue:
+RTS
+
+;----------------------------------------------------------------
+
+LBL.Update.Cart.Animation:
+  INC VAR.Cart.Animation.Timer
+  LDA VAR.Cart.Animation.Timer
+  LDY #$00
+  CMP (VAR.Cart.Animation.Data),Y
+  BNE LBL.Update.Cart.Animation.Continue
+    LDA #$00
+    STA VAR.Cart.Animation.Timer
+    INC VAR.Cart.Animation.Frame
+    LDA VAR.Cart.Animation.Frame
+    LDY #$01
+    CMP (VAR.Cart.Animation.Data),Y
+    BNE LBL.Update.Cart.Animation.Continue
+      LDA #$00
+      STA VAR.Cart.Animation.Frame    
+
+LBL.Update.Cart.Animation.Continue:
+RTs
+
+;----------------------------------------------------------------
+
+LBL.Update.Kinematics.VY
+
+
+  LDA VAR.Kinematics.Selected
+  ASL
+  ASL
+  ASL
+  ASL
+  TAX
+  PHA
+
+  LDA VAR.Kinematics+10,X
+  STA VAR.TEMP
+  LDA VAR.Kinematics+11,X
+  STA VAR.TEMP+1
+  LDA VAR.Kinematics+12,X
+  STA VAR.TEMP+2
+
+  LDA VAR.Kinematics+13,X
+  STA VAR.TEMP+3  
+  LDA VAR.Kinematics+14,X
+  STA VAR.TEMP+4
+  LDA VAR.Kinematics+15,X
+  STA VAR.TEMP+5
+
+  JSR LBL.Add16BIT
+
+  PLA
+  TAX
+  LDA VAR.TEMP
+  STA VAR.Kinematics+10,X
+  LDA VAR.TEMP+1
+  STA VAR.Kinematics+11,X
+  LDA VAR.TEMP+2
+  STA VAR.Kinematics+12,X
+
+RTS
+
+;----------------------------------------------------------------
+
+LBL.Update.Kinematics.VX:
+
+  LDA VAR.Kinematics.Selected
+  ASL
+  ASL
+  ASL
+  ASL
+  TAX
+  PHA
+
+  LDA VAR.Kinematics+2,X
+  STA VAR.TEMP
+  LDA VAR.Kinematics+3,X
+  STA VAR.TEMP+1
+  LDA VAR.Kinematics+4,X
+  STA VAR.TEMP+2
+
+  LDA VAR.Kinematics+5,X
+  STA VAR.TEMP+3  
+  LDA VAR.Kinematics+6,X
+  STA VAR.TEMP+4
+  LDA VAR.Kinematics+7,X
+  STA VAR.TEMP+5
+
+  JSR LBL.Add16BIT
+
+  PLA
+  TAX
+  LDA VAR.TEMP
+  STA VAR.Kinematics+2,X
+  LDA VAR.TEMP+1
+  STA VAR.Kinematics+3,X
+  LDA VAR.TEMP+2
+  STA VAR.Kinematics+4,X
+
+RTS
+
+RTS
+
+;----------------------------------------------------------------
+
+LBL.Update.Kinematics.Y:
+
+  LDA VAR.Kinematics.Selected
+  ASL
+  ASL
+  ASL
+  ASL
+  TAX
+  PHA
+
+  LDA #$00
+  STA VAR.TEMP  
+  LDA VAR.Kinematics+8,X
+  STA VAR.TEMP+1
+  LDA VAR.Kinematics+9,X
+  STA VAR.TEMP+2
+
+  LDA VAR.Kinematics+10,X
+  STA VAR.TEMP+3  
+  LDA VAR.Kinematics+11,X
+  STA VAR.TEMP+4
+  LDA VAR.Kinematics+12,X
+  STA VAR.TEMP+5
+
+  JSR LBL.Add16BIT
+
+  LDA VAR.TEMP
+  BEQ LBL.Update.Kinematics.Y.Continue
+    SEC
+    LDA #$00
+    SBC VAR.TEMP+2
+    STA VAR.TEMP+2
+    LDA #$00
+    SBC VAR.TEMP+1
+    STA VAR.TEMP+1
+
+LBL.Update.Kinematics.Y.Continue: 
+
+  PLA
+  TAX
+
+  LDA VAR.TEMP+1
+  STA VAR.Kinematics+8,X
+  LDA VAR.TEMP+2
+  STA VAR.Kinematics+9,X
+
+RTS
+
+;----------------------------------------------------------------
+
+LBL.Update.Kinematics.X:
+
+  LDA VAR.Kinematics.Selected
+  ASL
+  ASL
+  ASL
+  ASL
+  TAX
+  PHA
+
+  LDA #$00
+  STA VAR.TEMP  
+  LDA VAR.Kinematics,X
+  STA VAR.TEMP+1
+  LDA VAR.Kinematics+1,X
+  STA VAR.TEMP+2
+
+  LDA VAR.Kinematics+2,X
+  STA VAR.TEMP+3  
+  LDA VAR.Kinematics+3,X
+  STA VAR.TEMP+4
+  LDA VAR.Kinematics+4,X
+  STA VAR.TEMP+5
+
+  JSR LBL.Add16BIT
+
+  LDA VAR.TEMP
+  BEQ LBL.Update.Kinematics.X.Continue
+    SEC
+    LDA #$00
+    SBC VAR.TEMP+2
+    STA VAR.TEMP+2
+    LDA #$00
+    SBC VAR.TEMP+1
+    STA VAR.TEMP+1
+
+LBL.Update.Kinematics.X.Continue: 
+  PLA
+  TAX
+  LDA VAR.TEMP+1
+  STA VAR.Kinematics,X
+  LDA VAR.TEMP+2
+  STA VAR.Kinematics+1,X
+
+RTS
+
+;----------------------------------------------------------------
+
+LBL.Add16BIT
+LDA VAR.TEMP
+EOR VAR.TEMP+3
+BNE LBL.Add16BIT.Subtract
+
+CLC
+LDA VAR.TEMP+2
+ADC VAR.TEMP+5
+STA VAR.TEMP+2
+LDA VAR.TEMP+1
+ADC VAR.TEMP+4
+STA VAR.TEMP+1
+RTS
+
+LBL.Add16BIT.Subtract:
+LDA VAR.TEMP+1
+CMP VAR.TEMP+4
+BCC LBL.Add16BIT.YMinusX
+BNE LBL.Add16BIT.XMinusY
+LDA VAR.TEMP+2
+CMP VAR.TEMP+5
+BCC LBL.Add16BIT.YMinusX
+
+LBL.Add16BIT.XMinusY:
+SEC
+LDA VAR.TEMP+2
+SBC VAR.TEMP+5
+STA VAR.TEMP+2
+LDA VAR.TEMP+1
+SBC VAR.TEMP+4
+STA VAR.TEMP+1
+RTS
+
+LBL.Add16BIT.YMinusX:
+SEC
+LDA VAR.TEMP+5
+SBC VAR.TEMP+2
+STA VAR.TEMP+2
+LDA VAR.TEMP+4
+SBC VAR.TEMP+1
+STA VAR.TEMP+1
+LDA VAR.TEMP+3
+STA VAR.TEMP
+RTS
+
+;----------------------------------------------------------------
+LBL.Draw.Player:
+
+  ; Set the Pointer to the Frame Data
+  LDA VAR.Player.Animation.Frame
+  ASL
+  TAY
+  INY
+  INY
+  LDA (VAR.Player.Animation.Data),Y
+  STA VAR.TEMP
+  INY
+  LDA (VAR.Player.Animation.Data),Y
+  STA VAR.TEMP+1
+
+  ; Set the Tile Byte Counter
+  LDY #$00
+  LDA (VAR.TEMP),Y
+  ASL
+  ASL
+  TAY
+  INY
+  INY
+  STY VAR.TEMP+2
+
+  ; Set the Horizontal Flipping Offset
+  LDY #$01
+  LDA (VAR.TEMP),Y
+  STA VAR.TEMP+3
+
+  LDY #$02
+  LDX #$00
+
+LBL.Draw.Player.Loop:
+
+    ; Copy Vertical Position Data
+    LDA (VAR.TEMP),Y
+    CLC
+    ADC VAR.Player.Y
+    STA BUF.Sprites,X
+
+    ; Copy Tile
+    INY 
+    INX
+    LDA (VAR.TEMP),Y
+    STA BUF.Sprites,X
+
+    ; Copy Tile Attributes
+    INY
+    INX
+    LDA (VAR.TEMP),Y
+    STA BUF.Sprites,X
+
+    ; Check if Horizontally Flipped
+    LDA VAR.Player.VX.Dir
+    BEQ LBL.Draw.Player.SetX
+      LDA (VAR.TEMP),Y
+      EOR #%01000000
+      STA BUF.Sprites,X
+
+    ; Copy Horizontal Position Data
+LBL.Draw.Player.SetX:
+    INY
+    INX
+    LDA (VAR.TEMP),Y
+    CLC
+    ADC VAR.Player.X
+    STA BUF.Sprites,X
+
+    ; Check if Flipped
+    LDA VAR.Player.VX.Dir
+    BEQ LBL.Draw.Player.Loop.Continue
+       LDA VAR.Player.X
+       SEC 
+       SBC (VAR.TEMP),Y
+       SEC
+       SBC #$08
+       CLC
+       ADC VAR.TEMP+3
+       STA BUF.Sprites,X
+
+LBL.Draw.Player.Loop.Continue:
+    INY
+    INX
+    CPY VAR.TEMP+2
+    BNE LBL.Draw.Player.Loop
+ 
+  LDA TRUE
+  STA FLAG.UpdateSprites
+          
+RTS
+
+;----------------------------------------------------------------
+
+LBL.Draw.Block:
+
+  ; Set the Pointer to the Frame Data
+  LDA VAR.Block.Animation.Frame
+  ASL
+  TAY
+  INY
+  INY
+  LDA (VAR.Block.Animation.Data),Y
+  STA VAR.TEMP
+  INY
+  LDA (VAR.Block.Animation.Data),Y
+  STA VAR.TEMP+1
+
+  ; Set the Tile Byte Counter
+  LDY #$00
+  LDA (VAR.TEMP),Y
+  ASL
+  ASL
+  TAY
+  INY
+  INY
+  STY VAR.TEMP+2
+
+  ; Set the Horizontal Flipping Offset
+  LDY #$01
+  LDA (VAR.TEMP),Y
+  STA VAR.TEMP+3
+
+  LDY #$02
+  LDX #$10
+
+LBL.Draw.Block.Loop:
+
+    ; Copy Vertical Position Data
+    LDA (VAR.TEMP),Y
+    CLC
+    ADC VAR.Block.Y
+    STA BUF.Sprites,X
+
+    ; Copy Tile
+    INY 
+    INX
+    LDA (VAR.TEMP),Y
+    STA BUF.Sprites,X
+
+    ; Copy Tile Attributes
+    INY
+    INX
+    LDA (VAR.TEMP),Y
+    STA BUF.Sprites,X
+
+    ; Check if Horizontally Flipped
+    LDA VAR.Player.VX.Dir
+    BEQ LBL.Draw.Block.SetX
+      LDA (VAR.TEMP),Y
+      EOR #%01000000
+      STA BUF.Sprites,X
+
+    ; Copy Horizontal Position Data
+
+LBL.Draw.Block.SetX:
+    INY
+    INX
+    LDA (VAR.TEMP),Y
+    CLC
+    ADC VAR.Block.X
+    STA BUF.Sprites,X
+
+    ; Check if Flipped
+    LDA VAR.Block.VX.Dir
+    BEQ LBL.Draw.Block.Loop.Check
+       LDA VAR.Block.X
+       SEC 
+       SBC (VAR.TEMP),Y
+       SEC
+       SBC #$08
+       CLC
+       ADC VAR.TEMP+3
+       STA BUF.Sprites,X
+
+LBL.Draw.Block.Loop.Check:
+    INY
+    INX
+    CPY VAR.TEMP+2
+    BNE LBL.Draw.Block.Loop
+ 
+  LDA TRUE
+  STA FLAG.UpdateSprites
+          
+RTS
+
+
+;----------------------------------------------------------------
+
+LBL.Draw.Cart:
+
+  ; Set the Pointer to the Frame Data
+  LDA VAR.Cart.Animation.Frame
+  ASL
+  TAY
+  INY
+  INY
+  LDA (VAR.Cart.Animation.Data),Y
+  STA VAR.TEMP
+  INY
+  LDA (VAR.Cart.Animation.Data),Y
+  STA VAR.TEMP+1
+
+  ; Set the Tile Byte Counter
+  LDY #$00
+  LDA (VAR.TEMP),Y
+  ASL
+  ASL
+  TAY
+  INY
+  INY
+  STY VAR.TEMP+2
+
+  ; Set the Horizontal Flipping Offset
+  LDY #$01
+  LDA (VAR.TEMP),Y
+  STA VAR.TEMP+3
+
+  LDY #$02
+  LDX #$20
+
+LBL.Draw.Cart.Loop:
+
+    ; Copy Vertical Position Data
+    LDA (VAR.TEMP),Y
+    CLC
+    ADC VAR.Cart.Y
+    STA BUF.Sprites,X
+
+    ; Copy Tile
+    INY 
+    INX
+    LDA (VAR.TEMP),Y
+    STA BUF.Sprites,X
+
+    ; Copy Tile Attributes
+    INY
+    INX
+    LDA (VAR.TEMP),Y
+    STA BUF.Sprites,X
+
+    ; Check if Horizontally Flipped
+    LDA VAR.Cart.VX.Dir
+    BEQ LBL.Draw.Cart.SetX
+      LDA (VAR.TEMP),Y
+      EOR #%01000000
+      STA BUF.Sprites,X
+
+    ; Copy Horizontal Position Data
+
+LBL.Draw.Cart.SetX:
+    INY
+    INX
+    LDA (VAR.TEMP),Y
+    CLC
+    ADC VAR.Cart.X
+    STA BUF.Sprites,X
+
+    ; Check if Flipped
+    LDA VAR.Cart.VX.Dir
+    BEQ LBL.Draw.Cart.Loop.Continue
+       LDA VAR.Cart.X
+       SEC 
+       SBC (VAR.TEMP),Y
+       SEC
+       SBC #$08
+       CLC
+       ADC VAR.TEMP+3
+       STA BUF.Sprites,X
+
+LBL.Draw.Cart.Loop.Continue:
+    INY
+    INX
+    CPY VAR.TEMP+2
+    BNE LBL.Draw.Cart.Loop
+ 
+  LDA TRUE
+  STA FLAG.UpdateSprites
+          
+RTS
+
+
+;----------------------------------------------------------------
+; JUMP TABLE(S)
+;----------------------------------------------------------------
+
+.org $CB00
+
+TBL.State.Game:
+  .dw LBL.State.Game.Initialize - 1
+  .dw LBL.State.Game.Update - 1
+  .dw LBL.State.Game.Deconstruct - 1
+
+TBL.Scene.Initialize:
+  .dw LBL.Scene0.Initialize - 1
+
+TBL.Scene.Update:
+  .dw LBL.Scene0.Update - 1
+
+TBL.Scene.Deconstruct:
+  .dw LBL.Scene0.Deconstruct - 1
+
+;----------------------------------------------------------------
+;SCENE 0 : DATA
+;----------------------------------------------------------------
+
+.org $D000    ;;align the background data so the lower address is $00
+
+DAT.Scene0.Background.Nametable:
+  .incbin "REGEN.nam"
+ 
+DAT.Scene0.Background.Palette:
+  .db $22,$3d,$0f,$30
+  .db $22,$29,$1a,$0f
+  .db $22,$36,$17,$0f
+  .db $22,$17,$17,$0f
+
+
+DAT.Scene0.Sprites.Palette:
+  .db $22,$16,$27,$18
+  .db $22,$00,$30,$10
+  .db $22,$17,$17,$0F
+  .db $22,$27,$17,$0F
+
+DAT.Cart.Palettes:
+  .db $22,$17,$28,$38	; Zelda
+  .db $22,$0F,$31,$11	; Mega Man
+  .db $22,$0F,$02,$10	; Final Fantasy
+  .db $22,$0F,$3A,$2A	; Punch Out
+  .db $22,$0F,$17,$3D	; Higgens
+  .db $22,$0F,$24,$34	; Peach
+  .db $22,$0F,$38,$10	; Samus
+  .db $22,$0F,$16,$38	; Legend
+  .db $22,$0F,$04,$21	; Kirby
+  .db $22,$0F,$37,$3D	; Pacman
+  .db $22,$0F,$30,$10	; Aerith
+
+DAT.Player.Palettes:
+  .db $22,$29,$27,$07	; Zelda
+  .db $22,$0F,$31,$11	; Mega Man
+  .db $22,$37,$16,$30	; Final Fantasy
+  .db $22,$36,$25,$0F	; Punch Out
+  .db $22,$0F,$20,$26	; Higgens
+  .db $22,$37,$25,$17	; Peach
+  .db $22,$27,$16,$19	; Samus
+  .db $22,$0F,$16,$30	; Legend
+  .db $22,$0F,$25,$35	; Kirby
+  .db $22,$28,$16,$0F	; Pacman
+  .db $22,$17,$07,$0F   ; Aerith
+
+DAT.Aerith.Palette.Full:
+  .db $22,$17,$07,$0F
+  .db $22,$10,$00,$0A
+  .db $22,$36,$37,$17
+  .db $22,$15,$35,$25
+
+;  .db $22,$36,$37,$27
+
+DAT.Palette.Sprite3:
+  .db $22,$0F,$30,$37   ; Set on Red Mage and Mega Man
+  .db $22,$0F,$1A,$26
+
+
+;+------+----------+--------------------------------------+
+; Byte | Bits     | Description                          |
+;+------+----------+--------------------------------------+
+;|  0   | YYYYYYYY | Y Coordinate - 1. Consider the coor- |
+;|      |          | dinate the upper-left corner of the  |
+;|      |          | sprite itself.                       |
+;|  1   | IIIIIIII | Tile Index #                         |
+;|  2   | vhp000cc | Attributes                           |
+;|      |          |   v = Vertical Flip   (1=Flip)       |
+;|      |          |   h = Horizontal Flip (1=Flip)       |
+;|      |          |   p = Background Priority            |
+;|      |          |         0 = In front                 |
+;|      |          |         1 = Behind                   |
+;|      |          |   c = Upper two (2) bits of colour   |
+;|  3   | XXXXXXXX | X Coordinate (upper-left corner)     |
+;+------+----------+--------------------------------------+
+
+DAT.Animation:
+  .dw DAT.Animation.Mario.Walking
+  .dw DAT.Animation.Mario.Sliding	
+  .dw DAT.Animation.Mario.Jumping
+  .dw DAT.Animation.BlockFlash
+  .dw DAT.Animation.BlockStill
+  .dw DAT.Animation.Cart.Spinning
+  .dw DAT.Animation.Mario.Stop
+  .dw DAT.Animation.Transform.Zelda
+  .dw DAT.Animation.Zelda.Walk
+  .dw DAT.Animation.Transform.MegaMan
+  .dw DAT.Animation.MegaMan.Walk
+  .dw DAT.Animation.Transform.RedMage
+  .dw DAT.Animation.RedMage.Walk
+  .dw DAT.Animation.Transform.LittleMac
+  .dw DAT.Animation.LittleMac.Walk
+  .dw DAT.Animation.Transform.Higgens
+  .dw DAT.Animation.Higgens.Walk
+  .dw DAT.Animation.Transform.Peach
+  .dw DAT.Animation.Peach.Walk
+  .dw DAT.Animation.Transform.Samus
+  .dw DAT.Animation.Samus.Walk
+  .dw DAT.Animation.Transform.Legend
+  .dw DAT.Animation.Legend.Walk
+  .dw DAT.Animation.Transform.Kirby
+  .dw DAT.Animation.Kirby.Walk
+  .dw DAT.Animation.Transform.Pacman
+  .dw DAT.Animation.Pacman.Walk
+  .dw DAT.Animation.Transform.Aerith
+  .dw DAT.Animation.Aerith.Walk
+
+DAT.Animation.Mario.Walking:
+  .db $06 ; Animation Timer Speed
+  .db $03 ; Animation Frames
+  .dw DAT.Sprite.Mario.Walk1
+  .dw DAT.Sprite.Mario.Walk2
+  .dw DAT.Sprite.Mario.Walk3
+
+DAT.Sprite.Mario.Walk1:
+  .db $04 ; Number of Sprites
+  .db $10 ; Adjustment When Flipped
+  .db $F0, $00, %00000000, $00
+  .db $F0, $01, %00000000, $08
+  .db $F8, $02, %00000000, $00
+  .db $F8, $03, %00000000, $08
+
+DAT.Sprite.Mario.Walk2:
+  .db $04 ; Number of Sprites
+  .db $10 ; Adjustment When Flipped
+  .db $F0, $04, %00000000, $00
+  .db $F0, $01, %00000000, $08
+  .db $F8, $05, %00000000, $00
+  .db $F8, $06, %00000000, $08
+
+DAT.Sprite.Mario.Walk3:
+  .db $04 ; Number of Sprites
+  .db $10 ; Adjustment When Flipped
+  .db $F0, $07, %00000000, $00
+  .db $F0, $08, %00000000, $08
+  .db $F8, $09, %00000000, $00
+  .db $F8, $0A, %00000000, $08
+
+DAT.Animation.Mario.Jumping:
+  .db $FF ; Animation Timer Speed
+  .db $01 ; Animation Frames
+  .dw DAT.Sprite.Mario.Jump
+
+DAT.Sprite.Mario.Jump:
+  .db $04 ; Number of Sprites
+  .db $10 ; Adjustment When Flipped
+  .db $F0, $07, %00000000, $00
+  .db $F0, $0B, %00000000, $08
+  .db $F8, $0C, %00000000, $00
+  .db $F8, $0D, %00000000, $08
+
+DAT.Animation.Mario.Sliding:
+  .db $FF ; Animation Timer Speed
+  .db $01 ; Animation Frames
+  .dw DAT.Sprite.Mario.Slide
+
+DAT.Sprite.Mario.Slide:
+  .db $04 ; Number of Sprites
+  .db $10 ; Adjustment When Flipped
+  .db $F0, $0E, %00000000, $00
+  .db $F0, $0F, %00000000, $08
+  .db $F8, $10, %00000000, $00
+  .db $F8, $11, %00000000, $08
+
+DAT.Animation.BlockFlash:
+  .db $18 ; Animation Timer Speed
+  .db $02 ; Animation Frames
+  .dw DAT.Sprite.Block1
+  .dw DAT.Sprite.Block2
+
+DAT.Animation.BlockStill:
+  .db $FF ; Animation Timer Speed
+  .db $01 ; Animation Frames
+  .dw DAT.Sprite.BlockHit
+
+DAT.Sprite.Block1:
+  .db $04 ; Number of Sprites
+  .db $10 ; Adjustment When Flipped
+  .db $F0, $B2, %00000011, $00
+  .db $F0, $B3, %00000011, $08
+  .db $F8, $B5, %00000011, $00
+  .db $F8, $B6, %00000011, $08
+
+DAT.Sprite.Block2:
+  .db $04 ; Number of Sprites
+  .db $10 ; Adjustment When Flipped
+  .db $F0, $B2, %00000010, $00
+  .db $F0, $B3, %00000010, $08
+  .db $F8, $B5, %00000010, $00
+  .db $F8, $B6, %00000010, $08
+
+DAT.Sprite.BlockHit:
+  .db $04 ; Number of Sprites
+  .db $10 ; Adjustment When Flipped
+  .db $F0, $B8, %00000010, $00
+  .db $F0, $B8, %01000010, $08
+  .db $F8, $B8, %10000010, $00
+  .db $F8, $B8, %11000010, $08
+
+DAT.Animation.Cart.Spinning:
+  .db $06 ; Animation Timer Speed
+  .db $03 ; Animation Frames
+  .dw DAT.Sprite.Cart.Spin1
+  .dw DAT.Sprite.Cart.Spin2
+  .dw DAT.Sprite.Cart.Spin3
+
+DAT.Sprite.Cart.Spin1:
+  .db $04 ; Number of Sprites
+  .db $10 ; Adjustment When Flipped
+  .db $F0, $13, %00000001, $00
+  .db $F0, $14, %00000001, $08
+  .db $F8, $15, %00000001, $00
+  .db $F8, $16, %00000001, $08
+
+DAT.Sprite.Cart.Spin2:
+  .db $04 ; Number of Sprites
+  .db $10 ; Adjustment When Flipped
+  .db $F0, $17, %00000001, $00
+  .db $F0, $17, %01000001, $08
+  .db $F8, $18, %00000001, $00
+  .db $F8, $18, %01000001, $08
+
+DAT.Sprite.Cart.Spin3:
+  .db $04 ; Number of Sprites
+  .db $10 ; Adjustment When Flipped
+  .db $F0, $19, %00000001, $00
+  .db $F0, $19, %01000001, $08
+  .db $F8, $1A, %00000001, $00
+  .db $F8, $1A, %01000001, $08
+
+DAT.Animation.Mario.Stop:
+  .db $FF ; Animation Timer Speed
+  .db $01 ; Animation Frames
+  .dw DAT.Sprite.Mario.Stop
+
+DAT.Sprite.Mario.Stop:
+  .db $04 ; Number of Sprites
+  .db $10 ; Adjustment When Flipped
+  .db $F0, $04, %00000000, $00
+  .db $F0, $01, %00000000, $08
+  .db $F8, $12, %00000000, $00
+  .db $F8, $12, %01000000, $08
+
+DAT.Animation.Transform.Zelda:
+  .db $06 ; Animation Timer Speed
+  .db $02 ; Animation Frames
+  .dw DAT.Sprite.Mario.Stop
+  .dw DAT.Sprite.Zelda.Walk1
+
+DAT.Animation.Zelda.Walk
+  .db $06 ; Animation Timer Speed
+  .db $02 ; Animation Frames
+  .dw DAT.Sprite.Zelda.Walk1
+  .dw DAT.Sprite.Zelda.Walk2
+
+DAT.Sprite.Zelda.Walk1:
+  .db $04 ; Number of Sprites
+  .db $10 ; Adjustment When Flipped
+  .db $F0, $1B, %00000001, $00
+  .db $F0, $1C, %00000001, $08
+  .db $F8, $1D, %00000001, $00
+  .db $F8, $1E, %00000001, $08
+
+DAT.Sprite.Zelda.Walk2:
+  .db $04 ; Number of Sprites
+  .db $10 ; Adjustment When Flipped
+  .db $F0, $1F, %00000001, $00
+  .db $F0, $20, %00000001, $08
+  .db $F8, $21, %00000001, $00
+  .db $F8, $22, %00000001, $08
+
+DAT.Animation.Transform.MegaMan:
+  .db $06 ; Animation Timer Speed
+  .db $02 ; Animation Frames
+  .dw DAT.Sprite.Mario.Stop
+  .dw DAT.Sprite.MegaMan.Walk3
+
+DAT.Animation.MegaMan.Walk
+  .db $06 ; Animation Timer Speed
+  .db $04 ; Animation Frames
+  .dw DAT.Sprite.MegaMan.Walk3
+  .dw DAT.Sprite.MegaMan.Walk1
+  .dw DAT.Sprite.MegaMan.Walk3
+  .dw DAT.Sprite.MegaMan.Walk2
+
+DAT.Sprite.MegaMan.Walk1:
+  .db $0A ; Number of Sprites
+  .db $10 ; Adjustment When Flipped
+  .db $E8, $25, %00000001, $08
+  .db $F0, $23, %00000010, $05
+  .db $F8, $43, %00000001, $F8
+  .db $F8, $44, %00000001, $00
+  .db $F8, $45, %00000001, $08
+  .db $F0, $33, %00000001, $F8
+  .db $F0, $34, %00000001, $00
+  .db $F0, $35, %00000001, $08
+  .db $F0, $36, %00000001, $10
+  .db $E8, $24, %00000001, $00
+
+DAT.Sprite.MegaMan.Walk2:
+  .db $09 ; Number of Sprites
+  .db $10 ; Adjustment When Flipped
+  .db $E8, $25, %00000001, $08
+  .db $F0, $23, %00000010, $05
+  .db $F8, $47, %00000001, $F8
+  .db $F8, $48, %00000001, $00
+  .db $F8, $49, %00000001, $08
+  .db $F0, $37, %00000001, $F8
+  .db $F0, $38, %00000001, $00
+  .db $F0, $39, %00000001, $08
+  .db $E8, $28, %00000001, $00
+
+DAT.Sprite.MegaMan.Walk3:
+  .db $08 ; Number of Sprites
+  .db $10 ; Adjustment When Flipped
+  .db $EE, $23, %00000010, $05
+  .db $F8, $4B, %00000001, $00
+  .db $F8, $4C, %00000001, $08
+  .db $F0, $3A, %00000001, $F8
+  .db $F0, $3B, %00000001, $00
+  .db $F0, $3C, %00000001, $08
+  .db $E8, $2B, %00000001, $00
+  .db $E8, $2C, %00000001, $08
+
+DAT.Animation.Transform.LittleMac:
+  .db $06 ; Animation Timer Speed
+  .db $02 ; Animation Frames
+  .dw DAT.Sprite.Mario.Stop
+  .dw DAT.Sprite.LittleMac.Walk1
+
+DAT.Animation.LittleMac.Walk
+  .db $0A ; Animation Timer Speed
+  .db $02 ; Animation Frames
+  .dw DAT.Sprite.LittleMac.Walk1
+  .dw DAT.Sprite.LittleMac.Walk2
+
+DAT.Sprite.LittleMac.Walk1:
+  .db $0C ; Number of Sprites
+  .db $10 ; Adjustment When Flipped
+  .db $FC, $E0, %00000001, $00
+  .db $FC, $E1, %00000001, $08
+  .db $F4, $D0, %00000001, $00
+  .db $F4, $D1, %00000001, $08
+  .db $EC, $C0, %00000001, $00
+  .db $EC, $C1, %00000001, $08
+  .db $E4, $B0, %00000001, $00
+  .db $E4, $B1, %00000001, $08
+  .db $DC, $A0, %00000001, $00
+  .db $DC, $A1, %00000001, $08
+  .db $D4, $90, %00000001, $00
+  .db $D4, $91, %00000001, $08
+
+DAT.Sprite.LittleMac.Walk2:
+  .db $0C ; Number of Sprites
+  .db $10 ; Adjustment When Flipped
+  .db $FC, $80, %00000001, $00
+  .db $FC, $81, %00000001, $08
+  .db $F4, $70, %00000001, $00
+  .db $F4, $71, %00000001, $08
+  .db $EC, $60, %00000001, $00
+  .db $EC, $61, %00000001, $08
+  .db $E4, $50, %00000001, $00
+  .db $E4, $51, %00000001, $08
+  .db $DC, $40, %00000001, $00
+  .db $DC, $41, %00000001, $08
+  .db $D4, $30, %00000001, $00
+  .db $D4, $31, %00000001, $08
+
+DAT.Animation.Transform.RedMage:
+  .db $06 ; Animation Timer Speed
+  .db $02 ; Animation Frames
+  .dw DAT.Sprite.Mario.Stop
+  .dw DAT.Sprite.RedMage.Walk1
+
+DAT.Animation.RedMage.Walk
+  .db $0A ; Animation Timer Speed
+  .db $02 ; Animation Frames
+  .dw DAT.Sprite.RedMage.Walk1
+  .dw DAT.Sprite.RedMage.Walk2
+
+DAT.Sprite.RedMage.Walk1:
+  .db $0F ; Number of Sprites
+  .db $10 ; Adjustment When Flipped
+  .db $E7, $82, %00000010, $FF
+  .db $E7, $83, %00000010, $07
+  .db $E7, $84, %00000010, $0F
+  .db $EF, $92, %00000010, $FF
+  .db $EF, $93, %00000010, $07
+  .db $EF, $94, %00000010, $0F
+  .db $F7, $A2, %00000010, $FF
+  .db $F7, $A3, %00000010, $07
+  .db $F7, $A4, %00000010, $0F
+  .db $F7, $72, %00000001, $00
+  .db $F7, $73, %00000001, $08
+  .db $EF, $62, %00000001, $00
+  .db $EF, $63, %00000001, $08
+  .db $E7, $52, %00000001, $00
+  .db $E7, $53, %00000001, $08
+
+DAT.Sprite.RedMage.Walk2:
+  .db $0F ; Number of Sprites
+  .db $10 ; Adjustment When Flipped
+  .db $F8, $A5, %00000010, $FF
+  .db $F8, $A6, %00000010, $07
+  .db $F8, $A7, %00000010, $0F
+  .db $F0, $95, %00000010, $FF
+  .db $F0, $96, %00000010, $07
+  .db $F0, $97, %00000010, $0F
+  .db $E8, $85, %00000010, $FF
+  .db $E8, $86, %00000010, $07
+  .db $E8, $87, %00000010, $0F
+  .db $E8, $55, %00000001, $00
+  .db $E8, $56, %00000001, $08
+  .db $F0, $65, %00000001, $00
+  .db $F0, $66, %00000001, $08
+  .db $F8, $75, %00000001, $00
+  .db $F8, $76, %00000001, $08
+ 
+DAT.Animation.Transform.Higgens:
+  .db $06 ; Animation Timer Speed
+  .db $02 ; Animation Frames
+  .dw DAT.Sprite.Mario.Stop
+  .dw DAT.Sprite.Higgens.Walk1
+
+DAT.Animation.Higgens.Walk:
+  .db $0A ; Animation Timer Speed
+  .db $02 ; Animation Frames
+  .dw DAT.Sprite.Higgens.Walk1
+  .dw DAT.Sprite.Higgens.Walk2
+
+DAT.Sprite.Higgens.Walk1:
+  .db $08 ; Number of Sprites
+  .db $10 ; Adjustment When Flipped
+  .db $F8, $A8, %01000010, $08
+  .db $F8, $A9, %01000010, $00
+  .db $F0, $98, %01000010, $08
+  .db $F0, $99, %01000010, $00
+  .db $E8, $88, %01000001, $08
+  .db $E8, $89, %01000001, $00
+  .db $E0, $78, %01000001, $08
+  .db $E0, $79, %01000001, $00
+
+DAT.Sprite.Higgens.Walk2:
+  .db $08 ; Number of Sprites
+  .db $10 ; Adjustment When Flipped
+  .db $F8, $7A, %01000010, $08
+  .db $F8, $7B, %01000010, $00
+  .db $F0, $B9, %01000010, $08
+  .db $F0, $C5, %01000010, $00
+  .db $E8, $88, %01000001, $08
+  .db $E8, $89, %01000001, $00
+  .db $E0, $78, %01000001, $08
+  .db $E0, $79, %01000001, $00
+
+DAT.Animation.Transform.Peach:
+  .db $06 ; Animation Timer Speed
+  .db $02 ; Animation Frames
+  .dw DAT.Sprite.Mario.Stop
+  .dw DAT.Sprite.Peach.Walk1
+
+DAT.Animation.Peach.Walk:
+  .db $0A ; Animation Timer Speed
+  .db $02 ; Animation Frames
+  .dw DAT.Sprite.Peach.Walk1
+  .dw DAT.Sprite.Peach.Walk2
+
+DAT.Sprite.Peach.Walk1:
+  .db $08 ; Number of Sprites
+  .db $10 ; Adjustment When Flipped
+  .db $F8, $5D, %00000001, $00
+  .db $F8, $5E, %00000001, $08
+  .db $F0, $4D, %00000001, $00
+  .db $F0, $4E, %00000001, $08
+  .db $E8, $3D, %00000001, $00
+  .db $E8, $3E, %00000001, $08
+  .db $E0, $2D, %00000001, $00
+  .db $E0, $2E, %00000001, $08
+
+DAT.Sprite.Peach.Walk2:
+  .db $08 ; Number of Sprites
+  .db $10 ; Adjustment When Flipped
+  .db $F8, $2F, %00000001, $00
+  .db $F8, $3F, %00000001, $08
+  .db $F0, $4D, %00000001, $00
+  .db $F0, $4E, %00000001, $08
+  .db $E8, $3D, %00000001, $00
+  .db $E8, $3E, %00000001, $08
+  .db $E0, $2D, %00000001, $00
+  .db $E0, $2E, %00000001, $08
+
+DAT.Animation.Transform.Samus:
+  .db $06 ; Animation Timer Speed
+  .db $02 ; Animation Frames
+  .dw DAT.Sprite.Mario.Stop
+  .dw DAT.Sprite.Samus.Walk1
+
+DAT.Animation.Samus.Walk:
+  .db $04 ; Animation Timer Speed
+  .db $03 ; Animation Frames
+  .dw DAT.Sprite.Samus.Walk1
+  .dw DAT.Sprite.Samus.Walk2
+  .dw DAT.Sprite.Samus.Walk3
+
+DAT.Sprite.Samus.Walk1:
+  .db $07 ; Number of Sprites
+  .db $10 ; Adjustment When Flipped
+  .db $F9, $26, %00000001, $00
+  .db $F1, $27, %00000001, $00
+  .db $F1, $29, %00000001, $08
+  .db $E9, $2A, %00000001, $00
+  .db $E9, $32, %00000001, $08
+  .db $E1, $42, %00000001, $00
+  .db $E1, $46, %00000001, $08
+
+DAT.Sprite.Samus.Walk2:
+  .db $0C ; Number of Sprites
+  .db $10 ; Adjustment When Flipped
+  .db $F9, $4A, %00000001, $FF
+  .db $F9, $54, %00000001, $07
+  .db $F9, $64, %00000001, $0F
+  .db $F1, $57, %00000001, $FF
+  .db $F1, $58, %00000001, $07
+  .db $F1, $59, %00000001, $0F
+  .db $E9, $5A, %00000001, $FF
+  .db $E9, $5B, %00000001, $07
+  .db $E9, $5C, %00000001, $0F
+  .db $E1, $4F, %00000001, $FF
+  .db $E1, $5F, %00000001, $07
+  .db $E1, $6F, %00000001, $0F
+
+DAT.Sprite.Samus.Walk3:
+  .db $0A ; Number of Sprites
+  .db $10 ; Adjustment When Flipped
+  .db $F9, $67, %00000001, $03
+  .db $F9, $68, %00000001, $0B
+  .db $F1, $69, %00000001, $FB
+  .db $F1, $6A, %00000001, $03
+  .db $F1, $6B, %00000001, $0B
+  .db $E9, $6C, %00000001, $FB
+  .db $E9, $6D, %00000001, $03
+  .db $E9, $6E, %00000001, $0B
+  .db $E1, $74, %00000001, $03
+  .db $E1, $77, %00000001, $0B
+
+DAT.Animation.Transform.Legend:
+  .db $06 ; Animation Timer Speed
+  .db $02 ; Animation Frames
+  .dw DAT.Sprite.Mario.Stop
+  .dw DAT.Sprite.Legend.Walk1
+
+DAT.Animation.Legend.Walk:
+  .db $0A ; Animation Timer Speed
+  .db $02 ; Animation Frames
+  .dw DAT.Sprite.Legend.Walk1
+  .dw DAT.Sprite.Legend.Walk2
+
+DAT.Sprite.Legend.Walk1:
+  .db $08 ; Number of Sprites
+  .db $10 ; Adjustment When Flipped
+  .db $FA, $AC, %00000001, $00
+  .db $FA, $AD, %00000001, $08
+  .db $F2, $9C, %00000001, $00
+  .db $F2, $9D, %00000001, $08
+  .db $EA, $8C, %00000001, $00
+  .db $EA, $8D, %00000001, $08
+  .db $E2, $7C, %00000001, $00
+  .db $E2, $7D, %00000001, $08
+
+DAT.Sprite.Legend.Walk2:
+  .db $08 ; Number of Sprites
+  .db $10 ; Adjustment When Flipped
+  .db $FA, $AE, %00000001, $00
+  .db $FA, $AF, %00000001, $08
+  .db $F2, $9E, %00000001, $00
+  .db $F2, $9F, %00000001, $08
+  .db $EA, $8E, %00000001, $00
+  .db $EA, $8F, %00000001, $08
+  .db $E2, $7E, %00000001, $00
+  .db $E2, $7F, %00000001, $08
+
+DAT.Animation.Transform.Kirby:
+  .db $06 ; Animation Timer Speed
+  .db $02 ; Animation Frames
+  .dw DAT.Sprite.Mario.Stop
+  .dw DAT.Sprite.Kirby.Walk2
+
+DAT.Animation.Kirby.Walk:
+  .db $06 ; Animation Timer Speed
+  .db $04 ; Animation Frames
+  .dw DAT.Sprite.Kirby.Walk2
+  .dw DAT.Sprite.Kirby.Walk3
+  .dw DAT.Sprite.Kirby.Walk2
+  .dw DAT.Sprite.Kirby.Walk1
+
+DAT.Sprite.Kirby.Walk1:
+  .db $04 ; Number of Sprites
+  .db $10 ; Adjustment When Flipped
+  .db $F8, $BE, %00000001, $00
+  .db $F8, $BF, %00000001, $08
+  .db $F0, $C7, %00000001, $00
+  .db $F0, $C8, %00000001, $08
+
+DAT.Sprite.Kirby.Walk2:
+  .db $04 ; Number of Sprites
+  .db $10 ; Adjustment When Flipped
+  .db $F8, $C9, %00000001, $00
+  .db $F8, $CA, %00000001, $08
+  .db $F0, $CB, %00000001, $00
+  .db $F0, $CC, %00000001, $08
+
+DAT.Sprite.Kirby.Walk3:
+  .db $04 ; Number of Sprites
+  .db $10 ; Adjustment When Flipped
+  .db $F8, $CD, %00000001, $00
+  .db $F8, $CE, %00000001, $08
+  .db $F0, $CF, %00000001, $00
+  .db $F0, $D7, %00000001, $08
+
+DAT.Animation.Transform.Pacman:
+  .db $06 ; Animation Timer Speed
+  .db $02 ; Animation Frames
+  .dw DAT.Sprite.Mario.Stop
+  .dw DAT.Sprite.Pacman.Walk3
+
+DAT.Animation.Pacman.Walk:
+  .db $08 ; Animation Timer Speed
+  .db $03 ; Animation Frames
+  .dw DAT.Sprite.Pacman.Walk3
+  .dw DAT.Sprite.Pacman.Walk2
+  .dw DAT.Sprite.Pacman.Walk1
+  .dw DAT.Sprite.Pacman.Walk2
+
+DAT.Sprite.Pacman.Walk1:
+  .db $04 ; Number of Sprites
+  .db $10 ; Adjustment When Flipped
+  .db $F8, $8A, %00000001, $00
+  .db $F8, $8B, %00000001, $08
+  .db $F0, $9B, %00000001, $00
+  .db $F0, $9A, %00000001, $08
+
+DAT.Sprite.Pacman.Walk2:
+  .db $04 ; Number of Sprites
+  .db $10 ; Adjustment When Flipped
+  .db $F8, $B4, %00000001, $00
+  .db $F8, $c4, %00000001, $08
+  .db $F0, $B7, %00000001, $00
+  .db $F0, $C6, %00000001, $08
+
+DAT.Sprite.Pacman.Walk3:
+  .db $04 ; Number of Sprites
+  .db $10 ; Adjustment When Flipped
+  .db $F8, $BA, %00000001, $00
+  .db $F8, $BB, %00000001, $08
+  .db $F0, $BC, %00000001, $00
+  .db $F0, $BD, %00000001, $08
+
+DAT.Animation.Transform.Aerith:
+  .db $06 ; Animation Timer Speed
+  .db $02 ; Animation Frames
+  .dw DAT.Sprite.Mario.Stop
+  .dw DAT.Sprite.Aerith.Walk1
+
+DAT.Animation.Aerith.Walk:
+  .db $08 ; Animation Timer Speed
+  .db $02 ; Animation Frames
+  .dw DAT.Sprite.Aerith.Walk1
+  .dw DAT.Sprite.Aerith.Walk2
+
+DAT.Sprite.Aerith.Walk1:
+  .db $13 ; Number of Sprites
+  .db $10 ; Adjustment When Flipped
+  .db $F8, $F8, %01000000, $08  ; Layer 1
+  .db $F8, $F9, %01000000, $00
+  .db $F0, $E8, %01000000, $08
+  .db $F0, $E9, %01000000, $00
+  .db $E8, $D8, %01000000, $08
+  .db $E8, $D9, %01000000, $00
+
+  .db $F8, $F2, %01000010, $08  ; Layer 2
+  .db $F8, $F3, %01000010, $00
+  .db $F0, $F6, %01000010, $08
+  .db $F0, $F7, %01000010, $00
+  .db $E8, $E7, %01000010, $08
+
+  .db $E9, $F1, %01000001, $08  ; Layer 3
+  .db $F0, $F0, %01000001, $00
+
+  .db $F8, $FC, %01000011, $08  ; Layer 4
+  .db $F8, $FD, %01000011, $00
+  .db $F0, $EC, %01000011, $08
+  .db $F0, $ED, %01000011, $00
+  .db $E8, $DC, %01000011, $08
+  .db $E8, $DD, %01000011, $00
+
+
+DAT.Sprite.Aerith.Walk2:
+  .db $13 ; Number of Sprites
+  .db $10 ; Adjustment When Flipped
+  .db $F8, $FA, %01000000, $08  ; Layer 1
+  .db $F8, $FB, %01000000, $00
+  .db $F0, $EA, %01000000, $08
+  .db $F0, $EB, %01000000, $00
+  .db $E8, $DA, %01000000, $08
+  .db $E8, $DB, %01000000, $00
+
+  .db $F8, $F4, %01000010, $08  ; Layer 2
+  .db $F8, $F5, %01000010, $00
+  .db $F0, $F6, %01000010, $08
+  .db $F0, $F7, %01000010, $00
+  .db $E8, $E7, %01000010, $08
+
+  .db $E9, $F1, %01000001, $08  ; Layer 3
+  .db $F0, $F0, %01000001, $00
+
+  .db $F8, $FE, %01000011, $08  ; Layer 4
+  .db $F8, $FF, %01000011, $00
+  .db $F0, $EE, %01000011, $08
+  .db $F0, $EF, %01000011, $00
+  .db $E8, $DE, %01000011, $08
+  .db $E8, $DF, %01000011, $00
+
+
+
+
+;----------------------------------------------------------------
+; interrupt vectors
+;----------------------------------------------------------------
+
+   .org $FFFA
+
+   .dw LBL.NMI
+   .dw LBL.RESET
+   .dw 0
+
+;----------------------------------------------------------------
+; CHR-ROM bank
+;----------------------------------------------------------------
+
+   .incbin "REGEN.chr"

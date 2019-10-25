@@ -1,0 +1,396 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - 6502 flags after adding signed byte to unsigned byte.</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">6502 flags after adding signed byte to unsigned byte.</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=10&amp;t=10975">http://forums.nesdev.com/viewtopic.php?f=10&amp;t=10975</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>pops</b> [ Mon Feb 03, 2014 8:42 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>6502 flags after adding signed byte to unsigned byte.</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Working on my open world rpg (no <a href="http://tvtropes.org/pmwiki/pmwiki.php/Main/OverworldNotToScale" class="postlink">issues of scale</a> - have to thank Tepples for that link). I've been able to solve just about every NES-related problem I've come across so far, but this one is flummoxing me: how can I tell whether to inc or dec the hi byte of a 16bit unsigned number after adding a signed byte to the lo byte of the same 16 bit number?<br /><br />Assembly:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">clc<br />lda CameraCurrentY<br />adc delta<br />sta CameraCurrentY</div><br />CameraCurrentY is the unsigned low byte of a 16bit scroll value.<br /><br />delta is a signed byte with values from -4 to 4. ($fc ~ $04)<br /><br />Which flags do I check to see if the low byte carried (greater than 255)? How do I check to see if the low byte rolled over the other direction (less than 0)?<br /><br />Sincere thanks!
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Mon Feb 03, 2014 9:04 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: 6502 flags after adding signed byte to unsigned byte.</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Normally you'd <a href="http://wiki.nesdev.com/w/index.php/Synthetic_instructions#Sign-extend" class="postlink">sign-extend</a> the signed byte into a signed word (or just generate the delta as a 16-bit value to begin with), so that you can add the high bytes after taking care of the low bytes. I can't really think of another solution that doesn't involve tons of confusing branches.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Mon Feb 03, 2014 9:35 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: 6502 flags after adding signed byte to unsigned byte.</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Which raises the question of how to efficiently copy bit 7 into all bits of the accumulator. The constant-time snippet on the wiki page destroys the carry, so don't use it between adding the low bytes and adding the high bytes without saving and restoring P. Perhaps a more efficient way is to decrement the high byte of the sum if the sign bit of the 8-bit value is true: BPL over a DEC. (I just added that.)<br /><br />Another question is raised as well: how to efficiently clamp addition of a signed 8- or 16-bit value to an unsigned 8- or 16-bit value so that adding a positive value doesn't cause the 16-bit value to exceed 65535 and adding a negative value doesn't cause the 16-bit value to fall below 0.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>pops</b> [ Mon Feb 03, 2014 9:43 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: 6502 flags after adding signed byte to unsigned byte.</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tokumaru wrote:</div><div class="quotecontent">Normally you'd <a href="http://wiki.nesdev.com/w/index.php/Synthetic_instructions#Sign-extend" class="postlink">sign-extend</a> the signed byte into a signed word (or just generate the delta as a 16-bit value to begin with), so that you can add the high bytes after taking care of the low bytes. I can't really think of another solution that doesn't involve tons of confusing branches.</div><br />An easy solution. Thank you tokomaru.<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">; ========================&#91; MapService_UpdateScroll &#93;===========================<br />; 1. Bounds target to current map extents.<br />; 2. Gets delta value based on difference between target &amp; current.<br />; 3. Applies delta to current, scroll, and screen variables.<br />; NOTE: Delta greater than +/- 8 will break scrolling (engine loads only one tile's wide at a time<br />; NOTE:&nbsp; &nbsp;For delta greater than -128/+127, this algorithm will not work.<br />; Wipes out a,x,y,$00,$01<br />MapService_UpdateCamera:<br />.scope<br />.alias&nbsp; &nbsp;delta&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;$00<br />.alias&nbsp; &nbsp;delta_hi&nbsp; &nbsp;&nbsp; &nbsp;$01<br />.alias&nbsp; &nbsp;is_neg&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;delta_hi<br />&nbsp; &nbsp;jsr MapService_BoundTarget<br />&nbsp; &nbsp;sec<br />&nbsp; &nbsp;lda CameraTargetX<br />&nbsp; &nbsp;sbc CameraCurrentX<br />&nbsp; &nbsp;jsr _get_log_delta_from_a&nbsp; &nbsp; ; get a sort-of-logish delta (fast scroll when far away, slower when close)<br />&nbsp; &nbsp;<br />&nbsp; &nbsp; &nbsp; &nbsp; cpy #$00&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; if no delta, do not scroll.<br />&nbsp; &nbsp;beq _delta_y<br />&nbsp; &nbsp;<br />&nbsp; &nbsp; &nbsp; &nbsp; lda delta<br />&nbsp; &nbsp;clc<br />&nbsp; &nbsp;adc CameraCurrentX<br />&nbsp; &nbsp;sta CameraCurrentX<br />&nbsp; &nbsp;lda delta_hi<br />&nbsp; &nbsp;adc CameraCurrentX2<br />&nbsp; &nbsp;sta CameraCurrentX2<br />_delta_y:<br />&nbsp; &nbsp;sec<br />&nbsp; &nbsp;lda CameraTargetY<br />&nbsp; &nbsp;sbc CameraCurrentY<br />&nbsp; &nbsp;jsr _get_log_delta_from_a<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;cpy #$00<br />&nbsp; &nbsp;beq _out<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;lda delta<br />&nbsp; &nbsp;clc<br />&nbsp; &nbsp;adc CameraCurrentY<br />&nbsp; &nbsp;sta CameraCurrentY<br />&nbsp; &nbsp;lda delta_hi<br />&nbsp; &nbsp;adc CameraCurrentY2<br />&nbsp; &nbsp;sta CameraCurrentY2<br />&nbsp; &nbsp;lda Screen_Y<br />&nbsp; &nbsp;`addm delta<br />&nbsp; &nbsp;.if a &gt;= #240<br />&nbsp; &nbsp;{<br />&nbsp; &nbsp;&nbsp; &nbsp;ldx delta_hi<br />&nbsp; &nbsp;&nbsp; &nbsp;.if x == #$ff<br />&nbsp; &nbsp;&nbsp; &nbsp;{<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;`add 240<br />&nbsp; &nbsp;&nbsp; &nbsp;}<br />&nbsp; &nbsp;&nbsp; &nbsp;.else<br />&nbsp; &nbsp;&nbsp; &nbsp;{<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;`sub 240<br />&nbsp; &nbsp;&nbsp; &nbsp;}<br />&nbsp; &nbsp;}<br />&nbsp; &nbsp;sta Screen_Y<br />_out:<br />&nbsp; &nbsp;rts<br />_get_log_delta_from_a:<br />; wipes out a,x,y. returns log-ish delta.<br />; unsigned value of delta in y. signed value of delta in $00 (lo), $01 (hi)<br />&nbsp; &nbsp;sta delta<br />&nbsp; &nbsp;tax<br />&nbsp; &nbsp;and #$80&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;; test for negative number<br />&nbsp; &nbsp;sta is_neg&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;; needed to zero out is_neg value<br />&nbsp; &nbsp;beq +<br />&nbsp; &nbsp;txa<br />&nbsp; &nbsp;and #$7f<br />&nbsp; &nbsp;sta delta<br />&nbsp; &nbsp;lda #$80<br />&nbsp; &nbsp;sec<br />&nbsp; &nbsp;sbc delta<br />&nbsp; &nbsp;tax<br />*&nbsp; &nbsp;txa<br />&nbsp; &nbsp;ldy #$04<br />&nbsp; &nbsp;and #$c0<br />&nbsp; &nbsp;bne _return<br />&nbsp; &nbsp;txa<br />&nbsp; &nbsp;ldy #$03<br />&nbsp; &nbsp;and #$30<br />&nbsp; &nbsp;bne _return<br />&nbsp; &nbsp;txa<br />&nbsp; &nbsp;ldy #$02<br />&nbsp; &nbsp;and #$0c<br />&nbsp; &nbsp;bne _return<br />&nbsp; &nbsp;txa<br />&nbsp; &nbsp;ldy #$01<br />&nbsp; &nbsp;and #$03<br />&nbsp; &nbsp;bne _return<br />&nbsp; &nbsp;ldy #$00<br />_return:<br />&nbsp; &nbsp;lda is_neg<br />&nbsp; &nbsp;beq +<br />&nbsp; &nbsp;sty delta<br />&nbsp; &nbsp;lda #$00<br />&nbsp; &nbsp;sec<br />&nbsp; &nbsp;sbc delta<br />&nbsp; &nbsp;sta delta<br />&nbsp; &nbsp;lda #$ff<br />&nbsp; &nbsp;sta delta_hi<br />*&nbsp; &nbsp;rts<br />.scend</div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>pops</b> [ Mon Feb 03, 2014 9:48 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: 6502 flags after adding signed byte to unsigned byte.</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tepples wrote:</div><div class="quotecontent">Which raises the question of how to efficiently copy bit 7 into all bits of the accumulator. The snippet on the wiki page destroys the carry, so don't use it between adding the low bytes and adding the high bytes without saving and restoring P. Perhaps a more efficient way is to decrement the high byte of the sum if the sign bit of the 8-bit value is true: BPL over a DEC.<br /><br />Another question is raised as well: how to efficiently clamp addition of a signed 8- or 16-bit value to an unsigned 8- or 16-bit value so that adding a positive value doesn't cause the 16-bit value to exceed 65535 and adding a negative value doesn't cause the 16-bit value to fall below 0.</div><br />That's a very interesting and very 6502-ish way of solving the problem. If I were to do it again, from scratch, I'd definitely try it your way.<br /><br />As to the second problem, I have no easy answers, but in my engine I always make sure that the target value is within the bounds of the map - since the algorithm I posted moves CameraCurrent towards CameraTarget, so long as CameraTarget is within bounds and delta never exceeds a very small value (only moves by $01 per frame when close to the target), CameraCurrent will never exceed the map bounds.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Mon Feb 03, 2014 11:32 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: 6502 flags after adding signed byte to unsigned byte.</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />How about this for 16-bit + signed 8-bit:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp; &nbsp; &nbsp; lda delta<br />&nbsp; &nbsp; &nbsp; &nbsp; bpl pos<br />&nbsp; &nbsp; &nbsp; &nbsp; dec high<br />pos:&nbsp; &nbsp; clc<br />&nbsp; &nbsp; &nbsp; &nbsp; adc low<br />&nbsp; &nbsp; &nbsp; &nbsp; sta low<br />&nbsp; &nbsp; &nbsp; &nbsp; bcs noc<br />&nbsp; &nbsp; &nbsp; &nbsp; inc high<br />noc:<br /></div><br /><br />Heh, and tepples suggested the same thing:<br /><div class="quotetitle">tepples wrote:</div><div class="quotecontent">Perhaps a more efficient way is to decrement the high byte of the sum if the sign bit of the 8-bit value is true: BPL over a DEC.</div><br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Another question is raised as well: how to efficiently clamp addition of a signed 8- or 16-bit value to an unsigned 8- or 16-bit value so that adding a positive value doesn't cause the 16-bit value to exceed 65535 and adding a negative value doesn't cause the 16-bit value to fall below 0.</div><br /><br />8-bit signed + 8-bit unsigned, clamped to 8-bit unsigned:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp; &nbsp; &nbsp; clc<br />&nbsp; &nbsp; &nbsp; &nbsp; lda signed<br />&nbsp; &nbsp; &nbsp; &nbsp; bpl pos<br />neg:&nbsp; &nbsp; adc unsigned<br />&nbsp; &nbsp; &nbsp; &nbsp; bcs done<br />&nbsp; &nbsp; &nbsp; &nbsp; lda #0<br />&nbsp; &nbsp; &nbsp; &nbsp; beq done<br />pos:&nbsp; &nbsp; adc unsigned<br />&nbsp; &nbsp; &nbsp; &nbsp; bcc done<br />&nbsp; &nbsp; &nbsp; &nbsp; lda #$ff<br />done:&nbsp; &nbsp;sta unsigned<br /><br />Test output<br /><br />signed<br />&nbsp; &nbsp;unsigned<br />&nbsp; &nbsp; &nbsp; unsigned out<br />00 00 00 <br />FF 00 00 <br />FF 01 00 <br />80 00 00 <br />80 80 00 <br />80 81 01 <br />7F 80 FF <br />7F 81 FF <br />7F FF FF <br /></div><br /><br /><br />8-bit signed + 16-bit unsigned, clamped to 16-bit unsigned:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp; &nbsp; &nbsp; lda unsigned_lo<br />&nbsp; &nbsp; &nbsp; &nbsp; clc<br />&nbsp; &nbsp; &nbsp; &nbsp; adc signed<br />&nbsp; &nbsp; &nbsp; &nbsp; sta unsigned_lo<br />&nbsp; &nbsp; &nbsp; &nbsp; lda unsigned_hi<br />&nbsp; &nbsp; &nbsp; &nbsp; bit signed<br />&nbsp; &nbsp; &nbsp; &nbsp; bpl pos<br />neg:&nbsp; &nbsp; adc #$ff<br />&nbsp; &nbsp; &nbsp; &nbsp; bcs done<br />&nbsp; &nbsp; &nbsp; &nbsp; lda #0<br />&nbsp; &nbsp; &nbsp; &nbsp; beq clamp<br />pos:&nbsp; &nbsp; adc #0<br />&nbsp; &nbsp; &nbsp; &nbsp; bcc done<br />&nbsp; &nbsp; &nbsp; &nbsp; lda #$ff<br />clamp:&nbsp; sta unsigned_lo<br />done:&nbsp; &nbsp;sta unsigned_hi<br /><br />Test output<br /><br />signed<br />&nbsp; &nbsp;unsigned<br />&nbsp; &nbsp; &nbsp; &nbsp; unsigned out<br />00 0000 0000 <br />00 0100 0100 <br />FF 0000 0000 <br />FF 0001 0000 <br />FF 0100 00FF <br />80 0080 0000 <br />80 0100 0080 <br />01 00FF 0100 <br />01 FFFF FFFF <br />7F FF81 FFFF <br /><br /></div><br /><br />16-bit signed + 16-bit unsigned, clamped to 16-bit unsigned:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp; &nbsp; &nbsp; lda unsigned_lo<br />&nbsp; &nbsp; &nbsp; &nbsp; clc<br />&nbsp; &nbsp; &nbsp; &nbsp; adc signed_lo<br />&nbsp; &nbsp; &nbsp; &nbsp; sta unsigned_lo<br />&nbsp; &nbsp; &nbsp; &nbsp; lda signed_hi<br />&nbsp; &nbsp; &nbsp; &nbsp; bpl pos<br />neg:&nbsp; &nbsp; adc unsigned_hi<br />&nbsp; &nbsp; &nbsp; &nbsp; bcs done<br />&nbsp; &nbsp; &nbsp; &nbsp; lda #0<br />&nbsp; &nbsp; &nbsp; &nbsp; beq clamp<br />pos:&nbsp; &nbsp; adc unsigned_hi<br />&nbsp; &nbsp; &nbsp; &nbsp; bcc done<br />&nbsp; &nbsp; &nbsp; &nbsp; lda #$ff<br />clamp:&nbsp; sta unsigned_lo<br />done:&nbsp; &nbsp;sta unsigned_hi<br /><br />Test output<br /><br />signed<br />&nbsp; &nbsp; &nbsp;unsigned<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; unsigned out<br />0000 0000 0000 <br />7FFF 8000 FFFF <br />7FFF 8001 FFFF <br />7FFF FFFF FFFF <br />8000 0000 0000 <br />8000 7FFF 0000 <br />8000 8000 0000 <br />8000 8001 0001 <br />8000 FFFF 7FFF <br /></div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Tue Feb 04, 2014 8:27 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: 6502 flags after adding signed byte to unsigned byte.</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">blargg wrote:</div><div class="quotecontent">How about this for 16-bit + signed 8-bit:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp; &nbsp; &nbsp; lda delta<br />&nbsp; &nbsp; &nbsp; &nbsp; bpl pos<br />&nbsp; &nbsp; &nbsp; &nbsp; dec high<br />pos:&nbsp; &nbsp; clc<br />&nbsp; &nbsp; &nbsp; &nbsp; adc low<br />&nbsp; &nbsp; &nbsp; &nbsp; sta low<br />&nbsp; &nbsp; &nbsp; &nbsp; bcs noc<br />&nbsp; &nbsp; &nbsp; &nbsp; inc high<br />noc:<br /></div><br /><br />Heh, and tepples suggested the same thing:<br /><div class="quotetitle">tepples wrote:</div><div class="quotecontent">Perhaps a more efficient way is to decrement the high byte of the sum if the sign bit of the 8-bit value is true: BPL over a DEC.</div></div><br />Cool trick! It's less readable, but definitely useful for working with small deltas, like when moving objects or calculating sprite coordinates from meta-sprites.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>thefox</b> [ Tue Feb 04, 2014 9:21 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: 6502 flags after adding signed byte to unsigned byte.</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">blargg wrote:</div><div class="quotecontent">How about this for 16-bit + signed 8-bit:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp; &nbsp; &nbsp; lda delta<br />&nbsp; &nbsp; &nbsp; &nbsp; bpl pos<br />&nbsp; &nbsp; &nbsp; &nbsp; dec high<br />pos:&nbsp; &nbsp; clc<br />&nbsp; &nbsp; &nbsp; &nbsp; adc low<br />&nbsp; &nbsp; &nbsp; &nbsp; sta low<br />&nbsp; &nbsp; &nbsp; &nbsp; bcs noc<br />&nbsp; &nbsp; &nbsp; &nbsp; inc high<br />noc:<br /></div></div><br />Hmm, why <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">bcs</tt>?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Tue Feb 04, 2014 10:06 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: 6502 flags after adding signed byte to unsigned byte.</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">thefox wrote:</div><div class="quotecontent">Hmm, why <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">bcs</tt>?</div><br /><s>Some people like to INC the high byte in additions only when necessary, instead of always adding 0.</s><br /><br />EDIT: Yeah, turns out it should be <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">bcc</tt>. Anyway I often prefer to add 0 to the high byte, specially if I'm storing the result in a new variable as opposed to modifying the existing one.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Tue Feb 04, 2014 10:09 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: 6502 flags after adding signed byte to unsigned byte.</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Unless someone got the sign wrong (BCC vs. BCS).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Tue Feb 04, 2014 10:39 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: 6502 flags after adding signed byte to unsigned byte.</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tepples wrote:</div><div class="quotecontent">Unless someone got the sign wrong (BCC vs. BCS).</div><br />Oh crap! I'm missing a lot of things lately... <img src="./images/smilies/icon_rolleyes.gif" alt=":roll:" title="Rolling Eyes" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Tue Feb 04, 2014 2:00 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: 6502 flags after adding signed byte to unsigned byte.</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Obviously it was supposed to be bcc (hence noc -- no carry). I'm no god and untested code is probably buggy. <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>thefox</b> [ Wed Feb 05, 2014 12:13 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: 6502 flags after adding signed byte to unsigned byte.</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />It's a nice trick. <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" /> And what's also nice is that because I have all my 16-bit arithmetic wrapped in macros, I can just drop this thing in in place of my old suboptimal routine.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Wed Feb 05, 2014 12:25 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: 6502 flags after adding signed byte to unsigned byte.</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I just threw those together for the posting, so I recommend further testing.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

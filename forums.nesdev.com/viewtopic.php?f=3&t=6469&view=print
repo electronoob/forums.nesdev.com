@@ -1,0 +1,201 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Blargg's new instruction tests</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Blargg's new instruction tests</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=3&amp;t=6469">http://forums.nesdev.com/viewtopic.php?f=3&amp;t=6469</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>cpow</b> [ Sun Jun 06, 2010 7:01 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Blargg's new instruction tests</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I seem to be going backwards as Blargg goes forwards...nice!
+<br />
+<br />With the new instruction test ROMs that were released recently I strangely get failures *only* on the first instruction tested on each of the singles ROMs.  From the results it would seem my LDA instruction is CRAP for all variants, which I'm fairly certain is not the case.  Also, my BCC, ROL A, JSR, RTS, RTI appear to be crap.  But every other instruction tested passes...
+<br />
+<br />I'm fairly confident my P register is being set correctly because:
+<br />
+<br />1. If I remove the "stuck" bit *all* instructions fail, not just the first one.
+<br />2. If I modify the B flag behavior *all* instructions fail.
+<br />3. BCC fails which doesn't modify P at all; other relative variants do not fail.
+<br />
+<br />Here, again, I completely pass an earlier version of Blargg's instruction tests; I also completely pass nestress.nes' CPU section and nestest.nes for both normal and undocumented.
+<br />
+<br />There are a few undocumented instructions which I don't pass:
+<br />
+<br />ARR #n
+<br />ATX #n
+<br />AXS #n
+<br />SYA abs,X
+<br />SXA abs,Y
+<br />
+<br />I don't think these could impact the failure.
+<br />
+<br />I'm really scratching my head over what sort of condition could cause me to get failure only on the first opcode tested of each singles test ROM!  If I change something globally affecting like the behavior of the P register I get slews of other failures.
+<br />
+<br />It's not like it could be a register-value-at-reset problem either because there's lots of execution time prior to the first test where the registers are modified from their reset condition.  Also, each test appears to set up P, A, X, Y, SP, and the instruction's operand prior to the test.
+<br />
+<br />Certainly I think I can rule out A, X, and Y problems...as LDA/X/Y will stomp on whatever might have been there that might have been wrong (and should also correct wrong P), or TAX, TAY will do the same for X and Y.
+<br />
+<br />That really only leaves the possibility that it is something on the stack that is wrong for the first instruction tested but gets overwritten with the right value?
+<br />
+<br />I also just tried out of pure stupid unreasoning reversing the PUSH/POP operation (ie. PUSH = decrement SP *then* put byte at SP instead of put byte at SP *then* decrement SP) but that wreaked all sorts of havoc including a KIL instruction execution.  That slightly baffles me...seems it should have just offset the stack by one byte not caused execution problems (the PUSH/POP should have remained consistent but just use one byte lower on the actual stack).  The test ROMs must be doing some SP tricks...
+<br />
+<br />Scratching head in Minneapolis...
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Sun Jun 06, 2010 6:20 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />We finally solved the problem; the emulated APU was incorrectly generating an IRQ/not clearing the flag even though $4017 had been written with $40. The next version of the tests will write $C0, and write $00 to $4010, and read from $4015, just to be sure it's generating no IRQs during the tests. The reason these didn't occur before is that the new tests check several bytes around the current stack pointer, for all instructions, in case one erroneously writes to the stack. So this erroneous IRQ was doing that, and causing failure of the first instruction.
+<br />
+<br />Reminds me of a similar failure in a previous version, where someone's NES emulator implemented the decimal mode of the 6502. Since then the CPU tests have cleared the decimal flag whenever it might have been set, so that this bug will only cause failure of ADC/SBC, rather than every instruction <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>cpow</b> [ Sun Jun 06, 2010 6:27 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Blargg's new instruction tests</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">NESICIDE wrote:</div><div class="quotecontent">I seem to be going backwards as Blargg goes forwards...nice!</div>
+<br />
+<br />Well thanks very very much to Blargg for his help today.  It turns out I was not releasing APU frame IRQs on a write of $40 to $4017.  This was messing up my stack and failing the CRC comparison.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

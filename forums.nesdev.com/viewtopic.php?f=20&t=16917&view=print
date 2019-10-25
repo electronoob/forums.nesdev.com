@@ -1,0 +1,270 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Channel 4 sounding louder than expected</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Channel 4 sounding louder than expected</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=20&amp;t=16917">http://forums.nesdev.com/viewtopic.php?f=20&amp;t=16917</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>MegaBoyEXE</b> [ Mon Jan 08, 2018 9:13 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Channel 4 sounding louder than expected</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Hello, I've got the sound emulation working and all channels sounds good. I know I'm missing a lot of the &quot;obscure behaviors&quot; from the guides, but it works better than I expected.<br /><br />Problem is: Channel 4 is generating a &quot;buzz&quot; effect that sounds louder than it should be. The effect of the &quot;ocean waves&quot; in the Zelda: Link's Awakening intro, or almost all songs from Mega Man III are good examples.<br />The noise is more noticeable than the other channels on Mega Man III, which is pretty annoying. Other channels sounds good.<br />Also, I noticed the Zelda logo &quot;tliiiin&quot; hiss that plays when it appears in the intro is not reached (looks like it's tone is higher than what I can sample), so it sounds just like a normal buzz. Other sounds effects plays correctly.<br /><br />I followed the GBSOUND and Sound Hardware wiki page, maybe I'm doing something really wrong.<br /><br />I was sampling before at 44100 Hz, but increased to 96000 Hz and sound quality improved, but both works.<br />I steps cycles in multiples of 4, inside a loop until all elapsed cycles are consumed (based on the last instruction cycles count - my emu is cycle count accurate only).<br />The periods for sampling are:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">44100 Hz:&nbsp; 4194304 / (44100 / 2); // gives ~735 samples<br />96000 Hz: 4194304 / (96000 / 2); // gives ~1606 samples<br /></div><br /><br />I fill a buffer with that number of samples, and audio request comes from another thread.<br />When called, I copy the buffer to audio buffer and clear my buffer for next frame.<br />The emulation is not synced to audio, so there's some skip (small sound gaps, sometimes very rarely)<br /><br />All channels sounds good with that configuration, but channel 4 has those issues I mentioned earlier.<br /><br />Code for channel 4:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">public void FreqTimerStep( )<br />{<br />&nbsp; &nbsp; // for each 4 cycles, this method is called from APU<br /><br />&nbsp; &nbsp; m_timer -= 4;<br /><br />&nbsp; &nbsp; if (m_timer &lt;= 0)<br />&nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; int result = (m_linearShiftReg &amp; 0x1) ^ ((m_linearShiftReg &gt;&gt; 1) &amp; 0x1);<br />&nbsp; &nbsp; &nbsp; &nbsp; m_linearShiftReg &gt;&gt;= 1;<br />&nbsp; &nbsp; &nbsp; &nbsp; m_linearShiftReg |= result &lt;&lt; 14;<br />&nbsp; &nbsp; &nbsp; &nbsp; if (m_stepsMode == 1)<br />&nbsp; &nbsp; &nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; m_linearShiftReg &amp;= ~0x40; // clear bit 6<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; m_linearShiftReg |= result &lt;&lt; 6;<br />&nbsp; &nbsp; &nbsp; &nbsp; }<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; // Reload Frequency<br />&nbsp; &nbsp; &nbsp; &nbsp; m_timer += CalcFrequency();<br />&nbsp; &nbsp; }<br />}<br /><br /><br />int CalcFrequency( )<br />{<br />&nbsp; &nbsp; int freq = 8;<br /><br />&nbsp; &nbsp; switch (m_divRatio)<br />&nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; case 0:<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; freq = 8 &lt;&lt; m_shiftFreq;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; break;<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; case 1:<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; freq = 16 &lt;&lt; m_shiftFreq;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; break;<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; case 2:<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; freq = 32 &lt;&lt; m_shiftFreq;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; break;<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; case 3:<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; freq = 48 &lt;&lt; m_shiftFreq;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; break;<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; case 4:<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; freq = 64 &lt;&lt; m_shiftFreq;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; break;<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; case 5:<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; freq = 80 &lt;&lt; m_shiftFreq;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; break;<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; case 6:<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; freq = 96 &lt;&lt; m_shiftFreq;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; break;<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; case 7:<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; freq = 112 &lt;&lt; m_shiftFreq;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; break;<br />&nbsp; &nbsp; }<br /><br />&nbsp; &nbsp; return freq;<br />}<br /></div><br /><br />I will not post the code for volume envelope and length control, as it's the same for all channels, so it should be good (missing some APU quirks, but in normal conditions, it works).<br /><br />The sampling code is <br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">// Output is bit 0 inverted<br /><br />if ((m_linearShiftReg &amp; 0x1) == 0)<br />{<br />&nbsp; &nbsp; return 15 &amp; m_curVolume;<br />}<br /><br />return 0;</div><br /><br />Can someone spot anything wrong that would cause the issues I mentioned?<br />Maybe I need some kind of audio filter for this channel?<br /><br />Edit: if needed, full code is at <a href="https://github.com/fattard/xFF/blob/gb/emu-snd/unity3D_proj/Assets/source/EmuCores/GB/HW/audio/SoundChannel4.cs" class="postlink">https://github.com/fattard/xFF/blob/gb/emu-snd/unity3D_proj/Assets/source/EmuCores/GB/HW/audio/SoundChannel4.cs</a>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Mon Jan 08, 2018 10:03 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Channel 4 sounding louder than expected</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Noise contains frequencies above 22 kHz that fold over the audio if you resample the audio naively. This makes noise sound louder than expected unless you apply a low-pass filter to remove the aliasing. The simplest such filter is a box filter, averaging together the 4194304/44100 = 95 input samples that make up one output sample. Though imperfect, this should still provide a noticeable improvement over just choosing one out of the 95 samples. Sound quality improved at 96 kHz because a lot of the aliasing folded into the 22-48 kHz band, which the speaker and your ear filter out.<br /><br />When downsampling the output of a &quot;chiptune&quot; style synthesizer that makes discrete transitions from one level to another, you can decompose the sum of the four channels into timestamped differences between one level and the next and then resynthesize the audio using <a href="http://blargg.8bitalley.com/bl-synth/" class="postlink">band-limited step responses (BLEPs)</a>. Blargg has published a library called <a href="http://blargg.8bitalley.com/libs/audio.html#Blip_Buffer" class="postlink">Blip_Buffer</a> to do this, using a bank of linear phase (time-symmetric) BLEPs. <a href="http://www.experimentalscene.com/articles/minbleps.php" class="postlink">Others prefer minimum-phase BLEPs</a> because <a href="https://www.dsprelated.com/freebooks/filters/Minimum_Phase_Filters.html#sec:lpmpc" class="postlink">forward masking is stronger than backward</a>.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>MegaBoyEXE</b> [ Mon Jan 08, 2018 12:58 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Channel 4 sounding louder than expected</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />So, it really needs a filter. I was not expecting entering at this topic yet, as it was my first time doing procedural audio programming. I'm still in learn process about everything related to sound programming.<br /><br />I tried applying this &quot;filter&quot; only to channel 4, as others sounds good already. Tried average between the last 4 to 20 samples and indeed I could hear to &quot;tliiin&quot; sound now on Zelda logo appearing, as well as some other effects that were only buzzes.<br />Most of the effects did got a lower volume level this time, but the buzz sound is looking a little more low quality.<br /><br />For example, let's say I want average of 10 samples: when channel period ticks, I'm storing the sample in a queue with the last 10 samples. Each time a new sample is generated, I dispose the oldest one in the queue, keeping the last 9 plus the new one.<br />When the sampling time is reached, I'm getting the average of the 10 samples and sending to audio buffer, instead of getting the direct sample from the LFSR.<br /><br />I'm probably doing everything wrong  <img src="./images/smilies/icon_rolleyes.gif" alt=":roll:" title="Rolling Eyes" /> , but I did at least understood the problem.<br /><br />I will experiment more and read the content you provided. I think I still lack the enough knowledge to understand all those concepts, but I will surely go after them.<br /><br />Thank you for your time and explanations!
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Mon Jan 08, 2018 1:14 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Channel 4 sounding louder than expected</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tepples wrote:</div><div class="quotecontent">The simplest such filter is a box filter, averaging together the 4194304/44100 = 95 input samples that make up one output sample.<br /></div>Also one of the computationally cheapest options, requiring only 94 additions and one division per output sample, while providing filtering comparable to a 1st order lowpass with a corner frequency of 1/95th of the original sample rate.<br /><br />Filter design is something you can spend endless hours on.<br /><br /><div class="quotetitle">MegaBoyEXE wrote:</div><div class="quotecontent">Tried average between the last 4 to 20 samples and indeed I could hear to &quot;tliiin&quot; sound now on Zelda logo appearing, as well as some other effects that were only buzzes.<br />Most of the effects did got a lower volume level this time, but the buzz sound is looking a little more low quality.<br /></div>You're decimating <em>before</em> you filter. That doesn't work: that has already <a href="https://en.wikipedia.org/wiki/Aliasing" class="postlink">aliased</a> the high frequencies down in, and by filtering after the fact you just make the channel sound muddy always.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>MegaBoyEXE</b> [ Mon Jan 08, 2018 2:42 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Channel 4 sounding louder than expected</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">lidnariq wrote:</div><div class="quotecontent">You're decimating <em>before</em> you filter. That doesn't work: that has already <a href="https://en.wikipedia.org/wiki/Aliasing" class="postlink">aliased</a> the high frequencies down in, and by filtering after the fact you just make the channel sound muddy always.</div><br /><br />Oh, ok maybe I did not fully understood the concept. Let me try to explain with some pseudo-code.<br /><br />Here's the APU cycles step, where I tick each channel timer, and fill my samples buffer, when time to sample is reached:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">void CyclesStep(int aElapsedCycles) // multiple of 4, based on last instruction<br />{<br />&nbsp; &nbsp; while (aElapsedCycles &gt; 0)<br />&nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; aElapsedCycles -= 4;<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; // do FrameSequencer steps (length clock check, sweep clock check, volume envelope clock check)<br />&nbsp; &nbsp; &nbsp; &nbsp; .....<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; // Tick all channels<br />&nbsp; &nbsp; &nbsp; &nbsp; channel1.FreqTimerStep();<br />&nbsp; &nbsp; &nbsp; &nbsp; channel2.FreqTimerStep();<br />&nbsp; &nbsp; &nbsp; &nbsp; channel3.FreqTimerStep();<br />&nbsp; &nbsp; &nbsp; &nbsp; channel4.FreqTimerStep(); // &lt;--- channel4 Tick<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; // Check if it's sampling time:&nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; m_timeToGenerateSample += 4;<br />&nbsp; &nbsp; &nbsp; &nbsp; if (m_timeToGenerateSample &gt; DESIRED_TIME)&nbsp; // DESIRED_TIME is: 4194304 / (96000 / 2)&nbsp; -&gt;&nbsp; at each 87 cycles, generate a sample<br />&nbsp; &nbsp; &nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; m_timeToGenerateSample -= DESIRED_TIME; // resets counter<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; int sampleL = channel1.SampleL() + channel2.SampleL() + channel3.SampleL() + channel4.SampleL();<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; int sampleR = channel1.SampleR() + channel2.SampleR() + channel3.SampleR() + channel4.SampleR();<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; // Samples buffer has capacity to up to 8192 entries, stores stereo interleaved<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; m_samplesBuffer&#91;m_bufferPos * 2&#93; = sampleL;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; m_samplesBuffer&#91;m_bufferPos * 2 + 1&#93; = sampleR;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; // Circular buffer<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; m_bufferPos = (m_bufferPos + 2) % (m_samplesBuffer.Length / 2);<br />&nbsp; &nbsp; &nbsp; &nbsp; }<br />&nbsp; &nbsp; }<br />}<br /></div><br /><br />The audio thread call comes from another thread, at a fixed rate:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">public void OnOutputSoundRequested(ref float&#91;&#93; b)<br />{<br />&nbsp; &nbsp; // At 96000 Hz this is the number of samples (stereo) generated per frame<br />&nbsp; &nbsp; // and audio lib buffer was configured to this exact size<br />&nbsp; &nbsp; int numSamples = 1606;<br /><br />&nbsp; &nbsp; for (int i = 0; i &lt; numSamples; ++i)<br />&nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; b&#91;i&#93; = Gain * (sbyte)(m_audioBuffer&#91;i&#93;) / 127f;<br />&nbsp; &nbsp; }<br /><br />&nbsp; &nbsp; // Resets buffer pos<br />&nbsp; &nbsp; m_bufferPos = 0;<br />}<br /></div><br /><br />Now, this is how I'm trying the Channel 4 with &quot;filter&quot;:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">public void FreqTimerStep( )<br />{<br />&nbsp; &nbsp; m_timer -= 4;<br /><br />&nbsp; &nbsp; if (m_timer &lt;= 0)<br />&nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; int result = (m_linearShiftReg &amp; 0x1) ^ ((m_linearShiftReg &gt;&gt; 1) &amp; 0x1);<br />&nbsp; &nbsp; &nbsp; &nbsp; m_linearShiftReg &gt;&gt;= 1;<br />&nbsp; &nbsp; &nbsp; &nbsp; m_linearShiftReg |= result &lt;&lt; 14;<br />&nbsp; &nbsp; &nbsp; &nbsp; if (m_stepsMode == 1)<br />&nbsp; &nbsp; &nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; m_linearShiftReg &amp;= ~0x40; // clear bit 6<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; m_linearShiftReg |= result &lt;&lt; 6;<br />&nbsp; &nbsp; &nbsp; &nbsp; }<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; // Stores sample in queue<br />&nbsp; &nbsp; &nbsp; &nbsp; GenerateSampleToFilterL();<br />&nbsp; &nbsp; &nbsp; &nbsp; GenerateSampleToFilterR();<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; // Reload Frequency<br />&nbsp; &nbsp; &nbsp; &nbsp; m_timer += CalcFrequency();<br />&nbsp; &nbsp; }<br />}<br /><br /><br />void GenerateSampleToFilterR( ) // GenerateSampleToFilterL() is identical using L stuffs<br />{<br />&nbsp; &nbsp; // Discard oldest<br />&nbsp; &nbsp; m_samplesToFilterR.Dequeue();<br />&nbsp; &nbsp; <br />&nbsp; &nbsp; if (!IsSoundOn || !ChannelEnabled || !RightOutputEnabled || !UserEnabled)<br />&nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; m_samplesToFilterR.Enqueue(0);<br />&nbsp; &nbsp; &nbsp; &nbsp; return;<br />&nbsp; &nbsp; }<br />&nbsp; &nbsp; <br />&nbsp; &nbsp; // Output is bit 0 inverted<br /><br />&nbsp; &nbsp; if ((m_linearShiftReg &amp; 0x1) == 0)<br />&nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; m_samplesToFilterR.Enqueue(15 &amp; m_curVolume);<br />&nbsp; &nbsp; &nbsp; &nbsp; return;<br />&nbsp; &nbsp; }<br /><br />&nbsp; &nbsp; m_samplesToFilterR.Enqueue(0);<br />&nbsp; &nbsp; return;<br />}<br /><br /></div><br /><br />And, finally the code when sampling was called<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent"><br />public int SampleR() // SampleL is identical with L stuffs<br />{<br />&nbsp; &nbsp; return ApplyFilter(m_samplesToFilterR);<br />}<br /><br />int ApplyFilter(CircularBuffer&lt;int&gt; aSamplesToFilter)<br />{<br />&nbsp; &nbsp; int total = 0;<br /><br />&nbsp; &nbsp; // Tried sizes of 4 to 20, using 8 currently<br /><br />&nbsp; &nbsp; for (int i = 0; i &lt; aSamplesToFilter.Count; ++i)<br />&nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; total += aSamplesToFilter&#91;i&#93;;<br />&nbsp; &nbsp; }<br /><br />&nbsp; &nbsp; return total / aSamplesToFilter.Count;<br />}<br /></div><br /><br />So, the final sample that goes to audio buffer is the average of the 8 stored samples.<br /><br />How wrong did I get the idea?  <img src="./images/smilies/icon_razz.gif" alt=":P" title="Razz" /><br /><br />I think the correct would use the filter at the APU, and getting the average of the last 87 samples, right?<br />This means, filtering all channels, or can I apply ONLY to channel 4?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Mon Jan 08, 2018 2:57 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Channel 4 sounding louder than expected</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">MegaBoyEXE wrote:</div><div class="quotecontent">        if (m_timeToGenerateSample &gt; DESIRED_TIME)  // DESIRED_TIME is: 4194304 / (96000 / 2)  -&gt;  at each 87 cycles, generate a sample<br /></div>You're natively synthesizing audio at 96kHz here; you're generating the aliases at the same time.<br /><br />The DMG noise channel actually generates audio at 524kHz.<br /><br />What we're saying is:<br />* If you generate audio samples at 524kHz<br />* and you use a moving average<br />* then you can generate audio at 96kHz and get a result that's not too inauthentic.<br /><br />But when you generate audio at 96kHz, and use a 10-sample moving average, then you're actually adding a lowpass filter at approximately 10kHz. And any higher-frequency audio components are already folded down on top of the audio band. It won't matter <em>too</em> much when channel 4 is in white noise mode (15-bit) because white noise is supposed to have equal energy at every frequency, but it will distinctly be audibly wrong in tonal mode (7-bit).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>MegaBoyEXE</b> [ Mon Jan 08, 2018 4:29 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Channel 4 sounding louder than expected</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I understood now! Instead of sampling a specific point in the 524 KHz wave (when downsampling to 96 KHz), I need to sample a bigger interval of it, which I will get the average as a sample.<br /><br />I just changed my code, and it worked pretty well! I'm sorry I did not get this earlier. It's pretty clear now what I'm actually doing!<br />Thank you very much for all the explanations!!!  <img src="./images/smilies/Mfr_icon_homebrew.png" alt=":beer:" title="Beer" /> <br /><br /><br /><br />The Channel 4 code was restored to original, as the OP, there's nothing to change there.<br /><br />The actual change needs to be in the APU. So, here it is:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent"><br />void CyclesStep(int aElapsedCycles) // multiple of 4, based on last instruction<br />{<br />&nbsp; &nbsp; while (aElapsedCycles &gt; 0)<br />&nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; aElapsedCycles -= 4;<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; // do FrameSequencer steps (length clock check, sweep clock check, volume envelope clock check)<br />&nbsp; &nbsp; &nbsp; &nbsp; .....<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; // Tick all channels<br />&nbsp; &nbsp; &nbsp; &nbsp; channel1.FreqTimerStep();<br />&nbsp; &nbsp; &nbsp; &nbsp; channel2.FreqTimerStep();<br />&nbsp; &nbsp; &nbsp; &nbsp; channel3.FreqTimerStep();<br />&nbsp; &nbsp; &nbsp; &nbsp; channel4.FreqTimerStep(); // &lt;--- channel4 Tick<br />&nbsp; &nbsp; &nbsp; &nbsp; <br /><br />&nbsp; &nbsp; &nbsp; &nbsp; // Generates sample for channel 4, to be filtered<br />&nbsp; &nbsp; &nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; m_samplesToFilterL.Dequeue(); // get rid of oldest sample<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; m_samplesToFilterL.Enqueue(m_channel4.SampleL()); // add sample in APU frequency<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; m_samplesToFilterR.Dequeue(); // get rid of oldest sample<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; m_samplesToFilterR.Enqueue(m_channel4.SampleR()); // add sample in APU frequency<br />&nbsp; &nbsp; &nbsp; &nbsp; }<br />&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; <br /><br />&nbsp; &nbsp; &nbsp; &nbsp; // Check if it's sampling time: <br />&nbsp; &nbsp; &nbsp; &nbsp; m_timeToGenerateSample += 4;<br />&nbsp; &nbsp; &nbsp; &nbsp; if (m_timeToGenerateSample &gt; DESIRED_TIME)&nbsp; // DESIRED_TIME is: 4194304 / (96000 / 2)&nbsp; -&gt;&nbsp; at each 87 cycles, generate a sample<br />&nbsp; &nbsp; &nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; m_timeToGenerateSample -= DESIRED_TIME; // resets counter<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; // Add channels 1, 2 and 3 as before<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; int sampleL = channel1.SampleL() + channel2.SampleL() + channel3.SampleL();<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; int sampleR = channel1.SampleR() + channel2.SampleR() + channel3.SampleR();<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; // Now include the filtered channel4 samples<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; sampleL += ApplyFilter(m_samplesToFilterL);<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; sampleR += ApplyFilter(m_samplesToFilterR);<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; // Samples buffer has capacity to up to 8192 entries, stores stereo interleaved<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; m_samplesBuffer&#91;m_bufferPos * 2&#93; = sampleL;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; m_samplesBuffer&#91;m_bufferPos * 2 + 1&#93; = sampleR;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; // Circular buffer<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; m_bufferPos = (m_bufferPos + 2) % (m_samplesBuffer.Length / 2);<br />&nbsp; &nbsp; &nbsp; &nbsp; }<br />&nbsp; &nbsp; }<br />}<br /><br /><br />int ApplyFilter(CircularBuffer&lt;int&gt; aSamplesToFilter)<br />{<br />&nbsp; &nbsp; int total = 0;<br />&nbsp; &nbsp; <br />&nbsp; &nbsp; // The size of aSamplesToFilter is: 87 cycles / 2 -&gt; 43<br /><br />&nbsp; &nbsp; for (int i = 0; i &lt; aSamplesToFilter.Count; ++i)<br />&nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; total += aSamplesToFilter&#91;i&#93;;<br />&nbsp; &nbsp; }<br /><br />&nbsp; &nbsp; return total / aSamplesToFilter.Count;<br />}<br /></div><br /><br />As I'm sampling at each 87 cycles, I got an optimal sample range of the last 43 samples ( 87/2 ) as the interval.<br />The effect of the filter did lowered the overall volume of noise channel to good levels, and also allowed the highest frequency samples to be included and played.<br /><br />Now I have 2 questions:<br /><br />1- I'm sampling the channel 4 EVERY tick of the APU. Should I been doing this only when the channel's period is terminal, as the real hardware would be outputing?<br />2- Would be better if I include all other channels in the this filter too, or it does not really matter?<br /><br />Thank you for your help!
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Mon Jan 08, 2018 5:26 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Channel 4 sounding louder than expected</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">MegaBoyEXE wrote:</div><div class="quotecontent">1- I'm sampling the channel 4 EVERY tick of the APU. Should I been doing this only when the channel's period is terminal, as the real hardware would be outputing?<br /></div>I think that's basically the same operation, just being done in one order or the other. It doesn't much matter whether you have the noise channel audio at 524kHz, which you then average and downsample, or whether you calculate when within each output sample it would have transitioned and use a weighted average instead. (The latter puts you in a good place to graduate to using bandlimited synthesis, as Tepples was talking about, but you may not care)<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">2- Would be better if I include all other channels in the this filter too, or it does not really matter?<br /></div>All of the channels <em>can</em> produce readily audible aliases: channels 1 and 2 both generate waveforms at up to 1049kHz, and channel 3's sample rate can be as high as 2097kHz (right? the DMG doesn't have the same mute functionality on short periods that the NES does, right?)<br /><br />Whether the things you've found will produce audible aliases is a good question.<br /><br />¹<span style="font-size: 67%; line-height: normal">ok, ridiculous question. Has anyone ever tried using the extremely high pitches out of the DMG to transmit in the AM band?</span>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

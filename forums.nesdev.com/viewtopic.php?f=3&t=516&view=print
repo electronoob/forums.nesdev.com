@@ -1,0 +1,355 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Reading opcodes directly without read function</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Reading opcodes directly without read function</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=3&amp;t=516">http://forums.nesdev.com/viewtopic.php?f=3&amp;t=516</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Tue Aug 23, 2005 2:13 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Reading opcodes directly without read function</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />In my NES 6502 CPU core I read opcodes (instructions) directly from memory rather than using the usual memory read function that handles memory-mapped I/O devices like the PPU and APU. My reasoning is that nothing will intentionally execute from an I/O device and that doing so wouldn't be useful anyway. This approach improves performance by avoiding a function call and the need to keep track of the timestamp for opcode reads.
+<br />
+<br />I divide memory into pages (currently 4K in size) and direct memory access simply goes through a mapping table. The table covers the entire 64K address space, not just the upper half where the ROM is usually mapped. Unmapped and I/O pages are assigned to a special page filled with bytes that aren't a legal opcode, helping to catch any attempted execution of these. I also use this optimization for zero-page and the stack, since I don't handle cartridges with hardware that does anything special when those areas are accessed (and I don't know of any that do).
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">const unsigned page_size = 0x1000;<br />byte* pages &#91;0x10000 / page_size&#93;;<br /><br />// the usual memory read function<br />int emulate_read&#40; unsigned addr &#41;;<br /><br />inline int read_mem&#40; unsigned addr &#41;<br />&#123;<br />&nbsp; &nbsp; return pages &#91;addr / page_size&#93; &#91;addr % page_size&#93;;<br />&#125;<br /><br />void emulate_cpu&#40;&#41;<br />&#123;<br />&nbsp; &nbsp; int opcode = read_mem&#40; pc &#41;;<br />&nbsp; &nbsp; switch &#40; opcode &#41;<br />&nbsp; &nbsp; &#123;<br />&nbsp; &nbsp; &nbsp; &nbsp; case 0xA9: // LDA #imm<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; a = read_mem&#40; pc + 1 &#41;;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; set_nz&#40; a &#41;;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; pc += 2;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; break;<br />&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; case 0xA5: // LDA zp<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; a = read_mem&#40; read_mem&#40; pc + 1 &#41; &#41;;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; set_nz&#40; a &#41;;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; pc += 2;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; break;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; case 0xAD: &#123; // LDA abs<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; unsigned addr = read_mem&#40; pc + 2 &#41; * 0x100 + read_mem&#40; pc + 1 &#41;;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; a = emulate_read&#40; addr &#41;;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; set_nz&#40; a &#41;;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; pc += 3;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; break;<br />&nbsp; &nbsp; &nbsp; &nbsp; &#125;<br />&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; case 0x68: // PLA<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; sp = &#40;sp + 1&#41; &amp; 0xff;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; a = read_mem&#40; sp + 0x100 &#41;;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; set_nz&#40; a &#41;;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; pc += 1;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; break;<br />&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; // ...<br />&nbsp; &nbsp; &#125;<br />&#125;<br /></div>
+<br />
+<br />Any questions, problems, or improvements?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>teaguecl</b> [ Tue Aug 23, 2005 3:42 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Just as a clarification, when a mapper does a bankswitch how do you handle it?  I'm assuming it's by updating the pages[] array?
+<br />Also, have you profiled this performance improvement?  You're still doing a divide operation and a table lookup on each read operation, so I wouldn't really expect a huge improvement over a fully decoded implementation.  I guess you are saving either a function call or a bunch of conditionals (depending on how your memory decoder works), so maybe it will speed some things up.  Do you have any numbers on this?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Tue Aug 23, 2005 4:21 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">teaguecl wrote:</div><div class="quotecontent">Just as a clarification, when a mapper does a bankswitch how do you handle it? I'm assuming it's by updating the pages[] array?</div><br /><br />Right. In fact, I use the table for mapping (in the normal read memory function I use the table for ROM accesses).<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Also, have you profiled this performance improvement? You're still doing a divide operation and a table lookup on each read operation, so I wouldn't really expect a huge improvement over a fully decoded implementation.</div>
+<br />
+<br />The divide is of an unsigned value by a power of two, so it should be optimized into a shift (same for the modulo, it converts into a mask): pages [addr &gt;&gt; 12] [addr &amp; 0x0fff].
+<br />
+<br />The full read emulation function is going to have some kind of table or switch statement based on the address, so there is always an unknown branch involved. If the read is from ROM, then you have the above table lookup in addition to address decoding.
+<br />
+<br />In my CPU I use a table of function pointers, similar to the page table, and do the lookup in the CPU core (read_funcs [addr &gt;&gt; 12] ( addr )), so using the page table generates less code in addition to being faster. I use lots of goto statements to reuse common sections of code, so the inline lookups don't expand the code by much (the whole CPU core compiles to 4K).
+<br />
+<br />I don't have any performance measurements handy. I'll look into gathering some.
+<br />
+<br />I keep the implementation hidden behind an abstract interface that has a few functions that map a range of bytes, given the starting address and the number of bytes. This makes the setup code clear and insensitive to changes in the page size (as long as it's not too large).
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">typedef unsigned address_t;<br />typedef int &#40;*read_func_t&#41;&#40; address_t &#41;;<br />typedef void &#40;*write_func_t&#41;&#40; address_t, int data &#41;;<br /><br />void map_memory&#40; address_t, unsigned size, read_func_t, write_func_t &#41;;<br />void map_code&#40; address_t, unsigned size &#41;;<br /></div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Tue Aug 23, 2005 9:07 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Reading opcodes directly without read function</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">blargg wrote:</div><div class="quotecontent">I also use this optimization for zero-page and the stack, since I don't handle cartridges with hardware that does anything special when those areas are accessed (and I don't know of any that do).</div>
+<br />Though it isn't exactly relevant on nesdev.com, a <em>lot</em> of Atari 2600 carts watch the stack for accesses in the range of $1FD-$1FF to perform bankswitching so that they can put main() in one bank and subroutines in the other.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Wed Aug 24, 2005 10:03 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I ran some basic performance profiling on my CPU core using emulated read/write for all memory accesses, and using direct access to zero-page, stack, and instructions. The average time per frame includes CPU emulation <em>and</em> PPU emulation* with rendering turned on (sound is disabled), running on a 400 MHz PowerPC G3 Mac, playing The Guardian Legend for a minute or so. If I can get my sampling profiler running, I can generate more thorough data with timing for the CPU core alone.
+<br />
+<br />All emulated memory accesses: 3.22 msec/frame, 4808 bytes of code in the core CPU emulation function.
+<br />
+<br />Direct memory optimization: 2.05 msec/frame, 3524 bytes of code in the core CPU emulation function.
+<br />
+<br />* PPU emulation is by no means complete. It handles basic games like Castlevania.
+<br />
+<br />EDIT: Corrected byte counts to include only the CPU emulation function.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>teaguecl</b> [ Wed Aug 24, 2005 11:59 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">blargg wrote:</div><div class="quotecontent">All emulated memory accesses: 3.22 msec/frame, 6020 bytes of code in the CPU core.<br /><br />Direct memory optimization: 2.05 msec/frame, 4252 bytes of code in the CPU core.</div>
+<br />
+<br />Thanks Blargg, that's very cool of you to do that testing.  I think it might be a good idea to start documenting stuff like this somewhere.  Obviously it's all very platform specific, but it could lead to some "rules of thumb" for certain aspects of NES emulation based on your hardware.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Thu Aug 25, 2005 1:19 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Thanks for the feedback; it motivated me to completely rewrite my NES 6502 emulation page. Here's the current draft:
+<br />
+<br /><!-- m --><a class="postlink" href="http://www.slack.net/~ant/nes-emu/6502.html">http://www.slack.net/~ant/nes-emu/6502.html</a><!-- m -->
+<br />
+<br />I should probably move it over to the Nesdev wiki and put each technique on its own page to allow more thorough discussion.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Zepper</b> [ Thu Aug 25, 2005 4:01 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />"For every CPU cycle, the NTSC PPU renders 3 pixels". Look my draft:
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">unsigned char readvalue&#40;int address&#41;<br />&#123;<br />&nbsp; &nbsp;ppu_run&#40;&#41;; apu_run&#40;&#41;;<br />&nbsp; &nbsp;return cpu-&gt;readmem&#40;address&#41;;<br />&#125;<br /><br />void cpu_run&#40;&#41;<br />&#123;<br />&nbsp; &nbsp;data = readvalue&#40;PC&#41;;<br />//do stuff<br />&#125;</div><br /><br /><strong>blargg</strong>, you mean something like:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">void cpu_run&#40;&#41;<br />&#123;<br />&nbsp; &nbsp;ppu_run&#40;&#41;; apu_run&#40;&#41;;<br />&nbsp; &nbsp;data = cpu-&gt;bank&#91;PC&gt;&gt;13&#93;&#91;PC &amp; 0x1fff&#93;;<br />&nbsp; &nbsp;//do stuff<br />&#125;</div>
+<br />
+<br />Is this?? Well, I was doing that. Let me share what I do... ^_^;; Opcodes that access RAM (or the stack) have a pointer, rather than a (*hook)(). After fetching the opcode, it jumps to proper address mode (goto _address_mode_XX), and another jumptable to execute the opcode. I could reduce the code size by more than 75% because a few addressing modes (after the proper opcode/address data fetching) do the same of others.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Thu Aug 25, 2005 5:41 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I posted my replies to two other threads since they weren't on-topic for this thread:
+<br />
+<br /><!-- m --><a class="postlink" href="http://nesdev.com/bbs/viewtopic.php?p=4058#4058">http://nesdev.com/bbs/viewtopi ... =4058#4058</a><!-- m -->
+<br /><!-- m --><a class="postlink" href="http://nesdev.com/bbs/viewtopic.php?p=4059#4059">http://nesdev.com/bbs/viewtopi ... =4059#4059</a><!-- m -->
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Sun Oct 02, 2005 12:39 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I was working on my CPU core today and realized that by pre-biasing the pointers in the table, the masking operation could be eliminated. Below I've written the code to be closer to the machine code output:
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">const int low_bits = 12; // page_size = 1 &lt;&lt; 12 = 4096<br />byte* pages &#91;0x10000 &gt;&gt; low_bits&#93;; <br /><br />void set_page&#40; int index, byte* data &#41;<br />&#123;<br />&nbsp; &nbsp; pages &#91;index&#93; = data - &#40;index &lt;&lt; low_bits&#41;;<br />&#125;<br /><br />inline int read_mem&#40; unsigned addr &#41; <br />&#123;<br />&nbsp; &nbsp; int index = addr &gt;&gt; low_bits;<br />&nbsp; &nbsp; byte* page = pages &#91;index&#93;;<br />&nbsp; &nbsp; return page &#91;addr&#93;; // no masking needed!<br />&#125;<br /></div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

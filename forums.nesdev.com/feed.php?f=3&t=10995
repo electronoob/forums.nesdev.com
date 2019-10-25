@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=3&amp;t=10995" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2014-03-11T13:29:43-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=3&amp;t=10995</id>
+<entry>
+<author><name><![CDATA[Anes]]></name></author>
+<updated>2014-03-11T13:29:43-07:00</updated>
+<published>2014-03-11T13:29:43-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10995&amp;p=126662#p126662</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10995&amp;p=126662#p126662"/>
+<title type="html"><![CDATA[Re: MMC5 problems...]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10995&amp;p=126662#p126662"><![CDATA[
+Solved!! thanks Quietust and Disch.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=72">Anes</a> — Tue Mar 11, 2014 1:29 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Disch]]></name></author>
+<updated>2014-03-07T16:41:35-07:00</updated>
+<published>2014-03-07T16:41:35-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10995&amp;p=126518#p126518</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10995&amp;p=126518#p126518"/>
+<title type="html"><![CDATA[Re: MMC5 problems...]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10995&amp;p=126518#p126518"><![CDATA[
+ROM and RAM are separate chips.  You swap them both the same way.<br /><br />The thing that's a little tricky with RAM is that it needs to be mirrored appropriately.  IE, if the same page gets swapped into both $6000 and $8000... then those banks basically are mirrors of each other.  Writes to one will be visible to another and vice versa.<br /><br />Also the written values persist even when the page is swapped out.  So if you swap RAM page 0 in... write to it... then swap in some ROM... then later you swap the RAM page back in... your previous writes will still be there.<br /><br />This should be very easy to implement in any setup.  If you have a situation where you use an array of pointers to do PRG swapping, it's as simple as pointing to a separate RAM buffer instead of your ROM buffer:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">u8 ROM&#91;0x40000&#93;;  // or however much ROM the game has<br />u8 RAM&#91;0x10000&#93;;  // 64K of RAM<br /><br />u8* prg&#91;0x10&#93;;  // 16 pointers, one for each 4K page<br /><br />// ie... if you want to swap $E000 to the last 8K of PRG-ROM:<br />prg&#91;0xE&#93; = &amp;ROM&#91;0x3E000&#93;;<br />prg&#91;0xF&#93; = &amp;ROM&#91;0x3F000&#93;;<br /><br />// to read whatever is swapped into $E345:<br />u8 val = prg&#91;0xE&#93;&#91;0x345&#93;;<br /><br />//<br />//  RAM is the same thing.  Just swap in the RAM buffer instead of the ROM buffer:<br />//<br /><br />// swap in RAM page 0 at $C000-DFFF:<br />prg&#91;0xC&#93; = &amp;RAM&#91;0x00000&#93;;<br />prg&#91;0xD&#93; = &amp;RAM&#91;0x01000&#93;;<br /><br />// swap in RAM page 2 at $A000-BFFF (8k pages):<br />prg&#91;0xA&#93; = &amp;RAM&#91;0x04000&#93;;<br />prg&#91;0xB&#93; = &amp;RAM&#91;0x05000&#93;;<br />// etc<br /></div><br /><br />The only other thing you have to do is make sure that RAM is writable when swapped into $8000-DFFF.  But be sure to also make ROM <strong>not</strong> writable when its swapped into that same area.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=33">Disch</a> — Fri Mar 07, 2014 4:41 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Quietust]]></name></author>
+<updated>2014-03-07T14:58:06-07:00</updated>
+<published>2014-03-07T14:58:06-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10995&amp;p=126514#p126514</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10995&amp;p=126514#p126514"/>
+<title type="html"><![CDATA[Re: MMC5 problems...]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10995&amp;p=126514#p126514"><![CDATA[
+<div class="quotetitle">Anes wrote:</div><div class="quotecontent"><br />Is prg-rom mapped to prg-ram?<br /></div><br />I'm not sure what that's supposed to mean - PRG ROM is what you load from the .NES file (and is read-only), while PRG RAM is generally what you load from the .SAV file (though for some games it isn't battery-backed and thus gets cleared when you power off the console). Both can be mapped to the CPU's address space, and they contain distinct data.<br /><br /><div class="quotetitle">Anes wrote:</div><div class="quotecontent"><br />How do you implement in your emus?<br /></div><br />In my emulator, the CPU address space is divided into 4KB chunks, each having a pair of function pointers for reading/writing it (which can be overridden for memory-mapped registers) plus a data pointer and a pair of booleans indicating whether it's readable or writable (used only by the default read/write functions in order to handle read+write RAM, read-only ROM, and unreadable &quot;open bus&quot;). When I want to map PRG ROM, I set the pointer to point at the desired PRG ROM bank, set &quot;readable&quot;, and clear &quot;writable&quot;, and to map PRG RAM, I set the pointer to point at the desired PRG RAM bank and set &quot;readable&quot; and &quot;writable&quot;. All of this is hidden behind an interface, so I can just say &quot;map 16KB of PRG ROM at $8000 using bank 7&quot; and it'll set $8000-$BFFF to contain 4KB banks 28-31.<br /><br />I do the same for the PPU address space, except there I use 1KB banks and also have 3 types of memory that can be mapped (CHR ROM, CHR RAM, and Nametable RAM).<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=7">Quietust</a> — Fri Mar 07, 2014 2:58 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Anes]]></name></author>
+<updated>2014-03-07T14:20:40-07:00</updated>
+<published>2014-03-07T14:20:40-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10995&amp;p=126511#p126511</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10995&amp;p=126511#p126511"/>
+<title type="html"><![CDATA[Re: MMC5 problems...]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10995&amp;p=126511#p126511"><![CDATA[
+I give up. I don't know what to do with this &quot;extra 64K&quot; and prg-ram swapping.<br />I have some questions:<br />Is prg-rom mapped to prg-ram?<br />How do you implement in your emus? Maybe a quick tutorial would help me... if im asking to much it's ok forget it.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=72">Anes</a> — Fri Mar 07, 2014 2:20 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[zzo38]]></name></author>
+<updated>2014-03-04T19:42:57-07:00</updated>
+<published>2014-03-04T19:42:57-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10995&amp;p=126394#p126394</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10995&amp;p=126394#p126394"/>
+<title type="html"><![CDATA[Re: MMC5 problems...]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10995&amp;p=126394#p126394"><![CDATA[
+I recommend always giving it 64K RAM if the NES 2.0 header is not present. (Disch recommends the same thing.)<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4734">zzo38</a> — Tue Mar 04, 2014 7:42 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[natt]]></name></author>
+<updated>2014-03-04T16:29:05-07:00</updated>
+<published>2014-03-04T16:29:05-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10995&amp;p=126390#p126390</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10995&amp;p=126390#p126390"/>
+<title type="html"><![CDATA[Re: MMC5 problems...]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10995&amp;p=126390#p126390"><![CDATA[
+<div class="quotetitle">Anes wrote:</div><div class="quotecontent"><br />I did one thing: i &quot;marged&quot; with my mapping engine.... i mean i used SwapPrg4K() to swap prg-ram. <br />UW Works (with some graphics glitches):<br /><img src="http://yaneseland.com.ar/temp/uwglitch.png" alt="Image" /><br />and BK of Ancient China now looks good.<br />The thing is i have a 64kb that's in the mapper... if i knew the prg-ram size would be prominent, but the wiki says that byte &quot;8&quot; should indicate that and roms out there have only &quot;0&quot;. But, but it says that emulators even don't use this byte.<br />What do i do?<br /></div><br /><br />I've seen that exact image before; you get it if you don't properly give uncharted waters its 16KiB of SRAM.  It should work with 64KiB though?  Never tried it, but it asks for prg ram &quot;banks&quot; %001 and %101.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=5719">natt</a> — Tue Mar 04, 2014 4:29 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2014-03-04T16:25:28-07:00</updated>
+<published>2014-03-04T16:25:28-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10995&amp;p=126389#p126389</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10995&amp;p=126389#p126389"/>
+<title type="html"><![CDATA[Re: MMC5 problems...]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10995&amp;p=126389#p126389"><![CDATA[
+In NES 2.0, the RAM size field is <a href="http://wiki.nesdev.com/w/index.php/NES_2.0#Byte_10_.28RAM_size.29" class="postlink">byte 10</a>.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Tue Mar 04, 2014 4:25 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Anes]]></name></author>
+<updated>2014-03-04T16:18:47-07:00</updated>
+<published>2014-03-04T16:18:47-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10995&amp;p=126388#p126388</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10995&amp;p=126388#p126388"/>
+<title type="html"><![CDATA[Re: MMC5 problems...]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10995&amp;p=126388#p126388"><![CDATA[
+I did one thing: i &quot;marged&quot; with my mapping engine.... i mean i used SwapPrg4K() to swap prg-ram. <br />UW Works (with some graphics glitches):<br /><img src="http://yaneseland.com.ar/temp/uwglitch.png" alt="Image" /><br />and BK of Ancient China now looks good.<br />The thing is i have a 64kb that's in the mapper... if i knew the prg-ram size would be prominent, but the wiki says that byte &quot;8&quot; should indicate that and roms out there have only &quot;0&quot;. But, but it says that emulators even don't use this byte.<br />What do i do?<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=72">Anes</a> — Tue Mar 04, 2014 4:18 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Disch]]></name></author>
+<updated>2014-03-04T13:05:12-07:00</updated>
+<published>2014-03-04T13:05:12-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10995&amp;p=126371#p126371</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10995&amp;p=126371#p126371"/>
+<title type="html"><![CDATA[Re: MMC5 problems...]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10995&amp;p=126371#p126371"><![CDATA[
+I didn't look over the code too closely (kind of at work, so I can only take quick breaks).  However, you are showing me 2 things that are kind of alarming.<br /><br />#1:<br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent"><br />SwapMmc5Ram(page, wherein, size):Takes the caluclated page and directly memcpy to &quot;wherein&quot; into a plain 64K of &quot;size&quot;.<br /></div><br /><br />memcpy is a bad sign.  There is no copying going on when you swap.  What's happening is the chip is modifying the address lines on access.<br /><br />The same memory could be swapped into 2 different places.  For example.. if it swaps RAM page 1 into both $8000 and $6000... then those two areas would effectively be &quot;mirrored&quot;.  Writes to $6000 would be visible at $8000 and vice versa.<br /><br /><br />#2:<br /><br />You are doing complex logic in your register writes, rather than a &quot;sync&quot; style function.  This will work as long as the game does not switch modes... but as soon as it does, you'll either have to duplicate all that logic, or you will have the wrong stuff swapped in.<br /><br />When the game changes modes, it's as if it &quot;reswaps&quot; all pages.  This is often implemented as a &quot;sync&quot; function.  IE when the game writes to the mode, you change the mode var, then 'sync'.  And when it writes to a PRG swap reg, you just modify a variable and then 'sync' again.  The 'sync' function is the one that would be examining the mode and swapping out all the pages.<br /><br />Also note that this is not MMC5 specific, but applies to all mappers.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=33">Disch</a> — Tue Mar 04, 2014 1:05 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Anes]]></name></author>
+<updated>2014-03-04T12:42:16-07:00</updated>
+<published>2014-03-04T12:42:16-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10995&amp;p=126369#p126369</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10995&amp;p=126369#p126369"/>
+<title type="html"><![CDATA[Re: MMC5 problems...]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10995&amp;p=126369#p126369"><![CDATA[
+My code looks like this:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">   case 0x5113:<br />      Mmc5.r5113 = (data &amp; 0x07);<br />      page_kb32 = Mmc5.r5113 * KB_8;<br />      SwapMmc5Ram(page_kb32, 0x6000, 0x2000);<br />      MapMemory(0x6000, 0x7FFF, ReadMmc5Extra64, WriteMmc5Extra64);<br />      break;<br /><br />   case 0x5114:<br />      if ((data &amp; 0x80))<br />      {<br />         if (Mmc5.prg_mode == 3)<br />         {<br />            MapMemory(0x8000, 0x9FFF, ReadMapperPrgMem, WriteMapperPrgMem);<br />            SwapPrg4K(0x8000, (data &amp; 0x7F) &amp; (((Mapper.last_prg)* 4)-1), 0x2000);<br />         }<br />      }<br />      else <br />      {<br />         if (Mmc5.prg_mode == 3)<br />         {<br />            page_kb32 = (data &amp; 0x07) * KB_8;<br />            SwapMmc5Ram(page_kb32, 0x8000, 0x2000);<br />            MapMemory(0x8000, 0x9FFF, ReadMmc5Extra64, WriteMmc5Extra64);<br />         }<br />      }<br />      break;<br /><br />   case 0x5115:<br />         if ((data &amp; 0x80))<br />         {<br />            if (Mmc5.prg_mode == 1 || Mmc5.prg_mode == 2) <br />            {<br />               MapMemory(0x8000, 0xBFFF, ReadMapperPrgMem, WriteMapperPrgMem);<br />               SwapPrg4K(0x8000, ((data &amp; 0x7F) &gt;&gt; 1) &amp; (((Mapper.last_prg)* 2)-1), 0x4000);<br />            }<br />            else<br />            if (Mmc5.prg_mode == 3) <br />            {<br />               MapMemory(0xA000, 0xBFFF, ReadMapperPrgMem, WriteMapperPrgMem);<br />               SwapPrg4K(0xA000, (data &amp; 0x7F) &amp; (((Mapper.last_prg)* 4)-1), 0x2000);<br />            }<br />      <br />         }<br />         else <br />         {<br />            if (Mmc5.prg_mode == 1 || Mmc5.prg_mode == 2) <br />            {<br />               page_kb32 = (data &amp; 0x07) * KB_8;<br />               SwapMmc5Ram(page_kb32, 0x8000, 0x4000);<br />               MapMemory(0x8000, 0xBFFF, ReadMmc5Extra64, WriteMmc5Extra64);<br />            }<br />            else<br />            if (Mmc5.prg_mode == 3) <br />            {<br />               page_kb32 = (data &amp; 0x07) * KB_8;<br />               SwapMmc5Ram(page_kb32, 0xA000, 0x2000);<br />               MapMemory(0xA000, 0xBFFF, ReadMmc5Extra64, WriteMmc5Extra64);<br />            }<br />         }<br />      <br />      break;<br /><br />   case 0x5116:<br />      if ((data &amp; 0x80))<br />      {<br />         switch (Mmc5.prg_mode)<br />         {<br />         case 2:<br />            MapMemory(0xC000, 0xDFFF, ReadMapperPrgMem, WriteMapperPrgMem);<br />            SwapPrg4K(0xC000, (data &amp; 0x7F) &amp; (((Mapper.last_prg)* 4)-1), 0x2000);<br /><br />         case 3:<br />            MapMemory(0xC000, 0xDFFF, ReadMapperPrgMem, WriteMapperPrgMem);<br />            SwapPrg4K(0xC000, (data &amp; 0x7F) &amp; (((Mapper.last_prg)* 4)-1), 0x2000);<br />            break;<br />         }<br />      }<br />      else <br />      {<br />         switch (Mmc5.prg_mode)<br />         {<br />         case 2:<br />         case 3:<br />            page_kb32 = (data &amp; 0x07) * KB_8;<br />            SwapMmc5Ram(page_kb32, 0xC000, 0x2000);<br />            MapMemory(0xC000, 0xDFFF, ReadMmc5Extra64, WriteMmc5Extra64);<br />            break;<br />         }<br />      }<br />      break;<br /><br />   case 0x5117:<br />      switch (Mmc5.prg_mode)<br />      {<br />      case 0:<br />         MapMemory(0x8000, 0xFFFF, ReadMapperPrgMem, WriteMapperPrgMem);<br />         SwapPrg4K(0x8000, ((data &amp; 0x7F) &gt;&gt; 2) &amp; (Mapper.last_prg - 1), 0x8000);<br />         break;<br /><br />      case 1:<br />         MapMemory(0xC000, 0xFFFF, ReadMapperPrgMem, WriteMapperPrgMem);<br />         SwapPrg4K(0xC000, ((data &amp; 0x7F) &gt;&gt; 1) &amp; (((Mapper.last_prg)* 2)-1), 0x4000);<br />         break;<br />      <br />      case 2:<br />      case 3:<br />         MapMemory(0xE000, 0xFFFF, ReadMapperPrgMem, WriteMapperPrgMem);<br />         SwapPrg4K(0xE000, (data &amp; 0x7F) &amp; (((Mapper.last_prg)* 4)-1), 0x2000);<br />         break;<br /><br />      }<br />      break;<br /></div><br />I can't find any error, and there are.<br />MapMemory(from, to, pFunRead, pFunWrite): as it names implies map the memory into an array of function pointers. <br />SwapPrg4K(addr, bank, size): It does the ROM swap.<br />SwapMmc5Ram(page, wherein, size):Takes the caluclated page and directly memcpy to &quot;wherein&quot; into a plain 64K of &quot;size&quot;.<br /><br />You said i can avoid prg-mode when i swap prg-ram. I have tried commenting:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">if (Mmc5.prg_mode == 3) </div><br />&quot;ifs&quot; and &quot;switchs&quot; and no result.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=72">Anes</a> — Tue Mar 04, 2014 12:42 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Disch]]></name></author>
+<updated>2014-03-04T11:11:03-07:00</updated>
+<published>2014-03-04T11:11:03-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10995&amp;p=126366#p126366</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10995&amp;p=126366#p126366"/>
+<title type="html"><![CDATA[Re: MMC5 problems...]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10995&amp;p=126366#p126366"><![CDATA[
+<div class="quotetitle"><b>Quote:</b></div><div class="quotecontent"><br />$5115 swaps $8000 - $BFFF can only be swapped in program mode &quot;1&quot; or &quot;2&quot; and UW nevers change it. It sticks to &quot;3&quot;!!<br /></div><br /><br />$5115 is somewhat irrelevent.  In any mode, you're able to swap out PRG, right?  So any time you swap PRG, the high bit determines whether to select RAM or ROM.<br /><br />The only exception is $5117 .. which will always select ROM (note this also means PRG mode 0 will only select ROM, since $5117 is the only swap reg used in that mode).<br /><br />ROM/RAM can be selected in any other mode (modes 1-3)<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent"><br />Does program mode affect prg-ram swapping? I tested my emu not affecting it and have the same results.<br /></div><br /><br />It affects which registers are used and how.  If any of the $5114-5116 registers are being used... they can select ROM or RAM.  Whether or not those registers are used depends on the mode.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=33">Disch</a> — Tue Mar 04, 2014 11:11 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Anes]]></name></author>
+<updated>2014-03-04T10:37:58-07:00</updated>
+<published>2014-03-04T10:37:58-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10995&amp;p=126361#p126361</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10995&amp;p=126361#p126361"/>
+<title type="html"><![CDATA[Re: MMC5 problems...]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10995&amp;p=126361#p126361"><![CDATA[
+$5115 swaps $8000 - $BFFF can only be swapped in program mode &quot;1&quot; or &quot;2&quot; and UW nevers change it. It sticks to &quot;3&quot;!!<br />Does program mode affect prg-ram swapping? I tested my emu not affecting it and have the same results.<br />I will keep checking...<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=72">Anes</a> — Tue Mar 04, 2014 10:37 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Disch]]></name></author>
+<updated>2014-03-04T09:30:54-07:00</updated>
+<published>2014-03-04T09:30:54-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10995&amp;p=126356#p126356</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10995&amp;p=126356#p126356"/>
+<title type="html"><![CDATA[Re: MMC5 problems...]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10995&amp;p=126356#p126356"><![CDATA[
+Bandit Kings is probably swapping RAM into the $8000-BFFF area... rather than swapping ROM.  See the high bit of the PRG swap regs.  It's possible you are always swapping in ROM, which would explain this bug.<br /><br />This might also be the cause of your UW bug, but I don't know for sure.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=33">Disch</a> — Tue Mar 04, 2014 9:30 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Anes]]></name></author>
+<updated>2014-03-04T08:58:39-07:00</updated>
+<published>2014-03-04T08:58:39-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10995&amp;p=126353#p126353</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10995&amp;p=126353#p126353"/>
+<title type="html"><![CDATA[Re: MMC5 problems...]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10995&amp;p=126353#p126353"><![CDATA[
+Thank to Disch that reviewed my code UW now runs.<br />I still have two problems:<br /><br />1) UW gets hang when it enters the first level:<br /><img src="http://yaneseland.com.ar/temp/uwhang.png" alt="Image" /><br />Basically the game is making a JMP Absolute to the same addr. This makes a loop forever.<br />I have checked for MMC5 interrupts and the game disables it and at the same time is Executing a SEI, so IRQ never executes.<br />Another thing to mention is that is disabling NMI trough a write to $2000.<br />So how can it get out of that infinite loop?<br />Any clue??<br /><br />2) BK of Ancient China:<br /><img src="http://yaneseland.com.ar/temp/chinaback.png" alt="Image" /><br /><br />Disch's and the Wiki says:<br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent"><br />Test ROM Notes:<br /> ---------------------------<br /> - Bandit Kings of Ancient China writes PRG-RAM through the $8000+ ROM area. Failure to emulate this causes<br />   corruption when the background is restored on the world map.<br /></div><br /><br />I think that is happening. I really dont understand the &quot;$8000 + ROM area&quot;.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=72">Anes</a> — Tue Mar 04, 2014 8:58 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Anes]]></name></author>
+<updated>2014-02-27T08:14:59-07:00</updated>
+<published>2014-02-27T08:14:59-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10995&amp;p=126190#p126190</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10995&amp;p=126190#p126190"/>
+<title type="html"><![CDATA[Re: MMC5 problems...]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10995&amp;p=126190#p126190"><![CDATA[
+<div class="quotetitle">Disch wrote:</div><div class="quotecontent"><br />Since your code does not check for Ex1 mode, I assume it is only called in Ex1 mode.<br /><br /><br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">Ppu.pt_addr = 0x2000 | (Ppu.addr &amp; 0x03FF);</div><br /><br />You're losing the nametable bits.  You probably meant &amp; 0x0FFF<br /><br /><br />I don't see anything wrong apart from that.<br /></div><br /><br />No, it still has problems... f**n bakground.... i have to check in other places of my code.<br />Thanks.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=72">Anes</a> — Thu Feb 27, 2014 8:14 am</p><hr />
+]]></content>
+</entry>
+</feed>

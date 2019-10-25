@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=3&amp;t=2770" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2006-12-02T09:22:05-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=3&amp;t=2770</id>
+<entry>
+<author><name><![CDATA[Disch]]></name></author>
+<updated>2006-12-02T09:22:05-07:00</updated>
+<published>2006-12-02T09:22:05-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=2770&amp;p=20047#p20047</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=2770&amp;p=20047#p20047"/>
+<title type="html"><![CDATA[smb sprite hit problem]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=2770&amp;p=20047#p20047"><![CDATA[
+Only when BG <em>or</em> sprites are enabled.  If both of them are disabled, the PPU enters a sort of "off" state and doesn't touch the PPU address at all.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=33">Disch</a> — Sat Dec 02, 2006 9:22 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[n6]]></name></author>
+<updated>2006-12-02T05:41:06-07:00</updated>
+<published>2006-12-02T05:41:06-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=2770&amp;p=20042#p20042</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=2770&amp;p=20042#p20042"/>
+<title type="html"><![CDATA[smb sprite hit problem]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=2770&amp;p=20042#p20042"><![CDATA[
+Thank you so much for the detailed answer!<br />one more thing... do all this happen only when bg is enabled?<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=766">n6</a> — Sat Dec 02, 2006 5:41 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Disch]]></name></author>
+<updated>2006-12-01T10:29:36-07:00</updated>
+<published>2006-12-01T10:29:36-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=2770&amp;p=20030#p20030</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=2770&amp;p=20030#p20030"/>
+<title type="html"><![CDATA[smb sprite hit problem]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=2770&amp;p=20030#p20030"><![CDATA[
+X scroll is incremented on the 4th cycle of each BG tile fetch.  That is -- cycles 3, 11, 19, 27, ..., 235, 243, 251  and  323, 331  of every rendered scanline (including the pre-render 'scanline -1')<br /><br />Y scroll is incremented on cycle 251 of every rendered scanline (including prerender)<br /><br />X scroll is reset to what is in the temp address on cycle 257 of every rendered scanline (including prerender)<br /><br />PPU Address is reset in full to what is in the temp address on cycle 304 of the pre-render scanline.<br /><br /><br />Or to put it short:<br />X inc:    3,11,19,...,243,251<br />Y inc:    251<br />X reset:  257<br />X inc:    323,331<br />reload:   304 (pre-render only)<br /><br /><br /><br />X increment adds 1 to the PPU address, toggling the X NT bit (bit 10) when it wraps from 31.  IE:  $001E-&gt;$001F-&gt;$0400-&gt;$0401<br /><br />Y increment adds 1 to the fine Y scroll (bit 12), then when that wraps from 7, it adds $20 to the PPU address (which increments the coarse Y scroll).  That wraps from 29 <em>and 31</em>, but when it wraps from 29 it also toggles the Y NT bit (bit 11).  pretty confusing to put in words...but:<br />$0000-&gt;$1000-&gt;$2000-&gt;...-&gt;$7000-&gt;$0020-&gt;$1020   (fine Y increment)<br />$0020-&gt;$0040-&gt;...-&gt;$0380-&gt;$03A0-&gt;$0800-&gt;$0820   (coarse Y increment)<br />03C0-&gt;03E0-&gt;0000-&gt;0020        (still wraps from 31, but does not toggle Y NT bit)<br /><br /><br />X reset takes <em>only</em> bits 0-4,10  from the temp address and puts them in the real address.  Other bits in the PPU Address are unaffected<br /><br /><br />Here's some pseudo-code!:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">// Scroll Reset<br />nPPUAddr = nPPUTemp;<br /><br />// X Increment<br />if&#40;&#40;nPPUAddr &amp; 0x001F&#41; == 0x001F&#41;<br />  nPPUAddr ^= 0x041F;<br />else<br />  nPPUAddr++;<br /><br />// Y increment<br />if&#40;&#40;nPPUAddr &amp; 0x7000&#41; == 0x7000&#41;<br />&#123;<br />  nPPUAddr &amp;= ~0x7000;<br />  if&#40;&#40;nPPUAddr &amp; 0x03E0&#41; == 0x3E0&#41;<br />    nPPUAddr ^= 0x03E0;<br />  else if&#40;&#40;nPPUAddr &amp; 0x03E0&#41; == 0x03A0&#41;<br />    nPPUAddr ^= 0x03A0 | 0x0800;<br />  else<br />    nPPUAddr += 0x0020;<br />&#125;<br />else<br />  nPPUAddr += 0x1000;<br /><br />// X reset<br />nPPUAddr = &#40;nPPUAddr &amp; ~0x041F&#41; | &#40;nPPUTemp &amp; 0x041F&#41;;<br /></div><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=33">Disch</a> — Fri Dec 01, 2006 10:29 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[n6]]></name></author>
+<updated>2006-12-01T10:04:02-07:00</updated>
+<published>2006-12-01T10:04:02-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=2770&amp;p=20029#p20029</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=2770&amp;p=20029#p20029"/>
+<title type="html"><![CDATA[smb sprite hit problem]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=2770&amp;p=20029#p20029"><![CDATA[
+I dont understand how the vram address is changed during rendering. is the temp vram address copied at PPU cycle 6820 and then for each tile it advance 1 is added, when its enter a new scanline (1&lt;&lt;12) is added, and then it of course wraps.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=766">n6</a> — Fri Dec 01, 2006 10:04 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Disch]]></name></author>
+<updated>2006-11-29T15:44:44-07:00</updated>
+<published>2006-11-29T15:44:44-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=2770&amp;p=19971#p19971</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=2770&amp;p=19971#p19971"/>
+<title type="html"><![CDATA[smb sprite hit problem]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=2770&amp;p=19971#p19971"><![CDATA[
+To be technical -- you actually are supposed to use the <em>actual</em> PPU address (Loopy_V) for everything.  Loopy_T is only used to 'fill' Loopy_V at key times in the frame -- you should never use it directly.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=33">Disch</a> — Wed Nov 29, 2006 3:44 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[n6]]></name></author>
+<updated>2006-11-29T15:29:29-07:00</updated>
+<published>2006-11-29T15:29:29-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=2770&amp;p=19968#p19968</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=2770&amp;p=19968#p19968"/>
+<title type="html"><![CDATA[smb sprite hit problem]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=2770&amp;p=19968#p19968"><![CDATA[
+<div class="quotetitle"><b>Quote:</b></div><div class="quotecontent"><br />That's in VBlank? I can't say for sure whether or not that happens -- but if it does, I'm sure the game writes to $2000 again afterwards *or* writes 0 to $2006 twice afterwards (which would reset the scroll).<br /></div><br /><br />thanks! I used the values in control1 instead of the temp vram address<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=766">n6</a> — Wed Nov 29, 2006 3:29 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Disch]]></name></author>
+<updated>2006-11-29T15:14:46-07:00</updated>
+<published>2006-11-29T15:14:46-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=2770&amp;p=19966#p19966</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=2770&amp;p=19966#p19966"/>
+<title type="html"><![CDATA[smb sprite hit problem]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=2770&amp;p=19966#p19966"><![CDATA[
+<div class="quotetitle">n6 wrote:</div><div class="quotecontent"><br />Yeah exactly as I thought!<br />In my emulator I see that 1 is written to $2000 (when mario have advanced to the next nametable) at ppu cycle ~2000...<br /><br />should this never happen?<br /></div><br /><br />That's in VBlank?  I can't say for sure whether or not that happens -- but if it does, I'm sure the game writes to $2000 again afterwards *or* writes 0 to $2006 twice afterwards (which would reset the scroll).<br /><br />The one thing I can say for certain is that you should not start drawing the frame from the $2400 nametable in SMB1<br /><br /><br />Remember that $2000, $2005, <em>and</em> $2006 all affect the temporary PPU address (aka Loopy_T).<br /><br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent"><br />and do the sprite0-hit test care about scroll values?<br /></div><br /><br />Yes.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=33">Disch</a> — Wed Nov 29, 2006 3:14 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[n6]]></name></author>
+<updated>2006-11-29T15:02:08-07:00</updated>
+<published>2006-11-29T15:02:08-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=2770&amp;p=19964#p19964</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=2770&amp;p=19964#p19964"/>
+<title type="html"><![CDATA[smb sprite hit problem]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=2770&amp;p=19964#p19964"><![CDATA[
+Yeah exactly as I thought!<br />In my emulator I see that 1 is written to $2000 (when mario have advanced to the next nametable) at ppu cycle ~2000...<br /><br />should this never happen?<br /><br />and do the sprite0-hit test care about scroll values?<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=766">n6</a> — Wed Nov 29, 2006 3:02 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Disch]]></name></author>
+<updated>2006-11-29T14:46:20-07:00</updated>
+<published>2006-11-29T14:46:20-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=2770&amp;p=19962#p19962</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=2770&amp;p=19962#p19962"/>
+<title type="html"><![CDATA[smb sprite hit problem]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=2770&amp;p=19962#p19962"><![CDATA[
+SMB should not scroll <em>at all</em> until Sprite-0 hit is detected.  When the frame starts drawing, it should be drawing from $2000 with <em>zero scroll changes</em>.  Until Sprite-0 is hit, at which point the game changes the scroll with $2000 and $2005 writes.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=33">Disch</a> — Wed Nov 29, 2006 2:46 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[n6]]></name></author>
+<updated>2006-11-29T14:32:13-07:00</updated>
+<published>2006-11-29T14:32:13-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=2770&amp;p=19960#p19960</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=2770&amp;p=19960#p19960"/>
+<title type="html"><![CDATA[smb sprite hit problem]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=2770&amp;p=19960#p19960"><![CDATA[
+Ive some problems with the sprite hit for smb...<br />When Ive went so far so NameTable is changed to 1 (2000:1) my sprite hit test obviously failes cause it isnt anything there, ive hacked it and understood that (2000:1) always should be clear when the sprite hit test is made.<br /><br />I have a catch up kind of sprite hit test so first I make a test at PPU cycle 6280 and then I make a new one if 2000 (0x3B changed),2001 (0x1E changed),2006 is written to.<br /><br />any ideas? all blarggs-ppu test passes, one thought though that I dont believe myself, but I will ask it anyway (since the test don't cover it) but do the spritehit test dont care about bg-scroll? cause if this is true it works.<br /><br />thanks<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=766">n6</a> — Wed Nov 29, 2006 2:32 pm</p><hr />
+]]></content>
+</entry>
+</feed>

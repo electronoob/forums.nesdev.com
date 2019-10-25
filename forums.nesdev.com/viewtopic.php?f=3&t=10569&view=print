@@ -1,0 +1,207 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - The right way to implement PPU</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">The right way to implement PPU</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=3&amp;t=10569">http://forums.nesdev.com/viewtopic.php?f=3&amp;t=10569</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>d15ea5e</b> [ Tue Oct 08, 2013 9:26 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>The right way to implement PPU</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Hello everyone,<br />I've started writing my first emulator a few months ago (18 months actually according to hg log, but stopped 7 months ago). I want to continue making this thing for educational purposes. As for now it's working quite ok - 6502 emulation is almost 100% complete (per-cycle emulation), few simple non-MMC mappers are implemented, simple APU with pulse1 and pulse2 is added and PPU is good enough for games like Contra.<br />As for now main loop of emulator looks like this (simplified, not raw copy paste):<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">while(1)<br />{<br />&nbsp;//HandleEvents()<br />&nbsp;//Input()<br />&nbsp;while (!cpu-&gt;ppu.framerendered)<br />&nbsp;{<br />&nbsp; for(int i=0; i&lt;3; i++) cpu-&gt;ppu.Step();<br />&nbsp; cpu-&gt;Step();<br />&nbsp;}<br />&nbsp;DrawFrame();<br />&nbsp;// Sleep long enough to keep 60fps<br />}<br /></div><br />In CPU-&gt;Step one cycle is emulated, same in ppu.Step. Frame is rendered on last scanline if I remember correctly. Everything works ok unless game changes PPU values like ScrollX or ScrollY during visible scanline - my emulator cares only about values that in registers during frame rendering (so registers values on last scanline are only used). For example game like Micro Machines looks terribly wrong in menu and NEStress menu is jumping around. <br /><br />My question is: how to implement changing values of PPU registers during visible scanlines correctly? One of my ideas is just to plot pixel during every PPU cycle, but this is extremely inefficient. Second thought is to render screen scanline by scanline, not whole frame at once. My last concept is to store register values when CPU is writing to them in some kind of vector in form of [scanline, pixel, value] per register. Then use those values during frame rendering.<br /><br />Which approach is best one? Is there better way to implement this?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>James</b> [ Tue Oct 08, 2013 10:05 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: The right way to implement PPU</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">d15ea5e wrote:</div><div class="quotecontent">One of my ideas is just to plot pixel during every PPU cycle, but this is extremely inefficient.</div><br />Do it this way*.  At first, at least.  It may be inefficient compared to other methods, but it's the least complicated method.  Once you have a solid understanding of how everything works, the quirks, etc., go back and optimize where you need to (even if that means throwing it all out and starting from scratch).  Depending on your target platform, you may find that the inefficient way is good enough.<br /><br />* don't plot a pixel to the display every cycle, though.  Write to a buffer, then blit that to the screen at the end of the frame.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Quietust</b> [ Tue Oct 15, 2013 8:13 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: The right way to implement PPU</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">d15ea5e wrote:</div><div class="quotecontent">One of my ideas is just to plot pixel during every PPU cycle, but this is extremely inefficient.</div><br />This is actually how my emulator (Nintendulator) does it, though with James's clarification that it writes it to a buffer which then gets blitted once per frame. While it is rather inefficient, desktops and laptops from the past 8 years or so can run it just fine (though slower netbooks and tablets have been reported to struggle a bit).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>WedNESday</b> [ Tue Oct 15, 2013 9:23 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: The right way to implement PPU</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">d15ea5e wrote:</div><div class="quotecontent">One of my ideas is just to plot pixel during every PPU cycle, but this is extremely inefficient.</div><br /><br />Erm, that's how all modern NES emulators do their PPUs...
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>mkwong98</b> [ Wed Oct 16, 2013 6:20 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: The right way to implement PPU</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />It depends on your goal and what graphics engine your emulator uses.<br /><br />My emulator does additional processing with the graphics and so can't use the final pixel directly from the PPU. It runs on OpenGL and uses 33 background quads and 8 sprite quads to represent one scanline. Each scanline it updates the quads and generates textures. It renders the screen 3 times per frame - one for back sprite layer, one for background layer and one for front sprite layer.<br /><br />Another way is to render the screen only when you meet a relevent register change or end of frame. Just render the screen using the old values upto the current pixel.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

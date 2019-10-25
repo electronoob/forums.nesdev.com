@@ -1,0 +1,487 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - DMA operation in APU</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">DMA operation in APU</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=3&amp;t=6100">http://forums.nesdev.com/viewtopic.php?f=3&amp;t=6100</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>5</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>jwdonal</b> [ Sat Feb 27, 2010 3:10 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>DMA operation in APU</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Still working on the APU - things are coming along quite well actually.  I need to go pick up a 3.5mm-to-3.5mm cable from RadioShack or somewhere today so I can post some audio samples that you can listen to.  The sound isn't quite right yet, but hey, I'm just happy to hear something!
+<br />
+<br />Anyway, I am about to start implementing the DMC and was reading up on the Wiki documentation.  It all seemed to make sense to me but something caught my attention.
+<br />
+<br />From Wiki (<a href="http://wiki.nesdev.com/w/index.php/APU_DMC" class="postlink">http://wiki.nesdev.com/w/index.php/APU_DMC</a>):
+<br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">The 6502 cannot be pulled off of the bus normally. The 2A03 DMC gets around this by pulling RDY low internally. This causes the CPU to pause during the next read cycle, until RDY goes high again. The DMC unit holds RDY low for 4 cycles. The first three cycles it idles, as the CPU could have just started an interrupt cycle, and thus be writing for 3 consecutive cycles (and thus ignoring RDY). On the fourth cycle, the DMC unit drives the next sample address onto the address lines, and reads that byte from memory. It then drives RDY high again, and the CPU picks up where it left off.<br /><br />This matters, because it can interfere with the expected operation of the controller registers, reads of the PPU status register, and CPU VRAM or SPR reads if they happen to occur in the same cycle that the DMC unit pulls RDY low. <br /></div>
+<br />
+<br />I have 2 questions regarding this:
+<br />
+<br />1) If a sprite DMA transfer is already in progress (and therefore already in control of the bus and already deasserting the RDY signal on the CPU), does a DMC DMA operation override (interrupt) the sprite DMA process or does the DMC wait for the entire sprite RAM transfer to finish before taking control of the bus?
+<br />
+<br />2) About the mention of the DMC waiting 4 CPU cycles before taking control of the bus...Does the sprite DMA transfer module do the same thing (i.e. wait 4 cycles to ensure that the CPU has finished with its last operation)?  I ask because...umm...I currently don't wait for the CPU to finish its current operation before starting the sprite DMA xfer.  I just pull RDY low, take control of the bus, and start the transfer.  LOL, I'm thinking now that could be a bad thing. <img src="./images/smilies/icon_razz.gif" alt=":-P" title="Razz" />
+<br />
+<br />Thanks!! <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Sat Feb 27, 2010 4:26 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />2) DMC DMA has to wait for up to three writes in a row before stopping the 6502 off the bus, which might happen on a BRK instruction, IRQ, or NMI. Sprite DMA doesn't have to wait as long because it always occurs immediately after STA/STX/STY $4014, instructions that produce only one write. (Games are expected not to use read-write-write instructions like INC when accessing $4014.)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>jwdonal</b> [ Sat Feb 27, 2010 8:02 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>thanks!</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Awesome, thanks tepples!  I think my current implementation is OK then.
+<br />
+<br />Anybody for #1 ?
+<br />
+<br /><img src="./images/smilies/icon_smile.gif" alt=":-)" title="Smile" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Sun Feb 28, 2010 2:36 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Does this means the CPU could crash if an IRQ/NMI were to interrupt a sta/stx/sty $4014 instruction ?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Sun Feb 28, 2010 5:03 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />IRQ and NMI have the same read pattern as the BRK instruction, which means they start with two reads to fetch (and discard) the opcode.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>jwdonal</b> [ Mon Mar 01, 2010 4:09 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Nobody knows the answer to my first question?  There must be somebody...
+<br />
+<br />:'(
+<br />
+<br />Pleeeeease...lol.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Mon Mar 01, 2010 4:30 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I understand your frustration, but I don't own a logic analyzer with which to watch the NES address bus while it executes a test program.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Mon Mar 01, 2010 7:26 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />No need for a logic analyzer, since it should be CPU-observable behavior. You just need to have an IRQ or NMI interrupt said instruction at various positions and see what happens.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Tue Jun 08, 2010 11:22 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Based on the following tests, DMC DMA adds 4 cycles normally, 3 if it lands on a CPU write, 2 if it lands on the $4014 write or during OAM DMA, 1 if on the next-to-next-to-last DMA cycle, 3 if on the last DMA cycle. The test ROMs here print the below outputs, and verify that they match what's expected.
+<br />
+<br /><a href="http://blargg.parodius.com/temp/sprdma_and_dmc_dma.zip" class="postlink">sprdma_and_dmc_dma.zip</a>
+<br />
+<br />They also verify that the bytes copied to OAM match what is expected, so DMC DMA isn't corrupting the data. Further, the DMC sample playing during the test is all $55 bytes, so if the DMC DMA read were corrupted, it'd be audible. I recorded output and don't see any corruption.
+<br />
+<br />This test has DMC DMA occur at each cycle in a piece of code, and prints how many cycles the code took, including any extra cycles the DMA added. For example, this code generates the output after it:
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">sta $100&nbsp; &nbsp; ; 4<br />lda $100&nbsp; &nbsp; ; 4<br />sta $100&nbsp; &nbsp; ; 4<br />sta $100&nbsp; &nbsp; ; 4<br />&nbsp; &nbsp; &nbsp; &nbsp; <br />T+ Clocks &#40;decimal&#41;<br />00 20<br />01 20<br />02 20<br />03 19<br />04 20<br />05 20<br />06 20<br />07 20<br />08 20<br />09 20<br />0A 20<br />0B 19<br />0C 20<br />0D 20<br />0E 20<br />0F 19</div><br />The code should take 16 cycles, but DMA adds four. However, when it lands on the write cycles of the three STA instructions, it only takes three. You can clearly see the pattern of the STA-LDA-STA-STA in the result, confirming that it's really measuring something useful.<br /><br />Now, the code that tests sprite DMA:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">lda #$07&nbsp; &nbsp; ; 2<br />sta $4014&nbsp; &nbsp;; 4 + 513/514<br />sta $100&nbsp; &nbsp; ; 4<br /><br />T+ Clocks &#40;decimal&#41;<br />00 527&nbsp; &nbsp; &nbsp; +4&nbsp; LDA #$07&nbsp; &nbsp; ; 2<br />01 528&nbsp; &nbsp; &nbsp; +4<br />02 527&nbsp; &nbsp; &nbsp; +4&nbsp; STA $4014&nbsp; &nbsp;; 4 + 513/514<br />03 528&nbsp; &nbsp; &nbsp; +4<br />04 527&nbsp; &nbsp; &nbsp; +4<br />05 526&nbsp; &nbsp; &nbsp; +2<br />06 525&nbsp; &nbsp; &nbsp; +2<br />07 526&nbsp; &nbsp; &nbsp; +2<br />08 525&nbsp; &nbsp; &nbsp; +2<br />09 526&nbsp; &nbsp; &nbsp; +2<br />0A 525&nbsp; &nbsp; &nbsp; +2<br />0B 526&nbsp; &nbsp; &nbsp; +2<br />0C 525&nbsp; &nbsp; &nbsp; +2<br />0D 526&nbsp; &nbsp; &nbsp; +2<br />0E 525&nbsp; &nbsp; &nbsp; +2<br />0F 526&nbsp; &nbsp; &nbsp; +2<br />...<br />200 525&nbsp; &nbsp; &nbsp;+2<br />201 526&nbsp; &nbsp; &nbsp;+2<br />202 525&nbsp; &nbsp; &nbsp;+2<br />203 526&nbsp; &nbsp; &nbsp;+2<br />204 524&nbsp; &nbsp; &nbsp;+1&nbsp; DMA next-to-next-to-last cycle<br />205 525&nbsp; &nbsp; &nbsp;+1&nbsp; DMA next-to-next-to-last cycle<br />206 526&nbsp; &nbsp; &nbsp;+3&nbsp; DMA last cycle<br />207 527&nbsp; &nbsp; &nbsp;+3&nbsp; DMA last cycle<br />208 527&nbsp; &nbsp; &nbsp;+4&nbsp; STA $100 second cycle<br />209 528&nbsp; &nbsp; &nbsp;+4&nbsp; STA $100 second cycle<br />20A 526&nbsp; &nbsp; &nbsp;+3&nbsp; STA $100 fourth cycle<br />20B 527&nbsp; &nbsp; &nbsp;+3&nbsp; STA $100 fourth cycle</div>
+<br />I've manually listed the number of DMA cycles added (clocks-523/524), and what instruction is executing. The main snag is that sprite DMA takes 513 OR 514 cycles, depending on whether it's started on an even or odd 2A03 cycle. I'm assuming this is very similar to $4017 writes being delayed a cycle if on an odd 2A03 cycle.
+<br />
+<br />The way this test works, the test code begins on even/odd 2A03 cycles based on the time it has arranged the DMC DMA to occur. This complicates things. At the end of OAM DMA and after, it means that DMC DMA is only hitting every other cycle of the test code. You can see this in the STA $100 after OAM DMA, where DMC DMA takes three cycles for two different times. This is because both times it's landing on the fourth cycle of STA $100 (I tried other instruction sequences to be sure of this, and it checks out).
+<br />
+<br />Maybe someone with a logic analyzer can see what's really going on. The above is about as much as you're going to get with a CPU test alone. <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ReaperSMS</b> [ Wed Jun 09, 2010 1:01 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Fascinating stuff.
+<br />
+<br />This suggests a shared DMA unit, running on a 2-cycle period, writes happening in the first period, reads happening in the last. There's probably a start flag that suppresses the address bus switchover for the first 1.5 cycles.
+<br />
+<br />Random brainfart guess as to what the sequence and priorities look like:
+<br />
+<br />(all sequences happen in parallel for each cycles, all inputs are read before updating outputs)
+<br />
+<br />bus_request is asserted by 4014 writes and DMC intermediate buffer empty &amp; DMC active
+<br />4014 writes set spr_page to data, spr_flag to 0, and spr_byte to 0
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">C0: <br />&nbsp; if &#40;bus_request&#41; bus_grant &lt;= 1;<br />&nbsp; if &#40;bus_grant&#41;<br />&nbsp; &nbsp; if &#40;spr_flag&#41;<br />&nbsp; &nbsp; &nbsp; &nbsp;addr &lt;= &#123;spr_page, spr_byte&#125;<br />&nbsp; &nbsp; &nbsp; &nbsp;data &lt;= spr_data<br />&nbsp; &nbsp; &nbsp; &nbsp;spr_byte &lt;= spr_byte + 1<br />C1: <br />&nbsp; bus_request &lt;= &#40;4014 written | spr_flag&#41; | &#40;~bus_grant &amp; DMC enabled &amp; buffer empty&#41;<br />&nbsp; if &#40;bus_grant&#41;<br />&nbsp; &nbsp; if &#40;DMC&#41;<br />&nbsp; &nbsp; &nbsp; addr &lt;= DMC_addr<br />&nbsp; &nbsp; &nbsp; DMC_data &lt;= data<br />&nbsp; &nbsp; else if &#40;SPR&#41;<br />&nbsp; &nbsp; &nbsp; addr &lt;= &#123;spr_page, spr_byte&#125;<br />&nbsp; &nbsp; &nbsp; spr_data &lt;= data<br />&nbsp; &nbsp; &nbsp; spr_flag &lt;= 1<br /></div>
+<br />
+<br />The above is likely completely incorrect when interrupts factor in, and the cycles may be flipped. The important bit would be that there's a bus request DMA cycle, followed by the working DMA cycle(s). DMC takes priority over the read, and the SDMA can tell when it's data isn't valid. Request cycles can be flagged as late as the end of C0.
+<br />
+<br />4014 writes that land on C0 will assert bus_request for C1, and bus_grant will kick in at the next C0. The CPU will be stalled out by RDY in C1 if it's a read, or continue on it's merry way if the 4014 access was RMW (it looks at RDY late in the cycle).
+<br />
+<br />Once granted, DMC will read it's data. If this is during a SDMA, the grant will already be flagged, so the request is hidden, and there's only a 2-cycle overhead due to stalling the SDMA one DMA cycle. If the DMC pops up near the last-ish SDMA cycle, specifically when SDMA doesn't have to read any more, it will only delay things one cycle, through extending RDY past the end of SDMA.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>jwdonal</b> [ Wed Jun 09, 2010 9:28 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Holy cow Blargg! Thank you so much! What have I done to deserve such generosity???  I need to look over your post in much greater detail to really understand everything your saying - I'm heading into work at the moment.  I actually just got a nice tektronix logic analyzer so maybe with your test software we can finally put an end to this mystery once and for all.  First, I need to understand the clock cycling as well as you apparently do. Then I could even provide the analyzer traces here on NesDev (or my site).
+<br />
+<br />In fact, now that I think about it, I'm wondering if there are any other long standing questions that could only be answered by a logic analyzer that I might be able to answer while I have the whole thing hooked up?  Does anyone know of any?  Maybe this would be an opportunity for me to give something back to the NesDev community when they have helped me so much...
+<br />
+<br />Thanks again! <img src="./images/smilies/icon_smile.gif" alt=":-)" title="Smile" />
+<br />
+<br />Jonathon
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>cpow</b> [ Wed Jun 09, 2010 6:33 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">blargg wrote:</div><div class="quotecontent">Based on the following tests, DMC DMA adds 4 cycles normally, 3 if it lands on a CPU write, 2 if it lands on the $4014 write or during OAM DMA, 1 if on the next-to-next-to-last DMA cycle, 3 if on the last DMA cycle. The test ROMs here print the below outputs, and verify that they match what's expected.<br /></div>
+<br />
+<br />Okay this one leaves me with a big WTF...
+<br />
+<br /><img src="http://img820.imageshack.us/img820/4227/sprdma.png" alt="Image" />
+<br />
+<br />First of all my output doesn't match anything in Blargg's description.
+<br />
+<br />Blargg can you provide the source?  Is the description you provided in this thread what should be seen on the screen?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Wed Jun 09, 2010 6:58 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />It relies on DMC timing and operation being correct. I'll have to finish updating my APU tests and releasing them. This DMC DMA during sprite DMA is one of the hardest-core tests I've written, depending on many other things being perfect.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>cpow</b> [ Wed Jun 09, 2010 7:09 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">blargg wrote:</div><div class="quotecontent">It relies on DMC timing and operation being correct. I'll have to finish updating my APU tests and releasing them. This DMC DMA during sprite DMA is one of the hardest-core tests I've written, depending on many other things being perfect.</div>
+<br />
+<br />Ok so the fact that I don't [yet] have a completely cycle-accurate APU implementation is what is causing those ridiculously large cycle counts?
+<br />
+<br />After I found your APU test suite a couple days ago I rearchitected my APU from a PPU-frame based one to one that is at least running in its own 'frame' field [independent of CPU or PPU 'frames'].  However, I still do one 240Hz frame of the APU at once (ie, generate 735/4 samples of sound based on the current state running forward in time).
+<br />
+<br />I think I'll go see if I can get it down to the cycle...
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ReaperSMS</b> [ Wed Jun 09, 2010 7:26 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />If your APU isn't running on a per cycle basis, how could it possibly be doing the DMA cycle stealing correctly?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>5</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

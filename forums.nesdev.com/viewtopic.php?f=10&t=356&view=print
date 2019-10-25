@@ -1,0 +1,183 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Copying a chunk of memory on the 6502</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Copying a chunk of memory on the 6502</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=10&amp;t=356">http://forums.nesdev.com/viewtopic.php?f=10&amp;t=356</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>drk421</b> [ Mon Jun 13, 2005 10:28 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Copying a chunk of memory on the 6502</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Ok, so this is a relatively simple operation. I'm new to 6502 machine (or for that matter machine code in general), so take it easy.
+<br />
+<br />I'm trying to copy a chunk of memory (8192 bytes to be exact), here is my code:
+<br />
+<br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent"><br />	lda #$00     ;set our source memory address to copy from, $8000<br />	sta $FB<br />	lda #$80  <br />	sta $FC<br />	lda #$00     ;set our destination memory to copy to, $6000, WRAM<br />	sta $FD      <br />	lda #$60<br />	sta $FE<br />	ldy #$00     ;reset x and y for our loop<br />	ldx #$00<br /><br />Loop:<br />	lda [$FB],Y  ;indirect index source memory address, starting at $00<br />	sta [$FD],Y  ;indirect index dest memory address, starting at $00<br />	inc $FB      ;increment low order source memory address byte by 1<br />	inc $FD      ;increment low order dest memory address byte by 1<br />	bne Loop     ;loop until our dest goes over 255<br /><br />	inc $FC      ;increment high order source memory address, starting at $80<br />	inc $FE      ;increment high order dest memory address, starting at $60<br />	lda $FE      ;load high order mem address into a<br />	cmp #$80     ;compare with the last address we want to write<br />	bne Loop     ;if we're not there yet, loop<br /><br />forever:        ;once we finish with memory loop forever<br />	jmp forever</div>
+<br />
+<br />I'm sure there is a better way to do this... But this should work (I think), can anyone see why?
+<br />
+<br />
+<br />Thanks
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Quietust</b> [ Tue Jun 14, 2005 12:05 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Looks correct to me, though there are a few optimizations that can be made, both for code size and speed.
+<br />
+<br />1. Instead of manually incrementing the source and desination addresses on each byte, take advantage of the fact that you are doing indirect INDEXED reads and writes; replace the "INC $FB" and "INC $FD" with "INY" (keep the "LDY #$00" as-is) to speed up your code significantly.
+<br />
+<br />2. Instead of checking the destination address for $8000, simply use the X register to store the number of pages to copy; replace "LDX #$00" with "LDX #$20" and replace "LDA $FE" and "CMP #$80" with "DEX" to make the code a bit more versatile.
+<br />
+<br />Other than that, you've pretty much got the standard method for copying blocks of memory in 6502 ASM.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Memblers</b> [ Tue Jun 14, 2005 12:13 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Instead of CMP #$80 or DEX, you could also simply do:
+<br />
+<br />inc $fe
+<br />bpl loop
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

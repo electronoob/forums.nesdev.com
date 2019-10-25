@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=2&amp;t=16933" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2018-01-12T19:16:26-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=2&amp;t=16933</id>
+<entry>
+<author><name><![CDATA[slembcke]]></name></author>
+<updated>2018-01-12T19:16:26-07:00</updated>
+<published>2018-01-12T18:17:28-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=16933&amp;p=211725#p211725</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=16933&amp;p=211725#p211725"/>
+<title type="html"><![CDATA[A fast 16 bit divide by 240 (~80 cycles)]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=16933&amp;p=211725#p211725"><![CDATA[
+Related thread with a much faster 12 bit divide:<br /><!-- l --><a class="postlink-local" href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=16911">viewtopic.php?f=2&amp;t=16911</a><!-- l --><br /><br />So it was nagging at me that there must be a way to get a full 16 bit divide** by 240 using the trick I did in the last thread. (The idea is basically the same as this: <a href="http://blog.jgc.org/2012/03/how-to-divide-by-9-really-really-fast.html" class="postlink">http://blog.jgc.org/2012/03/how-to-divide-by-9-really-really-fast.html</a>) I finally came up with something, and it seems to work correctly! (though has only been mildly tested) It's not nearly as fast as the 12 bit version, maybe not even fast enough to be practical when you can just keep separate world space and tile wrapped scroll counters. Either way, it's still <em>many</em> times faster than a generic 16/8 bit division routine.<br /><br />** Since it's intended to be used for setting scroll registers, I don't bother calculating the upper 4 bits of the quotient. The assumption is that you'll be discarding everything but the LSB anyway.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">; 16 bit unsigned divide by 240.<br />; Returns the lower nibble of the quotient in x, and the remainder in a.<br />; Conceptually similar to http://blog.jgc.org/2012/03/how-to-divide-by-9-really-really-fast.html, but in base 16.<br />.proc div240_quick16<br />   ; Dividend is split into nibbles, (A, B, C, D)<br />   ; Because 240/16 = 15, we can simplify the problem to dividing ABC by 15.<br />   ; Then at the end, we push D in as the low bits of the remainder.<br />   <br />   A_B = sreg + 1<br />   C_D = sreg + 0<br />   tmp = A_B ; A_B is read only once, reuse it for scratch.<br />   ; x stores the quotient<br />   <br />   .code<br />   ldx A_B<br />   txa<br />   lsr<br />   lsr<br />   lsr<br />   lsr ; acc = A<br />   sta tmp<br />   txa<br />   and #$F ; acc = B<br />   clc<br />   adc tmp<br />   sta tmp ; A + B<br />   <br />   ; A + B is also the lower few bits of the quotient<br />   ; (minus some carry bits from the remainder that happen later)<br />   tax<br />   <br />   lda C_D<br />   lsr<br />   lsr<br />   lsr<br />   lsr ; acc = C<br />   clc<br />   adc tmp ; acc = A + B + C<br />   <br />   ; Divide acc by 15, carry the quotient into x.<br />   ; acc is in the range &#91;0, 45&#93;, so divide using an unrolled loop.<br />   ; Repeating twice is good enough for dividends up to 0xEFFF.<br />   ; Could save a few cycles here by rearranging comparisons I guess.<br />   .repeat 2<br />      cmp #15<br />      bcc :+<br />         sbc #15<br />         inx<br />      :<br />   .endrepeat<br />   <br />   ; acc now has the upper nibble of the remainder and needs to be combined with D.<br />   ; Could save 2 cycles with a 4 bit look up table I guess.<br />   asl<br />   asl<br />   asl<br />   asl<br />   sta tmp<br />   lda C_D<br />   and #$F<br />   ora tmp<br />   <br />   rts<br />.endproc</div><br /><br />edit: Some cleanup and comments. Hopefully easier to understand now.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=8849">slembcke</a> — Fri Jan 12, 2018 6:17 pm</p><hr />
+]]></content>
+</entry>
+</feed>

@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=6&amp;t=7272" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2011-02-23T18:30:02-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=6&amp;t=7272</id>
+<entry>
+<author><name><![CDATA[B00daW]]></name></author>
+<updated>2011-02-23T18:30:02-07:00</updated>
+<published>2011-02-23T18:30:02-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=7272&amp;p=74462#p74462</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=7272&amp;p=74462#p74462"/>
+<title type="html"><![CDATA[Point of terminology: Namco 106 vs. Namco 163]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=7272&amp;p=74462#p74462"><![CDATA[
+<!-- m --><a class="postlink" href="http://bootgod.dyndns.org:7777/imagegen.php?ImageID=7964&amp;width=600">http://bootgod.dyndns.org:7777/imagegen ... &amp;width=600</a><!-- m --> &lt; Gimmick! cart.<br /><br />The only difference between Sunsoft 5B and FME-7 (which is used by Dynamite Batman) is the full AY chip is found in the Sunsoft 5B.<br /><br />Quoting Disch:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">Sound:<br />---------------------------<br /><br />Sunsoft 5B appears to be identical to the AY 3-8910 &#40;or a similar chip -- possibly a different AY 3-891x or a<br />YM2149&#41;.  The only game to use the sound, Gimmick!, does not use the envelope or noise functionality that<br />exists on the AY 3-891x, however, through testing it has been shown that such functionality does in fact<br />exist.<br /><br />The sound info below is a simplified version of the behavior.  Envelope and Noise are not covered &#40;aside from<br />the noise shift formula&#41;, and registers relating to those areas are not mentioned.  However the information<br />below is enough to satisfy Gimmick!  If you want further information and full register descriptions, consult<br />an AY 3-8910 datasheet or doc.<br /><br />Sunsoft 5B has 3 Square channels &#40;no configurable duty cycle -- always play at 50% duty&#41;.  Each operate<br />similarly to the native NES sound channels.  They output sound at 1 octave lower than what may be expected,<br />though &#40;see below&#41;.<br /><br /><br />Sound Regs:<br />---------------------------<br /><br />  $C000:  &#91;.... AAAA&#93;   Address for use with $E000<br /><br />  $E000:  &#91;DDDD DDDD&#93;   Data port:<br /><br />      R:0 -&gt;   &#91;FFFF FFFF&#93;   Chan 0, Low 8 bits of Freq<br />      R:1 -&gt;   &#91;.... FFFF&#93;   Chan 0, High 4 bits of Freq<br />      R:2 -&gt;   &#91;FFFF FFFF&#93;   Chan 1, Low 8 bits of Freq<br />      R:3 -&gt;   &#91;.... FFFF&#93;   Chan 1, High 4 bits of Freq<br />      R:4 -&gt;   &#91;FFFF FFFF&#93;   Chan 2, Low 8 bits of Freq<br />      R:5 -&gt;   &#91;.... FFFF&#93;   Chan 2, High 4 bits of Freq<br /><br />      R:7 -&gt;   &#91;.... .CBA&#93;   Channel disable flags &#40;0=enabled, 1=disabled&#41;<br />           C = Disable Chan 2<br />           B = Disable Chan 1<br />           A = Disable Chan 0<br /><br />      R:8 -&gt;   &#91;.... VVVV&#93;   Chan 0, Volume<br />      R:9 -&gt;   &#91;.... VVVV&#93;   Chan 1, Volume<br />      R:A -&gt;   &#91;.... VVVV&#93;   Chan 2, Volume<br /><br /><br />Operation:<br />---------------------------<br /><br />For tone generation, a counter is counted up each CPU cycle.  When it reaches the given 'F' value, it resets<br />to zero, and another step through the duty cycle is taken.  These squares' duty cycles are fixed at 50%<br />&#40;AY 3-8910 docs say 8/16, but see below&#41;.<br /><br />Emulating in this fashion, with a 16-step duty, these channels play 1 octave higher than they should!<br />Therefore, either channels are only clocked every other CPU cycle... or &#40;what I find to be easiest to<br />emulate&#41; the duty is actually 16/32 instead of 8/16, or something else is going on.  I do not know which is<br />actually happening.<br /><br />The generated tone in Hz can be calculated with the following:<br /><br />       CPU_CLOCK<br />Hz = -------------<br />      &#40;F+1&#41; * 32<br /><br /><br />When the duty cycle outputs high, 'V' is output, otherwise 0 is output.  When the channel is disabled &#40;see<br />R:7&#41;, 0 is forced as output for the channel.<br /><br /><br />Non-linear volume:<br />---------------------------<br /><br />Output volume is non-linear... increasing in steps of 3 dB.<br /><br />Output can be calculated with the following pseudo-code:<br /><br />  vol = 1.0;<br />  for&#40;i = 0; i &lt; 0x10; ++i&#41;<br />  &#123;<br />    sunsoft_out&#91;i&#93; = vol * base;<br />    vol *= step;<br />  &#125;<br /><br />Where 'base' can be adjusted to match your native NES sound channel levels, and 'step' is &quot;10^&#40;dB/20&#41;&quot;.<br /><br />For 3 dB, 'step' would be ~1.4125<br /><br /><br />Noise Formula:<br />---------------------------<br /><br />      &gt;&gt;             &gt;&gt;<br />+--&gt;&#91;nnnn nnnn nnnn nnnn&#93;-&gt;output<br />|                   |  |<br />|                   | ++<br />|                   | |<br />|                   v v<br />+-------------------XOR<br />   <br /><br />- 16-bit right-shift reg<br />- bits 0,3 &#40;before shift&#41; XOR to create new input bit<br />- bit 0 is shifted to output<br />- initial feed is 1</div><br /><br /><!-- m --><a class="postlink" href="http://www.ym2149.com/ay8910.pdf">http://www.ym2149.com/ay8910.pdf</a><!-- m --> &lt; AY datasheet.<br /><br />So from what we can determine from Disch's notes is the envelope and noise generator registers are missing from most emulators because Gimmick! does not use them.<br /><br />If we were to program for the Sunsoft 5B, we would set the AY register with $C000, let's say #$06 for noise (or #$0B, #$0C, or #$0D for envelope), and then write data to those registers through $E000.<br /><br />The AY is capable of interchanging pulse to noise for all three of its channels with its mixer register and the envelope register is capable of producing an additional "buzzer" channel by quick modulation; making the AY generally a 3 +1 virtual channel sound chip.<br /><br />For chip music, it2nsf (<!-- m --><a class="postlink" href="http://mukunda.com/projects.html">http://mukunda.com/projects.html</a><!-- m -->) currently supports limited Sunsoft 5B support; meaning only the three channels as pulses.<br /><br />If the full AY were emulated on PowerPak, Nintendulator, Nestopia, player plugins, etc... there would be more chances for original 2a0x+AY chip music. <img src="http://forums.nesdev.com/images/smilies/icon_smile.gif" alt=":)" title="Smile" />  We're already partially there... ;D<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3466">B00daW</a> — Wed Feb 23, 2011 6:30 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[bucky o'hare]]></name></author>
+<updated>2011-02-08T12:25:49-07:00</updated>
+<published>2011-02-08T12:25:49-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=7272&amp;p=73693#p73693</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=7272&amp;p=73693#p73693"/>
+<title type="html"><![CDATA[Point of terminology: Namco 106 vs. Namco 163]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=7272&amp;p=73693#p73693"><![CDATA[
+<div class="quotetitle">B00daW wrote:</div><div class="quotecontent"><br />Hydlide 3: Yami Kara no Houmonsha -- Expansion chip flag is set in NSF, but no expansion audio is used on any track.<br />Namcot Classic 2 -- Ditto.<br />Sangokushi: Chuugen no Hasha -- Ditto.<br /></div><br />Oh, so I should remove those from this list, then?<br /><!-- m --><a class="postlink" href="http://nesdev.com/bbs/viewtopic.php?p=25189">http://nesdev.com/bbs/viewtopic.php?p=25189</a><!-- m --><br />(edit, already did)<br /><br />And what's the deal with FME-7 again? I recall seeing something about this. Does it have a more appropriate name?<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=1096">bucky o'hare</a> — Tue Feb 08, 2011 12:25 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[B00daW]]></name></author>
+<updated>2010-12-16T15:40:21-07:00</updated>
+<published>2010-12-16T15:40:21-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=7272&amp;p=71582#p71582</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=7272&amp;p=71582#p71582"/>
+<title type="html"><![CDATA[Point of terminology: Namco 106 vs. Namco 163]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=7272&amp;p=71582#p71582"><![CDATA[
+List of Namcot 163 carts &gt; <!-- m --><a class="postlink" href="http://bootgod.dyndns.org:7777/search.php?keywords=Namcot+163&amp;kwtype=chip">http://bootgod.dyndns.org:7777/search.p ... wtype=chip</a><!-- m --><br /><br />Of those Namcot 163 chip games, those that use expansion audio:<br />  <br />Dokuganryuu Masamune<br />Erika to Satoru no Yume Bouken<br />Final Lap<br />King of Kings<br />Mappy Kids<br />Megami Tensei II: Digital Devil Story<br />Rolling Thunder<br />Sangokushi II: Haou no Tairiku<br /><br /><br />Hydlide 3: Yami Kara no Houmonsha -- Expansion chip flag is set in NSF, but no expansion audio is used on any track.<br />Namcot Classic 2 -- Ditto.<br />Sangokushi: Chuugen no Hasha -- Ditto.<br /><br />Wagyan Land 2 NSF says that it uses "N106" but does not actually have expansion sound and uses Namcot 175.<br /><br />I don't seem to see any Namcot 106 games in BootGod's database either.<br /><br />Namcot games documented in BootGod's database:  <!-- m --><a class="postlink" href="http://bootgod.dyndns.org:7777/search.php?keywords=Namcot&amp;kwtype=chip&amp;offset=0&amp;field=2&amp;order=asc">http://bootgod.dyndns.org:7777/search.p ... &amp;order=asc</a><!-- m --><br /><br />The Namcot games mostly look like they use epoxy blobs and the mapper chip is assigned the position of "U3".<br /><br />I'm wondering what games do use Namcot 106 and why they were initially classified as N106.  This would take prodding through older NES emulators and going through the old NESdev BBS...<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3466">B00daW</a> — Thu Dec 16, 2010 3:40 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Bregalad]]></name></author>
+<updated>2010-12-15T11:04:36-07:00</updated>
+<published>2010-12-15T11:04:36-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=7272&amp;p=71486#p71486</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=7272&amp;p=71486#p71486"/>
+<title type="html"><![CDATA[Point of terminology: Namco 106 vs. Namco 163]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=7272&amp;p=71486#p71486"><![CDATA[
+Well did someone ever encounter a Namco "106" chip ?<br />There SHOULD be a reason why it was initially called like that.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=38">Bregalad</a> — Wed Dec 15, 2010 11:04 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Dwedit]]></name></author>
+<updated>2010-12-15T08:03:27-07:00</updated>
+<published>2010-12-15T08:03:27-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=7272&amp;p=71471#p71471</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=7272&amp;p=71471#p71471"/>
+<title type="html"><![CDATA[Point of terminology: Namco 106 vs. Namco 163]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=7272&amp;p=71471#p71471"><![CDATA[
+Just like "FME-7" audio needs a rename?<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=53">Dwedit</a> — Wed Dec 15, 2010 8:03 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2010-12-15T07:53:13-07:00</updated>
+<published>2010-12-15T07:53:13-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=7272&amp;p=71470#p71470</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=7272&amp;p=71470#p71470"/>
+<title type="html"><![CDATA[Point of terminology: Namco 106 vs. Namco 163]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=7272&amp;p=71470#p71470"><![CDATA[
+A regular on another wiki, who might not qualify for trusted on wiki.nesdev.com because he isn't active on the BBS, sent me a <a href="http://pineight.com/mw/?title=User_talk:Tepples&amp;oldid=2041#Nesdev_move_request" class="postlink">message on my talk page at that wiki</a> explaining why <a href="http://wiki.nesdev.com/w/index.php/Namco_106_audio" class="postlink">Namco 106 audio</a> might need a rename.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Wed Dec 15, 2010 7:53 am</p><hr />
+]]></content>
+</entry>
+</feed>

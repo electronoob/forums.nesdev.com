@@ -1,0 +1,415 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Order of events in the main loop</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Order of events in the main loop</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=6732">http://forums.nesdev.com/viewtopic.php?f=2&amp;t=6732</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Banshaku</b> [ Mon Aug 02, 2010 7:03 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Order of events in the main loop</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I may be able to work a little bit on my game engine during summer and I'm starting to investigate in which order the events in the main loop should be processed.
+<br />
+<br />For the point of view of the user, everything seems to happen instantaneously but we know that it's just some sequential pattern that is processed in the background.
+<br />
+<br />For now my current tentative main loop could look like this:
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">- Process user input<br />&nbsp; + process actor movement<br />&nbsp; &nbsp; &nbsp;* process actor collision against wall<br />&nbsp; + process weapon<br />- Process enemy<br />&nbsp; + move enemy<br />&nbsp; &nbsp; &nbsp;* process enemy collision against wall &#40;when appropriate&#41;<br />&nbsp; &nbsp;? process enemy weapon &#40;if any&#41;<br />? Maybe process object/enemy collision with actor here<br />- Move camera based on user input<br />- Process metatile column buffer<br />- Process background animation &#40;if any&#41;<br />- Wait nmi<br />- Finally read new user input<br /></div>
+<br />
+<br />For now this is the skeleton code that I have but I have many functionality missing like how to define enemy information and their weapons shot, how to interact between the main actor and any threat coming at him etc.
+<br />
+<br />In which order do you process your event and for what reason? Does one method has advantage over another?
+<br />
+<br />I guess when I will write more code and see what happen it will become more clear.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Mon Aug 02, 2010 8:29 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I use almost the same order, but there are some key differences that I will explain.
+<br />
+<br />The first difference is the camera. First, the camera doesn't actually move based on user input, it follows the main character. The difference may be subtle, seeing as the character moves based on input, but it makes a difference. What's actually important though is that I <strong>move the camera after processing the main character but before processing the enemies/objects</strong>. That's because, for performance reasons, each object is responsible for calling their own drawing routines, so that I have to loop through them all only once, and by that time the coordinates of the camera must be final so that the sprite drawing routine can properly calculate the positions of the sprites on the screen.
+<br />
+<br />Also, in my game some objects are rendered to the background, so they have to watch as the rows and columns of metatiles are rendered and overwrite some of the tiles with their own if necessary. That's another reason to process the camera before the objects, and metatiles columns/rows right after it.
+<br />
+<br />Collisions with the main character, are requested by each object, also for performance reasons. Since I loop through the active objects only once, it's their responsibility to draw their own sprites or background tiles and check for collision with the main character. The good thing about this is that they perform these actions only when necessary. Not all objects collide with the player, so these kinds of objects don't waste CPU time checking for collisions with him.
+<br />
+<br />In the end, I guess that my main loop is something like this:
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">- read user input<br />- process main character<br />&nbsp; + move main character based on input and physics<br />&nbsp; &nbsp; * check for map collisions and eject<br />- process camera<br />&nbsp; + have the camera follow the main character<br />&nbsp; + prepare columns/rows for updating if necessary<br />- load new objects that are in range<br />- process objects/enemies<br />&nbsp; + move object using specific AI<br />&nbsp; &nbsp; * check for map collisions and eject<br />&nbsp; &nbsp; * check for collision with the main character<br />&nbsp; &nbsp; &nbsp; &#40;the main character is notified in case of collisions,<br />&nbsp; &nbsp; &nbsp; and they are handled on the next frame&#41; &lt;- BAD IDEA!<br />&nbsp; + draw object using sprites and/or background<br />&nbsp; &nbsp; &#40;the main character is also drawn during this time&#41;<br />- process background animation<br />- process palette animation<br />- wait for the NMI<br />- repeat</div>
+<br />
+<br />EDIT: It just occurred to me that handling object-player collisions only on the next frame is not such a good idea. It might be OK in several cases, but objects such as breakable walls or moving platform will present a problem, because I don't want the main character visibly overlapping them before being ejected. So I'll probably have to tweak this a bit so that the main character can react to these collisions immediately.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Banshaku</b> [ Mon Aug 02, 2010 7:32 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />For the camera, it seems to make sense. For now I don't have any enemy code at all, just some commented out stub method so there was no impact to it.
+<br />
+<br />As for the camera, the code for now is based on the first experimentation I did for my mm9 test.  It work enough for my needs. The "camera" (or background movement) only react to the actor movement. The way it work is a little bit like this (from memory):
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">- receive input from user<br />- enter actor input check state<br />&nbsp; - Check screen state from view manager<br />&nbsp; - Is it beginning/end of screen?<br />&nbsp; &nbsp; &nbsp; + Yes<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;* Check if passed limit of center<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;% yes?&nbsp; Camera must move<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;% No? Actor must move<br />&nbsp; &nbsp; &nbsp; + No. Check if 1 screen state?<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; * Yes -&gt; actor must move<br />&nbsp; &nbsp; &nbsp; + No.&nbsp; Scrolling state.&nbsp; Request camera to move<br /></div>
+<br />
+<br />For now it is working fine for the current state of my testing. When I will add enemies and objects, I will see if any impact.
+<br />
+<br />Basically the view manager keep the state of the map which can be:
+<br />
+<br />- beginning
+<br />- end
+<br />- scrolling
+<br />- one screen
+<br />  
+<br />Based on the current state of the view, the actor decide if he must move on the screen or the screen must move. From my point of view, the objects are related to the screen coordinate and don't care much were on the map they are actually.
+<br />
+<br />I will have to see how much impact it has on the enemy when the screen move since their coordinate will be impacted by the actor movement that may request to move the camera.
+<br />
+<br />Since I don't know about any proper system, I just try some ideas to see how it goes. Sometime it goes well, sometime it fail. I learn from these always.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Mon Aug 02, 2010 7:56 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Banshaku, I don't understand why you have all these states and differentiation in the handling of the actor's position. You seem to be too concerned about the visual outcome of things, and making decisions based on that.
+<br />
+<br />As I see it, you could make it work in a more generic way that wouldn't require you to maintain several states, check if the player went past the center of the screen and things like that. What I mean is, if all other objects in the level are independent from the camera, why would your main character depend on it? It's just another object in the level as far as the game is concerned, it just happens to respond to input, unlike all others.
+<br />
+<br />I believe you should just worry about moving the main character/actor inside the level, not bothering about the camera. Then, when you update the camera, just have it follow the actor, moving to a new position that makes him appear at the center (you can make CameraX = PlayerX - 128, for example). If the camera tries to go past the end of the level, it's ejected back to a valid position, pretty much like we do when objects go inside walls. This will cause the actor to move past the center of the screen naturally, and he doesn't even have to be aware of that.
+<br />
+<br />To me that's a more accurate representation of the reality. In real life, when someone uses a camera, the subject being filmed doesn't affect the position of the camera directly, he just moves around, it's the person who's filming that's supposed to follow the subject, unless something get's in the way and prevents him from doing so.
+<br />
+<br />With the camera moving independently from the objects, all you have to do to find their position on the screen is subtract the coordinates of the top left corner of the camera from their coordinates. The result will be their position relative to the camera, which is what we need to draw sprites. But this is just for rendering the view, their apparent positions should have no impact on the game logic, you know?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Banshaku</b> [ Mon Aug 02, 2010 8:23 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />For the camera, yes, you have a point. The system is maybe too complicated.  This is what happen when you don't have time, don't think and try ideas <img src="./images/smilies/icon_wink.gif" alt=";)" title="Wink" /> You should have seen the "dynamic input handler" I tried... A disaster but I learned some coding from it.
+<br />
+<br />I can explain where the idea come from.  In a side scroller like mega man, most of the time the main actor is always in the middle of the screen. Instead of always re-calculating the main actor, when in "scroll state", he always stay in the middle anyway.  So by knowing the state you know when the actor is affected or not. Coding wise it was quite a simple system. But... Once you start to add enemies which the camera do affect their coordinates, this is when this system will fall apart I guess.
+<br />
+<br />This was done after I was able to decode properly my map data and I was able to make something that looked interesting.  When you have not much time, seeing results like this improve your motivation in some way. I guess it will be re-factoring time soon this summer.
+<br />
+<br />Now regarding moving the camera... I guess you don't really say "move left X value" but give it a "velocity" that can be positive/negative and based on that, it will move the camera. This way, the actor could be trying to move right but because of wind, he would be pushed back away, having a negative velocity. Does it make sense?
+<br />
+<br />That's remind me that I have to fix the way velocity works for jumping to remove useless states (...).
+<br />
+<br />Edit:
+<br />
+<br />Another reason it was that way is because the coordinate of the actor was 8 bit only since he was relative to the screen coordinate. It was working fine for me. For the camera, I don't know where it is, I just move 1 screen at a time and keep a reference to the current screen.  You could say that it 16 bit in that case but this is more or less true.
+<br />
+<br />I guess I will need to visualize the new camera system and see how to re-factor before touching any code.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Mon Aug 02, 2010 8:52 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Banshaku wrote:</div><div class="quotecontent">FIn a side scroller like mega man, most of the time the main actor is always in the middle of the screen. Instead of always re-calculating the main actor, when in "scroll state", he always stay in the middle anyway.</div><br />I guess I understand where the idea came from, but in this particular case I think that you ended up using a complex system with exceptions you have to check for, and to save what? One subtraction? Even though you know what the result of that subtraction will be 90% of the time, the processing time required to tell apart the 90% from the other 10% isn't worth it, better go with something that works 100% of the time without having to switch states.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Now regarding moving the camera... I guess you don't really say "move left X value" but give it a "velocity" that can be positive/negative and based on that, it will move the camera.</div><br />But then we get into the old debate of what the best camera is...! =) There's too much variation here I guess. Some people like to keep the character always centered, other like to give him some room to move before any scrolling happens, some like to make "smart" that show more of the direction the character is facing, and so on...<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">This way, the actor could be trying to move right but because of wind, he would be pushed back away, having a negative velocity. Does it make sense?</div><br />Sure, that's essential for interesting physics.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">I guess I will need to visualize the new camera system and see how to re-factor before touching any code.</div>
+<br />Even though I spend hours and hours planning everything on paper before I code things, I always end up missing something big.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Tue Aug 03, 2010 6:46 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />For some kinds of games, you'll want to center the camera a few steps in front of the player. Yoshi's Island does this, as does the Game Boy Color port of SMB1. But then it's still 1. move the player, 2. find the center position based on the player's position, and then 3. move the camera toward this center position.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Banshaku</b> [ Tue Aug 03, 2010 6:35 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />hmmm.. I tried to visualize things but I never been good at this unless I try to code or put it on paper.
+<br />
+<br />For now I'm not sure how it would work from the description you mentioned above. The description is simple but maybe some information seems to be missing. I will ask regarding this.
+<br />
+<br />First I will clarified what I did.  Technically, I don't have a camera. It is called "camera" but it just the view moving the background (map) based on the user input.  It follow a few rule about begining of map, end of map. That's it. In your system, I guess the camera location and background are 2 independent concept, is it correct?
+<br />
+<br />Second, you said that to find the coordinates on an object, you have to subtract the camera from their coordinate.  This mean use the camera coordinate space to transform the object coordinate in the screen coordinate space. But in which space the objects coordinate exist? Is it the map coordinate space? In that case, they must be 16 bits values for sure.
+<br />
+<br />Even with that information, I'm still not sure how it would work in a game like mega man since I cannot visualize it yet.  My system is complicated in a way but it defined the state the actor could be. For the enemy, I don't think it would work.  I guess I need to try it out once the details are clarified.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Tue Aug 03, 2010 7:29 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />If you're scrolling, then yes, you'll need 16-bit coordinates for the world-space coordinates of your critters. But you can use some of these bits for subpixel positioning:
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">FEDC BA98 7654 3210<br />|||| |||| |||| ||||<br />|||| |||| |||| ++++- Subpixels<br />|||| ++++-++++------ Pixels<br />++++---------------- 256-pixel units</div>
+<br />If your map is wider than 4096 pixels, consider the 256-pixel units in terms of a sliding window centered on the camera. For example, values 0-15 start out meaning themselves, then once the camera moves past x=2048 or so, reinterpret them as 1-15 meaning themselves and 0 meaning 16. Once the camera is at x=4096, 8-15 mean themselves and 0-7 mean 16-23.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Tue Aug 03, 2010 8:08 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />As I see it, it's easier to treat everything that exists in the game world as objects, even the camera. The camera can be considered an actual entity, that moves around, collides with things (level edges) and has its own coordinates. In my engine the camera is conceptually an object like any other (maybe it can even make use of the physics routines, for acceleration and such), the only difference is that it's not a dynamic object (i.e. it doesn't occupy a dynamic object slot in RAM because it's always active).
+<br />
+<br />The precision of the coordinates have to be big enough to describe any position within the level. I'm pretty confident that the only games that can get away with 8-bit coordinates are single-screen games (i.e. no scrolling). If you find a way to use 8-bit coordinates in worlds wider/taller than 256 pixels it will be a hackish solution, and IMO the complexity introduced just to save a few bytes of RAM isn't wort it. And I do believe that RAM would be all you'd be saving, since the time taken to sort all the cases/flags/whatever would probably take more CPU time than the 16-bit operations themselves.
+<br />
+<br />Tepples' solution is interesting, but gets complex to manage in larger worlds. Since all my levels are pretty large, I always use 16-bits for the integer part, and only the objects that require sub-pixel precision use an extra byte for the fractional part.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Banshaku</b> [ Tue Aug 03, 2010 8:37 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I will need to meditate on it. In the case of mega man, the camera "entity" follow the actor all the time, thus the way I was checking the state location of the map (that is checked in the wrong location, inside the actor manager).
+<br />
+<br />I will need to check how to convert the actor (and future entity) to world (map) coordinate and see how to develop around this. But if I follow what you said about camera "bouncing" on limit of wall, in my case the camera as the same location (x) as the main actor.  I guess this is a specific requirement for this game.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

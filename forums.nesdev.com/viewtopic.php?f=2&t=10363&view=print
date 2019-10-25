@@ -1,0 +1,270 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Assembly routine help wanted: fixed-point 16x16 multiply</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Assembly routine help wanted: fixed-point 16x16 multiply</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=10363">http://forums.nesdev.com/viewtopic.php?f=2&amp;t=10363</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>sonder</b> [ Thu Aug 08, 2013 10:27 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Assembly routine help wanted: fixed-point 16x16 multiply</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />In our game, I am currently going with a 12.4 fixed point number format for position and velocity.  (I've been thinking of 16.8 for speed of fetching and better resolution but I figure I can save memory for now and upgrade it later)<br /><br />How would we do a fixed-point multiply on 6502?  I figure the general procedure would be to multiply 16x16 with a 32-bit result, and then throw away the bottom 2 bytes.  But there should be a more efficient way on 6502, right?  This puzzle is a little too advanced for me at the moment so I'm hoping to get some additional heads in on this.<br /><br />I'm separating the LSB and MSB by a constant, FIXP_STRIDE.  Game object properties are stored in interleaved arrays indexed by X/Y<br /><br />edit: actually, a 16x7 (7 bit signed scalar, both with 4-bit fractional portion) multiply would probably be sufficient?  i would be using it for accel/decel, angles to things, distances between things...
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Thu Aug 08, 2013 11:33 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Assembly routine help wanted: fixed-point 16x16 multiply</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />On the bright side, bit shifts of multiples of 8 are free. On the downside, if you skip any lower bits, you risk being off by however many carry bits there would be.<br /><br />There are tricks you can do if you've got shorter hardware-accelerated multiplication (e.g. 8×8→16), but the 6502 doesn't usually give you that.<br /><br />In practice, I fear just doing long binary multiplication is the best you're going to manage.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Fri Aug 09, 2013 7:37 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Assembly routine help wanted: fixed-point 16x16 multiply</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Every time I had to do this I used the old &quot;shift and add + throw away lower byte(s)&quot; method. The only way I know to actually speed up multiplications is to use the method explained <a href="http://6502.org/source/integers/fastmult.htm" class="postlink">here</a>. The idea is to build a table using this formula: <strong>f(x) = x^2 / 4</strong> and then do <strong>f(a+b) - f(a-b)</strong> to calculate the result, so instead of the multiplication you do 1 addition and 1 subtraction, 2 table lookups, and finally one more subtraction.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>thefox</b> [ Fri Aug 09, 2013 7:49 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Assembly routine help wanted: fixed-point 16x16 multiply</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />If you can spare having 2KB worth of tables, check this out for some &quot;seriously fast multiplications&quot;:<br /><br /><!-- m --><a class="postlink" href="http://codebase64.org/doku.php?id=base:seriously_fast_multiplication">http://codebase64.org/doku.php?id=base: ... iplication</a><!-- m --><br /><br />The routines will need modifications (and will be slower) if you don't have WRAM because they use self modifying code.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>sonder</b> [ Fri Aug 09, 2013 7:52 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Assembly routine help wanted: fixed-point 16x16 multiply</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tokumaru wrote:</div><div class="quotecontent">Every time I had to do this I used the old &quot;shift and add + throw away lower byte(s)&quot; method. The only way I know to actually speed up multiplications is to use the method explained <a href="http://6502.org/source/integers/fastmult.htm" class="postlink">here</a>. The idea is to build a table using this formula: <strong>f(x) = x^2 / 4</strong> and then do <strong>f(a+b) - f(a-b)</strong> to calculate the result, so instead of the multiplication you do 1 addition and 1 subtraction, 2 table lookups, and finally one more subtraction.</div><br /><br />This looks promising, just 2KB seems like a lot to give up.  We are currently well on our way to filling up a NROM-256.<br /><br />Starting to think I'll see how far we can get before needing multiplication and then maybe go down that road you posted.  I knew math on 6502 would be tricky, but I have a feeling I'm in over my head!  I can code just fine with algebraic math, I just hate coding low level binary math...
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Fri Aug 09, 2013 8:13 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Assembly routine help wanted: fixed-point 16x16 multiply</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">sonder wrote:</div><div class="quotecontent">We are currently well on our way to filling up a NROM-256.</div><br />Yeah, when you only have 32KB of PRG-ROM, you shouldn't use a lot of look-up tables.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">I knew math on 6502 would be tricky, but I have a feeling I'm in over my head!  I can code just fine with algebraic math, I just hate coding low level binary math...</div><br />Most games made for old consoles don't have such complex physics, most of it can be done with additions and subtractions...
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>sonder</b> [ Fri Aug 09, 2013 9:01 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Assembly routine help wanted: fixed-point 16x16 multiply</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tokumaru wrote:</div><div class="quotecontent">Yeah, when you only have 32KB of PRG-ROM, you shouldn't use a lot of look-up tables.<br /></div><br /><br />We are going to upgrade to UnROM.  Maybe.  I flip flop a lot internally on what I want the scope of this project to be.  We are in that awkward stage between deciding what to do and experimenting with actual code and discovering the actual gameplay through that.<br /><br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Most games made for old consoles don't have such complex physics, most of it can be done with additions and subtractions...</div><br /><br /><br />This is what I'm thinking for now.  We might be able to get by.  <br /><br />Still it would be neat to come up with a custom multiply for 12.4 x 3.4 ... i have a penchant for optimization <img src="./images/smilies/icon_razz.gif" alt=":P" title="Razz" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Fri Aug 09, 2013 9:13 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Assembly routine help wanted: fixed-point 16x16 multiply</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />For finding distances, angles, and the like, you can use 8x8 multiplies and divides only on the integer part of the pixel coordinates. That's what Thwaite does when aiming missiles. In PAL mode, it also occasionally uses inline code to multiply by 19/16 or 13/16 (approximations of 6/5 and 5/6) to change a speed or period value.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

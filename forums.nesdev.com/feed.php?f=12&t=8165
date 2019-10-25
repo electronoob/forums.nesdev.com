@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=12&amp;t=8165" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2011-09-28T13:05:25-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=12&amp;t=8165</id>
+<entry>
+<author><name><![CDATA[psycopathicteen]]></name></author>
+<updated>2011-09-28T13:05:25-07:00</updated>
+<published>2011-09-28T13:05:25-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8165&amp;p=84476#p84476</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8165&amp;p=84476#p84476"/>
+<title type="html"><![CDATA[background and sprites priorities]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8165&amp;p=84476#p84476"><![CDATA[
+I think I figured out how this works.  Each priority layer has a bit determining if the pixel is solid or transparent.<br /><br />For example, if BG1 p=0 and BG2 p=0 are both solid in the same spot it looks like this:<br /><br />000000101000000<br /><br />First you OR each bit with the bit to the left of it.<br /><br />000000111111111<br /><br />Then you XOR each bit with the bit to the left of it.<br /><br />000000100000000<br /><br />Then you take the bits that belong to the same layer and OR them together:<br /><br />x0x0x0x0x0xx0xx<br />sprites = 0<br /><br />xx0xxx1xxxxxxxx<br />BG1 = 1<br /><br />xxxx0xxx0xxxxxx<br />BG2 = 0<br /><br />0xxxxxxxxx0xx0x<br />BG3 = 0<br /><br />xxxxxxxxxxx0xx0<br />BG4 = 0<br /><br />BG1 gets rendered<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4383">psycopathicteen</a> — Wed Sep 28, 2011 1:05 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[ReaperSMS]]></name></author>
+<updated>2011-09-27T16:59:38-07:00</updated>
+<published>2011-09-27T16:59:38-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8165&amp;p=84465#p84465</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8165&amp;p=84465#p84465"/>
+<title type="html"><![CDATA[background and sprites priorities]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8165&amp;p=84465#p84465"><![CDATA[
+Well, it's that complicated because they wanted it to be.<br /><br />As for what goes on inside, here's my guess at it:<br /><br />PPU1 handles sprites and addressing. PPU2 snoops the data bus to pick up BG data.<br />PPU2 handles backgrounds, and all the actual screen composition.<br /><br />PPU1 figures out the sprite priority among sprites, and feeds the 4-bit color, 3-bit palette select, and 2 bit priority for the current pixel to PPU2 via the CHR, PRIO, and COLOR lines as listed on the schematics at neviksti's site.<br /><br />From there, the ordering isn't that crazy. Two main cases to worry about, 3/4 screen and 1/2 screen.<br /><br />3/4 screen:<br />Background color<br />BG3/4 Pri 0<br />OBJ 0<br />BG3/4 Pri 1<br />OBJ 1<br />BG1/2 Pri 0<br />OBJ 2<br />BG1/2 Pri 1<br />OBJ3<br />(BG3 Pri 1 override case)<br /><br />The $2105.d3 override would be for placing a 16-color HUD in BG3, and having it appear over sprites. Handy for fighting games or whatnot.<br /><br />1/2 screen:<br />Background color<br />BG2 Pri 0<br />OBJ 0<br />BG1 Pri 0<br />OBJ 1<br />BG2 Pri 1<br />OBJ 2<br />BG1 Pri 1<br />OBJ 3<br /><br />Internally, PPU2 has 2 priority decoders, one for the main screen, one for the sub screen. The inputs to each of these are the set of BGs and the OBJ, after filtering down based on which ones are enabled for that screen, and based on the window logic.<br /><br />There's a number of ways the priority logic could be implemented, but a couple of observations simplify things:<br /><br />Aside from the d3 exception, BG1/2 are always over BG3/4.<br />Priority 1 BGs are in front of Priority 0 BGs.<br /><br />First we magic up some signals, where BGx is 1 if that BG is not transparent at this pixel, and m1ex is 1 if we're in mode 1, and bit3 of $2105 is set. Then we come up with a 2 bit select, which will also serve as the priority.<br /><br />For 2-screen mode, sel[1] = (BG2 &amp; BG2P) | (BG1 &amp; BG1P). sel[0] = (BG1 &amp;BG1P) | (BG1 &amp; ~(BG2 &amp; BG2P)). Feed these in as the selector lines for a 4:1 multiplexer, with the inputs set to (BG2, BG1, BG2, BG1). Feed the output of this selector to the next stage, along with the transparency flag for the selected BG.<br /><br />For 4-screen mode, we have two of those, one for BG1/2, one for BG3/4. Call the signals for this fsel, ft, bsel, and bt, for the select and the transparency (1=solid, 0=transparent). f is for BG1/2, b is for BG3/4. sel[1] = ft; sel[0] = (ft &amp; fsel[1]) | (~ft &amp; bsel[1]); color output is from the f mux if ft, b mux if not. send the color output, sel, and ft | bt as the transparency flag forward.<br /><br />Screen color logic would be something like:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">if &#40;BG3 &amp; BG3P &amp; m1ex&#41;<br />  color &lt;= BG3<br />else if &#40;OBJ &amp; &#40;OBJP &gt;= sel&#41;&#41;<br />  color &lt;= OBJ<br />else if &#40;BGT&#41;<br />  color &lt;= BG<br />else<br />  color &lt;= background<br /></div><br /><br />There's probably some sneaky way of building a priority encoder that would reduce this stuff down a bit, but the above should be reasonably efficient in hardware.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=8">ReaperSMS</a> — Tue Sep 27, 2011 4:59 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[psycopathicteen]]></name></author>
+<updated>2011-09-27T14:44:04-07:00</updated>
+<published>2011-09-27T14:44:04-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8165&amp;p=84464#p84464</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8165&amp;p=84464#p84464"/>
+<title type="html"><![CDATA[background and sprites priorities]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8165&amp;p=84464#p84464"><![CDATA[
+Earlier today I was looking up how the priority bits work, and I noticed how complicated it is.<br /><br /><br />BG3 P=1 Mode 1 with bit 3 of $2105 set<br />sprites P=3<br />BG1 P=1<br />sprites P=2 Modes 2,3,4,5,6,7<br />BG2 P=1<br />sprites P=2 Modes 0,1<br />sprites P=1 Modes 2,3,4,5,6,7<br />BG1 P=0<br />sprites P=0 Modes 2,3,4,5,6,7<br />BG2 P=0<br />sprites P=1 Modes 0,1<br />BG3 P=1<br />BG4 P=1<br />sprites P=0 Modes 0,1<br />BG3 P=0<br />BG4 P=0<br /><br />Has anybody know why it's like this, and what is going on in the sPPU?<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4383">psycopathicteen</a> — Tue Sep 27, 2011 2:44 pm</p><hr />
+]]></content>
+</entry>
+</feed>

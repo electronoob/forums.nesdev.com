@@ -1,0 +1,452 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - sync to sound</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">sync to sound</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=3&amp;t=1654">http://forums.nesdev.com/viewtopic.php?f=3&amp;t=1654</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Anes</b> [ Wed Jun 14, 2006 4:24 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>sync to sound</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I put this (maybe again) to ask about generated sound in the emu and how to sync it with dsound.
+<br />
+<br />The thing is:
+<br />Im using 22.5KHZ, 8 bit per sample and mono for dsound output.. i mean the buffer that i create. I put it in this way in the post for simplicity since this could be 44.1 and 16 bit.
+<br />
+<br />Well im using BCP (Before Cursor Position) method to fill the dsound buffer while it's looping.. i mean obtaining the playcursor every 10ms (as DS FAQ says) to avoid overhead, use a custom WriteCursor variable and obtaining the free bytes, but my problem is the following:
+<br />
+<br />Im taking the output every 1789772.5 / 22050 = 81~ cpu cycles.
+<br />
+<br />Taking that into accout the emulated buffer generates:
+<br />
+<br />((341 * 262) / 3) / 81 = 367~ NES samples per frame.
+<br />
+<br />But if the dsound playcursor increment (more or less) every 10ms and the code for runnnig an entire frame is (more or less again) &lt; 3ms, it seems that we have to "wait" for the play cursor to advance 367 bytes so we can write to it. 
+<br />
+<br />In other words the NES generates samples faster than dsound play cursor advance.
+<br />
+<br />What means that the emulator *must* be stopped to sync to dsound?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Quietust</b> [ Wed Jun 14, 2006 4:51 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: sync to sound</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Anes wrote:</div><div class="quotecontent">Im taking the output every 1789772.5 / 22050 = 81~ cpu cycles.<br /><br />Taking that into accout the emulated buffer generates:<br /><br />((341 * 262) / 3) / 81 = 367~ NES samples per frame.<br /><br />But if the dsound playcursor increment (more or less) every 10ms and the code for runnnig an entire frame is (more or less again) &lt; 3ms, it seems that we have to "wait" for the play cursor to advance 367 bytes so we can write to it. <br /><br />In other words the NES generates samples faster than dsound play cursor advance.<br /><br />What means that the emulator *must* be stopped to sync to dsound?</div>
+<br />
+<br />Yes. If you generate your audio signal synchronized with CPU/PPU emulation and output it directly to DirectSound (with downsampling, of course), it will prevent your emulator from ever exceeding 100% speed. If you want the ability to exceed 100% speed (a 'turbo' function of some sort) without disabling sound, you'll need a more sophisticated buffer that can discard blocks instead of waiting for them to play.
+<br />
+<br />Incidentally, you really shouldn't be dividing the audio into <strong>PPU</strong> frames, since video and audio "frames" on the NES are totally unrelated.
+<br />
+<br />The problem with a 22050Hz sample rate is that it doesn't divide neatly by 60 (as well as the fact that higher frequencies will sound quite awful at that rate). These days, you shouldn't settle for anything less than 44100Hz - it divides evenly by 60 (which is a convenient number to use) and the audio will actually sound decent. 16-bit audio would also be useful, especially if you're going to be handling expansion sound.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Wed Jun 14, 2006 5:01 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />You're dealing with the fundamental problem of two masters: the frame rate and sample rate. You're going to have to slave one to the other (work this out on paper until you can see that there's no way around this). It's easy to make the frame rate a slave to the sample rate, and much less noticeable than changes in sample rate. A simple method is to make the frame rate slightly higher than the corresponding sample rate (i.e. 61 FPS), then have your graphics wait until there is no more than a few frames of audio waiting to play before displaying a frame (otherwise you'll have the sound playing too late).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Anes</b> [ Wed Jun 14, 2006 5:14 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />thanks very much for the info!!
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Quietust</b> [ Wed Jun 14, 2006 5:27 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">blargg wrote:</div><div class="quotecontent">You're dealing with the fundamental problem of two masters: the frame rate and sample rate. You're going to have to slave one to the other (work this out on paper until you can see that there's no way around this).</div>
+<br />
+<br />That's pretty much exactly what I do - make the frame rate depend on the sample rate, which should actually work out to ~60.0988 frames per second (1789772.7272727 cycles per second... / 29780.5 cycles per frame) on the NTSC NES.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>hap</b> [ Thu Jun 15, 2006 4:08 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />A followup to Quietust's post: you'll just have to output one sample every [CPU cycles per second]/[samplerate] CPU cycle. In the case of 44100Hz, using integer maths for speed, for PAL it would be every 38+59/1232 cycle, and for NTSC every 40+45/77 cycle.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>James</b> [ Fri Jun 16, 2006 8:19 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I don't like the tearing you get from not using vsync, so I make sure my frame rate is locked to 60Hz (block waiting for vsync, backed by a conventional timer in the emulation loop in case vertical refresh is &gt;60Hz).  For audio, I slightly adjust the sample rate based on how close the DirectSound play cursor is to the write cursor.  The adjustment is small enough that you can rarely hear it (and, for me, only if I'm listening for it), but in ensures that the video frame rate stays locked at 60Hz without causing sound problems.
+<br />
+<br />My refresh rate is locked at 60Hz (LCD display), so one missed vsync tends to cause sound buffer underflows.  This probably isn't as big of an issue at higher refresh rates.
+<br />
+<br />James
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>byuu</b> [ Fri Jun 16, 2006 9:19 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I sync to sound, as it runs the games at the correct speed, and resampling audio in realtime is a bitch. Use triple buffering, and one frame of every 600 is skipped. Or in interlace mode, 3 frames are shown twice of every 600. Yeah, it sucks, but oh well. At least there's no tearing.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Fri Jun 16, 2006 9:40 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I built my NES emu 'backend' so that it's able to work either way.  The way I have it set up is the front supplies an audio buffer, as well as the size of that buffer, and whether or not it wants the whole buffer filled with audio, or if it just wants the audio that would be 'naturally' produced in that frame.
+<br />
+<br />If the front specifies it only wants the natural audio output (like if it's syncing to sound), then the back simply runs for a frame and outputs the generated audio.  Otherwise, if the back is to fill the entire buffer, once it runs for a frame, it continues to generate more audio samples until the buffer is filled.  It's actually not <em>that</em> difficult with NES sound, since you're only dealing with simple repeating basic waveforms.  When generating more audio, I just run things related to wave generation (Programmable timer, Duty Cycle Unit, Tri-Step Generator, etc) and leave all other areas (Length, Sweep, Linear, etc) untouched.   That allows for sped up or slowed down sound without disrupting the pitch and will allow the game to run at any framerate without choppy sound.
+<br />
+<br />The DMC complicates this, however.  This doesn't work well with ROMs that use $4011... so games which stream data to it will end up sounding crackly or worse unless synced to sound.  And stuff like blargg's sawtooth demo won't work right at all.  I don't have a work-around for this with my method.
+<br />
+<br />Also -- since running the DMC longer (or shorter) will disturb the rate of stolen cycles, and DMC IRQs, I had to actually have <em>two</em> seperate DMCs to emulate, each operating independently of each other -- one which actually produces the sound (which I can be lax with, and can be run more/less depending on the number of samples needed), and one which runs tied to the CPU (which is only responsible for stealing cycles and firing IRQs at the appropriate times).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Boolean</b> [ Thu Apr 17, 2014 8:38 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: sync to sound</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Excellent! What your discussed is just the problem I am thinking about.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>unregistered</b> [ Thu Apr 17, 2014 1:58 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: sync to sound</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Boolean wrote:</div><div class="quotecontent">Excellent! What <span style="color: #FF0000"><s>your</s></span> <span style="color: #40FF80">you've</span> discussed is just the problem I am thinking about.</div>  That's a mistake that a lot of English speaking people make.  Well, your instead of you're they both sound the same.  <span style="color: #40FF80">You've</span> is <span style="color: #40FF80">you have</span>.  <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Boolean</b> [ Thu Apr 17, 2014 9:54 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: sync to sound</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">unregistered wrote:</div><div class="quotecontent"><div class="quotetitle">Boolean wrote:</div><div class="quotecontent">Excellent! What <span style="color: #FF0000"><s>your</s></span> <span style="color: #40FF80">you've</span> discussed is just the problem I am thinking about.</div>  That's a mistake that a lot of English speaking people make.  Well, your instead of you're they both sound the same.  <span style="color: #40FF80">You've</span> is <span style="color: #40FF80">you have</span>.  <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" /></div><br />Thank you, my friend. <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" /> <br />I know what you mean. A have+done stands for the Present Perfect Tense.<br /><strong>What your discussed</strong> is short for <strong>What your discussed thing</strong>.<br /><strong>Discuss</strong> is a verb. In most cases, a verb can be formatted with <strong>ed</strong> to become a adjective.<br />A adjective can stand for related things(equals a noun). I find I lost a verb. <img src="./images/smilies/icon_redface.gif" alt=":oops:" title="Embarassed" /> <br />I think a second way to correct it is<br /><span style="color: #40FF00">What you discussed ...</span>(the Past Tense only)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>unregistered</b> [ Fri Apr 18, 2014 11:30 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: sync to sound</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Boolean wrote:</div><div class="quotecontent">In most cases, a verb can be formatted with <strong>ed</strong> to become a<span style="color: #40FF80">n</span> adjective.<br />A<span style="color: #40FF80">n</span> adjective can stand for related things(equals a noun). I find I lost a verb. <img src="./images/smilies/icon_redface.gif" alt=":oops:" title="Embarassed" /> <br />I think a second way to correct it is<br /><span style="color: #40FF00">What you discussed ...</span>(the Past Tense only)</div><br />My friend, your extensive knowledge of all the ins and outs of English astounds me!  <img src="./images/smilies/icon_biggrin.gif" alt=":D" title="Very Happy" />   In my head it just sounds more correct so I put that... all of the rules have kind of faded away for me, but the review is appreciated.  Thank you again... you're doing awesome with English.  <img src="./images/smilies/icon_biggrin.gif" alt=":D" title="Very Happy" />   Yes, &quot;what you discussed&quot; would work too.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Boolean</b> [ Fri Apr 18, 2014 4:27 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: sync to sound</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Thank you  <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" /> <br /><div class="quotetitle">unregistered wrote:</div><div class="quotecontent">In my head it just sounds more correct so I put that...</div><br />I think the quoted text is the most important thing.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>mikejmoffitt</b> [ Tue Apr 22, 2014 9:55 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re:</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">James wrote:</div><div class="quotecontent">I don't like the tearing you get from not using vsync, so I make sure my frame rate is locked to 60Hz (block waiting for vsync, backed by a conventional timer in the emulation loop in case vertical refresh is &gt;60Hz).  For audio, I slightly adjust the sample rate based on how close the DirectSound play cursor is to the write cursor.  The adjustment is small enough that you can rarely hear it (and, for me, only if I'm listening for it), but in ensures that the video frame rate stays locked at 60Hz without causing sound problems.<br /><br />My refresh rate is locked at 60Hz (LCD display), so one missed vsync tends to cause sound buffer underflows.  This probably isn't as big of an issue at higher refresh rates.<br /><br />James</div><br /><br />I have an odd solution to this. At the start of my game (though you could do this for an emulator I suppose) I run 15 frames locked to vsync, and divide the amount of time that takes by fifteen. If I find that the duration of a frame wasn't ~16.67ms, I then enable a timer. If it was 16.67ms, though, I determine that syncing to vsync is fine and just do that. This also solves the issue of <em>terrible drivers like nouveau</em> not properly implementing vsync.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

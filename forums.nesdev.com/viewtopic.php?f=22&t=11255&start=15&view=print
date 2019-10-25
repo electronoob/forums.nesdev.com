@@ -1,0 +1,165 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - NESpix - Tileset/Pixel Art Editor</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">NESpix - Tileset/Pixel Art Editor</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=22&amp;t=11255">http://forums.nesdev.com/viewtopic.php?f=22&amp;t=11255</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>2</strong> of <strong>2</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>miau</b> [ Thu May 22, 2014 3:18 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: NESpix - Tileset/Pixel Art Editor</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Movax12 wrote:</div><div class="quotecontent">miau, I took a look at your source for any inspiration. I was wondering if you would be willing to explain your NMI routine's cmd priority/task queue system. What does it allow you to do? And/or, if you would be willing to explain the source with a bit more detail I would appreciate it. I have something I think is similar and would like to compare.</div><br />Some parts of the vblank code are from when I originally started NES development so it's a bit awkward, but here is how it should work:<br /><br />- have a stack with addresses of functions to jsr to during vblank (&quot;vblank commands&quot;)<br />- push a command with Vblank.cmd.exec<br />- the stack pointer does not advance automatically, the same function gets called once everytime the ppu enters vblank until it calls Vblank.cmd.end<br />- Vblank.cmd.replace changes the address at the top of the stack, making the supplied address the next command to be executed and discarding the current one<br /><br />...except that's not quite how it works?! There's a high priority version of Vblank.cmd.exec and I don't recall why it is even needed with the stack-based approach. At this point, I'd rather rewrite the whole thing properly than spend any more time looking at it, heh.<br />Also, I probably should have used a queue instead of a stack, that would have been more logical and intuitive. Then again, queues can be a bit fiddly to implement and a priority system could be costly cpu-wise.<br /><br />In any case, here's a usage example for the current Vblank.cmd interface:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">.proc letsDoSomethingOverMultipleVblanks ;can be called outside of vblank/NMI<br />&nbsp; &nbsp; Vblank.cmd.exec firstVblank<br />&nbsp; &nbsp; rts<br />firstVblank:<br />&nbsp; &nbsp; ;do stuff<br />&nbsp; &nbsp; Vblank.cmd.replace secondVblank<br />&nbsp; &nbsp; rts<br />secondVblank:<br />&nbsp; &nbsp; ;do other stuff<br />&nbsp; &nbsp; Vblank.cmd.replace thirdVblank<br />&nbsp; &nbsp; rts<br />thirdVblank:<br />&nbsp; &nbsp; ;do other stuff<br />&nbsp; &nbsp; jsr Vblank.cmd.end<br />&nbsp; &nbsp; rts<br />.endproc<br /></div><br />And another one:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">.proc letsGonnaDoSomethingOverMultipleVblanksAgain ;can be called outside of vblank/NMI<br />&nbsp; &nbsp; .bss<br />&nbsp; &nbsp; counter: .res 1<br />&nbsp; &nbsp; .code<br />&nbsp; &nbsp; lda #32<br />&nbsp; &nbsp; sta counter<br />&nbsp; &nbsp; Vblank.cmd.exec vblank<br />&nbsp; &nbsp; rts<br />vblank:<br />&nbsp; &nbsp; ;do stuff once per vblank for 32 vblanks<br />&nbsp; &nbsp; ;...like redrawing one row of the nametable per vblank<br />&nbsp; &nbsp; dec counter<br />&nbsp; &nbsp; bne @doNotEndYet<br />&nbsp; &nbsp; &nbsp; &nbsp; jsr Vblank.cmd.end<br />&nbsp; &nbsp; @doNotEndYet:<br />&nbsp; &nbsp; rts<br />.endproc<br /></div><br /><br />How are you handling Vblank/NMI tasks?<br />If there's anything else you'd like to know, please point me to it.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Movax12</b> [ Thu May 22, 2014 9:06 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: NESpix - Tileset/Pixel Art Editor</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />There are some similarities to how I do it, and you have given me some things to think about. <br />For me, I have a list of addresses to be accessed in NMI. To try to speed things up I store these addresses at $0100 and switch the stack pointer to point to these addresses when running these commands. Every RTS executes the next routine in the list (fast!). This makes it fairly quick to access anything that wants to run in vblank. The last address in the stack always must point to <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">returnFromChain</tt>.<br /><br />The parameter <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">whichVectorList</tt> exists because I have three lists of routines to execute. (High priority PPU update routines, call always routines (even in missed frame), and routines that can be called at the end of NMI that don't need vblank time.)<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">privatefunc startChain, {whichVectorList a}<br />&nbsp; &nbsp; <br />&nbsp; &nbsp; ; save normal stack:<br />&nbsp; &nbsp; tsx<br />&nbsp; &nbsp; stx realStack<br />&nbsp; &nbsp; ; transfer and save new temp stack:<br />&nbsp; &nbsp; _ x := whichVectorList<br />&nbsp; &nbsp; stx currentNMIstack<br />&nbsp; &nbsp; txs<br />&nbsp; &nbsp; rts ; load the CPU program counter with the first hooked vector.<br />endfunc<br /><br />privatefunc returnFromChain<br />&nbsp; &nbsp; ldx realStack<br />&nbsp; &nbsp; txs<br />&nbsp; &nbsp; return currentNMIstack<br />endfunc<br /></div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>miau</b> [ Sat May 24, 2014 3:14 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: NESpix - Tileset/Pixel Art Editor</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Well, that gives me things to think about.<br /><br />Having multiple lists and using actual stack addresses is neat, I think I will adapt that for other projects.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>2</strong> of <strong>2</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

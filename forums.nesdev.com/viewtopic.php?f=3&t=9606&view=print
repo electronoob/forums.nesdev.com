@@ -1,0 +1,396 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Mapper 16 discovery -- maybe new information?</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Mapper 16 discovery -- maybe new information?</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=3&amp;t=9606">http://forums.nesdev.com/viewtopic.php?f=3&amp;t=9606</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>cpow</b> [ Wed Dec 12, 2012 9:38 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Mapper 16 discovery -- maybe new information?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />While implementing mapper 16 I was using Disch's mapper documents as a guide.  I find these documents infinitely useful and enjoy his humor when it comes to some of the more ridiculous mappers.  I was reading through mapper 16 and it struck me that I'd seen those patterns for accessing the EEPROM elsewhere in my life.  This might be new information or it might have been discovered/discussed/closed already and Disch just never updated his mapper docs -- or I failed to download an update?  Anyway...I think it's worth noting and perhaps even updating Disch's mapper 16 document.<br /><br />The EEPROM protocol is Inter-Integrated Circuit (I2C).  I've written quite a damn few I2C drivers for various things.  The most common being I2C SEEPROMs.  I2C SEEPROMs have a very recognizeable 9-beat bit pattern with the first nibble of the first byte after a START condition being 1010, followed by a 3-bit device address, followed by a 0 [write] or 1 [read] command bit.  The ninth bit is the ACK bit, where the device receiving the data drives the bus to acknowledge receipt.<br /><br />I've implemented the I2C protocol for the SEEPROM in mapper 16 using the following method.  It works well with Dragon Ball Z Gaiden and I'm going to try it with others shortly.<br /><br />Writes to the 800D register and reads from anywhere in 6000-7FFF cause the two-wire I2C bus to transition in the various patterns required to drive the I2C protocol.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">800D:<br />&nbsp;D7 is unknown -- it changes seemingly when there's a READ coming up next?&nbsp; Perhaps for some kind of bus conflict prevention...any thoughts?<br />&nbsp;D6 is SDA or Serial DAta out.&nbsp; This is the bit that conveys the command/address/data patterns interpreted by the I2C SEEPROM.<br />&nbsp;D5 is SCK or Serial ClocK.&nbsp; This is the bit that drives the I2C protocol.<br />&nbsp;D4 &#91;only in 6000-7FFF&#93; is data read from the SEEPROM.</div><br /><br />I2C requires a START condition before any activities.  A START is a negative edge on SDA while SCK is high.  This is generated [again, observations from Dragon Ball Z Gaiden -- I'll  update this post if I find different sequences elsewhere] by the following writes to 800D:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp;SCK SDA<br />40&nbsp; 0&nbsp; &nbsp;1<br />60&nbsp; 1&nbsp; &nbsp;1<br />20&nbsp; 1&nbsp; &nbsp;0</div><br /><br />Clearly, SDA goes low while SCK is high.<br /><br />Transfers consist of 8 data beats and an ACK beat.  The 8 data beats are exactly as Disch describes.  To send a '1' bit to the SEEPROM the following writes to 800D are done:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp;SCK SDA<br />00&nbsp; 0&nbsp; &nbsp;0<br />40&nbsp; 0&nbsp; &nbsp;1<br />60&nbsp; 1&nbsp; &nbsp;1<br />40&nbsp; 0&nbsp; &nbsp;1</div><br /><br />Data is set high before the postive edge of SCK which is when the data is clocked into the SEEPROM.<br /><br />Similarly to write a '0' bit:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp;SCK SDA<br />00&nbsp; 0&nbsp; &nbsp;0<br />20&nbsp; 1&nbsp; &nbsp;0<br />00&nbsp; 0&nbsp; &nbsp;0</div><br /><br />A 0-bit is clocked into the SEEPROM on the positive edge of SCK.<br /><br />The ninth beat or the ACK beat is different depending on whether the master [the 2A03] is writing a byte to the SEEPROM or reading a byte from the SEEPROM.  If it's writing, it performs a read to make sure the SEEPROM drives SDA low to acknowledge the byte transfer.  If it's reading, the 2A03 either drives the bit low to indicate it'll be reading more, or drives it high to indicate it's done reading.<br /><br />Transfers are completed with a STOP, which is a positive edge on SDA while SCK is high.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp;SCK SDA<br />20&nbsp; 1&nbsp; &nbsp;0<br />60&nbsp; 1&nbsp; &nbsp;1<br />40&nbsp; 0&nbsp; &nbsp;0</div><br /><br />Clearly, SDA goes high while SCK is high.<br /><br />Reads from the SEEPROM are done by generating a SCK positive edge then reading from 6000-7FFF.  It is typical for the SDA/SCK lines to be pulled high in I2C so SDA is sent to 1.  Typically SDA would be looked at directly for the SEEPROM to drive it to 0 or leave it at 1 but in this case the read-out bit goes to D4.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp;SCK SDA<br />40&nbsp; 0&nbsp; &nbsp;1<br />60&nbsp; 1&nbsp; &nbsp;1<br />E0&nbsp; 1&nbsp; &nbsp;1&nbsp; (I ignore D7...)<br />&#91;READ D4 HERE&#93;<br />40&nbsp; 0&nbsp; &nbsp;1<br /></div><br /><br />The I2C SEEPROM protocol is clearly described in many datasheets for SEEPROMs.  One example I used while writing my mapper 16 EEPROM implementation is <a href="http://ww1.microchip.com/downloads/en/devicedoc/21189f.pdf" class="postlink">this one</a>.<br /><br />Hope this information helps someone.  It certainly made implementing the thing feel a heck of a lot less hacky to me.  I'm not ready to push it yet but mapper 16 support will be in the next NESICIDE release.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Wed Dec 12, 2012 11:29 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Mapper 16 discovery -- maybe new information?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Could D7 be &quot;drive SDA&quot; vs &quot;don't drive SDA&quot; ? Relatedly, could the SDA line actually be full push-pull, and not just a pull-down?<br />I guess that's not consistent with the ACK bits, though.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Thu Dec 13, 2012 6:11 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Mapper 16 discovery -- maybe new information?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">cpow wrote:</div><div class="quotecontent">The EEPROM protocol is Inter-Integrated Circuit (I2C).</div><br /><div class="quotetitle">Disch wrote:</div><div class="quotecontent">These mappers don't have traditional SRAM (I couldn't tell<br /> you why).  Instead, they have an I²C EEPROM that has to be written to one bit at a time</div><br /><br />Yeah, D7 being a data direction register (DDR) agrees with what is written in <a href="http://wiki.nesdev.com/w/index.php/Bandai_FCG_board" class="postlink">the wiki's article about the mapper</a>.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>cpow</b> [ Thu Dec 13, 2012 7:03 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Mapper 16 discovery -- maybe new information?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tepples wrote:</div><div class="quotecontent"><div class="quotetitle">cpow wrote:</div><div class="quotecontent">The EEPROM protocol is Inter-Integrated Circuit (I2C).</div><br /><div class="quotetitle">Disch wrote:</div><div class="quotecontent">These mappers don't have traditional SRAM (I couldn't tell<br /> you why).  Instead, they have an I²C EEPROM that has to be written to one bit at a time</div><br /><br />Yeah, D7 being a data direction register (DDR) agrees with what is written in <a href="http://wiki.nesdev.com/w/index.php/Bandai_FCG_board" class="postlink">the wiki's article about the mapper</a>.</div><br /><br />Heh nice.   <img src="./images/smilies/icon_redface.gif" alt=":oops:" title="Embarassed" />  I knew it'd probably already been worked over.  Oh well.<br /><br />I'm still looking for Disch's latest docs, I guess...mine says:<br /><br /><div class="quotetitle">Disch wrote:</div><div class="quotecontent">Instead, they have EPROM that has to be written to one bit at a time, with very strange register<br />writes.</div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Thu Dec 13, 2012 7:47 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Mapper 16 discovery -- maybe new information?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Perhaps someone stealth edited the Disch-quote section of the page.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Thu Dec 13, 2012 4:30 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Mapper 16 discovery -- maybe new information?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />&lt;_&lt; &gt;_&gt; <a href="http://wiki.nesdev.com/w/index.php?title=Bandai_FCG_board&amp;curid=727&amp;diff=5180&amp;oldid=4142" class="postlink">Hi!</a>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>mikejmoffitt</b> [ Mon Dec 17, 2012 9:37 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Mapper 16 discovery -- maybe new information?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">lidnariq wrote:</div><div class="quotecontent">&lt;_&lt; &gt;_&gt; <a href="http://wiki.nesdev.com/w/index.php?title=Bandai_FCG_board&amp;curid=727&amp;diff=5180&amp;oldid=4142" class="postlink">Hi!</a></div><br />That page is driving me crazy with the exchanged use of EPROM and EEPROM.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Mon Dec 17, 2012 9:40 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Mapper 16 discovery -- maybe new information?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />When I wrote the first version of that page, I guess my opinion on whether EPROM necessarily meant UV EPROM might have not matched some other people's. Is EEPROM a subset of EPROM, with UV EPROM being the other subset, or does EPROM always refer to UV and there's some other term containing both EPROM and EEPROM?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>cpow</b> [ Mon Dec 17, 2012 10:00 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Mapper 16 discovery -- maybe new information?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tepples wrote:</div><div class="quotecontent">When I wrote the first version of that page, I guess my opinion on whether EPROM necessarily meant UV EPROM might have not matched some other people's. Is EEPROM a subset of EPROM, with UV EPROM being the other subset, or does EPROM always refer to UV and there's some other term containing both EPROM and EEPROM?</div><br /><br />The first E of EEPROM is &quot;electrically&quot;?  Doesn't that answer it?<br /><br /><!-- m --><a class="postlink" href="http://en.wikipedia.org/wiki/EEPROM">http://en.wikipedia.org/wiki/EEPROM</a><!-- m -->
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Mon Dec 17, 2012 12:24 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Mapper 16 discovery -- maybe new information?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />EPROM technically is the generic term, but it was used so long for UV EPROM (or OTP EPROM) that it still insinutates that.<br /><br />Anyway, I edited the article to not tickle that neurosis <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>cpow</b> [ Mon Dec 17, 2012 12:29 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Mapper 16 discovery -- maybe new information?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">lidnariq wrote:</div><div class="quotecontent">EPROM technically is the generic term, but it was used so long for UV EPROM (or OTP EPROM) that it still insinutates that.<br /><br />Anyway, I edited the article to not tickle that neurosis <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" /></div><br /><br />To further the neurosis I believe such I2C or SPI EEPROMS are also referred to as SEEPROM.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Drag</b> [ Mon Dec 17, 2012 12:51 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Mapper 16 discovery -- maybe new information?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />PROM = Programmable ROM -- Basically is a matrix of fuses, one fuse per bit. Programmable one time only.<br />EPROM = Erasable Programmable ROM -- Using a window on the back of the chip, you can feed UV light in order to erase the bits, so you can reprogram the rom.<br />EEPROM = Electronically Erasable Programmable ROM -- Now you can erase the bits by just interfacing with the chip, instead of needing UV light.<br /><br />Electronics are weird, just look at kb, kB, kib, kiB, ...
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>3gengames</b> [ Mon Dec 17, 2012 12:58 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Mapper 16 discovery -- maybe new information?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />And then there's the classic Kb, too.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>mikejmoffitt</b> [ Mon Dec 17, 2012 3:54 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Mapper 16 discovery -- maybe new information?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Kibibyte is more fun than Kilobyte! Suck it, engineering prefixes!<br /><br />As EEPROM is an evolution of EPROM, one can consider Flash one of many modernized implementations of EEPROM.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

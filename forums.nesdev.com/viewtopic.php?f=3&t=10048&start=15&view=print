@@ -1,0 +1,144 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Audio emulation approaches?</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Audio emulation approaches?</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=3&amp;t=10048">http://forums.nesdev.com/viewtopic.php?f=3&amp;t=10048</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>2</strong> of <strong>2</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>James</b> [ Tue Jul 30, 2013 7:49 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Audio emulation approaches?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />ok -- I'll try to explain my method.  The goals, in order of importance, are to a) prevent the audio output buffer from under-/over-flowing, b) inaudibly adjust the playback frequency, and c) keep the buffer at whatever level (target) is necessary to meet latency requirements.<br /><br />Basically, the idea is to keep the rate of change of the buffer position as close to zero as possible by adjusting the playback frequency as little as possible.  In psuedocode, this is how I do it:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">every frame:<br />{<br />&nbsp;calculate the number of bytes that can be written to the output buffer (pos)<br />&nbsp;save pos to a circular buffer //buffer holds 60 samples<br />&nbsp;every third frame:<br />&nbsp;{<br />&nbsp; freq_adjustment = 0.0<br />&nbsp; calculate the slope of the values in the pos buffer<br />&nbsp; //at this point, there are three possible outcomes:<br />&nbsp; if (pos &gt; high_water_mark) //at risk of under-flowing<br />&nbsp; &nbsp; reset everything<br />&nbsp; else if (abs(slope) &gt; 1.0 and moving towards target)<br />&nbsp; &nbsp; freq_adjustment = abs(slope)/4.0<br />&nbsp; &nbsp; if (freq_adjustment &gt; 1.0) freq_adjustment = 1.0 //limit adjustment to 20Hz/second<br />&nbsp; else if (abs(slope) &gt; 0 and moving away from target || pos == 0)<br />&nbsp; &nbsp; //calculate a 'skew' value that will result in larger adjustments<br />&nbsp; &nbsp; //when farther away from the target value.&nbsp; 1600 = number of bytes/frame<br />&nbsp; &nbsp; skew = (abs(pos - target)/1600.0) * 10.0<br />&nbsp; &nbsp; freq_adjustment = (abs(slope)+skew)/2.0<br />&nbsp; &nbsp; if (freq_adjustment &gt; 2.0) freq_adjustment = 2.0 //limit adjustment to 40Hz/second<br />&nbsp; &nbsp;output_frequency = output_frequency +/- freq_adjustment<br />&nbsp; &nbsp;clamp output_frequency to reasonable range<br />&nbsp;}<br />}<br /></div><br />The end result is seen here.  The red line represents pos, the red shaded area represents the target +/- 1 frame, and the green line is the playback frequency.  This is 256 frames worth of data:<br /><br /><img src="http://nemulator.com/images/audio.jpg" alt="Image" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ulfalizer</b> [ Tue Jul 30, 2013 9:25 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Audio emulation approaches?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">James wrote:</div><div class="quotecontent">...</div><br /><br />Ok, thanks. I'll try something similar and see if that improves it.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>2</strong> of <strong>2</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

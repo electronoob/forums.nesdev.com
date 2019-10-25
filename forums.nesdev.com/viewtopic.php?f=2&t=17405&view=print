@@ -1,0 +1,417 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Efficient way to reuse variables</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Efficient way to reuse variables</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=17405">http://forums.nesdev.com/viewtopic.php?f=2&amp;t=17405</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>4</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>DRW</b> [ Thu May 31, 2018 6:38 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Efficient way to reuse variables</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Since actual local variables on the stack require more ROM space and more CPU time, I'm trying to come up with an efficient and comfortable way of reusing some global zeropage variables and use them like local variables.<br /><br />Since my game requires quite a bit of variables, it wouldn't be enough to declare distinct global variables for each function that I only use inside this function. (Or in case of C: Declaring local static variables.)<br /><br />So, if I neither want to use local variables on the stack, nor global non-zeropage variables, I have to find a way to reuse some zeropage variables.<br /><br /><br />My currently planned attempt is this:<br /><br />I declare a bunch of general-purpose variables, but in several &quot;layers&quot; or &quot;levels&quot;: A, B, C etc.:<br /><br />AByte1<br />AByte2<br />AByte3<br />AByte4<br />AInt1<br />...<br /><br />BByte1<br />BByte2<br />...<br /><br />CByte1<br />CByte2<br />...<br /><br />If a function needs local variables and it either doesn't call any other function or it only calls other functions that don't need local variables, this function would use the A variables. Also, the name of the function would get a postfix:<br />ProcessHero_vA<br />--&gt; uses A variables<br /><br />If a function calls another function that already has the A postfix, then this new function uses the B variables and gets a B postfix:<br />ProcessAllCharacters_vB<br />--&gt; uses B variables<br />--&gt; calls ProcessHero_vA<br /><br />If a function doesn't use local variables itself, but calls other functions that do, then this function of course always gets the highest postfix as well, because those temporary variables are used inside this function via the other functions:<br />ProcessGameLoop_vB<br />--&gt; uses no variables<br />--&gt; calls ProcessAllCharacters_vB<br />--&gt; Therefore, ProcessGameLoop needs to get the _vB postfix because the B variables are in use while ProcessGameLoop is running (via ProcessAllCharacters), so the function that calls ProcessGameLoop couldn't use the B variables itself, but would have to use the C variables.<br /><br /><br />In the actual code, I would of course rename the variables. I wouldn't work with AByte1 etc. directly:<br /><br />#define currentDirection_ AByte1<br /><br />(The name gets an underscore as a postfix, so that there cannot be any name clash or compiler issue if you happen to have an <em>actual</em> local static variable named currentDirection in your code. Since #define would replace any instance of its name without regard for context.<br />In Assembly itself, the underscore wouldn't be necessary because this:<br />currentDirection: .res 1<br />currentDirection = AByte1<br />would be a compiler error anyway.)<br /><br /><br />The layer system is done, so that functions who call each other cannot accidentally overwrite each others' values:<br /><br />If you have a function DoSomething_vA and you suddenly find out that this function needs to call another function that also has the _vA postfix, then you have to rename DoSomething_vA to DoSomething_vB and use the B values instead of the A values:<br /><br />Rename<br />#define currentDirection_ AByte1<br />to<br />#define currentDirection_ BByte1<br /><br />Then you can let the compiler find all instances of the old name DoSomething_vA, so that you can rename these as well as and any other function that calls DoSomething to reflect the new layer of variables.<br /><br /><br />So, that's my attempt to use zeropage variables as reusable local variables.<br /><br />Do you know of any alternate way that might be better?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Thu May 31, 2018 9:38 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Efficient way to reuse variables</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I don't know about C, but in assembly I have a chunk of ZP dedicated to local variables and function parameters, and I use a macro to allocate the space needed for each function. The macro can start allocating space from the very first byte of the ZP chunk, or you can optionally specify an offset into the chunk. These offsets can be specified using what I call &quot;memory counters&quot;, which are symbols that are incremented automatically when you allocate memory using them, so if I have a bunch of nested functions, I just have to use the same memory counter for all of them and their locals will never overlap.<br /><br />This works well for most cases, but you still have to be careful if nested functions are called from multiple places. To completely avoid overlaps in this case, you'd probably have to make ALL functions that can possibly be called before the deepest one use the same memory counter, and if there are a lot of them, you might end up wasting a lot of ZP space for this.<br /><br />I still haven't found the &quot;ideal&quot; solution for this, but what I have now allows for decent automatic reuse of RAM for locals and parameters, and also for program modules that don't run concurrently.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>calima</b> [ Thu May 31, 2018 10:32 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Efficient way to reuse variables</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I'd probably make a program that calculates every possible execution tree, then passes that to a register allocation algorithm.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>psycopathicteen</b> [ Thu May 31, 2018 12:17 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Efficient way to reuse variables</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I've been programming in ASM for a long time, and I don't even know how I do it myself.  I think if I write the outer routine first, the inner routine uses whatever temporary variables are left, and vise-versa.  Also, if you notice &quot;register b&quot; always gets passed as &quot;parameter x&quot;, then just use &quot;register b&quot; as your &quot;parameter x&quot; register.<br /><br />I think I'm sloppy on subroutine use.  The only times I use subroutines is either, I am trying to loop over a huge chunk of code, or I just happen to find duplicated code in my game.  It's hard to know what type of stuff I need to reuse.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Thu May 31, 2018 12:59 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Efficient way to reuse variables</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">calima wrote:</div><div class="quotecontent">I'd probably make a program that calculates every possible execution tree, then passes that to a register allocation algorithm.</div><br />Sounds like a lot of work, but that should produce the optimal results.<br /><br /><div class="quotetitle">psycopathicteen wrote:</div><div class="quotecontent">I've been programming in ASM for a long time, and I don't even know how I do it myself.</div><br />To be fair, you're an SNES programmer, so you don't have to worry as much about RAM as us NES guys.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">I think if I write the outer routine first, the inner routine uses whatever temporary variables are left, and vise-versa.</div><br />The problem is that doing this manually is very tedious and error-prone. You may need to add a variable or a parameter to a function you coded long ago and not realize you have to change all functions that that function calls, and the ones that those call, and so on. It's maintenance hell.<br /><br />My solution was basically to share a memory counter (managed by macros) between all functions that can run concurrently, so that overlaps are completely avoided among them, but things can get weird when the same functions are used in multiple nesting scenarios, so functions that don't run concurrently have to share a memory counter because they all use one or more common functions. Thankfully that hasn't happened a lot to me yet. If things got really ugly I'd even consider duplicating the common functions to reduce the amount of functions using the same memory counter.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Thu May 31, 2018 1:43 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Efficient way to reuse variables</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Personally, I just document the used/clobbered temporaries for functions that use them and manually manage it. Occasionally I get little messes when things change or get reused in new ways, but it's not too much mess to deal with. By the end of the project there is some temporary management that maybe looks a little bit ugly but it works fine, not really something I'd want to spend engineering effort on an automated solution for.<br /><br />Like you can propose some pre-emptive layered structure like DRW has here, but I think the more generic (and maybe more applicable idea) is just that your temporary usage can have groups. Your code will naturally have some structured relationship between functions, and you can group your temporary usage correspondingly as well as you can fit it to the existing relationships. i.e. this group of functions will mostly use temporaries i,j,k,l and this other one will mostly use m,n,o,p...<br /><br />There's back and forth here, but when considering creating new structures to group your code, also try to find ones that already exist inherently.<br /><br />...and it could of course be automated, and you could create code analysis tools and call graphs etc. but the scale of the problem never seem to fit the scale of that solution, to me. YMMV.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>adam_smasher</b> [ Thu May 31, 2018 2:43 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Efficient way to reuse variables</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=13682" class="postlink">I've asked about this sort of thing in the past</a>.<br /><br />I don't do much 6502 at the moment, so I haven't gotten a chance to try it out, but an idea I like (inspired by many of the comments on that thread) is to just use the first <em>n</em> bytes of zero page something like the <a href="https://en.wikipedia.org/wiki/Calling_convention#MIPS" class="postlink">standard MIPS calling convention</a> suggests for its registers, with some tweaks for 6502 suitability. Feel free to use some other standard ISA's calling convention as well. The big thing is to reserve some number of bytes as <em>temporaries</em> that aren't preserved across subroutine calls, some number of bytes as <em>saved temporaries</em> that are, some number of bytes as <em>kernel temporaries</em> (for ISR's, so they don't need to save anything besides registers), designated bytes for function parameters (that don't fit in A, X, and Y), function return values (say, pointers that don't just fit in A), and a pointer for a <a href="http://wilsonminesco.com/stacks/virtualstacks.html" class="postlink">virtual stack</a> to <a href="http://wilsonminesco.com/stacks/" class="postlink">supplement the hardware one</a>.<br /><br />The approach you're outlining in your post sort of resembles <a href="https://en.wikipedia.org/wiki/Register_window" class="postlink">register windows</a>, so if you want to go down that road it might be worth looking into the <a href="https://en.wikipedia.org/wiki/Calling_convention#SPARC" class="postlink">SPARC calling convention</a> as well.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>never-obsolete</b> [ Thu May 31, 2018 3:08 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Efficient way to reuse variables</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I set aside zp variables like MIPS registers:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">a0 - a5 : argument registers<br />t0 - t9 : temporary registers<br />s0 - s5 : save registers<br />v0 - v1 : return value registers (or more arguments)<br />i0 - i1 : temporary registers (for interrupts)<br /></div><br /><br /><strong>A</strong>, <strong>T</strong>, and <strong>V</strong> are assumed to be overwritten across function calls.<br /><strong>S</strong> must be pushed to the stack before being used.<br /><strong>I</strong> are only used in interrupt handlers.<br /><br />Then I assign some local name one of those aliases:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">; ======================================<br />__loop_var&nbsp; &nbsp;= s0<br />__src_addr&nbsp; &nbsp;= a0<br />__special_val&nbsp; &nbsp;= v0<br />SomeFunction:<br />&nbsp; &nbsp;&nbsp; &nbsp;preserve __loop_var<br /><br />&nbsp; &nbsp;&nbsp; &nbsp;ldx #(SIZE - 1)<br />-&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;stx __loop_var<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; lda table_hi, X<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; sta __src_addr + 1<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; lda table_lo, X<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; sta __src_addr<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; jsr SomeOtherFunc<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; jsr BlahBlah<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; jsr FuncThatReturnsAValue<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; lda __special_val<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; jsr DoSomethingWithIt<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; ldx __loop_var<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; dex<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; bpl -<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<br />&nbsp; &nbsp;&nbsp; &nbsp;restore __loop_var<br />&nbsp; &nbsp;&nbsp; &nbsp;rts<br /><br />; ======================================<br />__dest_addr&nbsp; &nbsp;= t0<br />SomeOtherFunc:<br />&nbsp; &nbsp;&nbsp; &nbsp;setpointer __dest_addr #SomeRamAddress<br />&nbsp; &nbsp;&nbsp; &nbsp;ldy #0<br />-&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;lda (__src_addr), Y<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; sta (__dest_addr), Y<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; iny<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; bne -<br />&nbsp; &nbsp;&nbsp; &nbsp;rts<br /></div><br /><br />It is then easy to change where each local is actualy mapped if I need to for whatever reason.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Thu May 31, 2018 3:23 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Efficient way to reuse variables</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I like the &quot;virtual registers&quot; approach, but I sometimes need a crapload of local variables, so that approach doesn't look like a good fit for most of my projects...
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Thu May 31, 2018 4:52 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Efficient way to reuse variables</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Sometime during the development of <em>Thwaite</em>, when I discovered that my audio driver (now called Pently) was breaking missile-explosion collision detection, I adopted the convention (for that project) that $0000-$0007 are caller saved, and $0008-$000F are callee saved.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>psycopathicteen</b> [ Thu May 31, 2018 7:18 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Efficient way to reuse variables</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />The more I think about it, variables are kind of an abstract concept.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Thu May 31, 2018 7:33 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Efficient way to reuse variables</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Yes, they are somewhat abstract, especially for a compiler, where usually a &quot;variable&quot; does not refer to one specific memory location, but rather whatever place currently holds its value, whether that's a register, or in memory, or somewhere else.<br /><br />With that in mind, this desire to manage temporaries on the ZP is merely one possible optimization. If you find you have conflicts to resolve, and for some reason it seems really painful to manage your ZP temporaries, there's generally always an option to do something &quot;easier&quot; that's only a little less efficient. If you can't find an allocation in your existing temporaries, you might put the variable on the stack, or maybe somewhere in RAM, or even just add one more ZP temporary, presuming you haven't budgeted 100% of it yet. Once you relax the requirement that it go into one of your already-allocated ZP temporaries there are really a lot of possibilities; for example consider that a 256 OAM buffer in RAM might be rebuilt every frame, which is quite a bit of temporary space available for anything that happens before you build your sprite list.<br /><br />There's always many ways to do this, and the constraints aren't nearly as pressing when you don't insist on always doing it the fastest way. Spending a few more cycles using RAM instead of ZP may well be worth avoiding some organizational headache.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>never-obsolete</b> [ Thu May 31, 2018 8:21 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Efficient way to reuse variables</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">rainwarrior wrote:</div><div class="quotecontent">a 256 OAM buffer in RAM might be rebuilt every frame, which is quite a bit of temporary space available for anything that happens before you build your sprite list</div><br /><br />I never considered this possibility. I'll have to keep this in mind if I find myself short on temporary storage.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Thu May 31, 2018 8:34 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Efficient way to reuse variables</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I've considered using the OAM buffer for other purposes, but the object routines start to fill it up fairly early in the game logic loop in my engines...
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>psycopathicteen</b> [ Thu May 31, 2018 8:54 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Efficient way to reuse variables</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">never-obsolete wrote:</div><div class="quotecontent"><div class="quotetitle">rainwarrior wrote:</div><div class="quotecontent">a 256 OAM buffer in RAM might be rebuilt every frame, which is quite a bit of temporary space available for anything that happens before you build your sprite list</div><br /><br />I never considered this possibility. I'll have to keep this in mind if I find myself short on temporary storage.</div><br />Wow, I didn't think about that either.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>4</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

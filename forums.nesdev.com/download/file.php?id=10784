@@ -1,0 +1,82 @@
+.SEGMENT "HEADER"
+	.byte "NES", $1A
+	.byte $01       ;one 16k BANK
+	.byte $00       ;CHR RAM, so no CHR ROM
+	.byte $00, $00  ;Mapper 0
+	.byte $00       ;PRG RAM
+	.byte $00, $00, $00, $00, $00, $00, $00
+
+PPUSTATUS 	= $2002
+OAMADDR 	= $2003
+OAMDAT	 	= $2004
+PPUSCROLL 	= $2005
+PPUADDR 	= $2006
+PPUDATA 	= $2007 
+
+.MACRO set_ppu_addr_to adr
+	LDA PPUSTATUS ;reading PPUSTATUS to reset the address latch,
+	LDA #>(adr)
+	STA PPUADDR
+	LDA #<(adr)
+	STA PPUADDR
+.ENDMACRO
+
+.SEGMENT "CODE"
+
+reset:
+	sei                 ; ignore IRQs
+	cld                 ; disable decimal mode
+	ldx #$40	
+	stx $4017           ; disable APU frame IRQ
+	ldx #$ff
+	txs                 ; Set up stack
+	inx                 ; now X = 0
+	stx $2000           ; disable NMI
+	stx $2001           ; disable rendering
+	stx $4010           ; disable DMC IRQs
+	bit $2002
+
+vblankwait1:            ; wait for 1st vblank
+	bit $2002
+	bpl vblankwait1
+	
+	lda #$00            ; clearing ram
+clear_ram_loop:
+	sta $000, x
+	sta $100, x
+	sta $200, x
+	sta $300, x
+	sta $400, x
+	sta $500, x
+	sta $600, x
+	sta $700, x
+	inx
+	bne clear_ram_loop
+
+vblankwait2:            ; wait for 2nd vblank
+	bit $2002
+	bpl vblankwait2
+	
+
+	set_ppu_addr_to $0000
+loop:
+	lda #0
+	sta PPUDATA
+	jmp loop
+	
+
+;----------nmi handler-------------
+nmi:
+    rti
+
+;----------irq handler-------------
+irq:
+   rti
+
+
+.SEGMENT "VECTORS"
+.word nmi
+.word reset
+.word irq
+
+ 

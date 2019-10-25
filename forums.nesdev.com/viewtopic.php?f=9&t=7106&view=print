@@ -1,0 +1,547 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Trying to dump CCE War in the Gulf, CHR bus issues</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Trying to dump CCE War in the Gulf, CHR bus issues</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=9&amp;t=7106">http://forums.nesdev.com/viewtopic.php?f=9&amp;t=7106</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>BootGod</b> [ Wed Oct 27, 2010 5:45 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Trying to dump CCE War in the Gulf, CHR bus issues</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />So I'm trying to dump the CCE version of War in the Gulf for someone, but I've run into a snag that has me stumped. 128K PRG / 128K CHR. The mapper chip (TC-112) operation is simple enough, 4 registers as so:
+<br />
+<br />$6000 Load 4K CHR bank to PPU $0000. Lower 2 bits unused (wr bank# &lt;&lt; 2).
+<br />$6001 Load 2K CHR bank to PPU $1000. Lowest bit unused (wr bank# &lt;&lt; 1).
+<br />$6002 Load 2K CHR bank to PPU $1800. Lowest bit unused (wr bank# &lt;&lt; 1).
+<br />$6003 Load 8K PRG bank to $8000
+<br />
+<br />$A000,$C000,$E000 are fixed to the last 3 PRG banks
+<br />
+<br />Mirroring is hard-wired to vertical.
+<br />
+<br />Now for the problem: When trying to read the CHR data, I'm getting some sort of bus interference that mangles the results (random bytes) and it will also "miss" various 256-byte pages of CHR (reads 00 in the areas). The pages it misses seems to be consistent between dumps, but there is no discernible pattern to which pages it misses.
+<br />
+<br />You can even see the corruption in the CopyNES tile viewer, and each time you refresh, the tiles will glitch a little different.
+<br />
+<br />The CHR ROM itself gets 12 degrees F hotter than other chips on the board during operation.
+<br />
+<br />The CHR ROM used is the rather uncommon 28-pin 128K chip with only 1 /CE pin. There is an 74LS00 chip in place to deal with the CHR /RD line, albeit it deals with it kinda strange (from what I've seen). It uses 3 outta 4 NAND gates wired like this:
+<br />
+<br />74LS00
+<br />
+<br />pin 1 (1A): cart CHR /RD line, and pin 5 (2B)
+<br />pin 2 (1B): NC
+<br />pin 3 (1Y): pin 4 (2A)
+<br />pin 4 (2A): pin 3 (1Y), also connected to a 561 ceramic cap to GND
+<br />pin 5 (2B): pin 1 (1A) [cart CHR /RD]
+<br />pin 6 (2Y): pin 9 (3A), pin 10 (3B)
+<br />
+<br />pin 8 (3Y): to TC-112
+<br />
+<br />
+<br />Voltage levels going thru this mess:
+<br />
+<br />While the game is playing normally (graphics look good):
+<br />cart CHR /RD -&gt; 2.33V -&gt; LS00 -&gt; 0.55V -&gt; TC-112 -&gt; 2.80V -&gt; CHR ROM /CE
+<br />
+<br />While NES is idle (CopyNES slave mode, graphics are off):
+<br />cart CHR /RD -&gt; 0.05V -&gt; LS00 -&gt; 4.40V -&gt; TC-112 -&gt; 4.97V -&gt; CHR ROM /CE
+<br />
+<br />While reading CHR ROM (graphics are messed):
+<br />cart CHR /RD -&gt; 4.69V -&gt; LS00 -&gt; 0.19V -&gt; TC-112 -&gt; 0.00V -&gt; CHR ROM /CE
+<br />
+<br />I don't have a great understanding of electronics at this level, so I'm unsure of why the voltages differ from when the game is running and when I'm trying to read it. I'm fairly certain this is related to my problem because I sent the plugin I wrote to someone with the Gluk version of War in the Gulf, which uses a normal 32-pin CHR and doesn't have the LS00 and the plugin works just fine for him with no CHR bus issues. The PRG ROM is the same between carts. The CHR probably is too, but I haven't resorted to pulling the ROM to read it manually yet.
+<br />
+<br />Any one have any ideas? I looked thru the game code, nothing jumped at me, but if anyone wants to take a look, PM me and I'll send you the code.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>socram8888</b> [ Wed Oct 27, 2010 10:41 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Dump the CHR-ROM several times and make an average of each bit value. It isn't the best way, but it should work
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>piteta</b> [ Thu Oct 28, 2010 4:14 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Hi, i've opened the two copies of the famicom version i have right now and i was wrong: they don't use the same board as the gluk version, in fact both of them use too the same board yours is using: tc112 + ls00. When i dumped the gluk version (with the help of cah4e3) i also dumped the famicom version and crc's from all chips matched so if your cart is also a famicom cart, then crc should match with the roms i sent you. I know nothing about nes hardware but... ¿could that ls00 used for some kind of copy protection? I also tried what you told me by email with this famicom version and i still get time out errors. Chr rom and ls chip also get a bit hotter than when you're playing.
+<br />I also found that i have some scans done for this boards:
+<br />
+<br /><a href="http://i25.photobucket.com/albums/c91/piteta/nes/gulffamicompcbf.jpg" class="postlink">http://i25.photobucket.com/albums/c91/piteta/nes/gulffamicompcbf.jpg</a>
+<br /><a href="http://i25.photobucket.com/albums/c91/piteta/nes/gulfnespcbf.jpg" class="postlink">http://i25.photobucket.com/albums/c91/piteta/nes/gulfnespcbf.jpg</a>
+<br /><a href="http://i25.photobucket.com/albums/c91/piteta/nes/Warinthegulfpcbd.jpg" class="postlink">http://i25.photobucket.com/albums/c91/piteta/nes/Warinthegulfpcbd.jpg</a>
+<br /><a href="http://i25.photobucket.com/albums/c91/piteta/nes/Warinthegulfpcbf.jpg" class="postlink">http://i25.photobucket.com/albums/c91/piteta/nes/Warinthegulfpcbf.jpg</a>
+<br /><a href="http://i25.photobucket.com/albums/c91/piteta/nes/Laguerradelgolfopcbd.jpg" class="postlink">http://i25.photobucket.com/albums/c91/piteta/nes/Laguerradelgolfopcbd.jpg</a>
+<br /><a href="http://i25.photobucket.com/albums/c91/piteta/nes/Laguerradelgolfopcbf.jpg" class="postlink">http://i25.photobucket.com/albums/c91/piteta/nes/Laguerradelgolfopcbf.jpg</a>
+<br />
+<br />i hope they can help...
+<br />
+<br />
+<br /><strong>[Page-widening images converted to links by MOD]</strong>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>BootGod</b> [ Thu Oct 28, 2010 5:04 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">socram8888 wrote:</div><div class="quotecontent">Dump the CHR-ROM several times and make an average of each bit value. It isn't the best way, but it should work</div>
+<br />
+<br />That might work for the random values, but the zero pages peppered about are consistently in there.
+<br />
+<br />piteta, have you tried dumping your FC carts with the plugin I sent you? Considering they use the LS00 as well, it probably wouldn't work. I will post a scan later, but this one is basically the same as your FC one, but it is an actual 72-pin NES board.
+<br />
+<br />I guess it could be a type of copy protection, but I don't see the program doing anything special to avert this behavior.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>piteta</b> [ Thu Oct 28, 2010 6:09 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Yes, i tried to dump the famicom version with your plugin but chr was corrupted too. About the copy protection, maybe it's made by hardware, although i don't know what to think about it because in the gluk pcb chr /rd line is directly conected to pin 19 on the tc112 (the same pin where the ls chip is conected on the famicom board) <img src="./images/smilies/icon_confused.gif" alt=":?" title="Confused" /> Btw, i checked what is conected into my ls chip and i found one difference between yours and mine: pin 2 (1B) is connected to pin 1 (1A) and pin 5 (2B)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Thu Oct 28, 2010 12:15 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Trying to dump CCE War in the Gulf, CHR bus issues</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">BootGod wrote:</div><div class="quotecontent">74LS00<br /><br />pin 1 (1A): cart CHR /RD line, and pin 5 (2B)<br />pin 2 (1B): NC<br />pin 3 (1Y): pin 4 (2A)<br />pin 4 (2A): pin 3 (1Y), also connected to a 541 ceramic cap to GND<br />pin 5 (2B): pin 1 (1A) [cart CHR /RD]<br />pin 6 (2Y): pin 9 (3A), pin 10 (3B)<br />pin 8 (3Y): to TC-112</div>
+<br />
+<br />That's a little weird. I <em>think</em> that LS logic treats unconnected inputs as high, but one's still not supposed to leave inputs floating. (If what piteta says is what should be true here, then this makes more sense to me...)
+<br />
+<br />What this chip is supposed to do is be a pulse spreader or deglitcher -- whenever /CHRRD changes it takes a little while to charge or discharge the capacitor. What happens if you remove that 541 capacitor?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>coinheaven</b> [ Thu Oct 28, 2010 4:23 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />this was released on the famicom?  what is the famicom title?
+<br />
+<br /><div class="quotetitle">piteta wrote:</div><div class="quotecontent">Hi, i've opened the two copies of the famicom version i have right now and i was wrong: they don't use the same board as the gluk version, in fact both of them use too the same board yours is using: tc112 + ls00. When i dumped the gluk version (with the help of cah4e3) i also dumped the famicom version and crc's from all chips matched so if your cart is also a famicom cart, then crc should match with the roms i sent you. I know nothing about nes hardware but... ¿could that ls00 used for some kind of copy protection? I also tried what you told me by email with this famicom version and i still get time out errors. Chr rom and ls chip also get a bit hotter than when you're playing.<br />I also found that i have some scans done for this boards:<br /><br /><a href="http://i25.photobucket.com/albums/c91/piteta/nes/gulffamicompcbf.jpg" class="postlink">http://i25.photobucket.com/albums/c91/piteta/nes/gulffamicompcbf.jpg</a><br /><a href="http://i25.photobucket.com/albums/c91/piteta/nes/gulfnespcbf.jpg" class="postlink">http://i25.photobucket.com/albums/c91/piteta/nes/gulfnespcbf.jpg</a><br /><a href="http://i25.photobucket.com/albums/c91/piteta/nes/Warinthegulfpcbd.jpg" class="postlink">http://i25.photobucket.com/albums/c91/piteta/nes/Warinthegulfpcbd.jpg</a><br /><a href="http://i25.photobucket.com/albums/c91/piteta/nes/Warinthegulfpcbf.jpg" class="postlink">http://i25.photobucket.com/albums/c91/piteta/nes/Warinthegulfpcbf.jpg</a><br /><a href="http://i25.photobucket.com/albums/c91/piteta/nes/Laguerradelgolfopcbd.jpg" class="postlink">http://i25.photobucket.com/albums/c91/piteta/nes/Laguerradelgolfopcbd.jpg</a><br /><a href="http://i25.photobucket.com/albums/c91/piteta/nes/Laguerradelgolfopcbf.jpg" class="postlink">http://i25.photobucket.com/albums/c91/piteta/nes/Laguerradelgolfopcbf.jpg</a><br /><br />i hope they can help...<br /><br /><br /><strong>[Page-widening images converted to links by MOD]</strong></div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>BootGod</b> [ Thu Oct 28, 2010 4:33 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />pin 2 is floating on mine, I double checked. It reads at ~ 1.5V.
+<br />
+<br />I tried removing the cap, it makes the game graphics a bit glitchy while playing. So it seems you are correct on the purpose of this circuit.
+<br />
+<br />It's possible that this circuit has nothing to do with the problem, it just seemed the most suspect to me.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>piteta</b> [ Fri Oct 29, 2010 3:04 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />As you can see on my scans, 1 &amp; 2 are connected with a track. What i can't understand it's why on yours is unconected because that way the truth table is not the same <img src="./images/smilies/icon_confused.gif" alt=":?" title="Confused" />  Btw, seeing what coinheaven says, there's a another little diference: capacitor on mine is 561. I guess the only think that will change is the time constant but who knows... And well, if it's a deglitgher may be it has to do something with the problems we're having when trying to read chr rom. ¿could it be delaying the read process and the data you read is data you should have read x (micro/nano)seconds before? or may be you read it faster than you should and you give no time to the capacitor to discharge...
+<br />
+<br /><div class="quotetitle">coinheaven wrote:</div><div class="quotecontent">this was released on the famicom? what is the famicom title? </div>
+<br />
+<br />All i know is that nes and famicom pcbs for this game exist. Title is the same as the thread: War in the gulf (in spain was released with its name translated: la guerra del golfo)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>kevtris</b> [ Fri Oct 29, 2010 7:38 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Trying to dump CCE War in the Gulf, CHR bus issues</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">BootGod wrote:</div><div class="quotecontent"><br />74LS00<br /><br />pin 1 (1A): cart CHR /RD line, and pin 5 (2B)<br />pin 2 (1B): NC<br />pin 3 (1Y): pin 4 (2A)<br />pin 4 (2A): pin 3 (1Y), also connected to a 541 ceramic cap to GND<br />pin 5 (2B): pin 1 (1A) [cart CHR /RD]<br />pin 6 (2Y): pin 9 (3A), pin 10 (3B)<br /><br />pin 8 (3Y): to TC-112<br /><br /></div>
+<br />
+<br />
+<br />Hmm I just drew that circuit out and figured out what it is doing.  It is an edge detector, and detects rising edges on /RD.  (does it have any kind of IRQs?)
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">/RD ----|____|-------|__________|------------<br /><br />cap ______|----|_______|----------|__________<br /><br />out _________|-|________________|-|__________<br /></div>
+<br />
+<br />hopefully this drawing will come out.  Basically the output of the "mess" will produce a skinny high pulse on the rising edge of /RD only.   The first NAND is inverting the input and via the cap causing it to be delayed a little.  the second NAND then goes low when both inputs are high, and the final NAND inverts it to give positive pulses.
+<br />
+<br />you might want to try increasing the size of the capacitor so that the pulses are slightly longer.   try adding a few hundred PF to it, and tie pins 1 and 2 together.  2 shouldn't be floating, but honestly probably doesn't make much difference since it will read high.  I'd say a maximum total of 1000pf would be the highest you'd wanna go.  (.001uf)
+<br />
+<br />As for what that pulse DOES, I have no clue and IRQ counting is about the only thing I can think of.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>BootGod</b> [ Fri Oct 29, 2010 8:40 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">piteta wrote:</div><div class="quotecontent">there's a another little diference: capacitor on mine is 561</div>
+<br />
+<br />Oops, it's actually a 561 on mine too (fixed post). I doubt 20pF would change much anyhow.
+<br />
+<br />Kevtris: No IRQ's on this one. I can't verify your drawing, I don't have a scope <img src="./images/smilies/icon_sad.gif" alt=":(" title="Sad" /> (someday...)
+<br />
+<br />I will give a bigger cap a try this weekend. Although, if the game can manage to work as is, certainly copynes should be able to read it somehow without having to modify the cart, wouldn't you agree?
+<br />
+<br />I whipped up a pinout of the TC-112. Pretty straightforward, though I did encounter something curious. It has a connection to PRG A2 and I don't know why. The code doesn't explicitly use it. I tried poking at it from copynes to see if anything would happen, but nothing that I could tell.
+<br />
+<br />The placement of the PRG A2 pin on the chip itself seems very odd. See for yourself:
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">C = Connected to cart<br />R = Connected to ROM<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ---------&nbsp; <br />C&nbsp; &nbsp; &nbsp; &nbsp;M2 -|1&nbsp; &nbsp; 40|- VCC<br />CR PRG&nbsp; D7 -|2&nbsp; &nbsp; 39|- PRG A16 R<br />CR PRG&nbsp; D6 -|3&nbsp; &nbsp; 38|- PRG A15 R<br />CR PRG&nbsp; D5 -|4&nbsp; &nbsp; 37|- PRG A14 R<br />CR PRG&nbsp; D4 -|5&nbsp; N 36|- PRG A13 R<br />CR PRG&nbsp; D3 -|6&nbsp; T 35|- PRG /CE R<br />CR PRG&nbsp; D2 -|7&nbsp; D 34|- NC<br />CR PRG&nbsp; D1 -|8&nbsp; E 33|- CHR A16 R<br />CR PRG&nbsp; A1 -|9&nbsp; C 32|- CHR A15 R<br />CR PRG&nbsp; A0 -|10&nbsp; &nbsp;31|- CHR A14 R<br />C&nbsp; PRG R/W -|11 T 30|- CHR A13 R<br />C&nbsp; PRG /CE -|12 C 29|- CHR A12 R<br />C&nbsp; PRG A14 -|13 - 28|- CHR A11 R<br />C&nbsp; PRG A13 -|14 1 27|- CHR /CE R<br />C&nbsp; CHR A13 -|15 1 26|- NC<br />C&nbsp; CHR A12 -|16 2 25|- PRG D0&nbsp; RC<br />C&nbsp; CHR A11 -|17&nbsp; &nbsp;24|- NC<br />CR CHR A10 -|18&nbsp; &nbsp;23|- NC<br />74LS00&nbsp; 3Y -|19&nbsp; &nbsp;22|- PRG A2&nbsp; RC&nbsp; &nbsp;eh?<br />&nbsp; &nbsp; &nbsp; &nbsp;GND -|20&nbsp; &nbsp;21|- NC<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ---------<br /></div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Sat Oct 30, 2010 4:53 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">BootGod wrote:</div><div class="quotecontent">The placement of the PRG A2 pin on the chip itself seems very odd.</div>
+<br />It might be explainable if the mapper registers selected by A2 were added late in design and used only by games other than this. And even if there is no IRQ, it might be an extra bank select pin for clocking a mid-scanline bankswitch (like MMC2/MMC4?).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>kevtris</b> [ Sat Oct 30, 2010 2:54 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">BootGod wrote:</div><div class="quotecontent"><div class="quotetitle">piteta wrote:</div><div class="quotecontent">there's a another little diference: capacitor on mine is 561</div><br /><br />Oops, it's actually a 561 on mine too (fixed post). I doubt 20pF would change much anyhow.<br /><br />Kevtris: No IRQ's on this one. I can't verify your drawing, I don't have a scope <img src="./images/smilies/icon_sad.gif" alt=":(" title="Sad" /> (someday...)<br /><br />I will give a bigger cap a try this weekend. Although, if the game can manage to work as is, certainly copynes should be able to read it somehow without having to modify the cart, wouldn't you agree?<br /><br /></div>
+<br />
+<br />Nope, the access pattern is different between the PPU rendering, and manually via prodding 2007.  The 2007 pattern is longer than the rendering pattern.  Both are run by separate state machines.
+<br />
+<br />The two state machine control signals are simply OR'd together, so bad stuff can happen if you write during rendering.  You can trigger the case where the PPU is both reading AND writing at the same time, in fact both /RD and /WR go low!
+<br />
+<br />The whole point of this is 2007 vs. rendering are two very different sets of conditions on the CHR bus so it's possible that it would act different.  Interesting that that happened because this is the first case of that being an issue.
+<br />
+<br />Because a 2007 read takes longer, maybe the pulse has to be longer too, to compensate (note: the cart may not run properly any more in render mode but will in 2007 read mode).
+<br />
+<br />HEYYYY what's this?
+<br />
+<br />why, it's "Fighting hero" by ntdec!  I found I have a cart with the TC-112 on it too.  There's 4 chips on this board.  And interestingly enough, there's no capacitor.
+<br />
+<br />the chips are marked:  ND946-P-UN (prg),  ND947-C1 (CHR), and ND947-C2-V (CHR) and of course TC-112.
+<br />
+<br />the PCB is marked "TH2219-2" if that helps.  Let me verify the pinout with yours real fast.
+<br />
+<br />changes:
+<br />pin 19 - directly connects to CHR /RD
+<br />pin 26 - connects to /CE on CHR ROM 2
+<br />pin 27 - connects to /CE on CHR ROM 1 (this is like your cart shown for clarity)
+<br />pin 34 is doubtlessly for a PRG ROM which would map first (you always want the first rom in the uppermost bank so pin 35 has to be ROM2)
+<br />
+<br />
+<br />soo maybe you can try bypassing the 7400 circuit all together and run /RD directly into pin 19 like on this board.  can't hurt I guess.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>BootGod</b> [ Sat Oct 30, 2010 4:58 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Ok, I tried a few different capacitors, it didn't seem to have an effect. Connecting CHR /RD directly pin 19 did make a significant improvement, it completely got rid of the "zero pages", but the tiles were still glitching, and this time also in render mode. I tried jumping it with a cap (forget exactly what I tried, it was ballpark of the 561 though).
+<br />
+<br />I think the glitching now is the same between rendering and reading from 2007, so if one was able to correct it, I think it would be both playable and readable via copynes.
+<br />
+<br />It appears that on piteta's gluk cart, CHR /RD is also directly connected to pin 19 with nothing in between.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>piteta</b> [ Sun Oct 31, 2010 9:59 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />that's right: on gluk's pcb tc112 is directly conected to the cart connector.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

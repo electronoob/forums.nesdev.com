@@ -1,0 +1,401 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Hello World</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Hello World</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=10&amp;t=7307">http://forums.nesdev.com/viewtopic.php?f=10&amp;t=7307</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>18</strong> of <strong>18</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>FinalZero</b> [ Tue Dec 13, 2011 7:09 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Okay, so I've meed those changes, and have this now:
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">; Inits everything.<br />.proc reset<br />&nbsp; &nbsp;; Clears the flags.<br />&nbsp; &nbsp;clc<br />&nbsp; &nbsp;sei<br />&nbsp; &nbsp;cld<br />&nbsp; &nbsp;clv<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;; Sets the stack pointer.<br />&nbsp; &nbsp;ldx #$FF<br />&nbsp; &nbsp;txs<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;; Waits for the PPU to warm up.<br />:&nbsp; &nbsp;lda $2002 <br />&nbsp; &nbsp;bpl :-<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;; Inits the PPU.<br />&nbsp; &nbsp;inx<br />&nbsp; &nbsp;stx PPU_CONTROL<br />&nbsp; &nbsp;stx PPU_MASK<br />&nbsp; &nbsp;dex<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;jmp main<br />.endproc</div><br /><br />However, my code still gets stuck in the NMI handler. I don't even understand how it's supposed to escape it. It continually compares nmis to AC, neither of which are programmed to change in the loop.<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp;lda nmis<br />:&nbsp; &nbsp;cmp nmis<br />&nbsp; &nbsp;beq :-</div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Kasumi</b> [ Tue Dec 13, 2011 7:20 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />You need to actually enable the NMI. 
+<br />
+<br />Read this: <!-- m --><a class="postlink" href="http://wiki.nesdev.com/w/index.php/PPU_registers">http://wiki.nesdev.com/w/index.php/PPU_registers</a><!-- m -->
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp;inx<br />&nbsp; &nbsp;stx PPU_CONTROL<br />&nbsp; &nbsp;stx PPU_MASK <br /></div><br /><br />What you did there is write 0 to both of those registers. Which means no NMI interrupt happens at the start of each frame. (Because bit 7 of $2000 is clear)<br /><br />So after your setup code is done, set bit 7 of $2000. What this causes to start happening is an NMI "interrupt". An interrupt actually interrupts whatever your program was doing before the interrupt, and starts running something else. When that "something else" is done, it returns to where it was before the interrupt took place. <br /><br />This is how nmis will change, even though your current loop does nothing to change it.<br /><br />So while your main loop is doing this:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp;lda nmis<br />:&nbsp; &nbsp;cmp nmis<br />&nbsp; &nbsp;beq :-<br /></div><br /><br />Eventually, a new frame will start. When that happens, your code will be interrupted and jmp to your NMI routine. Your NMI routine will change the variable nmis, and then return allowing your main loop to continue down.<br /><br />I don't know how to set the NMI vectors with your current setup, but you need to put the address for the NMI routine directly before the address of your reset vector.<br /><br />Edit: Here is a quick NMI to get you started that should at least get you out of that loop:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">nmi:<br />&nbsp; &nbsp; &nbsp;pha;The interrupt might have happened when you were doing something important<br />&nbsp; &nbsp; &nbsp;tya;So we save the registers to the stack<br />&nbsp; &nbsp; &nbsp;pha;And restore them later so that when it<br />&nbsp; &nbsp; &nbsp;txa;Returns, the same values will be in them.<br />&nbsp; &nbsp; &nbsp;pha<br /><br />&nbsp; &nbsp; &nbsp;inc nmis<br /><br />&nbsp; &nbsp; &nbsp;pla;Restoring the registers<br />&nbsp; &nbsp; &nbsp;tax;From the stack.<br />&nbsp; &nbsp; &nbsp;pla<br />&nbsp; &nbsp; &nbsp;tay<br />&nbsp; &nbsp; &nbsp;pla<br /><br />&nbsp; &nbsp; &nbsp;rti;Return from interrupt<br /></div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>FinalZero</b> [ Tue Dec 13, 2011 7:40 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Okay, so like this?:
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">; Inits everything.<br />.proc reset<br />&nbsp; &nbsp;; Clears the flags.<br />&nbsp; &nbsp;clc<br />&nbsp; &nbsp;sei<br />&nbsp; &nbsp;cld<br />&nbsp; &nbsp;clv<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;; Sets the stack pointer.<br />&nbsp; &nbsp;ldx #$FF<br />&nbsp; &nbsp;txs<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;; Waits for the PPU to warm up.<br />:&nbsp; &nbsp;lda $2002 <br />&nbsp; &nbsp;bpl :-<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;; Inits the PPU.<br />&nbsp; &nbsp;ldx #%10000000<br />&nbsp; &nbsp;stx PPU_CONTROL<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;ldx #%00011000<br />&nbsp; &nbsp;stx PPU_MASK<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;; Sets the stack pointer again.<br />&nbsp; &nbsp;ldx #$FF<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;jmp main<br />.endproc</div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Kasumi</b> [ Tue Dec 13, 2011 8:31 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />You still want 0 written to both of those PPU registers while the PPU is still warming up. Also, you should wait two frames for the PPU to warm up, not just one. 
+<br />
+<br />More like this? 
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">; Inits everything.<br />.proc reset<br />&nbsp; &nbsp;; Clears the flags.<br />&nbsp; &nbsp;;clc;This isn't needed in your setup code. Its state being unknown<br />&nbsp; &nbsp;;Doesn't affect how your code will work in the very beginning<br />&nbsp; &nbsp;sei;<br />&nbsp; &nbsp;cld;We only do this because NES doesn't actually have decimal mode. <br />&nbsp; &nbsp;;clv;No need to do this either.<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;; Sets the stack pointer.<br />&nbsp; &nbsp;ldx #$FF<br />&nbsp; &nbsp;txs<br />&nbsp; &nbsp;inx<br />&nbsp; &nbsp;stx PPU_CONTROL<br />&nbsp; &nbsp;stx PPU_MASK<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;; Waits for the PPU to warm up<br />:&nbsp; &nbsp;lda $2002<br />&nbsp; &nbsp;bpl :-;Frame 1<br /><br />&nbsp; &nbsp;; Waits for the PPU to warm up.<br />:&nbsp; &nbsp;lda $2002<br />&nbsp; &nbsp;bpl :-;Frame 2<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;; Inits the PPU.<br />&nbsp; &nbsp;ldx #%10000000<br />&nbsp; &nbsp;stx PPU_CONTROL<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;ldx #%00011000<br />&nbsp; &nbsp;stx PPU_MASK<br />&nbsp; &nbsp; &nbsp;<br />&nbsp; &nbsp;jmp main<br />.endproc<br /></div><br /><br />And you also need to put the NMI routine I posted in your code. <br /><br />I don't use what you're using, but it looks like the way to do it is this (from source code Tepples recommended looking at earlier in the topic):<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent"><br />.segment &quot;VECTORS&quot;<br />&nbsp; .addr nmi, reset, irq<br /></div><br /><br />Then:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">.proc irq;Sure, here's an IRQ too for good measure<br />&nbsp; rti<br />.endproc<br />.proc nmi<br />&nbsp; &nbsp; &nbsp;pha;The interrupt might have happened when you were doing something important<br />&nbsp; &nbsp; &nbsp;tya;So we save the registers to the stack<br />&nbsp; &nbsp; &nbsp;pha;And restore them later so that when it<br />&nbsp; &nbsp; &nbsp;txa;Returns, the same values will be in them.<br />&nbsp; &nbsp; &nbsp;pha<br /><br />&nbsp; &nbsp; &nbsp;inc nmis<br /><br />&nbsp; &nbsp; &nbsp;pla;Restoring the registers<br />&nbsp; &nbsp; &nbsp;tax;From the stack.<br />&nbsp; &nbsp; &nbsp;pla<br />&nbsp; &nbsp; &nbsp;tay<br />&nbsp; &nbsp; &nbsp;pla<br /><br />&nbsp; &nbsp; &nbsp;rti;Return from interrupt <br /><br />.endproc<br /></div><br /><br />One other thing: <br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">; Sets the stack pointer again.<br />&nbsp; &nbsp;ldx #$FF <br /></div>
+<br />
+<br />That doesn't do anything with the stack pointer. Not that it matters. You already set the stack pointer at the beginning of your program. Once you transfer a number from X to the stack pointer (they are not the same thing) with TXS, you can use X for whatever you like. If you're not going to use the #$FF in X you loaded right then for something, there's no need to do it.
+<br />
+<br />In short: 
+<br />
+<br />1. Changing X won't change the stack pointer unless you use TXS.
+<br />2. You don't need to change the stack pointer again since you set it up already.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Tue Dec 13, 2011 9:52 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />FinalZero, I must say it looks like you are just guessing and hoping for things to somehow work out, instead of actually understanding what you're doing.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>FinalZero</b> [ Wed Dec 14, 2011 4:37 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">You still want 0 written to both of those PPU registers while the PPU is still warming up.</div><br />But I thought I was writing to them after the PPU has already warmed up.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Also, you should wait two frames for the PPU to warm up, not just one. </div><br />Oops, it's fixed now.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">And you also need to put the NMI routine I posted in your code.</div><br />I don't understand yours. You push a bunch of stuff onto the stack only to pop it off in the very same routine after only incrementing nmis.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">That doesn't do anything with the stack pointer. Not that it matters. You already set the stack pointer at the beginning of your program. Once you transfer a number from X to the stack pointer (they are not the same thing) with TXS, you can use X for whatever you like. If you're not going to use the #$FF in X you loaded right then for something, there's no need to do it. </div><br />I know. My math routines use a stack based on the zeropage with x as the index register, as its stack pointer. That's what I meant by "stack pointer" here.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">FinalZero, I must say it looks like you are just guessing and hoping for things to somehow work out, instead of actually understanding what you're doing.</div>
+<br />That's sort of how I feel. I *think* I understand it, and then later I find out that I was wrong. Anyways, I've certainly never programmed something where I have to take care of things like vblanks and interrupts before. I admit, lots of it seems cryptic. I apologize if it seems like I'm wasting your time.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Wed Dec 14, 2011 7:13 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">FinalZero wrote:</div><div class="quotecontent"><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">And you also need to put the NMI routine I posted in your code.</div><br />I don't understand yours. You push a bunch of stuff onto the stack only to pop it off in the very same routine after only incrementing nmis.</div><br />Hail John Frum, who brings the cargo.<br /><br />There are three structures for a game loop:<br /><ol style="list-style-type: lower-alpha"><li>NMI handler just increments nmis. Main loop waits for increment, updates VRAM, updates sound, then runs one frame of game logic. </li><li>NMI handler updates VRAM and then updates sound, then increments nmis. Main loop waits for increment then runs one frame of game logic. </li><li>NMI handler updates VRAM, updates sound, then runs one frame of game logic. </li></ol>B and C type NMI handlers generally require pushing all registers and pulling them at the end. Some people are so used to B or C type NMI handlers that they end up typing out the pushes by habit and forgetting that they're not strictly needed for A type NMI handlers. Forgive them.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent"><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">FinalZero, I must say it looks like you are just guessing and hoping for things to somehow work out, instead of actually understanding what you're doing.</div><br />That's sort of how I feel. I *think* I understand it, and then later I find out that I was wrong. Anyways, I've certainly never programmed something where I have to take care of things like vblanks and interrupts before. I admit, lots of it seems cryptic. I apologize if it seems like I'm wasting your time.</div>
+<br />You could try a new thread about starting from my project template and hacking around with it.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Wed Dec 14, 2011 8:41 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">FinalZero wrote:</div><div class="quotecontent">But I thought I was writing to them after the PPU has already warmed up.</div>
+<br />It goes like this: before the warm up, write 0 to both PPU registers (the purpose here is to "reset" the PPU... kinda), and after the warm up you write the actual configuration you're gonna use (this includes enabling NMIs).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Kasumi</b> [ Wed Dec 14, 2011 2:39 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">FinalZero wrote:</div><div class="quotecontent"><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">You still want 0 written to both of those PPU registers while the PPU is still warming up.</div><br />But I thought I was writing to them after the PPU has already warmed up.<br /></div><br />I apologize for my mistake. I always thought those registers started with an unknown state, which isn't true. Even if they did start at something unknown, writes to them are also totally ignored for the first few frames.<br /><br />What tokumaru posted is what I was describing, but <a href="http://wiki.nesdev.com/w/index.php/PPU_power_up_state" class="postlink">the wiki says</a> you don't need to. <br /><br />I'll probably still do it to be safe, because I am paranoid. <br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">I don't understand yours. You push a bunch of stuff onto the stack only to pop it off in the very same routine after only incrementing nmis.</div><br /><br />Exactly. I explained why it does that in the comments, but Tepples makes a good point. The NMI I posted currently <em>doesn't</em> affect the status registers, but the idea would be that you add on to it once you're passed this hurdle.<br /><br />Here's a real world example of why the pushing and popping is done.<br /><br />Imagine this code is in your main routine:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp;lda #$FF<br />&nbsp; &nbsp;ldx #$00<br />loop:<br />&nbsp; &nbsp;sta $0200,x<br />&nbsp; &nbsp;inx<br />&nbsp; &nbsp;inx<br />&nbsp; &nbsp;inx<br />&nbsp; &nbsp;inx<br />;*<br />&nbsp; &nbsp;bne loop<br />;We can continue only when X is exactly 0. I've used code like to remove all sprites from the screen &#40;by putting their y position below the screen&#41;.<br /></div><br /><br />Now imagine this is your nmi routine. It interrupts at some point during the loop. Say... where that * is.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">nmi:<br />&nbsp; &nbsp;inc nmis<br />&nbsp; &nbsp;lda #$20;This <span class="posthilit">line</span> will cause a #$20 to be written instead of #$FF<br />&nbsp; &nbsp;sta $2006<br />&nbsp; &nbsp;ldx #$03;This <span class="posthilit">line</span> will cause an infinite loop.<br />&nbsp; &nbsp;sta $2006<br />&nbsp; <br />&nbsp; &nbsp;ldy #$00<br />&nbsp; &nbsp;sta $2007<br />;<br />&nbsp; &nbsp;rti<br /></div><br /><br />When that code returns you're in an infinite loop, because the nmi changed X to something that makes completing the loop impossible.<br /><br />Can (4*Z+3)%256 ever equal 0? <br />(Z = the number of times we have looped)<br /><br />No. But (4*Z+0)%256 can be 0 which would allow your main loop to continue.<br /><br />We push the registers to the stack in the NMI because it can interrupt our code at ANY time. After they're pushed, we can safely change them in the NMI, and restore them when we're done for when we return.<br /><br />The inc nmis part might make sense now too. Because the opposite happens than this example. The nmi not changing that variable KEEPS us in an infinite loop when it should break us out of one.<br /><br />Is that clear? If not I'll try a different approach. Tepples also did an explanation of game loops where you can avoid pushing and pulling if you like.<br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">I know. My math routines use a stack based on the zeropage with x as the index register, as its stack pointer. That's what I meant by "stack pointer" here.</div>
+<br />My bad. I'm a new guy in this thread, so I might have missed where that was mentioned. I'm just trying to make sure you're not doing anything you don't understand.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Wed Dec 14, 2011 4:57 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Kasumi wrote:</div><div class="quotecontent">What tokumaru posted is what I was describing, but <a href="http://wiki.nesdev.com/w/index.php/PPU_power_up_state" class="postlink">the wiki says</a> you don't need to.</div>
+<br />Perhaps you need to on the Famicom, which doesn't fully reset the PPU when the player presses reset.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Wed Dec 14, 2011 5:15 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />When coding in assembly I like to assume that everything is in an unknown state on power up. Better safe then sorry.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Kasumi</b> [ Wed Dec 14, 2011 6:16 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Then, I was right the first time! Like I said, I'd do it anyway.
+<br />
+<br />But now a question for my own curiosity: Are writes to $2000 still ignored for a few frames after a famicom reset? If so, even if $2000 and $2001 were set to something potentially harmful, you still couldn't do anything about it before the PPU was warmed up anyway.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>thefox</b> [ Thu Dec 15, 2011 12:55 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Kasumi wrote:</div><div class="quotecontent">But now a question for my own curiosity: Are writes to $2000 still ignored for a few frames after a famicom reset? If so, even if $2000 and $2001 were set to something potentially harmful, you still couldn't do anything about it before the PPU was warmed up anyway.</div>
+<br />Going out on a limb here, but I don't think so. As far as I understand, the reset <span class="posthilit">line</span> of the PPU simply isn't connected to the PPU on the Famicom, so when you push the reset button, PPU keeps running like nothing happened.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>18</strong> of <strong>18</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

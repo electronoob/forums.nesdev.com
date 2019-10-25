@@ -1,0 +1,319 @@
+  .inesprg $1
+  .ineschr $2
+  .inesmap $01 
+  .inesmir 0 
+
+  .bank 0
+  .org 0000
+VBlankOrNo  .db 1
+animationCounter  .db 0
+multi .db 0
+framehigh .db 0
+framelow .db 0
+
+
+
+  .org $8000
+Start:
+  bit $2002   ;; clear the VBL flag if it was set at reset time
+vwait1:
+  bit $2002
+  bpl vwait1  ;; at this point, about 27384 cycles have passed
+vwait2:
+  bit $2002
+  bpl vwait2  ;; at this point, about 57165 cycles have passed
+
+  lda #%10000000
+  sta $2000
+  lda #%00011110
+  sta $2001
+
+  lda #$01
+  sta VBlankOrNo
+  lda #$00
+  sta animationCounter
+  sta multi
+  lda $FF
+  sta framehigh
+  lda $E0
+  sta framelow
+
+  jsr initMMC1Mapper
+
+  lda #$01
+  jsr setPRGBank
+
+  lda #$3F  ;palette loading address
+  sta $2006
+  lda #$00
+  sta $2006
+
+  ldx #$00
+loadpal:
+  lda ourpal, x
+  sta $2007
+  inx
+  cpx #32
+  bne loadpal
+
+
+
+LoadSprites:
+  LDX #$00
+LoadSpritesLoop:
+  LDA sprites, x
+  STA $0200, x
+  INX
+  BNE LoadSpritesLoop
+  lda #$02
+  sta $4014
+
+
+infin:
+
+  LDA #$04
+  JSR setCHRPage0000
+  LDA #$05
+  JSR setCHRPage1000
+  ldy #$00
+  jsr changeSpritePalette
+
+WaitForVBlank:
+  lda VBlankOrNo ; A = VBlankOrNO
+  cmp #1         ; if A == 1 then is VBlank
+  beq WaitForVBlank ; if not VBlank, then loop and do again
+  dec VBlankOrNo ; 1-- or VBlankOrNO - 1 . VBlankOrNo will be 0 again
+
+  ldy #$FF
+UpdateFrame:
+  iny
+  lda [framelow], y
+  sty multi
+  asl multi
+  asl multi
+  ldx multi
+  sta $0201, x
+  lda #$02
+  sta $4014
+  cpx #$40
+  bne UpdateFrame
+
+  jsr spinWheels
+
+  lda framelow
+  clc
+  adc #64
+  sta framelow
+
+  lda framehigh
+  adc #0
+  sta framehigh
+
+
+
+  JMP infin
+
+initMMC1Mapper:
+  LDA #$80
+  STA $8000
+
+  lda #%00011000
+  jsr setMMC1ControlMode
+
+  LDA #$0
+  JSR setPRGBank
+
+  LDA #$04
+  JSR setCHRPage0000
+
+  LDA #$05
+  JSR setCHRPage1000
+
+  RTS
+
+setMMC1ControlMode:
+  STA $8000
+  LSR A
+  STA $8000
+  LSR A
+  STA $8000
+  LSR A
+  STA $8000
+  LSR A
+  STA $8000
+  RTS
+
+setCHRPage0000:
+  STA $A000
+  LSR A
+  STA $A000
+  LSR A
+  STA $A000
+  LSR A
+  STA $A000
+  LSR A
+  STA $A000
+  RTS
+
+setCHRPage1000:
+  STA $C000
+  LSR A
+  STA $C000
+  LSR A
+  STA $C000
+  LSR A
+  STA $C000
+  LSR A
+  STA $C000 
+  RTS 
+ 
+setPRGBank:
+  STA $E000 
+  LSR A 
+  STA $E000 
+  LSR A 
+  STA $E000 
+  LSR A 
+  STA $E000 
+  LSR A 
+  STA $E000 
+  RTS
+
+spinWheels:
+  ldx #50
+  ldy #0
+spinloop1:
+  spinloop2:
+  nop
+  nop
+  dey
+  bne spinloop2
+  dex
+  bne spinloop1
+  rts
+
+changeSpritePalette
+  LDX #$00
+loadSpritePalette:
+  LDA sprites, x
+  STA $0200, x
+  INX
+  LDA #$00
+  STA $0200,x
+  INX
+  TYA
+  STA $0200,x
+  INX
+  LDA sprites, x
+  STA $0200, x
+  INX
+  CPX #$00
+  BNE loadSpritePalette
+  RTS
+
+NMI:
+  lda #$00
+  sta $2003
+  lda #2
+  sta $4014
+
+  rti
+
+ourpal: incbin "eclipse.pal"
+
+  .bank 1
+  .org $E000
+sprites:
+  .db $40, $00, $00, $40
+  .db $40, $02, $00, $48
+  .db $40, $03, $00, $50
+  .db $40, $04, $00, $58
+  .db $40, $05, $00, $60
+  .db $40, $06, $00, $68
+  .db $40, $07, $00, $70
+  .db $40, $00, $00, $78
+
+  .db $48, $08, $00, $40
+  .db $48, $09, $00, $48
+  .db $48, $0A, $00, $50
+  .db $48, $0B, $00, $58
+  .db $48, $0C, $00, $60
+  .db $48, $0D, $00, $68
+  .db $48, $0E, $00, $70
+  .db $48, $0F, $00, $78
+
+  .db $50, $10, $00, $40
+  .db $50, $11, $00, $48
+  .db $50, $12, $00, $50
+  .db $50, $13, $00, $58
+  .db $50, $14, $00, $60
+  .db $50, $15, $00, $68
+  .db $50, $16, $00, $70
+  .db $50, $17, $00, $78
+
+  .db $58, $18, $00, $40
+  .db $58, $19, $00, $48
+  .db $58, $1A, $00, $50
+  .db $58, $1B, $00, $58
+  .db $58, $1C, $00, $60
+  .db $58, $1D, $00, $68
+  .db $58, $1E, $00, $70
+  .db $58, $1F, $00, $78
+
+  .db $60, $20, $00, $40
+  .db $60, $21, $00, $48
+  .db $60, $22, $00, $50
+  .db $60, $23, $00, $58
+  .db $60, $24, $00, $60
+  .db $60, $25, $00, $68
+  .db $60, $26, $00, $70
+  .db $60, $27, $00, $78
+
+  .db $68, $28, $00, $40
+  .db $68, $29, $00, $48
+  .db $68, $2A, $00, $50
+  .db $68, $2B, $00, $58
+  .db $68, $2C, $00, $60
+  .db $68, $2D, $00, $68
+  .db $68, $2E, $00, $70
+  .db $68, $2F, $00, $78
+
+  .db $70, $30, $00, $40
+  .db $70, $31, $00, $48
+  .db $70, $32, $00, $50
+  .db $70, $33, $00, $58
+  .db $70, $34, $00, $60
+  .db $70, $35, $00, $68
+  .db $70, $36, $00, $70
+  .db $70, $37, $00, $78
+
+  .db $78, $00, $00, $40
+  .db $78, $38, $00, $48
+  .db $78, $39, $00, $50
+  .db $78, $3A, $00, $58
+  .db $78, $3B, $00, $60
+  .db $78, $3C, $00, $68
+  .db $78, $3D, $00, $70
+  .db $78, $00, $00, $78
+
+frames: 
+  .incbin "frames.bin"
+
+
+  .org $FFFA
+  .dw NMI
+  .dw Start
+  .dw 0
+
+  .bank 2
+  .org $0000
+
+  .incbin "eclipse7.chr"
+  .incbin "eclipse7b.chr"
+
+  .org $FFFA     ;first of the three vectors starts here
+  .dw NMI          ;when an NMI happens (once per frame if enabled) the 
+                          ;processor will jump to the label NMI:
+  .dw Start    ;when the processor first turns on or is reset, it will jump
+                           ;to the label RESET:
+  .dw 0               ;external interrupt IRQ is not used in this tutorial

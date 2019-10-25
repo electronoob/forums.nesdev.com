@@ -1,0 +1,389 @@
+diff -r -U3 -N fceux-2.2.2-orig/src/drivers/win/input.cpp fceux-2.2.2-new/src/drivers/win/input.cpp
+--- fceux-2.2.2-orig/src/drivers/win/input.cpp	2013-02-28 17:00:34.000000000 +0100
++++ fceux-2.2.2-new/src/drivers/win/input.cpp	2013-12-27 20:49:06.925565500 +0100
+@@ -97,6 +97,7 @@
+ 
+ static void UpdateFKB(void);
+ static void UpdateSuborKB(void);
++static void UpdatePyramidKB(void);
+ void UpdateGamepad(void);
+ static void UpdateQuizKing(void);
+ static void UpdateHyperShot(void);
+@@ -377,6 +378,7 @@
+ 
+ static uint8 fkbkeys[0x48];
+ static uint8 suborkbkeys[0x60];
++static uint8 pyramidkbkeys[0x66];
+ 
+ void KeyboardUpdateState(void); //mbg merge 7/17/06 yech had to add this
+ 
+@@ -432,6 +434,10 @@
+ 		case SIFC_FTRAINERA: UpdateFTrainer();break;
+ 		case SIFC_TOPRIDER: UpdateTopRider();break;
+ 		case SIFC_OEKAKIDS: mouse=true; break;
++		case SIFC_PYRAMIDKB:
++			if(cidisabled)
++				UpdatePyramidKB();
++			break;
+ 		}
+ 
+ 		if(joy)
+@@ -532,6 +538,9 @@
+ 	case SIFC_FTRAINERB:
+ 		InputDPtr=&FTrainerData;
+ 		break;
++	case SIFC_PYRAMIDKB:
++		InputDPtr=pyramidkbkeys;
++		break;
+ 	}
+ 
+ 	FCEUI_SetInputFC((ESIFC)InputType[2],InputDPtr,attrib);
+@@ -568,6 +577,22 @@
+ 	MC(0xcb),MC(0xd0),MC(0xcd),MC(0x52),MC(0x53)
+ };
+ 
++ButtConfig pyramidkbmap[0x66]=
++{
++	MK(ESCAPE), MK(F1), MK(F2), MK(F3), MK(F4), MK(F5), MK(F6), MK(F7), // $00
++	MK(F8), MK(F9), MK(F10), MK(F11), MK(F12), MK(PRINTSCREEN), MK(SCROLLLOCK), MK(PAUSE), // $08
++	MK(TILDE)/*tilde?*/, MK(1), MK(2), MK(3), MK(4), MK(5), MK(6), MK(7), // $10
++	MK(8), MK(9), MK(0), MK(MINUS), MK(EQUAL), MK(BACKSPACE), MK(BL_INSERT), MK(BL_HOME), // $18
++	MK(BL_PAGEUP), MK(NUMLOCK), MK(SLASH), MK(ASTERISK), MK(MINUS), MK(TAB), MK(Q), MK(W), // $20
++	MK(E), MK(R), MK(T), MK(Y), MK(U), MK(I), MK(O), MK(P), // $28
++	MK(BRACKET_LEFT), MK(BRACKET_RIGHT), MK(ENTER), MK(BL_DELETE), MK(BL_END), MK(BL_PAGEDOWN), MK(HOME), MK(CURSORUP), // $30
++	MK(PAGEUP), MK(KP_PLUS), MK(CAPSLOCK), MK(A), MK(S), MK(D), MK(F), MK(G), // $38
++	MK(H), MK(J), MK(K), MK(L), MK(SEMICOLON), MK(TILDE)/*tilde?*/, MK(CURSORLEFT), MK(CENTER), // $40
++	MK(CURSORRIGHT), MK(LEFTSHIFT), MK(Z), MK(X), MK(C), MK(V), MK(B), MK(N), // $48
++	MK(M), MK(COMMA), MK(PERIOD), MK(SLASH), MK(RIGHTSHIFT), MK(BACKSLASH), MK(BL_CURSORUP), MK(END), // $50
++	MK(CURSORDOWN), MK(PAGEDOWN), MK(LEFTCONTROL), MK(LEFTALT), MK(SPACE), MK(RIGHTALT), MK(RIGHTCONTROL), MK(BL_CURSORLEFT), // $58
++	MK(BL_CURSORDOWN), MK(BL_CURSORRIGHT), MK(INSERT), MK(KP_DELETE), MK(KP_ENTER), // $60
++};
+ 
+ static void UpdateFKB(void)
+ {
+@@ -595,6 +620,19 @@
+ 	}
+ }
+ 
++static void UpdatePyramidKB(void)
++{
++	int x;
++
++	for(x=0;x<0x66;x++)
++	{
++		pyramidkbkeys[x]=0;
++
++		if(DTestButton(&pyramidkbmap[x]))
++			pyramidkbkeys[x]=1;
++	}
++}
++
+ static ButtConfig HyperShotButtons[4]=
+ {
+ 	MK(Q),MK(W),MK(E),MK(R)
+@@ -1347,6 +1385,9 @@
+ 					case SIFC_QUIZKING:
+ 						DoTBConfig(hwndDlg, text, "QUIZKINGDIALOG", QuizKingButtons, 6);
+ 						break;
++					case SIFC_PYRAMIDKB:
++						DoTBConfig(hwndDlg, text, "PYRAMIDKBDIALOG", pyramidkbmap, 0x60);
++						break;
+ 					}
+ 				}
+ 
+diff -r -U3 -N fceux-2.2.2-orig/src/drivers/win/window.cpp fceux-2.2.2-new/src/drivers/win/window.cpp
+--- fceux-2.2.2-orig/src/drivers/win/window.cpp	2013-06-15 21:44:12.000000000 +0200
++++ fceux-2.2.2-new/src/drivers/win/window.cpp	2013-12-27 17:22:32.197435500 +0100
+@@ -2348,6 +2348,16 @@
+ 				if(cidisabled)
+ 					break;
+ 			}
++			if(InputType[2]==SIFC_PYRAMIDKB)
++			{
++				if(wParam==VK_SCROLL)
++				{
++					cidisabled^=1;
++					FCEUI_DispMessage("Pyramid Keyboard %sabled.",0,cidisabled?"en":"dis");
++				}
++				if(cidisabled)
++					break;
++			}
+ 		}
+ 		goto proco;
+ 
+diff -r -U3 -N fceux-2.2.2-orig/src/git.h fceux-2.2.2-new/src/git.h
+--- fceux-2.2.2-orig/src/git.h	2013-04-18 06:42:36.000000000 +0200
++++ fceux-2.2.2-new/src/git.h	2013-12-27 20:47:38.384501300 +0100
+@@ -77,8 +77,9 @@
+ 	SIFC_OEKAKIDS	= 11,
+ 	SIFC_BWORLD		= 12,
+ 	SIFC_TOPRIDER	= 13,
++	SIFC_PYRAMIDKB  = 14,
+ 
+-	SIFC_COUNT = SIFC_TOPRIDER
++	SIFC_COUNT = SIFC_PYRAMIDKB
+ };
+ 
+ 
+@@ -99,7 +100,8 @@
+ 		"Family Trainer B",
+ 		"Oeka Kids Tablet",
+ 		"Barcode World",
+-		"Top Rider"
++		"Top Rider",
++		"Pyramid Keyboard",
+ 	};
+ 
+ 	if(esifc >= SIFC_NONE && esifc <= SIFC_COUNT)
+diff -r -U3 -N fceux-2.2.2-orig/src/input/pyramidkb.cpp fceux-2.2.2-new/src/input/pyramidkb.cpp
+--- fceux-2.2.2-orig/src/input/pyramidkb.cpp	1970-01-01 01:00:00.000000000 +0100
++++ fceux-2.2.2-new/src/input/pyramidkb.cpp	2013-12-27 20:50:32.234444900 +0100
+@@ -0,0 +1,98 @@
++/* FCE Ultra - NES/Famicom Emulator
++ *
++ * Copyright notice for this file:
++ *  Copyright (C) 2013 Marcos Vives Del Sol
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; either version 2 of the License, or
++ * (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
++ */
++
++#include <string.h>
++#include "share.h"
++#include "pyramidkb.h"
++#define AK2(x,y) ((FKB_##x) | (FKB_##y << 8))
++#define AK(x) FKB_##x
++
++static uint8 pressed[0x67];
++static uint8 row;
++static uint8 buffer;
++
++static uint16 matrix[13][8] = {
++	{ AK(ESCAPE), AK(SPACE), AK2(CONTROLLEFT,CONTROLRIGHT), AK(CAPSLOCK), AK2(ALTLEFT,ALTRIGHT), AK(GRAVE), AK(TAB), AK2(SHIFTLEFT,SHIFTRIGHT) }, // Guessed ESCAPE, ALT and CTRL
++	{ AK(F6), AK(F7), AK(F5), AK(F4), AK(F8), AK(F2), AK(F1), AK(F3) }, // All Fx buttons guessed. Their hex code on the PEC-586 ROM lookup table was 0xF1, 0xF2...
++	{ AK(PLUS), AK(NUM0), AK(DECIMAL), AK(A), AK(NUMENTER), AK(1), AK(Q), AK(Z) }, // NUMENTER or ENTER ?
++	{ AK(MULTIPLY), AK(NUM3), AK(NUM6), AK(S), AK(NUM9), AK(2), AK(W), AK(X) },
++	{ AK(DIVIDE), AK(NUM2), AK(NUM5), AK(D), AK(NUM8), AK(3), AK(E), AK(C) },
++	{ AK(NUMLOCK), AK(NUM1), AK(NUM4), AK(F), AK(NUM7), AK(4), AK(R), AK(V) },
++	{ AK(BACKSPACE), AK(BACKSLASH), AK(ENTER), AK(G), AK(BRACKETRIGHT), AK(5), AK(T), AK(B) }, // NUMENTER or ENTER ?
++	{ AK(9), AK(PERIOD), AK(L), AK(K), AK(O), AK(8), AK(I), AK(COMMA) },
++	{ AK(0), AK(SLASH), AK(SEMICOLON), AK(J), AK(P), AK(7), AK(U), AK(M) },
++	{ AK(HYPHEN), AK(EQUALS), AK(BACKSLASH), AK(H), AK(BRACKETLEFT), AK(6), AK(Y), AK(N) },
++	{ AK(F11), AK(F12), AK(F10), 0, AK(F9), 0, 0 }, // These three zeroes are on purpouse. These buttons don't exist.
++	{ AK(UP), AK(RIGHT), AK(DOWN), AK(PAGEDOWN), AK(LEFT), AK(INSERT), AK(END), AK(DELETE) }, // Dunno what these zeroes are, pause and print screen maybe?
++	{ 0, AK(HOME), AK(PAGEUP), 0, 0, 0, 0, 0 },
++};
++
++static void PyramidKB_Write(uint8 data) {
++	switch (data) {
++		case 1:
++			// Reset row counter
++			//printf("Reset!\n");
++			row = 0;
++			break;
++
++		case 2:
++			// Latch pressed buttons in current row
++			buffer = 0;
++
++			if (row < 13) {
++				for (int column = 0; column < 8; column++) {
++					buffer <<= 1;
++					if (pressed[matrix[row][column] & 0xFF] || pressed[matrix[row][column] >> 8]) {
++						buffer |= 1;
++					}
++				}
++				//if (buffer != 0)
++				//	printf("Fetch row %u - buffer: %02x\n", row, buffer);
++
++				row++;
++			}
++			break;
++	}
++}
++
++static uint8 PyramidKB_Read(int address, uint8 data) {
++	if (address == 1) { // $4017
++		data = data & 0xFD | (buffer & 1) << 1; // Put data in D1
++		buffer >>= 1;
++	}
++
++	return data;
++}
++
++static void PyramidKB_Update(void *data, int arg) {
++	memcpy(pressed + 1, data, 0x66);
++}
++
++static INPUTCFC PYRAMIDKB = {
++	PyramidKB_Read,
++	PyramidKB_Write,
++	0,
++	PyramidKB_Update,
++};
++
++INPUTCFC* FCEU_InitPyramidKB() {
++	memset(pressed, 0, sizeof(pressed));
++	return &PYRAMIDKB;
++}
+diff -r -U3 -N fceux-2.2.2-orig/src/input/pyramidkb.h fceux-2.2.2-new/src/input/pyramidkb.h
+--- fceux-2.2.2-orig/src/input/pyramidkb.h	1970-01-01 01:00:00.000000000 +0100
++++ fceux-2.2.2-new/src/input/pyramidkb.h	2013-12-27 13:18:25.093599700 +0100
+@@ -0,0 +1,101 @@
++#define FKB_ESCAPE          0x01
++#define FKB_F1              0x02
++#define FKB_F2              0x03
++#define FKB_F3              0x04
++#define FKB_F4              0x05
++#define FKB_F5              0x06
++#define FKB_F6              0x07
++#define FKB_F7              0x08
++#define FKB_F8              0x09
++#define FKB_F9              0x0A
++#define FKB_F10             0x0B
++#define FKB_F11             0x0C
++#define FKB_F12             0x0D
++#define FKB_PRINTSCREEN     0x0E
++#define FKB_SCROLLLOCK      0x0F
++#define FKB_PAUSE           0x10
++#define FKB_GRAVE           0x11
++#define FKB_1               0x12
++#define FKB_2               0x13
++#define FKB_3               0x14
++#define FKB_4               0x15
++#define FKB_5               0x16
++#define FKB_6               0x17
++#define FKB_7               0x18
++#define FKB_8               0x19
++#define FKB_9               0x1A
++#define FKB_0               0x1B
++#define FKB_HYPHEN          0x1C
++#define FKB_EQUALS          0x1D
++#define FKB_BACKSPACE       0x1E
++#define FKB_INSERT          0x1F
++#define FKB_HOME            0x20
++#define FKB_PAGEUP          0x21
++#define FKB_NUMLOCK         0x22
++#define FKB_DIVIDE          0x23
++#define FKB_MULTIPLY        0x24
++#define FKB_MINUS           0x25
++#define FKB_TAB             0x26
++#define FKB_Q               0x27
++#define FKB_W               0x28
++#define FKB_E               0x29
++#define FKB_R               0x2A
++#define FKB_T               0x2B
++#define FKB_Y               0x2C
++#define FKB_U               0x2D
++#define FKB_I               0x2E
++#define FKB_O               0x2F
++#define FKB_P               0x30
++#define FKB_BRACKETLEFT     0x31
++#define FKB_BRACKETRIGHT    0x32
++#define FKB_ENTER           0x33
++#define FKB_DELETE          0x34
++#define FKB_END             0x35
++#define FKB_PAGEDOWN        0x36
++#define FKB_NUM7            0x37
++#define FKB_NUM8            0x38
++#define FKB_NUM9            0x39
++#define FKB_PLUS            0x3A
++#define FKB_CAPSLOCK        0x3B
++#define FKB_A               0x3C
++#define FKB_S               0x3D
++#define FKB_D               0x3E
++#define FKB_F               0x3F
++#define FKB_G               0x40
++#define FKB_H               0x41
++#define FKB_J               0x42
++#define FKB_K               0x43
++#define FKB_L               0x44
++#define FKB_SEMICOLON       0x45
++#define FKB_ACUTE           0x46
++#define FKB_NUM4            0x47
++#define FKB_NUM5            0x48
++#define FKB_NUM6            0x49
++#define FKB_SHIFTLEFT       0x4A
++#define FKB_Z               0x4B
++#define FKB_X               0x4C
++#define FKB_C               0x4D
++#define FKB_V               0x4E
++#define FKB_B               0x4F
++#define FKB_N               0x50
++#define FKB_M               0x51
++#define FKB_COMMA           0x52
++#define FKB_PERIOD          0x53
++#define FKB_SLASH           0x54
++#define FKB_SHIFTRIGHT      0x55
++#define FKB_BACKSLASH       0x56
++#define FKB_UP              0x57
++#define FKB_NUM1            0x58
++#define FKB_NUM2            0x59
++#define FKB_NUM3            0x5A
++#define FKB_CONTROLLEFT     0x5B
++#define FKB_ALTLEFT         0x5C
++#define FKB_SPACE           0x5D
++#define FKB_ALTRIGHT        0x5E
++#define FKB_CONTROLRIGHT    0x5F
++#define FKB_LEFT            0x60
++#define FKB_DOWN            0x61
++#define FKB_RIGHT           0x62
++#define FKB_NUM0            0x63
++#define FKB_DECIMAL         0x64
++#define FKB_NUMENTER        0x65
+diff -r -U3 -N fceux-2.2.2-orig/src/input.cpp fceux-2.2.2-new/src/input.cpp
+--- fceux-2.2.2-orig/src/input.cpp	2013-06-15 21:44:12.000000000 +0200
++++ fceux-2.2.2-new/src/input.cpp	2013-12-27 20:48:14.724579800 +0100
+@@ -75,6 +75,7 @@
+ extern INPUTCFC *FCEU_InitOekaKids(void);
+ extern INPUTCFC *FCEU_InitTopRider(void);
+ extern INPUTCFC *FCEU_InitBarcodeWorld(void);
++extern INPUTCFC *FCEU_InitPyramidKB(void);
+ //---------------
+ 
+ //global lag variables
+@@ -452,6 +453,9 @@
+ 	case SIFC_TOPRIDER:
+ 		portFC.driver=FCEU_InitTopRider();
+ 		break;
++	case SIFC_PYRAMIDKB:
++		portFC.driver=FCEU_InitPyramidKB();
++		break;
+ 	}
+ }
+ 
+diff -r -U3 -N fceux-2.2.2-orig/vc/vc10_fceux.vcxproj fceux-2.2.2-new/vc/vc10_fceux.vcxproj
+--- fceux-2.2.2-orig/vc/vc10_fceux.vcxproj	2013-09-22 23:39:22.000000000 +0200
++++ fceux-2.2.2-new/vc/vc10_fceux.vcxproj	2013-12-27 20:56:39.912474900 +0100
+@@ -597,6 +597,7 @@
+     <ClCompile Include="..\src\input\mouse.cpp" />
+     <ClCompile Include="..\src\input\oekakids.cpp" />
+     <ClCompile Include="..\src\input\powerpad.cpp" />
++    <ClCompile Include="..\src\input\pyramidkb.cpp" />
+     <ClCompile Include="..\src\input\quiz.cpp" />
+     <ClCompile Include="..\src\input\shadow.cpp" />
+     <ClCompile Include="..\src\input\suborkb.cpp" />
+diff -r -U3 -N fceux-2.2.2-orig/vc/vc10_fceux.vcxproj.filters fceux-2.2.2-new/vc/vc10_fceux.vcxproj.filters
+--- fceux-2.2.2-orig/vc/vc10_fceux.vcxproj.filters	2013-09-22 23:39:22.000000000 +0200
++++ fceux-2.2.2-new/vc/vc10_fceux.vcxproj.filters	2013-12-27 20:57:15.912534000 +0100
+@@ -958,6 +958,9 @@
+     <ClCompile Include="..\src\boards\mihunche.cpp">
+       <Filter>boards</Filter>
+     </ClCompile>
++    <ClCompile Include="..\src\input\pyramidkb.cpp">
++      <Filter>input</Filter>
++    </ClCompile>
+   </ItemGroup>
+   <ItemGroup>
+     <ClInclude Include="..\src\drivers\common\args.h">

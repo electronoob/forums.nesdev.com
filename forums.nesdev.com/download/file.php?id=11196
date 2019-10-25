@@ -1,0 +1,56 @@
+#include	"..\DLL\d_iNES.h"
+#include	"..\Hardware\h_N118.h"
+
+namespace N118 {
+extern uint8 CHR[6];
+}
+
+namespace {
+uint8	LastBank;
+static const uint8 Bank2Reg[8] = { 0, 0, 1, 1, 2, 3, 4, 5 };
+
+void	Sync (void) {
+}
+
+void	MAPINT CPUCycle (void) {
+	LastBank = ((N118::CHR[Bank2Reg[LastBank]] &0x30) >>4) | 0x04;
+	EMU->SetPRG_ROM32(8, (N118::CHR[Bank2Reg[LastBank]] &0x02) >>1);
+	EMU->SetCHR_ROM8(0, (N118::CHR[Bank2Reg[LastBank]] &0x0C) >>2);
+}
+
+BOOL	MAPINT	Load (void) {
+	N118::Load(Sync);
+	return TRUE;
+}
+
+void	MAPINT	Write8 (int Bank, int Addr, int Val) {
+	Val = ((Val &0x20) >>5) | ((Val &0x04) >>1) | ((Val &0x01) <<2) | ((Val &0x02) <<2) | ((Val &0x08) <<1) | ((Val &0x10) <<1);
+	N118::CPUWrite89(Bank, Addr, Val);
+}
+
+void	MAPINT	Reset (RESET_TYPE ResetType) {
+	N118::Reset(ResetType);
+	iNES_SetMirroring();
+	EMU->SetCPUWriteHandler(8, Write8);
+	EMU->SetCPUWriteHandler(9, Write8);
+	LastBank = 4; // Can only be 4-7, because PPU A12 is permanently held high
+}
+void	MAPINT	Unload (void) {
+	N118::Unload();
+}
+uint16 MapperNum = 133;
+} // namespace
+
+const MapperInfo MapperInfo_133 = {
+	&MapperNum,
+	_T("Sachen 3009"),
+	COMPAT_FULL,
+	Load,
+	Reset,
+	Unload,
+	CPUCycle,
+	NULL,
+	N118::SaveLoad,
+	NULL,
+	NULL
+};

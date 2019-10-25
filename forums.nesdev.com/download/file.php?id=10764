@@ -1,0 +1,96 @@
+#include	"..\DLL\d_iNES.h"
+#include	"..\Hardware\h_Latch.h"
+
+/* Correct submappers by game:
+
+				Disable	Wrong	Enable	Correct
+				Latch	Submapp	Latch	Submapp
+	Bird Week		F0	4	0F	7
+	B-Wings			00	4	33	7
+	Mighty Bomb Jack (J)	00	4	11	5
+	Mighty Bomb Jack (UE)	00	4	11	5
+	Sansuu 1 Nen		20	4	22	6
+	Sansuu 2 Nen		20	4	22	6
+	Othello			20	4	22	6
+	Sansuu 3 Nen		00	4	2A	6
+	Spy vs. Spy		13	7	21	5
+	Seicross (rev1)		21	5	20	4
+
+*/
+// Heuristic if no valid submapper has been specified.
+// 0: Enable CHR if (Latch &0x0F !)=0 && Latch !!=0x13
+// 1: Enable CHR after two PPU reads
+#define NEW_HEURISTIC 1
+
+namespace {
+FPPURead _ReadCHR;
+
+#if NEW_HEURISTIC
+FCPURead _Read2;
+int PPUReadCount;
+#endif
+
+void	Sync (void) {
+	EMU->SetPRG_ROM32(0x8, 0);
+	EMU->SetCHR_ROM8(0, 0);
+}
+
+BOOL	MAPINT	Load (void) {
+	Latch::Load(Sync, FALSE);
+	return TRUE;
+}
+
+#if NEW_HEURISTIC
+int	MAPINT Read2(int Bank, int Addr) {
+	if ((Addr &7) ==7 && PPUReadCount <2) PPUReadCount++;
+	return _Read2(Bank, Addr);
+}
+#endif
+
+int	MAPINT ReadCHR(int Bank, int Addr) {
+	if ((ROM->INES2_SubMapper &0xC) ==4)
+		return ((Latch::Data &3) ==(ROM->INES2_SubMapper &3))? _ReadCHR(Bank, Addr): 0xFF;
+	else
+#if NEW_HEURISTIC
+		return (PPUReadCount >=2) ?_ReadCHR(Bank, Addr): 0xFF;
+#else
+		return ((Latch::Data &0x0F) !=0 && Latch::Data !=0x13)? _ReadCHR(Bank, Addr): 0xFF;
+#endif
+}
+
+
+void	MAPINT	Reset (RESET_TYPE ResetType) {
+	iNES_SetMirroring();
+	Latch::Reset(ResetType);
+
+#if NEW_HEURISTIC	
+	_Read2 =EMU->GetCPUReadHandler(2);
+	EMU->SetCPUReadHandler(2, Read2);
+	PPUReadCount =0;
+#endif	
+	_ReadCHR =EMU->GetPPUReadHandler(0);
+	for (int i =0; i <8; i++) {
+		EMU->SetPPUReadHandler(i, ReadCHR);
+		EMU->SetPPUReadHandlerDebug(i, ReadCHR);
+	}
+}
+void	MAPINT	Unload (void) {
+	Latch::Unload();
+}
+
+uint16 MapperNum = 185;
+} // namespace
+
+const MapperInfo MapperInfo_185 = {
+	&MapperNum,
+	_T("CNROM with CHR disable"),
+	COMPAT_FULL,
+	Load,
+	Reset,
+	Unload,
+	NULL,
+	NULL,
+	Latch::SaveLoad_D,
+	NULL,
+	NULL
+};

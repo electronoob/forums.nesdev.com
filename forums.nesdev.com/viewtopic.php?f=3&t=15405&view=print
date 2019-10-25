@@ -1,0 +1,439 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - A/V synchronization</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">A/V synchronization</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=3&amp;t=15405">http://forums.nesdev.com/viewtopic.php?f=3&amp;t=15405</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>3</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>James</b> [ Thu Jan 19, 2017 10:19 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>A/V synchronization</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />In <a href="http://forums.nesdev.com/viewtopic.php?f=5&amp;t=15383" class="postlink">this</a> thread, gdkchan asked about A/V synchronization in his emulator.  Here, I'll discuss the method I developed for nemulator.<br /><br />Most emulators sync to the audio playback rate and adjust the video rate to accommodate. This results in tearing (no vsync) or stuttering when scrolling (vsync).  nemulator syncs to the video frame rate, and continuously adjusts the audio rate to match.  The result is smooth video and glitch-free audio.  Here's a block diagram of how it's done.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;audio callback -&gt; sound card<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;^<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;|<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;|<br />input -&gt; low pass -&gt; resampler -&gt; high pass -&gt; output buffer<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;^&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;|&nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;|&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;|<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;+---------feedback----------+<br /><br /></div><br /><br />Input is audio at its native rate (1.79MHz in the case of NES).  The input is low-pass filtered and then passed to the arbitrary rate resampler.  The output from the resampler is high pass filtered, then stored in an output buffer.  When the soundcard needs data, the callback function is invoked, pulling data from the buffer.<br /><br />Each frame, a frame's worth of audio data is processed.  When it is placed in the circular output buffer, the distance between the write and play cursors is measured.  The goal is to keep this distance consistent between frames so that the audio buffer doesn't underflow, resulting in audio glitches, and so that no blocking occurs while waiting for the buffer to drain, resulting in delayed frames/video glitches.<br /><br />The feedback block:<br />- Low pass filters the distance measurement<br />- Adds that measurement to a circular buffer containing the last 60 measurements (1 second)<br />- Computes the slope of those measurements<br />- Adjusts the resampler output rate based on how far the distance is from the target and whether it's converging on or diverging from that target<br /><br />I've created a sample SDL app that implements this system.  Source code is available on <a href="https://github.com/jslepicka/audio_sync" class="postlink">github</a>, or you can download a Windows version <a href="http://nemulator.com/files/audio_sync.exe" class="postlink">here</a> (requires <a href="https://www.libsdl.org/release/SDL2-2.0.5-win32-x86.zip" class="postlink">sdl2.dll</a>).  I've only tested this on Windows, but it should work on other platforms.  A few notes:<br />- nemulator uses DirectSound without callbacks, which permits for more accurate measurement of the audio buffer's cursors and, thus, better synchronization<br />- Accuracy in this app is limited by the callback frequency (every 512 samples), so some tweaking may be required<br />- Pre- and post- resampler filtering is not implemented<br />- Input to the resampler should be at least 8x oversampled<br />- The green line represents the distance measurement, the red line represents the resampler output frequency<br />- If your display isn't running at 60Hz, this won't work properly<br /><br /><img src="http://nemulator.com/images/audio_sync.jpg" alt="Image" /><br /><br />James
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Thu Jan 19, 2017 11:52 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: A/V synchronization</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Just for reference ... is the audio supposed to be a clean square wave?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Thu Jan 19, 2017 11:57 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: A/V synchronization</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Hmm, do you find that the aliasing/distortion resulting from the jittering pitch is a worthwhile tradeoff though? Like, you're offering a choice between occasional skipped frames, tearing, or audio distortion, right? Not sure which is the best of these options. (Maybe ideally you can choose!)<br /><br />One thing I might suggest, though, if you're using a sync-to-audio solution, you could slightly adjust the clock rate so that 1 frame worth of cycles = reported vsync rate. Doing this would greatly reduce the frequency of dropped frames, while detuning the output pitch just the slightest amount (at least for a 60hz monitor).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>James</b> [ Fri Jan 20, 2017 7:11 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: A/V synchronization</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">lidnariq wrote:</div><div class="quotecontent">Just for reference ... is the audio supposed to be a clean square wave?</div><br />Yes, a 240Hz square wave.<br /><br /><div class="quotetitle">rainwarrior wrote:</div><div class="quotecontent">Hmm, do you find that the aliasing/distortion resulting from the jittering pitch is a worthwhile tradeoff though?</div><br />Absolutely.  I find visual artifacts, like stuttering while scrolling, to be intolerable.  That said, the audio pitch changes made by this method are inaudble to me.  On my system, the frequency in the SDL version varies over about a 30Hz range (.06%).  The DirectSound version does even better, with a variance of only a few Hz.  Both are below the threshold of audibility (<a href="https://en.wikipedia.org/wiki/Pitch_(music)#Just-noticeable_difference" class="postlink">https://en.wikipedia.org/wiki/Pitch_(music)#Just-noticeable_difference</a>).<br /><br /><div class="quotetitle">rainwarrior wrote:</div><div class="quotecontent">you could slightly adjust the clock rate so that 1 frame worth of cycles = reported vsync rate</div><br />It may not have been clear, but this does rely on vsync at 60Hz*.  So this is, in effect, exactly what I'm doing.<br /><br />* Or, e.g., FreeSync and a 50Hz clock source.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Fri Jan 20, 2017 10:13 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: A/V synchronization</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />In my emulator I allow the option.  If you choose to sync to video frame rate, it will produce more or less audio to match.... which can be accomplished by running audio channels for more/fewer cycles as needed without actually changing the clock rate.<br /><br />This is complicated by the DMC, which has CPU-visible side-effects (IRQs, stolen cycles).  To solve that, I run 2 separate DMC units side-by-side.  The &quot;DMCPU&quot; which is not audible but does the DMA and generates IRQs.  And a separate audible DMC which is what you actually hear.<br /><br />This results in smooth video + smooth audio playback with no pitch changes, regardless of the framerate (so it even works for something like Fast-Forward).  Only exception being raw, timed $4011 writes, which will crackle a bit due to no longer being spaced properly. But games which use those are pretty rare.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Fri Jan 20, 2017 10:45 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: A/V synchronization</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Whatever's going on here is mixing really badly with linux ALSA dmix, continuously emitting the &quot;sample underrun&quot; sound even without warning about it in the terminal.<br /><br /><br />Also, somehow, I managed to get it to start oscillating, which really doesn't sound good. (The green line rises at a constant slow rate, gets to about 2/3 up the window, then decays in a rapid exponential, then restarts)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Fri Jan 20, 2017 10:50 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: A/V synchronization</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Disch wrote:</div><div class="quotecontent">Only exception being raw, timed $4011 writes, which will crackle a bit due to no longer being spaced properly. But games which use those are pretty rare.</div><br />Such as <em>Battletoads</em> and most of the <a href="http://bootgod.dyndns.org:7777/search.php?keywords=wheel+of+fortune&amp;kwtype=game" class="postlink"><em>Wheel of Fortune</em> games</a>.<br /><br />Here's an idea for an emulator feature: Count $4011 writes over the past several frames, and if it exceeds (say) 40 writes in 4 frames, log that. Then we can make a list of licensed games using raw PCM and cross-reference it with the developer/porter list from NesCartDB to improve my pun.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>James</b> [ Fri Jan 20, 2017 10:57 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: A/V synchronization</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">lidnariq wrote:</div><div class="quotecontent">Whatever's going on here is mixing really badly with linux ALSA dmix, continuously emitting the &quot;sample underrun&quot; sound even without warning about it in the terminal.</div><br />Is vsync working/is it running at relatively consistent 60fps?<br /><br />You may need to reduce the callback frequency (try changing wanted.samples to 1024) and/or increase BUF_LEN.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Fri Jan 20, 2017 11:16 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: A/V synchronization</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">James wrote:</div><div class="quotecontent">Is vsync working/is it running at relatively consistent 60fps?<br /></div>Yup. Seems to eventually converge on 60.00Hz vsync and 47972Hz sample rate.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">You may need to reduce the callback frequency (try changing wanted.samples to 1024) and/or increase BUF_LEN.<br /></div>With SDL_AUDIODRIVER=alsa (and whatever default routing it's picking), the clicking frequency happens once every BUF_LEN samples.<br />With SDL_AUDIODRIVER=dsp (i.e. OSS emulation), or with AUDIODEV=plughw:0,0, it seems to work as intended<br />With AUDIODEV=dmix, it emits a pile of fuzz with minimal tonal content<br /><br />I've seen the aforementioned oscillation show up all of the above audio methods.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>James</b> [ Fri Jan 20, 2017 11:34 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: A/V synchronization</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">lidnariq wrote:</div><div class="quotecontent">I've seen the aforementioned oscillation show up all of the above audio methods.</div><br />In nemulator, there's some code to look for this condition and reset, but I didn't include that here.  I'll update it.<br /><br />No idea re: clicking issues with alsa.  I'll see if I can reproduce it.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Fri Jan 20, 2017 12:43 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: A/V synchronization</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">James wrote:</div><div class="quotecontent"><div class="quotetitle">rainwarrior wrote:</div><div class="quotecontent">you could slightly adjust the clock rate so that 1 frame worth of cycles = reported vsync rate</div><br />It may not have been clear, but this does rely on vsync at 60Hz*.  So this is, in effect, exactly what I'm doing.</div><br />What I meant was a fixed rate. You're adjusting the rate dynamically. I meant adjust the fixed rate (once at startup) so it matches your vsync and stick with it, so you don't get audio distortion from constantly changing it to try and match. You'd end up with no audio distortion and skipped visual frames almost never.<br /><br />Also you misquoted this; I said it, not lidnariq.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Fri Jan 20, 2017 1:03 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: A/V synchronization</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />But how long would it take the emulator to accurately measure the actual vsync rate and the actual sample rate when it starts? A rate like the &quot;47972Hz&quot; that lidnariq reported isn't related in the expected 735:1 or 800:1 ratio. In addition, the oscillators in the video card and sound card may drift over time.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Fri Jan 20, 2017 1:26 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: A/V synchronization</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tepples wrote:</div><div class="quotecontent">But how long would it take the emulator to accurately measure the actual vsync rate and the actual sample rate when it starts? In addition, the oscillators in the video card and sound card may drift over time.</div><br /><s>What?? Just query it from the hardware!</s> <em>Edit: Koitsu points out that APIs for this are inadequate. Maybe just measure it and let user override manually?</em><br /><br />I don't believe drift over time is significant here. Have you really encountered this with modern monitors or sound cards? (e.g. I've never found a computer sound device to be measurably out of tune, at least not in any of the many times I've tuned a musical device to one.)<br /><br />However. I did say this was part of the &quot;sync video to audio&quot; solution where occasionally you have to display a frame twice (or skip display of a frame) to resync. If there's a small amount of mismatch for some reason this will occasionally do that to correct. I said &quot;almost never&quot; because I'd expect it to be so infrequent as to be essentially nonexistant.<br /><br />If your monitor isn't running close to the game's target refresh rate (i.e.  50 or 60hz) then you're going to be living with doubled/skipped frames anyway. Some people want NES accurate timing, too, so they also must live with that for its nonstandard 60.1hz rate. That tends to be quite noticeable though because it's a frame skipped every 10 seconds.<br /><br /><br />Edit: On the subject of drift over time this website claims to be a vsync test: <!-- m --><a class="postlink" href="https://www.vsynctester.com/index.html">https://www.vsynctester.com/index.html</a><!-- m --><br /><br />On this laptop it thinks the real refresh rate is 60.002 Hz, so we're talking about one frame doubled every 8 minutes. Is that not insignificant? I think that's pretty good?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>James</b> [ Fri Jan 20, 2017 2:02 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: A/V synchronization</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">rainwarrior wrote:</div><div class="quotecontent">Also you misquoted this; I said it, not lidnariq.</div><br />Sorry about that -- copy/paste error.  Fixed.<br /><br /><div class="quotetitle">rainwarrior wrote:</div><div class="quotecontent">so you don't get audio distortion from constantly changing it to try and match</div><br />If the audio rate change is sufficiently small, there is no audible distortion.<br /><br /><div class="quotetitle">rainwarrior wrote:</div><div class="quotecontent">I meant adjust the fixed rate (once at startup) so it matches your vsync and stick with it</div><br />higan used this method at some point, requiring the user to go through a process to measure video and audio rates.  Those settings are no longer there, but byuu can probably comment on how well this method works.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Fri Jan 20, 2017 2:13 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: A/V synchronization</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">James wrote:</div><div class="quotecontent"><div class="quotetitle">rainwarrior wrote:</div><div class="quotecontent">so you don't get audio distortion from constantly changing it to try and match</div><br />If the audio rate change is sufficiently small, there is no audible distortion.</div><br />In the test program you posted, I find the displayed rate (once it settles, which takes a bit of time) is in a constant state of oscillation, and even minute adjustments are clearly audible through the varying timbre it produces. It never sounds stable to me.<br /><br />Here, I made a recording. Does this sound significantly different than it does in your own tests?<br /><br />Maybe another suggestion: would it be useful to smoothe the rate of change, maybe averaging over many frames and adjusting rate only once a second or something instead?
+
+		
+			<br clear="all" /><br />
+
+			<table class="tablebg" width="100%" cellspacing="1">
+			<tr>
+				<td><b class="genmed">Attachments: </b></td>
+			</tr>
+			
+				<tr>
+					<td>
+			<span class="genmed">
+				<img src="./styles/subsilver2/imageset/icon_topic_attach.gif" width="14" height="18" alt="" title="" /> 
+				<a href="./download/file.php?id=7665">audio_sync.flac.zip</a> [1.52 MiB]
+			</span><br />
+			<span class="gensmall">Downloaded 58 times</span>
+		
+
+		<br />
+	</td>
+				</tr>
+			
+			</table>
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>3</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

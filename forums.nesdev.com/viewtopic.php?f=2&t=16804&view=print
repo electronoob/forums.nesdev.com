@@ -1,0 +1,312 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - The quest for mid-screen palette changes!</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">The quest for mid-screen palette changes!</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=16804">http://forums.nesdev.com/viewtopic.php?f=2&amp;t=16804</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>BioMechanical Dude</b> [ Fri Dec 08, 2017 10:48 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>The quest for mid-screen palette changes!</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />After successfully setting up the MMC3 and figured out how to use the IRQs, I decided to try something very few NES games attempt and change the palette mid-screen. One of the characteristics of the MMC3 scanline counter is that if the Sprites are loaded from Pattern Table 1 and the backgrounds are loaded from Pattern Table 0, the counter will trigger an IRQ at around pixel 260 of the current scanline. This means that we should be able to change at least one color without any visible graphical glitches.<br /><br />So I started with a program that displays the following image:<br /><br /><a href="https://imgbb.com/" class="postlink"><img src="https://image.ibb.co/gAuFkG/MMC3_Test_0.png" alt="Image" /></a><br /><br />I added an IRQ, which triggers at scanline 120, containing the following code:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">COW:<br />&nbsp; LDA #$00<br />&nbsp; STA $2001&nbsp; ;Disable rendering<br /><br />&nbsp; LDA $2002&nbsp; <br />&nbsp; LDA #$3F<br />&nbsp; STA $2006<br />&nbsp; LDA #$00<br />&nbsp; STA $2006<br />&nbsp; <br />&nbsp; LDA #$16<br />&nbsp; STA $2007&nbsp; ;Change Main Background color<br />&nbsp; <br />&nbsp; LDA #%00011110&nbsp; ;Enable sprites, Enable backgrounds<br />&nbsp; STA $2001<br />&nbsp; <br />&nbsp; LDA #$01<br />&nbsp; STA $E000 ;Disable IRQ<br /><br />&nbsp; RTI</div><br />I also added the following code in the NMI section to change back to the original color before the next frame starts:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; LDA $2002<br />&nbsp; LDA #$3F<br />&nbsp; STA $2006<br />&nbsp; LDA #$00<br />&nbsp; STA $2006<br />&nbsp; LDA #$21<br />&nbsp; STA $2007</div><br />When I ran the program, I ended up with this:<br /><br /><a href="https://imgbb.com/" class="postlink"><img src="https://image.ibb.co/b0URsw/MMC3_Test_1.png" alt="Image" /></a><br /><br />Now, I knew there were going to be problems. And it turns out that writing to $2006 messes with the scroll register. So I changed the IRQ code a bit and wrote to $2005, hoping to move the screen to where it should be:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">COW:<br />&nbsp; LDA #$00<br />&nbsp; STA $2001&nbsp; ;Disable rendering<br /><br />&nbsp; LDA $2002&nbsp; <br />&nbsp; LDA #$3F<br />&nbsp; STA $2006<br />&nbsp; LDA #$00<br />&nbsp; STA $2006<br />&nbsp; <br />&nbsp; LDA #$16<br />&nbsp; STA $2007&nbsp; ;Change Main Background color<br />&nbsp; <br />&nbsp; LDA #%00011110&nbsp; ;Enable sprites, Enable backgrounds<br />&nbsp; STA $2001<br />&nbsp; <br />&nbsp; LDA #$00&nbsp; &nbsp; &nbsp; &nbsp;<br />&nbsp; STA $2005<br />&nbsp; LDA #$78&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ;Set Y Scroll position to 120<br />&nbsp; STA $2005<br />&nbsp; <br />&nbsp; LDA #$01<br />&nbsp; STA $E000 ;Disable IRQ<br />&nbsp; <br />&nbsp; RTI</div><br />Unfortunately, this didn't change anything at all. In an online MMC3 guide, I saw that instead of writing to $2005, they wrote to $2006, like so:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; LDA #%00011110&nbsp; ;Enable sprites, Enable backgrounds<br />&nbsp; STA $2001<br />&nbsp; LDA #$00 <br />&nbsp; STA $2006<br />&nbsp; STA $2006</div><br />This brings the screen down a bit:<br /><br /><a href="https://imgbb.com/" class="postlink"><img src="https://image.ibb.co/jk0o5G/MMC3_Test_2.png" alt="Image" /></a><br /><br />I decided to see what would happen if I put in a higher value on the second write to $2006<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; LDA #%00011110&nbsp; ;Enable sprites, Enable backgrounds<br />&nbsp; STA $2001<br />&nbsp; LDA #$00&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; STA $2006<br />&nbsp; LDA #$78<br />&nbsp; STA $2006</div><br />This brings the screen down more, but not by much:<br /><br /><a href="https://imgbb.com/" class="postlink"><img src="https://image.ibb.co/fAi85G/MMC3_Test_3.png" alt="Image" /></a><br /><br />So, can somebody tell me what is the right way to go about this? How do I fix these problems?<br /><br />Thanks!
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>pubby</b> [ Fri Dec 08, 2017 11:02 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: The quest for mid-screen palette changes!</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Maybe this is helpful? <!-- m --><a class="postlink" href="https://wiki.nesdev.com/w/index.php/PPU_scrolling#Split_X.2FY_scroll">https://wiki.nesdev.com/w/index.php/PPU ... 2FY_scroll</a><!-- m -->
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Fri Dec 08, 2017 11:27 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: The quest for mid-screen palette changes!</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">BioMechanical Dude wrote:</div><div class="quotecontent">One of the characteristics of the MMC3 scanline counter is that if the Sprites are loaded from Pattern Table 1 and the backgrounds are loaded from Pattern Table 0, the counter will trigger an IRQ at around pixel 260 of the current scanline. This means that we should be able to change at least one color without any visible graphical glitches.<br /></div>No, it does not mean that.<br /><br />It is <em>not possible</em> to change one color without <em>any</em> visible glitches. At all. Ever.<br /><br />At the very best, the scanline following the palette change will have no sprites. <br /><br />But even this requires absolutely <em>zero</em> variation in the CPU timing. And IRQs on the 6502 <em>always</em> have some jitter.<br /><br />The window in which you can disable rendering and write to the PPU is 64 pixels long. That's 21 CPU cycles.<br /><br />In order to write a new palette entry, you need to write to PPU registers a total of 7 times. That's 28 CPU cycles, of which the first seven cycles can happen early:<br /><br />STa $2006 - can be significantly early - always contains $3F<br />STb $2001 - timed such that the final write happens on pixel 255/6/7 - disable rendering, probably contains 0 but other values are possible<br />STc $2006 - the palette index to update<br />STd $2007 - the new palette value<br />STe $2006 - restore correct scroll - note that the fine &quot;y&quot; 4s bit is always cleared when you update the scroll register using just $2006<br />STf $2006 - finish correcting scroll<br />STg $2001 - re-enable rendering<br /><br />Note: There is no time here to load your three registers with new values! (other than after &quot;a&quot;) There are a very few don't care bits in the above sequence (&quot;b&quot; &amp; $E1, &quot;c&quot; &amp; $E0, &quot;d&quot; &amp; $C0, &quot;e&quot; &amp; $C0) that help a little, but probably not enough.<br /><br />So you basically <em>have</em> to move this entire sequence early in order to have enough time to load the registers with the values you want to write. There will be a visible glitch and you <em>can't</em> cover it with a sprite (because rendering will be disabled). Furthermore, there are very strict timings on <a href="https://wiki.nesdev.com/w/index.php/Errata#OAM_and_Sprites" class="postlink">when you can disable rendering without breaking sprites for the entire remaining redraw</a>.<br /><br />If there are sprites that intersect the place where you want the palette update, you only can move the entire sequence early by 16 pixels, enough time to LDx immediate twice, or LDx zeropage once. (If there are no sprites near the split, you can move the entire sequence early by 64 pixels) But the earlier you move it, the more visible the glitch.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Fri Dec 08, 2017 1:25 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: The quest for mid-screen palette changes!</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Blagg <a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=6589&amp;hilit=window" class="postlink">has discovered a way to get rid of jitter by abusing the $4014 sprite DMA</a>, I don't remember the details. I don't think it's applicable to MMC3 IRQs, but rather NMI, but I might be wrong.<br /><br />C64 demoes usally uses crazy hardware abuse to remove jitter entirely, and they are able to write to hardware video registers at a fully stable timing.<br /><br />As for the original topic, if your goal is just to change the background colour (or even a significant part of the palette) once in the middle of the frame, for example in order to change the palette for the status bas, it's probably best to rely on a single glitchy scanline. If you want to change the background colour each line, it's possible and <a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=4448&amp;p=38387#p38387" class="postlink">I did a demo about it 9 years ago</a>, which was itself inspired by a demo by Memblers I think.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Dwedit</b> [ Fri Dec 08, 2017 1:27 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: The quest for mid-screen palette changes!</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Fantastic Adventures of Dizzy is one of the few games to do midscreen palette changes well.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Fri Dec 08, 2017 2:59 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: The quest for mid-screen palette changes!</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Since this question comes up a lot, I decided to start a wiki article on it:<br /><a href="http://wiki.nesdev.com/w/index.php/Palette_change_mid_frame" class="postlink">Wiki: Palette change mid frame</a><br /><br />Please feel free to edit/contribute to it.<br /><br />(lidnariq: how would you feel about the Indiana Jones diagram being uploaded to the wiki?)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Fri Dec 08, 2017 3:17 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: The quest for mid-screen palette changes!</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">rainwarrior wrote:</div><div class="quotecontent">(lidnariq: how would you feel about the Indiana Jones diagram being uploaded to the wiki?)<br /></div>By all means!
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Fri Dec 08, 2017 3:57 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: The quest for mid-screen palette changes!</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">BioMechanical Dude wrote:</div><div class="quotecontent">I decided to try something very few NES games attempt and change the palette mid-screen.</div><br />There's a reason for that, you know. There are several limitations that apply to mid-screen palette changes, so most programmers come to the conclusion it's not worth the trouble.<br /><br />It's just not possible to change even a single color without disrupting the background and/or the sprites for at least 1 scanline, so outside of status bars or title screens, cutscenes and the like, this is of little use. And I wouldn't trust emulators when testing this either, a lot of them aren't accurate enough to show the correct results for mid-screen PPU manipulations.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>dougeff</b> [ Fri Dec 08, 2017 4:56 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: The quest for mid-screen palette changes!</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />BioMechanical Dude, this is one of the things I have tried and failed to do.<br /><br />My understanding of the PPU, is that during rendering, the PPU is auto-incrementing the PPU address, using the same bits as 2005/2006, to fetch the correct pixels to put on the screen.<br /><br />If you change 2006, midscreen, it starts fetching tiles/bytes from that new address.<br /><br />Also, you can't change Y scroll, midscreen, by doing 2 writes to 2005.<br /><br />You can with the 2006/2005/2005/2006 trick, however.<br /><br /><br /><br />One easy thing you CAN do, is have the top portion of the first nametable reserved for a HUD. Set the Y scroll to avoid showing this for most of the screen. Then, near the bottom of the screen, 2 quick writes of zero to 2006 (I think) should then show the HUD at the bottom.<br /><br />Or something like that.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Fri Dec 08, 2017 6:16 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: The quest for mid-screen palette changes!</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">dougeff wrote:</div><div class="quotecontent">One easy thing you CAN do, is have the top portion of the first nametable reserved for a HUD. Set the Y scroll to avoid showing this for most of the screen. Then, near the bottom of the screen, 2 quick writes of zero to 2006 (I think) should then show the HUD at the bottom.</div><br />You also have to clear the fine X scroll using $2005, since $2006 doesn't affect that, otherwise the status bar will jitter left and right by up to 7 pixels as the game scrolls.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

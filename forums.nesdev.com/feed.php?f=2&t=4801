@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=2&amp;t=4801" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2009-01-30T11:46:19-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=2&amp;t=4801</id>
+<entry>
+<author><name><![CDATA[Roth]]></name></author>
+<updated>2009-01-30T11:46:19-07:00</updated>
+<published>2009-01-30T11:46:19-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=4801&amp;p=42552#p42552</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=4801&amp;p=42552#p42552"/>
+<title type="html"><![CDATA[Loading 16x16 Metatiles]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=4801&amp;p=42552#p42552"><![CDATA[
+EDIT: I have since figured out how to do the bottom portion of this post, though it is a bit ugly. I included a beq between the bcs and bne. Ugly I think, but works : P<br /><br /><strong>ORIGINAL POST:</strong><br /><div class="quotetitle">tokumaru wrote:</div><div class="quotecontent"><br />Instead of a table of routines, you could have 4 tables listing the tiles used by the metatiles <strong>&lt;snip&gt;</strong> OK, but the next optimization is actually to get rid of the tile_1, tile_2, tile_3, tile_4 variables. There is no need for them when you can read the tiles directly from the table. In your <strong>do_block_buffer</strong> routine, you could just read from the tile tables directly, but you'll have to free either X or Y to do it. You could probably free Y, as it's just being used to read map data, so you could save it somewhere before copying the metatile to the buffer and restore it later.<br /></div><br /><br />Ah, nice, that was pretty easy to implement, too!<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">tile_a:<br />   .byte $00,$01,$05,$07,$0b<br />tile_b:<br />   .byte $00,$02,$05,$08,$0c<br />tile_c:<br />   .byte $00,$03,$06,$09,$0b<br />tile_d:<br />   .byte $00,$04,$06,$0a,$0c<br /><br />do_block_buffer:<br />   ldy get_block<br />   ldx metatile_index<br />   lda tile_a,y<br />   sta bg_buffer,x<br />   inx<br />   lda tile_b,y<br />   sta bg_buffer,x<br />   txa<br />   clc<br />   adc #31<br />   tax<br />   lda tile_c,y<br />   sta bg_buffer,x<br />   inx<br />   lda tile_d,y<br />   sta bg_buffer,x<br />   txa<br />   sec<br />   sbc #31<br />   tax<br />   and #%00011111<br />   bne :+<br />   txa<br />   clc<br />   adc #32<br />   tax<br />:   stx metatile_index<br />   rts<br /><br />; preserving Y after getting the block<br />   ldy #$00<br />:   lda &#40;address_temp_lo&#41;,y<br />   sta get_block<br />   tya<br />   pha<br /><br />   jsr do_block_buffer<br />   pla<br />   tay<br />   iny<br />   cpy #$40<br />; more code blah blah<br /></div><br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent"><br />There are some other things you could do, such as use a smaller buffer, like 64 bytes for only 1 full row of metatiles, and draw rows one by one. This will come in handy when you decide to make scrolling games, because then you'll only be able to update single columns or rows of metatiles. Making the rendering system row/column oriented will help when that time comes. And it's actually an advantage to use a smaller buffer, because you'll have more free RAM.<br /></div><br /><br />That sounds pretty interesting, but right now my focus is going to be on pulling the nametable in. Right now it's having problems doing both the top and middle portion at the same time, although it looks to me like it should be working fine. Correct me if I'm wrong, but should the BCS branch down to where I have it going, and the BNE should branch up, but if Y is 40, it should skip both of those and run the code to fill the top nametable?<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">   ldy #$00<br />:   lda &#40;address_temp_lo&#41;,y<br />   sta get_block<br />   tya<br />   pha<br /><br />;   jsr choose_block<br /><br />   jsr do_block_buffer<br />   pla<br />   tay<br />   iny<br />   cpy #$40<br />   bcs :+<br />   bne :-<br /><br />   inc address_temp_hi<br />   jsr do_top_nametable<br />:<br />   cpy #$80<br />   bne :--<br />   inc address_temp_hi<br />   jsr do_middle_nametable<br /></div><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=174">Roth</a> — Fri Jan 30, 2009 11:46 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[MetalSlime]]></name></author>
+<updated>2009-01-30T01:30:53-07:00</updated>
+<published>2009-01-30T01:30:53-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=4801&amp;p=42538#p42538</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=4801&amp;p=42538#p42538"/>
+<title type="html"><![CDATA[Loading 16x16 Metatiles]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=4801&amp;p=42538#p42538"><![CDATA[
+<div class="quotetitle">Celius wrote:</div><div class="quotecontent"><br />Even worse it BCC and BCS. I can never remember which one means Branch on Greater than or which means Branch on Less than. I think Tokumaru said once that it's easy to remember because if the carry has been cleared, M &gt; A because the 1 has been borrowed or something, and I loosely remember that.<br /></div><br /><br />sorry to continue the threadjack, but I remember it like this:<br /><br />S is greater than C in the alphabet, so BCS is the "greater than" branch<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3632">MetalSlime</a> — Fri Jan 30, 2009 1:30 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2009-01-29T21:36:13-07:00</updated>
+<published>2009-01-29T21:36:13-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=4801&amp;p=42527#p42527</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=4801&amp;p=42527#p42527"/>
+<title type="html"><![CDATA[Loading 16x16 Metatiles]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=4801&amp;p=42527#p42527"><![CDATA[
+<div class="quotetitle">Celius wrote:</div><div class="quotecontent"><br />Even worse it BCC and BCS. I can never remember which one means Branch on Greater than or which means Branch on Less than.<br /></div><br />The Apple IIGS Hardware Reference included a copy of the 65C816 data sheet. This defined BLT as an alias for BCC, and BGE as an alias for BCS. (<a href="http://6502.org/documents/datasheets/wdc/" class="postlink">6502.org has a newer version as a PDF</a>; check page 38.) So yes, these mnemonics are canon, and <a href="http://www.cc65.org/doc/ca65-3.html#ss3.2" class="postlink">ca65 can be set to recognize them</a>.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Thu Jan 29, 2009 9:36 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2009-01-29T21:23:54-07:00</updated>
+<published>2009-01-29T21:23:54-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=4801&amp;p=42524#p42524</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=4801&amp;p=42524#p42524"/>
+<title type="html"><![CDATA[Loading 16x16 Metatiles]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=4801&amp;p=42524#p42524"><![CDATA[
+<div class="quotetitle">tokumaru wrote:</div><div class="quotecontent"><br />There are some other things you could do, such as use a smaller buffer, like 64 bytes for only 1 full row of metatiles, and draw rows one by one. This will come in handy when you decide to make scrolling games, because then you'll only be able to update single columns or rows of metatiles. Making the rendering system row/column oriented will help when that time comes. And it's actually an advantage to use a smaller buffer, because you'll have more free RAM.<br /></div><br />But depending on how you decide to compress your maps and/or make the environment destructible, you may still need to keep a screen's worth of metatiles in RAM in order to do collision detection.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Thu Jan 29, 2009 9:23 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tokumaru]]></name></author>
+<updated>2009-01-29T20:11:19-07:00</updated>
+<published>2009-01-29T20:11:19-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=4801&amp;p=42520#p42520</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=4801&amp;p=42520#p42520"/>
+<title type="html"><![CDATA[Loading 16x16 Metatiles]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=4801&amp;p=42520#p42520"><![CDATA[
+Now for some optimizations to your code! =)<br /><br />First, it's great that you understood the jump table + RTS trick, but this is hardly a good place to use it. All those metatile routines with lots of LDAs and STAs will cost you a nice chunk of ROM down the road. Instead of a table of routines, you could have 4 tables listing the tiles used by the metatiles:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">            open<br />            |    stage1_solid<br />            |    |    electric_side<br />            |    |    |    &#40;...&#41;<br />tile1:<br />        .db $00, $01, $05, &#40;...&#41;<br />tile2:<br />        .db $00, $02, $05, &#40;...&#41;<br />tile3:<br />        .db $00, $03, $06, &#40;...&#41;<br />tile4:<br />        .db $00, $04, $06, &#40;...&#41;</div><br />That way, after "lda (address_temp_lo),y" you could read the tiles much faster with:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">   tax<br />   lda tile1, x<br />   sta tile_1<br />   lda tile2, x<br />   sta tile_2<br />   lda tile3, x<br />   sta tile_3<br />   lda tile4, x<br />   sta tile_4</div><br />OK, but the next optimization is actually to get rid of the tile_1, tile_2, tile_3, tile_4 variables. There is no need for them when you can read the tiles directly from the table. In your <strong>do_block_buffer</strong> routine, you could just read from the tile tables directly, but you'll have to free either X or Y to do it. You could probably free Y, as it's just being used to read map data, so you could save it somewhere before copying the metatile to the buffer and restore it later.<br /><br />There are some other things you could do, such as use a smaller buffer, like 64 bytes for only 1 full row of metatiles, and draw rows one by one. This will come in handy when you decide to make scrolling games, because then you'll only be able to update single columns or rows of metatiles. Making the rendering system row/column oriented will help when that time comes. And it's actually an advantage to use a smaller buffer, because you'll have more free RAM.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=95">tokumaru</a> — Thu Jan 29, 2009 8:11 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tokumaru]]></name></author>
+<updated>2009-01-29T19:41:16-07:00</updated>
+<published>2009-01-29T19:41:16-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=4801&amp;p=42519#p42519</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=4801&amp;p=42519#p42519"/>
+<title type="html"><![CDATA[Loading 16x16 Metatiles]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=4801&amp;p=42519#p42519"><![CDATA[
+That "and #%00011111" is used to detect the end of a row. A row has 32 tiles, numbered 0 to 31. 31 in binary is 00011111, and if you add 1 to it, it becomes 00100000 (32 decimal). This means that every time a row ends, the lower 5 bits will switch from 11111 to 00000. The higher bits don't matter. When you AND 00011111 with another value, the result will only be 0 if all 5 bits of the value are 0, so the Z flag tells us if the row ended or not.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=95">tokumaru</a> — Thu Jan 29, 2009 7:41 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Celius]]></name></author>
+<updated>2009-01-29T19:29:57-07:00</updated>
+<published>2009-01-29T19:29:57-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=4801&amp;p=42518#p42518</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=4801&amp;p=42518#p42518"/>
+<title type="html"><![CDATA[Loading 16x16 Metatiles]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=4801&amp;p=42518#p42518"><![CDATA[
+Even worse it BCC and BCS. I can never remember which one means Branch on Greater than or which means Branch on Less than. I think Tokumaru said once that it's easy to remember because if the carry has been cleared, M &gt; A because the 1 has been borrowed or something, and I loosely remember that.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=138">Celius</a> — Thu Jan 29, 2009 7:29 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Dwedit]]></name></author>
+<updated>2009-01-29T19:24:51-07:00</updated>
+<published>2009-01-29T19:24:51-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=4801&amp;p=42516#p42516</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=4801&amp;p=42516#p42516"/>
+<title type="html"><![CDATA[Loading 16x16 Metatiles]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=4801&amp;p=42516#p42516"><![CDATA[
+AND: mask bits off<br />ORA: turning bits on<br />EOR: bit toggling<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=53">Dwedit</a> — Thu Jan 29, 2009 7:24 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Roth]]></name></author>
+<updated>2009-01-29T19:22:30-07:00</updated>
+<published>2009-01-29T19:22:30-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=4801&amp;p=42515#p42515</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=4801&amp;p=42515#p42515"/>
+<title type="html"><![CDATA[Loading 16x16 Metatiles]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=4801&amp;p=42515#p42515"><![CDATA[
+<span style="font-size: 200%; line-height: normal">: D</span><br /><br /><img src="http://img.photobucket.com/albums/v287/I_am_Roth/web_examples/proper_loading_w00t.png" alt="Image" /><br /><br />You're a king man. Now I have to check this out and pick it apart. Every time ANDs and ORAs and EORs are involved, I have to look at things and think hard hehe<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=174">Roth</a> — Thu Jan 29, 2009 7:22 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tokumaru]]></name></author>
+<updated>2009-01-29T19:10:56-07:00</updated>
+<published>2009-01-29T19:10:56-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=4801&amp;p=42512#p42512</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=4801&amp;p=42512#p42512"/>
+<title type="html"><![CDATA[Loading 16x16 Metatiles]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=4801&amp;p=42512#p42512"><![CDATA[
+<div class="quotetitle">Roth wrote:</div><div class="quotecontent"><br />Oh, and the fix didn't fix it, but after rereading your post and what-not, it finally clicked what was going on, so now I can mess with it some more. Thanks man : )<br /></div><br />Oh, there is a glitch in my fix! it should be:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">and #%00011111<br />   bne :+<br />   txa<br />   clc<br />   adc #32<br />   tax<br />:</div><br />Forgot the TXA! Maybe it will work now. The 31s you used should work fine.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=95">tokumaru</a> — Thu Jan 29, 2009 7:10 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Roth]]></name></author>
+<updated>2009-01-29T19:03:43-07:00</updated>
+<published>2009-01-29T19:03:43-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=4801&amp;p=42511#p42511</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=4801&amp;p=42511#p42511"/>
+<title type="html"><![CDATA[Loading 16x16 Metatiles]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=4801&amp;p=42511#p42511"><![CDATA[
+Well, I have switched those numbers to numerous things (the two 31's above). Because, I lay two tiles down, add 31 to that to get to the next row, then lay two tiles down. OHHHHHHH! Wait, after the whole first two rows are laid down, then the rest is getting over-written... crap. Okay. Because the first row goes down, then the second row, then the third row doesn't start on the third row, instead it starts on the second row... okay. Wow, how stupid haha Thanks for that : )<br /><br />About the way I store it, here is how I store the metatiles:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">board_1_1:<br />   .byte $01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01<br />   .byte $01,$01,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$01,$01<br />   .byte $01,$02,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$02,$01<br />   .byte $01,$01,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$01,$01<br /><br />   .byte $01,$01,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$01,$01<br />   .byte $01,$02,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$02,$01<br />   .byte $01,$01,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$01,$01<br />   .byte $01,$02,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$02,$01<br /><br />   .byte $01,$01,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$01,$01<br />   .byte $01,$01,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$01,$01<br />   .byte $01,$02,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$02,$01<br />   .byte $01,$01,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$01,$01<br /><br />; This is how I define each metatile block:<br />open_block:<br />   lda #$00<br />   sta tile_1<br />   sta tile_2<br />   sta tile_3<br />   sta tile_4<br />   rts<br />stage1_solid_block:<br />   lda #$01<br />   sta tile_1<br />   lda #$02<br />   sta tile_2<br />   lda #$03<br />   sta tile_3<br />   lda #$04<br />   sta tile_4<br />   rts<br />electric_side_block:<br />   lda #$05<br />   sta tile_1<br />   sta tile_2<br />   lda #$06<br />   sta tile_3<br />   sta tile_4<br />   rts<br />stage2_solid_block:<br />   lda #$07<br />   sta tile_1<br />   lda #$08<br />   sta tile_2<br />   lda #$09<br />   sta tile_3<br />   lda #$0a<br />   sta tile_4<br />   rts<br />electric_top_block:<br />   lda #$0b<br />   sta tile_1<br />   sta tile_3<br />   lda #$0c<br />   sta tile_2<br />   sta tile_4<br />   rts<br /><br /></div><br /><br />The blocks are called from the jump table, and those are the only metatiles I have defined right now. If there is a better way, I am always open to suggestions!<br /><br />EDIT: Oh, and the fix didn't fix it, but after rereading your post and what-not, it finally clicked what was going on, so now I can mess with it some more. Thanks man : )<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=174">Roth</a> — Thu Jan 29, 2009 7:03 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tokumaru]]></name></author>
+<updated>2009-01-29T18:29:11-07:00</updated>
+<published>2009-01-29T18:29:11-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=4801&amp;p=42507#p42507</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=4801&amp;p=42507#p42507"/>
+<title type="html"><![CDATA[Loading 16x16 Metatiles]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=4801&amp;p=42507#p42507"><![CDATA[
+You are overwriting the bottom row of the metatiles because of the way metatile_index is incremented. Think about it: after writing the last metatile of the first row, that "sbc #31" will try to place the pointer to the left of it, but since the row ended that will actually be the first tile of the next row of tiles, so the new row of metatiles overwrites the bottom half of the previous one.<br /><br />What you have to do is detect the end of a metatile row and add 32 to the index when that happens. Maybe you can fix it with this (between "tax" and "stx metatile_index"):<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">   and #%00011111<br />   bne :+<br />   clc<br />   adc #32<br />   tax<br />:</div><br /><br />EDIT: I just want to add that I think you are overcomplicating things, and wasting a lot of ROM by storing metatiles like that (as code, instead of just data). There are many ways you can make that code faster, smaller and simpler. If you want some tips for that, let us know.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=95">tokumaru</a> — Thu Jan 29, 2009 6:29 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Roth]]></name></author>
+<updated>2009-01-29T17:35:29-07:00</updated>
+<published>2009-01-29T17:35:29-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=4801&amp;p=42504#p42504</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=4801&amp;p=42504#p42504"/>
+<title type="html"><![CDATA[Loading 16x16 Metatiles]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=4801&amp;p=42504#p42504"><![CDATA[
+For the past couple of days I've been trying to come up with a way to load 16x16 metatiles into the PPU. The only way I could imagine is to have a buffer that you load into prior to pulling it all to the screen. As it is right now, I am working on getting the top 256 tiles in the PPU. I've tried a few things, and so far this is getting me the best results, but it's still not displaying properly.<br /><br />What I am doing is grabbing the level number, which is in multiples of two, and getting the address from a table:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">   jsr PPU_off<br />   ldy game_level<br /><br />   lda level_data_start,y<br />   sta address_temp_lo<br />   lda level_data_start+1,y<br />   sta address_temp_hi<br /><br />; The table of word sized labels<br />level_data_start:<br />   .addr board_1_1, board_1_2, board_1_3, board_1_4<br /></div><br /><br />After that, I am using a pointer to get the kind of block in the address (in this case, board_1_1).<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent"> <br />   ldy #$00<br />:   lda &#40;address_temp_lo&#41;,y<br />   sta get_block<br /></div><br /><br />After that, I do a couple of subroutines, one to grab the tile numbers from, which is also my first time dealing with jump tables, and the other routine sticks the tiles in a buffer located at $600. Then I increment Y, check it to be #$40, and go loading from the buffer at $600 to the PPU:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">   jsr choose_block<br /><br />   jsr do_block_buffer<br />   iny<br />   cpy #$40<br />   bne :-<br />   inc address_temp_hi<br /><br />   jsr do_top_nametable<br /><br />; ------------------------------------------<br /><br />choose_block:<br />   lda get_block<br />   asl a<br />   tax<br />   lda block_types+1,x<br />   pha<br />   lda block_types,x<br />   pha<br />   rts<br /><br />; Below is the table of addresses for what to do for each block<br />block_types:<br />   .addr open_block-1<br />   .addr stage1_solid_block-1<br />   .addr electric_side_block-1<br />   .addr stage2_solid_block-1<br />   .addr electric_top_block-1<br /><br />; Here are the kind of things I do in those subroutines:<br />open_block:<br />   lda #$00<br />   sta tile_1<br />   sta tile_2<br />   sta tile_3<br />   sta tile_4<br />   rts<br />stage1_solid_block:<br />   lda #$01<br />   sta tile_1<br />   lda #$02<br />   sta tile_2<br />; etc etc.... <br /><br />; Here is where the tiles are put into a buffer<br />do_block_buffer:<br />   ldx metatile_index<br />   lda tile_1<br />   sta bg_buffer,x<br />   inx<br />   lda tile_2<br />   sta bg_buffer,x<br />   txa<br />   clc<br />   adc #31<br />   tax<br />   lda tile_3<br />   sta bg_buffer,x<br />   inx<br />   lda tile_4<br />   sta bg_buffer,x<br />   txa<br />   sec<br />   sbc #31<br />   tax<br />   stx metatile_index<br />;   bne :+<br />;   inc metatile_index+1     ; I forgot to take this block out of the code<br />;:                                        ; edited now<br />   rts<br /><br />; Pull it to the PPU<br /><br />do_top_nametable:<br />   lda #$20<br />   sta $2006<br />   ldx #$00<br />   sta $2006<br />:   lda bg_buffer,x<br />   sta $2007<br />   inx<br />   bne :-<br />   rts<br /></div><br /><br />The left pic is what it looks like when I build it, and the right one is what it should look <em>similar</em> to (top 256 tiles):<br /><br /><img src="http://img.photobucket.com/albums/v287/I_am_Roth/web_examples/crappy_loading.png" alt="Image" /> <img src="http://robertlbryant.com/gaming/images/clik_ss0.png" alt="Image" /><br /><br />I can't figure out what is going on at all :/ If anyone can spot something I'm doing entirely wrong, let me know. This is getting pretty aggravating.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=174">Roth</a> — Thu Jan 29, 2009 5:35 pm</p><hr />
+]]></content>
+</entry>
+</feed>

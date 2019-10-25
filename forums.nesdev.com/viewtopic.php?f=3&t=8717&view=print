@@ -1,0 +1,487 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - MMC1 emulation</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">MMC1 emulation</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=3&amp;t=8717">http://forums.nesdev.com/viewtopic.php?f=3&amp;t=8717</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>cpow</b> [ Wed Mar 14, 2012 8:43 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>MMC1 emulation</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I'm just sitting here reading through Disch's mapper doc for MMC1.
+<br />
+<br />Then it hit me...I think.  I'm not sure if I just missed the bus on this and everyone else has already figured this out...
+<br />
+<br /><div class="quotetitle">001.txt wrote:</div><div class="quotecontent">Consecutive writes that are too close together are apparently ignored.  <br /></div><br /><br />Of course...in the INC $FFFF case:<br /><br /><div class="quotetitle">001.txt wrote:</div><div class="quotecontent">you know that this will read $FFFF (getting $FF), write that<br />value ($FF) back to $FFFF, increment it by one, then write the new value ($00) to $FFFF.  This results in<br />two register writes:  $FF, then $00.<br /></div>
+<br />
+<br />The 6502 issues "back-to-back" writes, <strong>not toggling RW between</strong>.  If the MMC1 address decoder is negative-edge-triggered on RW, that would explain why the second write is ignored.
+<br />
+<br />Here's a Visual6502 trace of a program that is nothing more than
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">$0000: INC $FFFF<br />$0003: KIL<br /><br />&#40;data at $FFFF is $00 -- couldn't get the sim to accept ?a=ffff&amp;d=ff&#41;<br /></div><br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">cycle&nbsp; &nbsp;ab&nbsp; &nbsp;db&nbsp; &nbsp;rw&nbsp; &nbsp;Fetch&nbsp; &nbsp;pc&nbsp; &nbsp;a&nbsp; &nbsp;x&nbsp; &nbsp;y&nbsp; &nbsp;s&nbsp; &nbsp;p<br />0&nbsp; &nbsp;0000&nbsp; &nbsp;ee&nbsp; &nbsp;1&nbsp; &nbsp;INC Abs&nbsp; &nbsp;0000&nbsp; &nbsp;aa&nbsp; &nbsp;00&nbsp; &nbsp;00&nbsp; &nbsp;fd&nbsp; &nbsp;nv‑BdIZc<br />0&nbsp; &nbsp;0000&nbsp; &nbsp;ee&nbsp; &nbsp;1&nbsp; &nbsp;INC Abs&nbsp; &nbsp;0000&nbsp; &nbsp;aa&nbsp; &nbsp;00&nbsp; &nbsp;00&nbsp; &nbsp;fd&nbsp; &nbsp;nv‑BdIZc<br />1&nbsp; &nbsp;0001&nbsp; &nbsp;ff&nbsp; &nbsp;1&nbsp; &nbsp;&nbsp; &nbsp;0001&nbsp; &nbsp;aa&nbsp; &nbsp;00&nbsp; &nbsp;00&nbsp; &nbsp;fd&nbsp; &nbsp;nv‑BdIZc<br />1&nbsp; &nbsp;0001&nbsp; &nbsp;ff&nbsp; &nbsp;1&nbsp; &nbsp;&nbsp; &nbsp;0001&nbsp; &nbsp;aa&nbsp; &nbsp;00&nbsp; &nbsp;00&nbsp; &nbsp;fd&nbsp; &nbsp;nv‑BdIZc<br />2&nbsp; &nbsp;0002&nbsp; &nbsp;ff&nbsp; &nbsp;1&nbsp; &nbsp;&nbsp; &nbsp;0002&nbsp; &nbsp;aa&nbsp; &nbsp;00&nbsp; &nbsp;00&nbsp; &nbsp;fd&nbsp; &nbsp;nv‑BdIZc<br />2&nbsp; &nbsp;0002&nbsp; &nbsp;ff&nbsp; &nbsp;1&nbsp; &nbsp;&nbsp; &nbsp;0002&nbsp; &nbsp;aa&nbsp; &nbsp;00&nbsp; &nbsp;00&nbsp; &nbsp;fd&nbsp; &nbsp;nv‑BdIZc<br />3&nbsp; &nbsp;ffff&nbsp; &nbsp;00&nbsp; &nbsp;1&nbsp; &nbsp;&nbsp; &nbsp;0003&nbsp; &nbsp;aa&nbsp; &nbsp;00&nbsp; &nbsp;00&nbsp; &nbsp;fd&nbsp; &nbsp;nv‑BdIZc<br />3&nbsp; &nbsp;ffff&nbsp; &nbsp;00&nbsp; &nbsp;1&nbsp; &nbsp;&nbsp; &nbsp;0003&nbsp; &nbsp;aa&nbsp; &nbsp;00&nbsp; &nbsp;00&nbsp; &nbsp;fd&nbsp; &nbsp;nv‑BdIZc<br />4&nbsp; &nbsp;ffff&nbsp; &nbsp;00&nbsp; &nbsp;0&nbsp; &nbsp;&nbsp; &nbsp;0003&nbsp; &nbsp;aa&nbsp; &nbsp;00&nbsp; &nbsp;00&nbsp; &nbsp;fd&nbsp; &nbsp;nv‑BdIZc<br />4&nbsp; &nbsp;ffff&nbsp; &nbsp;00&nbsp; &nbsp;0&nbsp; &nbsp;&nbsp; &nbsp;0003&nbsp; &nbsp;aa&nbsp; &nbsp;00&nbsp; &nbsp;00&nbsp; &nbsp;fd&nbsp; &nbsp;nv‑BdIZc<br />5&nbsp; &nbsp;ffff&nbsp; &nbsp;00&nbsp; &nbsp;0&nbsp; &nbsp;&nbsp; &nbsp;0003&nbsp; &nbsp;aa&nbsp; &nbsp;00&nbsp; &nbsp;00&nbsp; &nbsp;fd&nbsp; &nbsp;nv‑BdIzc<br />5&nbsp; &nbsp;ffff&nbsp; &nbsp;01&nbsp; &nbsp;0&nbsp; &nbsp;&nbsp; &nbsp;0003&nbsp; &nbsp;aa&nbsp; &nbsp;00&nbsp; &nbsp;00&nbsp; &nbsp;fd&nbsp; &nbsp;nv‑BdIzc<br />6&nbsp; &nbsp;0003&nbsp; &nbsp;02&nbsp; &nbsp;1&nbsp; &nbsp;unknown&nbsp; &nbsp;0003&nbsp; &nbsp;aa&nbsp; &nbsp;00&nbsp; &nbsp;00&nbsp; &nbsp;fd&nbsp; &nbsp;nv‑BdIzc<br />6&nbsp; &nbsp;0003&nbsp; &nbsp;02&nbsp; &nbsp;1&nbsp; &nbsp;unknown&nbsp; &nbsp;0003&nbsp; &nbsp;aa&nbsp; &nbsp;00&nbsp; &nbsp;00&nbsp; &nbsp;fd&nbsp; &nbsp;nv‑BdIzc<br /></div>
+<br />
+<br />In cycle 6 of course RW goes back high to do the opcode fetch.  <strong>Note there's no transition on RW between cycles 4 and 5.</strong>
+<br />
+<br />So perhaps emulating MMC1 like: keep track of the current CPU cycle of a write and "ignore" a write in the immediately-following CPU cycle is correct?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>infiniteneslives</b> [ Wed Mar 14, 2012 11:49 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I was looking that this the other week to emulate it in hardware.  I suspected that PRG R/W never goes high when I looked at scope traces like you've pointed out.
+<br /><a href="http://nesdev.com/bbs/viewtopic.php?t=8277&amp;postdays=0&amp;postorder=asc&amp;start=15" class="postlink">http://nesdev.com/bbs/viewtopic.php?t=8277&amp;postdays=0&amp;postorder=asc&amp;start=15</a>
+<br />
+<br />The only question I have is when is data valid in relation to PRG R/W (or M2 for that matter).  From what I can tell PRG R/W goes low about 20nsec after M2 goes low durring writes.  I would imagine data isn't valid until after M2 goes low, and if so it's a race through the logic for data to be vaild before PRG R/W goes low.  Although... your idea is that the counter is clocked by negedge of PRG R/W,  the shift register wouldn't have to have the same clock and if so data wouldn't have to be valid when clocking the counter.  What would the shift register be clocked by then?  Because not only to we have to prevent from having the counter incremented but we can't load a bit into the shift register either.  The only way I could think of to it was establish a control signal based on what cycle the CPU is in like your solution.
+<br />
+<br />However everything I've said above is NULL if data is valid with enough setup time when PRG R/W goes low.  Then the shift register and counter could have the same clock and could likely be how the MMC1 actually works.
+<br />
+<br />So I'm accounting for the consecutive writes using a state machine that clocks on negedge of M2.  I basically do the same thing you're saying.  I block any writes from occurring the clock cycle after an initial write.  I've yet to get it working though... <img src="./images/smilies/icon_wink.gif" alt=";)" title="Wink" />
+<br />
+<br />EDIT my verilog if anyone is curious
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">//ALLOW LOAD STATE MACHINE<br />//prevent two consecutive writes to shift register, by blocking for one cycle<br />//after every write.&nbsp; <br />reg allow_ps;&nbsp; &nbsp; //set high when allowing load of shift register<br />reg allow_ns;<br /><br />//ALLOW LOAD next state logic<br />always @ &#40;allow_ps, write, power_up&#41;<br />begin<br />&nbsp; &nbsp;case &#40;allow_ps&#41;<br />&nbsp; &nbsp;&nbsp; &nbsp;<br />&nbsp; &nbsp;&nbsp; &nbsp;0:&nbsp; &nbsp;allow_ns = 1;&nbsp; &nbsp;&nbsp; &nbsp;//one cycle has passed, allow now<br /><br />&nbsp; &nbsp;&nbsp; &nbsp;1:&nbsp; &nbsp; if &#40;write == 1&#41;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;allow_ns = 0;&nbsp; &nbsp;//last was write so block<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;else<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;allow_ns = 1;&nbsp; &nbsp;<br /><br />&nbsp; &nbsp;&nbsp; &nbsp;endcase<br />end<br /><br />//ALLOW LOAD present state logic<br />always @ &#40;negedge m2&#41;<br />begin<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;allow_ps &lt;= allow_ns;&nbsp; &nbsp;<br />end</div>
+<br />
+<br />
+<br />In any event your solution for emulation should be fine, the discussion above is more about what's going on with the hardware like you've brought up.
+<br />
+<br />As an aside I thought it was interesting that this double write could be utilized as a possible method of copy protection in the reverse engineering of the 6502 video.  Which agrees my hypothesis that Nintendo did this on purpose, not to save logic.  <a href="http://nesdev.com/bbs/viewtopic.php?t=8688&amp;highlight=" class="postlink">http://nesdev.com/bbs/viewtopic.php?t=8688&amp;highlight=</a>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>cpow</b> [ Wed Mar 14, 2012 12:57 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I suppose it would take someone with a MMC1 donor cart to figure this out, but I'm curious what would happen if 'INC absolute' were used during the 5-cycle register update instead of the typical 'LSR/STA'.  As I understand it the INC-issue has been described only related to resetting the MMC1.
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">$E000: $0F<br />$E001: $07<br />$E002: $03<br />$E003: $01<br />$E004: $00<br /></div><br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">switchPrg:<br />&nbsp; &nbsp;INC $E000<br />&nbsp; &nbsp;INC $E001<br />&nbsp; &nbsp;INC $E002<br />&nbsp; &nbsp;INC $E003<br />&nbsp; &nbsp;INC $E004<br /></div>
+<br />
+<br />Does it switch to bank $0F, or bank $00?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>James</b> [ Wed Mar 14, 2012 1:47 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: MMC1 emulation</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">cpow wrote:</div><div class="quotecontent">So perhaps emulating MMC1 like: keep track of the current CPU cycle of a write and "ignore" a write in the immediately-following CPU cycle is correct?</div>
+<br />That's how I do it.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>infiniteneslives</b> [ Thu Mar 15, 2012 8:56 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">cpow wrote:</div><div class="quotecontent">Does it switch to bank $0F, or bank $00?</div>
+<br />
+<br />I would expect $0F.  
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">$E000: $0F<br />$E001: $07<br />$E002: $03<br />$E003: $01<br />$E004: $00</div><br /><br />Those are the values initially written back to the MMC1,  The write you'd expect from the instruction get ignored so these would never be seen by the MMC1's registers unless I'm missing something:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">$E000: $00<br />$E001: $08<br />$E002: $04<br />$E003: $02<br />$E004: $01</div>
+<br />
+<br />(Also wouldn't it have been bank $10 not $00 since $00 increments to $01?)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>cpow</b> [ Thu Mar 15, 2012 10:08 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">infiniteneslives wrote:</div><div class="quotecontent">So I agree it'll probably get $0F for the register.  I'm not sure <br />(Also wouldn't it have been bank $10 not $00 since $00 increments to $01?)</div>
+<br />
+<br />Good point, yes.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Thu Mar 15, 2012 11:08 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I think I already have a MMC1 (SNROM) devcard ready so I should be able to easily test this behavior. It's just that I need some way to print the result to the screen, but this should be trivial.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>infiniteneslives</b> [ Thu Mar 15, 2012 11:12 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Bregalad wrote:</div><div class="quotecontent">It's just that I need some way to print the result to the screen, but this should be trivial.</div>
+<br />
+<br />Alternatively you could just probe the address pins with a DMM if it was quicker/easier.
+<br />
+<br />I'm working on whipping up a logic analyzer and MMC1 board for testing as well.  I'm interested in better characterizing how this thing is works exactly.  If all goes well I should be able to apply signals without the NES and see how it responds to individual signal changes.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>cpow</b> [ Thu Mar 15, 2012 12:00 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Bregalad wrote:</div><div class="quotecontent">I think I already have a MMC1 (SNROM) devcard ready so I should be able to easily test this behavior. It's just that I need some way to print the result to the screen, but this should be trivial.</div>
+<br />
+<br /><a href="https://sites.google.com/site/nesicideproject/documents/tepples-snrom.nes?attredirects=0&amp;d=1" class="postlink">Here's a possible test ROM.</a>
+<br />
+<br />I modified Tepples' SNROM demo project.  Instead of this bankswitch routine:
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">.segment &quot;CODE&quot;<br />; To write to one of the four registers on MMC1, write bits 0 through<br />; 3 to D0 of any mapper port address &#40;$8000-$FFFF&#41;, then write bit 4<br />; to D0 at the correct address &#40;e.g. $E000-$FFFF&#41;.<br />; The typical sequence is sta lsr sta lsr sta lsr sta lsr sta.<br />&nbsp; &nbsp;<br />.proc setPRGBank<br />&nbsp; sta lastPRGBank<br />&nbsp; .repeat 4<br />&nbsp; &nbsp; sta $E000<br />&nbsp; &nbsp; lsr a<br />&nbsp; .endrepeat<br />&nbsp; sta $E000<br />&nbsp; rts<br />.endproc<br /></div><br /><br />it now uses this one:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">.segment &quot;CODE&quot;<br />.res $2000<br />bankToGoToTable: ; Ends up at $E16B<br />; The first byte in a row is the bank-to-go-to<br />; Subsequent bytes are that value shifted left<br />; Table is eight bytes wide so ROL ROL ROL gets from<br />; bank-to-go-to to table-byte-offset<br />&nbsp; &nbsp;.byt $00, $00, $00, $00, $00, $00, $00, $00<br />&nbsp; &nbsp;.byt $01, $00, $00, $00, $00, $00, $00, $00<br />&nbsp; &nbsp;.byt $02, $01, $00, $00, $00, $00, $00, $00<br />&nbsp; &nbsp;.byt $03, $01, $00, $00, $00, $00, $00, $00<br />&nbsp; &nbsp;.byt $04, $02, $01, $00, $00, $00, $00, $00<br />&nbsp; &nbsp;.byt $05, $02, $01, $00, $00, $00, $00, $00<br />&nbsp; &nbsp;.byt $06, $03, $01, $00, $00, $00, $00, $00<br />&nbsp; &nbsp;.byt $07, $03, $01, $00, $00, $00, $00, $00<br />&nbsp; &nbsp;.byt $08, $04, $02, $01, $00, $00, $00, $00<br />&nbsp; &nbsp;.byt $09, $04, $02, $01, $00, $00, $00, $00<br />&nbsp; &nbsp;.byt $0a, $05, $02, $01, $00, $00, $00, $00<br />&nbsp; &nbsp;.byt $0b, $05, $02, $01, $00, $00, $00, $00<br />&nbsp; &nbsp;.byt $0c, $06, $03, $01, $00, $00, $00, $00<br />&nbsp; &nbsp;.byt $0d, $06, $03, $01, $00, $00, $00, $00<br />&nbsp; &nbsp;.byt $0e, $07, $03, $01, $00, $00, $00, $00<br />&nbsp; &nbsp;.byt $0f, $07, $03, $01, $00, $00, $00, $00<br />&nbsp; &nbsp;<br />.proc setPRGBank<br />&nbsp; sta lastPRGBank<br />&nbsp; &nbsp;STX savedX ;we're borrowing X so save it<br />&nbsp; &nbsp;CLC<br />&nbsp; &nbsp;ROL<br />&nbsp; &nbsp;ROL <br />&nbsp; &nbsp;ROL<br />&nbsp; &nbsp;TAX<br />&nbsp; &nbsp;INC bankToGoToTable,X<br />&nbsp; &nbsp;INX<br />&nbsp; &nbsp;INC bankToGoToTable,X<br />&nbsp; &nbsp;INX<br />&nbsp; &nbsp;INC bankToGoToTable,X<br />&nbsp; &nbsp;INX<br />&nbsp; &nbsp;INC bankToGoToTable,X<br />&nbsp; &nbsp;INX<br />&nbsp; &nbsp;INC bankToGoToTable,X<br />&nbsp; &nbsp;LDX savedX<br />&nbsp; rts<br />.endproc<br /></div>
+<br />
+<br />In my emulator I get the usual Tepples character that I can move left or right if I set my MMC1 code to trigger on the first write in a two-write sequence and ignore the second write.  I get nothing but bluescreen if the MMC1 code uses both writes.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Thu Mar 15, 2012 12:46 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Well I'm embarassed 'cause I was going to test it, I found my old devcard but my EPROM programmer somehow disappeared completely from my house for some mysterious reason.
+<br />
+<br />So until I find it again I can't test it... sorry.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>infiniteneslives</b> [ Thu Mar 15, 2012 5:56 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">cpow wrote:</div><div class="quotecontent">In my emulator I get the usual Tepples character that I can move left or right if I set my MMC1 code to trigger on the first write in a two-write sequence and ignore the second write.  I get nothing but bluescreen if the MMC1 code uses both writes.</div>
+<br />
+<br />Is there a reason it doesn't work in other emulators?  I just get blue screen in fceux and nestopia says CPU jam.  Where's the original test rom?   I couldn't find it anywhere...
+<br />
+<br />I get the impression we're testing something that is already well known.  That the MMC1 ignores the second write with instructions like INC.  So are we not just testing something that is supposedly already known?  Maybe I'm missing something.  
+<br />
+<br />One question I had when coding up my MMC1 in verilog was if it ignores the second write for ALL 5 bits.  Because the sequence of operations is different for the last bit when the shift register gets loaded into the destination register.  So it's conceivable that it might not ignore a second write when the second write is the 5th bit.  In my design atleast you would have to add extra logic to stop a double write on the 4-&gt;5th bit, and 5th-&gt;1st bit.  From what I understand from disch's doc most game's roms only use INC to reset the shift register, but perpaps that's not the case.  Your test rom appears to be checking for double writes on all 5 bits.  
+<br />
+<br />Either way I want to test this and other things out on the original MMC1 once I get things together.  But it would be nice if the Rom did something other than blue screen if both writes are being acknowledged.  That way things like connectivity could be verified and prove that the issue isn't wiring or something.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>cpow</b> [ Thu Mar 15, 2012 6:30 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">infiniteneslives wrote:</div><div class="quotecontent">Is there a reason it doesn't work in other emulators?  I just get blue screen in fceux and nestopia says CPU jam.  Where's the original test rom?   I couldn't find it anywhere...<br /></div><br />The original test ROM is available as a NESICIDE project <a href="https://sites.google.com/site/nesicideproject/documents" class="postlink">here</a>.  It's the Tepples-SNROM.tar.bz2 package.<br /><br />Nintendulator and Nestopia both indicate CPU jam, which I assume means KIL opcode execution, which probably means the bank-switch didn't work out right.  I didn't make the ROM to make it pass in emulators.<br /><br /><div class="quotetitle">infiniteneslives wrote:</div><div class="quotecontent">I get the impression we're testing something that is already well known.  <br /></div><br />You'd think so but then...you have a lot of questions...   <img src="./images/smilies/icon_biggrin.gif" alt=":D" title="Very Happy" /> <br /><br /><div class="quotetitle">infiniteneslives wrote:</div><div class="quotecontent">One question I had when coding up my MMC1 in verilog was if it ignores the second write for ALL 5 bits.  Because the sequence of operations is different for the last bit when the shift register gets loaded into the destination register.  So it's conceivable that it might not ignore a second write when the second write is the 5th bit.  In my design atleast you would have to add extra logic to stop a double write on the 4-&gt;5th bit, and 5th-&gt;1st bit.  From what I understand from disch's doc most game's roms only use INC to reset the shift register, but perpaps that's not the case.  Your test rom appears to be checking for double writes on all 5 bits.  <br /></div><br />I admit it's a bit esoteric, yes.<br /><br /><div class="quotetitle">infiniteneslives wrote:</div><div class="quotecontent">Either way I want to test this and other things out on the original MMC1 once I get things together.  But it would be nice if the Rom did something other than blue screen if both writes are being acknowledged.  That way things like connectivity could be verified and prove that the issue isn't wiring or something.</div>
+<br />
+<br />I'll look into putting some code in each bank that dumps the bank number to the screen somewhere.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>3gengames</b> [ Thu Mar 15, 2012 6:33 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />My ROM dumps the bank number to the screen it boots in, and tests each bank. Cpow, you can just link to what I sent you. It should help some. Although I will admit, the way I did a start up code for each bank wasn't set up for changing...
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>cpow</b> [ Thu Mar 15, 2012 6:45 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">3gengames wrote:</div><div class="quotecontent">My ROM dumps the bank number to the screen it boots in, and tests each bank. Cpow, you can just link to what I sent you. It should help some. Although I will admit, the way I did a start up code for each bank wasn't set up for changing...</div>
+<br />
+<br />My Windows pulled a muscle and decided it needed to reboot so I've since lost what you sent.  Sorry.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>3gengames</b> [ Thu Mar 15, 2012 6:54 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Here it is for anyone interested in it. It fails in (Possibly) NESICIDE, Nintendulator.
+<br />
+<br /><!-- m --><a class="postlink" href="http://www.mediafire.com/download.php?2jbhofw89p3dmuo">http://www.mediafire.com/download.php?2jbhofw89p3dmuo</a><!-- m -->
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

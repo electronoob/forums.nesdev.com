@@ -1,0 +1,475 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Why do USB drives need to be &quot;ejected&quot;</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Why do USB drives need to be &quot;ejected&quot;</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=5&amp;t=6388">http://forums.nesdev.com/viewtopic.php?f=5&amp;t=6388</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>2</strong> of <strong>3</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>koitsu</b> [ Sun May 16, 2010 9:49 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Disch wrote:</div><div class="quotecontent"><div class="quotetitle">koitsu wrote:</div><div class="quotecontent">3) The speed of the device (disk, flash, etc.) has absolutely nothing to do with the problem. </div><br /><br />I figured the problem might be related to write being "complete" when they're not really complete.  Disk writes aren't instantaneous, and when you save a file or something, it doesn't necessarily save directly to the disk if the disk is busy, but might instead be put in a cache and queued to be saved when the drive has time.<br /><br />If drives are faster, this is less of a problem, as the queues will be emptied faster, and writes commited sooner.<br />...<br /><br />You shouln't need to know when the user is going to remove the device, is my point.<br /><br />...<br /><br />If you're writing something to the drive and it disappears, that's a big problem -- but programs typically make it clear that they're writing to the drive while they're writing.  Like when you copy files to the drive, a progress box pops up.  Or if you save something to it from another program the program typically <em>stalls</em> until the save is complete (with an optional progress bar).  Hopefully the user will have enough sense not to remove the drive during such a time.<br /></div>
+<br />
+<br />The program does not typically stall -- meaning, the program is not sitting there spinning.  It performs a write request and hopes to God the kernel takes care of it so it can continue to submit more.  The actual "delays" you're seeing are pending I/O transactions happening at a very low level (between controller and disk).  The kernel hides all of this from the program.  The status bar you see is faked by the program; it's hardly accurate with regards to what's physically been written to the platters on a disk.
+<br />
+<br />Let's focus on writes, because read errors aren't a big deal (I agree).  Let me step you through what actually happens on a PC system when there's a write to a disk/storage device of any kind.
+<br />
+<br />1) An application has a file descriptor open which points to a file on the device in question.  The application decides to write some data the fd (goal being to write some data to the file).
+<br />
+<br />2) The write gets handed off to a local library (in *IX, usually libc), which has its own form of cache.
+<br />
+<br />3) A syscall is made to the kernel, who then decides what to do with the data being written, and *when*; it may write 3-4 seconds from now depending on what else is going on with the I/O scheduler.  This is often measured as "wait time" (how big the request queue is in the kernel).  The kernel submits a write request to the disk attached to the storage controller.  All I/O goes through the controller.
+<br />
+<br />4) The storage controller will read some of the data its pointed to in from memory (via PCI) and cache some of it.  The response from the controller to the OS is "got X bytes" and tells the OS to go back to doing what its doing.  This may happen multiple times for larger writes, obviously (kernel has to keep telling the controller "here's more data", controller has to respond "got X bytes").  Let's say the whole operation takes 1 second (big file).
+<br />
+<br />5) The storage controller then submits the actual write request to the disk (on ATA/SATA, this is called WRITE DMA48).  The disk responds with an acknowledgement, and then there's a three-way orgy between the disk, controller, and system RAM (RAM &lt;--&gt; controller &lt;--&gt; disk).
+<br />
+<br />6) Now, the disk *also* has its own cache (large drives these days have up to 64MBytes of cache).  This is used for both reading and writing.  As the write requests are submit to the disk, the disk stores the data in its cache to be written to actual LBAs (sectors) on the disk at a later date.  How much later?  Again, could be immediate, could be multiple seconds depending on what the drive is doing at the time.  I could talk for hours about things drives do behind-the-scenes which could stall this operation.  Disk drives do a *lot* of behind-the-scenes "other stuff"; they haven't been "dumb devices" since the early 90s.
+<br />
+<br />7) Let's say the disk isn't doing anything (no pending requests to handle, no internal operations to handle first or abort).  So the disk gets to the write, and it takes a total of 1 second (including seek times).  Now you have a write operation that took 2 physical seconds to complete: from the application writing the data to the kernel, to the controller, to the disk, and to the platters.
+<br />
+<br />So what happens if someone yanks power or I/O to the disk/device during any of this, without telling the OS authoritatively?  Yeah, you guessed it: data loss or file corruption (same thing really).
+<br />
+<br />To effectively accomplish what you want, you need to disable all layers of write caching between the OS and the disk (and on the disk too).  Is this doable?  Yes, absolutely.  What's the trade off?  Speed.  You'll take a *serious* performance hit on writes to the device.  Some devices/disks will drop from ~40MB/sec to 2-3MByte/sec. with write caching disabled.  I'm not making these numbers up.
+<br />
+<br />Now on to the end-user perspective:
+<br />
+<br />Not all programs these days make it clear that they're writing to a disk/device when they're doing so.  Even those that do don't really know what's going on past the "I submit a write for X bytes to the kernel" phase; it has no knowledge if data was written to the physical medium or not.  And it shouldn't, because all that time waiting slows everything down.
+<br />
+<br />Furthermore, with software in mind: do you really know what your anti-virus software is doing behind the scenes as it sits there in the systray?  Do you know what every Windows service (Indexing comes to mind!) and Linux daemon is doing behind the scenes at every moment in time?  No you don't.  Do this sometime: open up Task Manager and I/O writes on a per-program basis (in 2K/XP this is a column you can add in Task Manager; Vista/W7 should show you this automatically).  Sort by that column.  You'll be *incredibly* surprised at all the writing going on without any visual indication.
+<br />
+<br />And what about the situation where someone yanks the data cord and AC power cord from the removable device (external USB disk, etc.) at once?  Wow, now you've not only pulled the device off the bus in the middle of a potential I/O operation, but the disk itself no longer has power, meaning the disk cache can't be flushed to the actual platters.  Hoo boy.
+<br />
+<br />So in summary, the easiest way to solve this problem is to require the user to tell the OS in some way "hey! I want to flush all caches/writes to the device in question, and then unmount it, because I'm going to physically remove it".
+<br />
+<br />Sorry for the long-winded post, but I go through this argument at lease once a year with someone, and I have to explain it verbosely every time before they understand exactly what "write()" does behind the scenes.
+<br />
+<br />And how do I know all this crap?  Because storage subsystems happen to be one of my fortés.  For example, I just got done with a <a href="http://www.mail-archive.com/freebsd-stable@freebsd.org/msg110239.html" class="postlink">disk analysis</a> for <a href="http://www.mail-archive.com/freebsd-stable@freebsd.org/msg110233.html" class="postlink">a FreeBSD user</a> who was seeing his disks fall off the SATA bus for no reason a few days ago.  Well, there's a reason......
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>koitsu</b> [ Sun May 16, 2010 9:52 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">UncleSporky wrote:</div><div class="quotecontent">Is this at all related to the sort of problems I rarely get where I try to delete a folder but I can't because it's "in use," and it always persists across reboots, and I have to use Unlocker to release the OS's grip on it?</div>
+<br />
+<br />Windows handles file locking quite a bit different than *IX operating systems, in that exclusive access is given by default (read: file has to be explicitly closed before the file handle is released).
+<br />
+<br />You should track down the program has the file handle open, rather than blindly telling the kernel to destroy the FH in question.  I'm willing to bet it's a Windows service or your anti-virus software.  Surprise.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Sun May 16, 2010 10:13 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Disch wrote:</div><div class="quotecontent"><div class="quotetitle">tepples wrote:</div><div class="quotecontent">Firefox on my Windows machine appears to compact its history search index (places.sqlite) in a thread in the background.</div><br />Yes... but <em>on your removable drive</em>?  Not likely unless you installed Firefox on your removable drive, which would probably be a foolhardy move.</div><br /><a href="http://portableapps.com/apps/internet/firefox_portable" class="postlink">Being foolhardy is popular</a>.<br /><br />But in general, I see your point for portable applications because the user knows when they have closed.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">1)  I'm not running any executables off the drive<br />2)  I'm not saving any files to the drive<br />3)  I'm not copying any files to the drive<br />4)  I'm not doing any other kind of task that obviously is writing (like defragging/formatting)<br /><br />If the above are true, I should be able to yank the drive at any time.</div>
+<br />In that case, you appear to want to be able to configure the operating system of every computer that you use such that there is 1. absolutely no write caching to removable drives, and 2. an always-on-top notification for which of the dozen applications you are running at the moment happens to have a file opened for writing on a removable drive.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>67726e</b> [ Sun May 16, 2010 12:25 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><img src="http://nesmods.com/Fail.png" alt="Image" />
+<br />
+<br />Anyone got an explanation for why Windows 7 has an option for opening my flash drive specifically as a 'Portable Device'?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Sun May 16, 2010 1:42 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I guess "Portable Device" is a code-word for an MP3 player without using the <a href="http://tarr.uspto.gov/servlet/tarr?regser=serial&amp;entry=75856706" class="postlink">trademarked</a> name for a <a href="http://mp3licensing.com/patents/index.html" class="postlink">patented</a> technology. A lot of MP3 players expose a file system as if they were flash drives, so the file manager assumes that every flash drive might be an MP3 player. I'm assuming that it would act as if it said "Open in Windows Media Player".
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Memblers</b> [ Sun May 16, 2010 3:04 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Seems like a hardware solution would be to make the USB drive's cache memory internal to the USB drive, and it would have to be non-volatile RAM (like FRAM or something).  So if the device loses power before dumping the cache, it can finish that up next time it gets powered.   But I guess that would make it more expensive, and still not really solve the problem of a user being able to yank it out at any time.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>UncleSporky</b> [ Sun May 16, 2010 3:56 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tepples wrote:</div><div class="quotecontent">I guess "Portable Device" is a code-word for an MP3 player without using the <a href="http://tarr.uspto.gov/servlet/tarr?regser=serial&amp;entry=75856706" class="postlink">trademarked</a> name for a <a href="http://mp3licensing.com/patents/index.html" class="postlink">patented</a> technology. A lot of MP3 players expose a file system as if they were flash drives, so the file manager assumes that every flash drive might be an MP3 player. I'm assuming that it would act as if it said "Open in Windows Media Player".</div>
+<br />Without using it I can only guess, but it sounds to me more like it's made for digital cameras.  While "open" might autolaunch whatever program is associated with your camera, "open as portable device" might mean to just open it up in the explorer as if it were a hard drive (which I always do with my cameras anyway).
+<br />
+<br />I suppose that's the same thing: the idea that one of the two commands opens an associated program, and the other just opens it in the file explorer.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>dr_sloppy</b> [ Tue May 18, 2010 4:28 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I like to think of removing a USB-drive without unmounting it first much the same as not wiping one's bottom after taking a crap.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Wed May 19, 2010 2:57 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Or turning off a portable hard drive while it's connected to the computer and you've just been using it.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>peppers</b> [ Wed May 19, 2010 8:28 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Whats is a safe way to disconnect an e-SATA drive in Windows?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Wed May 19, 2010 8:58 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I always trough that this "unplug" thing is really crap. However, all USB drives I have have a LED on it, and I think it is okay to remove them as soon as the LED has completely stopped blinking, without having to tell windows/linux to unmount the drive.
+<br />
+<br />The really crap thing is that if you "unmount" properly the drive, remove it, and then insert it again, it will be IGNORED until you completely reboot your computer. I'm sorry but this is what REALLY suck, and the reason I never unmount the drive like Windows does tell me and do the LED trick instead.
+<br />
+<br />Under Linux, you have to open a terminal and write some COMPLEX LONG stuff each time you want to mount and unmount a drive and this sucks really bad as well.
+<br />
+<br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Right. But the user could be expected to close any program that's running off of the drive before they remove the drive.</div>
+<br />PC doesn't execute programs from a drive. The OS load it in RAM and it is executed in RAM. Even if the drive is made of flash memory.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Wed May 19, 2010 9:17 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Bregalad wrote:</div><div class="quotecontent">Under Linux, you have to open a terminal and write some COMPLEX LONG stuff each time you want to mount and unmount a drive and this sucks really bad as well.</div>
+<br />What kind of Linux? I've used Ubuntu 8.04 and Ubuntu 9.10, and they both recognize a reinserted external USB device even if I have used "Eject" or "Safely Remove Drive" in GNOME's file manager.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Wed May 19, 2010 9:27 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Well this is great. I had to write complicated stuff for an old Red Hat Linux, so if you're right about modern distros that's great news.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>koitsu</b> [ Wed May 19, 2010 10:36 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />There's similar support to what tepples stated in FreeBSD; the <a href="http://www.freebsd.org/cgi/man.cgi?query=devd&amp;apropos=0&amp;sektion=0&amp;manpath=FreeBSD+8.0-RELEASE&amp;format=html" class="postlink">devd(8)</a> daemon can do things based on certain criteria when a device is inserted or removed.
+<br />
+<br />Regarding peppers' question: the eSATA disk should show up as a Removable Drive of some kind in Windows.  If it doesn't, your BIOS probably isn't AHCI-enabled, which means it might appear as a static (non-removable) disk (depends on the storage drivers and the controller used).
+<br />
+<br /><a href="http://retrohelix.com/2010/04/setting-up-an-external-esata-drive-windows/" class="postlink">This guy</a> goes into the step-by-step procedure, but please be aware of something: that adapter bracket he recommends you should avoid at all costs.  <a href="http://www.dslreports.com/forum/r22527624-esata" class="postlink">It's not the same thing as an actual eSATA port</a>, and you risk data loss/corruption by using it, ESPECIALLY during device removal (because the OS will see the device attached as non-removable device, since the physical port it's connected to is internal).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>davidgreem</b> [ Thu May 20, 2010 8:56 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />As per my experience nothing happens with the file if you remove the pendrive without ejecting logically but it is beleived that for precautionary purpose it is said to remove USB logically first before physically.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>2</strong> of <strong>3</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

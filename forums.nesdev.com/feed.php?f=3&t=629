@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=3&amp;t=629" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2005-10-06T19:29:28-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=3&amp;t=629</id>
+<entry>
+<author><name><![CDATA[blargg]]></name></author>
+<updated>2005-10-06T19:29:28-07:00</updated>
+<published>2005-10-06T19:29:28-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=629&amp;p=5231#p5231</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=629&amp;p=5231#p5231"/>
+<title type="html"><![CDATA[implementing faster dsound routines]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=629&amp;p=5231#p5231"><![CDATA[
+<div class="quotetitle"><b>Quote:</b></div><div class="quotecontent"><br />Blargg's library handles the NES sample -&gt; output sample rate adjustment, so when I say generate more/less samples, I'm modifying the adjustment rate here. Oh -- and the sample adjustment is very small; only a couple of samples difference per frame, so it's inaudible.<br /></div><br /><br />What's really being adjusted here is the basic pitch of the sound. But the APU is still running the same number of emulated clocks per frame, just that each clock takes a little more/less of a fraction of an output sample than usual. Put another way, you're telling the APU that your output sampling rate (i.e. 44100 Hz) is 44160 Hz (for example), so it'll generate an extra sample for that frame. If you keep these adjustments very small, the pitch change will be inaudible (assuming you can adjust the pitch in that fine an increment).<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=17">blargg</a> — Thu Oct 06, 2005 7:29 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[kode54]]></name></author>
+<updated>2005-10-06T18:21:03-07:00</updated>
+<published>2005-10-06T18:21:03-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=629&amp;p=5230#p5230</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=629&amp;p=5230#p5230"/>
+<title type="html"><![CDATA[implementing faster dsound routines]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=629&amp;p=5230#p5230"><![CDATA[
+Yes, typically, you use Sleep(1) or so while waiting. If you actually want time slices that fine, you should use timeBeginPeriod(1) / timeEndPeriod(1) or so in your sound init/cleanup code.<br /><br />1ms or so is still about as fine as you can get out  of that. You can also do no better with WaveOut callback notifications.<br /><br /><br />In fact, the only real way you can get a guaranteed timely response when your blocks of samples have been played is to use Kernel Streaming, which is not future proof, offers no easy way to enumerate the output filter associated with the system default device, and is limited to sample depths and rates actually supported by the hardware. ( And no software mixing either, so you effectively hog the sound card if it doesn't feature hardware mixing. ) Bad drivers can lead to BSODs real easy this way.<br /><br />Lots of limitations, but if you feed it one frame worth of samples per write operation, you can sync the sound output to the completion events for each block and get spot-on timing, unlike with DSound or WaveOut.<br /><br /><br />For safest results, though, stick with DSound, or perhaps even try WaveOut, and use vsync to smooth out the frame display. Depending on how fast or slow your emulation loop is, it may be easy to get away with that, as long as your sample generation is accurate relative to frames rendered and the output sample rate, I think....<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=139">kode54</a> — Thu Oct 06, 2005 6:21 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[James]]></name></author>
+<updated>2005-10-06T18:13:11-07:00</updated>
+<published>2005-10-06T18:13:11-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=629&amp;p=5228#p5228</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=629&amp;p=5228#p5228"/>
+<title type="html"><![CDATA[implementing faster dsound routines]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=629&amp;p=5228#p5228"><![CDATA[
+Here's how I keep the sound in sync/un-distorted in my emulator (I'm using Blargg's sound library with DirectSound):<br /><br />- Create a DirectSound buffer of an arbitrary size.  I use 100ms, or 6 frames<br />- Define a low and high threshold -- essentially how many frames worth of sound (or how many bytes) I want to have buffered.<br />- Here's what I do at the end of a frame:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">while &#40;samples available&#41;<br />&#123;<br />   Get number of bytes available in DS buffer &#40;DSB&#41;<br />   if &#40;DSB bytes == 0&#41; //DS buffer full<br />      continue;<br />   read DSB bytes worth of samples into a buffer<br />   if &#40;no more samples&#41;<br />      break;<br />   else<br />      Copy sample buffer into DSB<br />&#125;<br /><br />Get number of bytes available in DSB<br /><br />if &#40;DSB bytes &lt; loThreshold&#41;  //play pointer approaching write pointer<br />   generate more samples next frame to catch up<br />else if &#40;DSB bytes &gt; hiThreshold&#41; //write pointer approaching play pointer<br />   generate less samples next frame to slow down<br /></div><br /><br />Blargg's library handles the NES sample -&gt; output sample rate adjustment, so when I say generate more/less samples, I'm modifying the adjustment rate here.  Oh -- and the sample adjustment is very small; only a couple of samples difference per frame, so it's inaudible.<br /><br />Look at the source code if you're interested (link in my sig).  It's in dire need of a cleanup, but it seems to get the job done pretty well.  With a +/- 3 sample/frame adjustment, I stay pretty well locked on to my buffer target.<br /><br />James<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=88">James</a> — Thu Oct 06, 2005 6:13 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Disch]]></name></author>
+<updated>2005-10-06T17:13:12-07:00</updated>
+<published>2005-10-06T17:13:12-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=629&amp;p=5227#p5227</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=629&amp;p=5227#p5227"/>
+<title type="html"><![CDATA[implementing faster dsound routines]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=629&amp;p=5227#p5227"><![CDATA[
+Regulating a framerate on the rate of soundoutput is actually a very solid way to keep a proper framerate.  If you're waiting on DSound to empty enough of the buffer and it's slowing emulation down... then your emulator may be producing too many samples.<br /><br />Rather than having an empty loop like you pasted, maybe you could sleep inside the loop so that you ease CPU time which you're waiting for samples to play.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=33">Disch</a> — Thu Oct 06, 2005 5:13 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Anes]]></name></author>
+<updated>2005-10-06T17:08:28-07:00</updated>
+<published>2005-10-06T17:08:28-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=629&amp;p=5226#p5226</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=629&amp;p=5226#p5226"/>
+<title type="html"><![CDATA[implementing faster dsound routines]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=629&amp;p=5226#p5226"><![CDATA[
+I just write cos i want to implement faster dsound routines. What im currently doing is to have my own write cursor and a function "CanWrite()" that tell me if there is enoughf space to stream the data. But there is a cons to this when i fill my own buffer with NES sound data (2048 bytes) and then i send you to the function that will play the buffer, the only way to get more or less good sound (no distorded, etc) is to have inside de playbuffer func. a line of code like:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">While &#40;CanWrite&#40;&#41; &lt; buffer_size&#41;;<br /></div><br /><br />CanWrite return the number of bytes that can be written.<br />that is done in the playbuffer function and the problem is that the while nevers exits if the amount of memory in the dsound buffer is, as the code line says &lt; buffer_size.<br />It actually works (dont get stuck), but it keeps waiting to have a razonable amount of mem to  write to the buffer which make my emulation slower.<br /><br />I thought that making it MultiThreaded could solve the problem, but i dont want to do it that way.<br /><br />Any idea/suggestion?<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=72">Anes</a> — Thu Oct 06, 2005 5:08 pm</p><hr />
+]]></content>
+</entry>
+</feed>

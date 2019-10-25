@@ -1,0 +1,123 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - CMake toolchain file for cc65 (ca65)</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">CMake toolchain file for cc65 (ca65)</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=12077">http://forums.nesdev.com/viewtopic.php?f=2&amp;t=12077</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>thefox</b> [ Fri Nov 28, 2014 8:12 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>CMake toolchain file for cc65 (ca65)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Here's something I came up with a couple of days ago. I doubt it will be wildly popular, but I might as well throw it out there. <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" /><br /><br />It's a toolchain file for cc65 (the C compiler and assembler) for CMake. CMake is a build system that can generate build instructions for other tools like Ninja and make (Makefiles). The benefit of using CMake over something like Makefiles is that the scripts are much easier to write, and much more cross-platform (CMake takes care of the platform differences, for the most part).<br /><br />This thing can also handle implicit dependencies (if file A includes file B, when B changes, A will get recompiled) as long as the target build system supports make-style dependency files (Ninja does).<br /><br />I recommend using <a href="http://martine.github.io/ninja/" class="postlink">Ninja</a> together with this.<br /><br />I did not test this very much, so there might be some problems, but it seems to work.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent"># CMake toolchain file for cc65<br /># This is largely a result of experimentation, so some things may be done<br /># suboptimally/wrong. Some compilation options/CMake features may not work.<br /># Some generators will also not work (like MSVS). Ninja and Makefiles have<br /># been tested to work.<br /># What is supported: C, assembly, static libraries<br /><br />set( CMAKE_SYSTEM_NAME Generic )<br /><br />macro( __compilerCc65 lang )<br />&nbsp; &nbsp; set( CMAKE_${lang}_COMPILER cl65 )<br />&nbsp; &nbsp; set( CMAKE_${lang}_COMPILER_ID cc65 )<br /><br />&nbsp; &nbsp; # We cannot run tests for the cc65 compiler, because of cross-compilation,<br />&nbsp; &nbsp; # so force the compiler tests to passed.<br />&nbsp; &nbsp; set( CMAKE_${lang}_COMPILER_ID_RUN TRUE )<br />&nbsp; &nbsp; # Don't know if these are necessary.<br />&nbsp; &nbsp; set( CMAKE_${lang}_COMPILER_ID_WORKS TRUE )<br />&nbsp; &nbsp; set( CMAKE_${lang}_COMPILER_ID_FORCED TRUE )<br /><br />&nbsp; &nbsp; set( CMAKE_DEPFILE_FLAGS_${lang} &quot;--create-dep &lt;DEPFILE&gt;&quot;)<br />&nbsp; &nbsp; set( CMAKE_${lang}_VERBOSE_FLAG &quot;-v&quot; )<br />&nbsp; &nbsp; set( CMAKE_${lang}_FLAGS_DEBUG_INIT &quot;-g&quot; )<br />endmacro()<br /><br />__compilerCc65( C )<br />__compilerCc65( ASM )<br /><br />set( CMAKE_ASM_SOURCE_FILE_EXTENSIONS s;S;asm )<br /><br /># \todo Not sure why CACHE is required here. Seems like something empties<br />#&nbsp; &nbsp; &nbsp; &nbsp;this variable after this script has ran...<br />set( CMAKE_AR &quot;ar65&quot; CACHE PATH &quot;archive&quot; )<br /><br /># \note Need to delete the old file first because ar65 can only add files<br />#&nbsp; &nbsp; &nbsp; &nbsp;into an archive (or remove named files, but we don't know the names).<br />set( CMAKE_C_CREATE_STATIC_LIBRARY<br />&nbsp; &nbsp; &quot;&lt;CMAKE_COMMAND&gt; -E remove &lt;TARGET&gt; &quot;<br />&nbsp; &nbsp; &quot;&lt;CMAKE_AR&gt; a &lt;TARGET&gt; &lt;LINK_FLAGS&gt; &lt;OBJECTS&gt;&quot;<br />)<br />set( CMAKE_ASM_CREATE_STATIC_LIBRARY ${CMAKE_C_CREATE_STATIC_LIBRARY} )<br /></div><br />An example CMakeLists.txt could be something like this:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">cmake_minimum_required( VERSION 3.0 )<br /><br />project( MyProject ASM )<br /><br />set( sources<br />&nbsp; &nbsp; test.s<br />&nbsp; &nbsp; something-else.s<br />)<br /><br />add_executable( MyExecutable ${sources} )<br /><br />set_target_properties( MyExecutable<br />&nbsp; &nbsp; PROPERTIES<br />&nbsp; &nbsp; &nbsp; &nbsp; OUTPUT_NAME blah.nes<br />&nbsp; &nbsp; &nbsp; &nbsp; COMPILE_FLAGS &quot;-t none -v -g --cpu 6502x --asm-define NODEBUG&quot;<br />&nbsp; &nbsp; &nbsp; &nbsp; LINK_FLAGS &quot;-t none -C ${CMAKE_CURRENT_SOURCE_DIR}/blah.cfg&quot;<br />)<br /></div><br />add_custom_command could be used to bring in asset processing commands and so on.<br /><br />And to use the toolchain the spell is something like (last part depends on where your build directory is):<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">cmake -G Ninja -DCMAKE_TOOLCHAIN_FILE=cc65-toolchain.cmake ..<br /></div><br /><br />EDIT: Modified the toolchain file slightly.<br /><br />EDIT: Seems like dependency handling doesn't work with the Makefile generator, for whatever reason. CMake is simply not adding the &quot;--create-dep&quot; switch to the compilation. It works with Ninja, though.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

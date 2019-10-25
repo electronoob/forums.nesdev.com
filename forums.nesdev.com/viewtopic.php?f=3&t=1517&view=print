@@ -1,0 +1,344 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - stuck on some of blargg's ppu test</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">stuck on some of blargg's ppu test</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=3&amp;t=1517">http://forums.nesdev.com/viewtopic.php?f=3&amp;t=1517</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>mattmatteh</b> [ Tue May 16, 2006 1:05 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>stuck on some of blargg's ppu test</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />i am stuck on a few of blargg's ppu test:
+<br />
+<br />-----------------------------------------------------------
+<br />sprite_hit_tests_2005.10.05/07.screen_bottom.nes
+<br />	failed #4
+<br />		4) Should always miss when Y = 255
+<br />
+<br />not sure why this fails, i thought since 255 wasnt on a render line it would not be checked
+<br />-----------------------------------------------------------
+<br />sprite_hit_timing/sprite_hit_timing.nes
+<br />	passed
+<br />-----------------------------------------------------------
+<br />blargg_ppu_tests_2005.09.15b
+<br />	all pass with $01
+<br />-----------------------------------------------------------
+<br />branch_timing_tests
+<br />	all pass
+<br />-----------------------------------------------------------
+<br />sprite_overflow_tests/1.Basics.nes
+<br />	failed #2
+<br />		2) Should be set when 9 sprites are on a scanline
+<br />
+<br />i do set this and not sure why it fails.  a debug statement shows it being set.  suppose ill have to mess with it more
+<br />-----------------------------------------------------------
+<br />vbl_nmi_timing/1.frame_basics.nes
+<br />	failed #5
+<br />		5) PPU frame with BG enabled is too long
+<br />
+<br />i have looked at this a few times and changed the time on it and get either failed 4 or 5, but that also causes blargg_ppu_tests_2005.09.15b/vbl_clear_time.nes to fail.
+<br />-----------------------------------------------------------
+<br />
+<br />i just re wrote the ppu and that did pass more test but still stuck on these.  any suggestions welcome.  also, i dont emulate the odd frame yet.  i would assume that it would not effect these test.
+<br />
+<br />thanks
+<br />
+<br />matt
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>dvdmth</b> [ Tue May 16, 2006 9:20 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Your problem with the Y=255 issue may be related to how you handle the "Y coordinate minus 1" thing.  A sprite whose Y value is zero would be drawn starting on the second scanline.  One might think that if this were the case, a Y value of 255 would cause a sprite to be drawn starting on the first scanline (255+1=0 ).  However, this is not the case, and a Y value of 255 would cause the sprite to be skipped altogether.
+<br />
+<br />The length of a PPU frame varies depending on whether rendering is enabled ($2001.3 or $2001.4 set) or if rendering is disabled ($2001.3-4 clear).  The PPU skips one clock cycle every other frame when rendering, but if rendering is disabled no clocks are skipped.  Make sure your frame length determination takes this into account.
+<br />
+<br />As for sprite overflow, make sure the bit is set on the scanline before the offending one (e.g. if overflow occurs on scanline 99, set the flag during scanline 98).  Also, make sure the flag remains set through the end of the frame (including VBlank).  The flag should only be cleared at the beginning of a new frame (specifically, the beginning of the prerender scanline).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>mattmatteh</b> [ Thu May 18, 2006 11:32 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />i got all of sprite_hit_tests_2005.10.05 test to pass.  i wasnt clearing the sprite buffer and they were left over from the last line on the last frame.
+<br />
+<br />fixed sprite_overflow_tests/1.Basics.nes; typo in the code wasnt returning the right data for the 2002 read.  now i am stuck on sprite_overflow_tests/3.Timing.nes failed #4
+<br />
+<br />still stuck on vbl_nmi_timing/1.frame_basics.nes, fails #5
+<br />
+<br />almost there,  but not sure how to fix these.  i think there is a timing problem.  i still havent coded the odd/even frame but dont think these test are dependent on that ?  i looked at the source and it waits till nmi then a delay loop,  would these test fail if the odd / even frame isnt emulated ?
+<br />
+<br />thanks
+<br />
+<br />matt
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>hap</b> [ Fri May 19, 2006 2:09 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Commenting out odd-frame-cycleskip here makes that first test fail with #5.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>mattmatteh</b> [ Sat Jun 17, 2006 2:33 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />still work on these, got a few more test to pass.  here is where i am at:
+<br />
+<br />sprite_hit_timing/sprite_hit_timing.nes			pass
+<br />
+<br />sprite_hit_tests_2005.10.05/*					pass
+<br />
+<br />sprite_overflow_tests/3.Timing.nes				failed #4
+<br />
+<br />vbl_nmi_timing/7.nmi_timing.nes 				failed #2
+<br />
+<br />branch_timing_tests/*						pass
+<br />
+<br />blargg_ppu_tests_2005.09.15b/palette_ram.nes 		$01
+<br />blargg_ppu_tests_2005.09.15b/power_up_palette.nes	$02
+<br />blargg_ppu_tests_2005.09.15b/palette_ram.nes		$01
+<br />blargg_ppu_tests_2005.09.15b/vbl_clear_time.nes	$03
+<br />blargg_ppu_tests_2005.09.15b/vram_access.nes		$01
+<br />
+<br />
+<br />i was looking at 7.nmi_timing.nes and not sure i understand what is being tested.  i was also looking at the source too.   could someone explain what happens on the nes and how this test works?
+<br />
+<br />i am guessing that the remaining fails are related....  timing.
+<br />
+<br />any suggestions?
+<br />
+<br />i was also going to search the forums on some of the timing stuff but the search is still broke.
+<br />
+<br />thanks, matt
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Sat Jun 17, 2006 8:42 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><em>sprite_overflow_tests<br />3.Timing.nes<br />4) Set too early for first scanline</em>
+<br />
+<br />This tests triggers a sprite overflow as early as possible on the first scanline (i.e. first 9 sprites are on first scanline), and apparently your emulator is raising the flag too early.
+<br />
+<br /><em>7.nmi_timing.nes<br />2) NMI occurred 3 or more PPU clocks too early</em>
+<br />
+<br />Uhh... your NMI is occurring too early? Not much I can add.
+<br />
+<br />The blargg_ppu_tests_2005.09.15b that fail (power_up_palette and vbl_clear_time) can be ignored, since the power-up palette is up to your emulator, and the VBL clear time is tested better by the more recent vbl_nmi_timing tests.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>mattmatteh</b> [ Sat Jun 17, 2006 9:35 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />for the sprites i followed <!-- m --><a class="postlink" href="http://nesdevwiki.ath.cx/index.php/NES_PPU#Sprite_evaluation">http://nesdevwiki.ath.cx/index.php/NES_ ... evaluation</a><!-- m -->
+<br />i raise the flag as soon an overflow is detected.  i use the secondary oam so it occurs on the scan line before.
+<br />
+<br />nmi occurs about 2 ppu clock cycles into vblank ?  and the cpu executes it when done with the current instruction?
+<br />
+<br />i have read that there is latency between the vblank flag and nmi.   also read this is in emulators and not the hardware.  but can not find those old post.
+<br />
+<br />i was thinking these 2 fails were related depending if they were nmi timed.  if the nmi is early then the test would show the sprite hit early too.
+<br />
+<br />thanks
+<br />
+<br />matt
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

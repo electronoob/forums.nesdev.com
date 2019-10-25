@@ -1,0 +1,270 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - The Sound Registers</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">The Sound Registers</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=10&amp;t=4035">http://forums.nesdev.com/viewtopic.php?f=10&amp;t=4035</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>electro</b> [ Thu Apr 10, 2008 5:18 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>The Sound Registers</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I am experimenting with the noise channel and writing to it's registers.
+<br />
+<br />So we have:
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">$400C <br /><br />$400E <br /><br />$400F<br /></div>
+<br />
+<br />I noticed that if bit #5 is set in register $400C you can get a looping effect. I am now trying to figure out of to adjust the loop time, speed it up, slow it down.
+<br />
+<br />I think this loop timing is controlled via bits in registers $400E and $400F?
+<br />
+<br />Thanks,
+<br />T
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Thu Apr 10, 2008 5:40 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />helps to have an APU doc  ;P
+<br />
+<br /><!-- m --><a class="postlink" href="http://www.slack.net/~ant/nes-emu/apu_ref.txt">http://www.slack.net/~ant/nes-emu/apu_ref.txt</a><!-- m -->
+<br />
+<br />
+<br />The looping you're referring to is the decay unit which controls the output volume.  What's happening is the decay unit decreases the volume by steps of 1 at regular intervals.  Enabling decay looping (which is what you do when you set $400C.5 and clear $400C.4) causes the volume to wrap from 0-&gt;F
+<br />
+<br />So normal decay you have:
+<br />
+<br />F, E, D, C, B, A, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0 ....
+<br />
+<br />whereas with looping decay you have
+<br />
+<br />F, E, D, C, B, A, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, F, E, D, C, B, A, 9 ....
+<br />
+<br />
+<br />The speed at which the decay unit clocks is controlled by the low 4 bits of $400C (not $400E or $400F like you guessed).  The higher the value, the slower the decay.
+<br />
+<br />So...
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">LDA #%00100000&nbsp; ; decay loop, decay enabled, period=0 &#40;fast&#41;<br />STA $400C&nbsp; ; decay unit will decay quickly and loop<br />-----<br />LDA #%00101111&nbsp; ; decay loop, decay enabled, period=F &#40;slow&#41;<br />STA $400C<br /></div><br /><br />Note that when decay is enabled, the decay unit controls the output volume.  The low 4 bits of $400C double as the fixed output volume if decay is disabled -- which allows you to directly control the output volume.   You disable the decay unit by setting bit 4:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">LDA #%00110000&nbsp; ; decay disabled, volume=0 &#40;silent&#41;<br />STA $400C<br />-----------<br />LDA #%00111111 ; decay disabled, volume=F &#40;loud&#41;<br />STA $400C<br /></div>
+<br />
+<br />The decay units and volume setup on the square channels operate the exact same way, only you use regs $4000 and $4004 instead (and the high bits of those regs set the duty cycle)
+<br />
+<br />
+<br />$400E controls the period (aka the frequency, tone, or pitch -- whatever term floats your boat).  You only have 16 pre-set frequencies to choose from on the noise channel.  The low 4 bits select the pitch (higher values = lower tone... beware of the highest tones 0 and 1 -- they can be somewhat ear-piercing if you play them too loud)
+<br />
+<br />Additionally, the high bit of $400E selects the mode.  Clearing it gives you the normal "shhhh" noise, whereas setting it gives you a more of a "bzzzz" noise (the rhythmic buzzing in Quickman's level music in Megaman 2 uses the buzz mode -- listen to that song again to see what I mean)
+<br />
+<br />$400F does nothing but handle the length counter and start up the channel once the length counter expires.  I don't feel like going into detail on what the length counter does right now... so blah  =P
+<br />
+<br />EDIT -- whoopsie...  actually, $400F also resets the decay unit back to $F ^^.  Forgot about that.  What that means is that when the decay unit has decayed the volume all the way to 0 (or even before then), writing any value to $400F will snap it back to $F.  But if decay is disabled, then this is relatively unimportant.
+<br />
+<br />Anyway yeah.. playing around is good.  Getting a hands-on feel for how it all works helps a lot.  But don't be afraid to use the docs as a guide  ;D
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>electro</b> [ Thu Apr 10, 2008 6:00 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Thanks very much. Will study your reply some more and re-post.
+<br />
+<br />I was (am) having trouble fully understanding the docs, I did try to use them before posting.
+<br />
+<br />Your explanation cleared it all up for me, at least concerning the noise channel and it's volume decay loop. (I should have posted 2 days ago!)
+<br />
+<br />Will be posting a million more questions about the sound channels... sigh 
+<br />
+<br />Thanks again for the help there.
+<br />
+<br />T
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>electro</b> [ Fri Apr 11, 2008 5:39 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I am reading the doc and from what I can gather square wave 1 (&amp; 2) have this same volume decay loop at the same bit positions?
+<br />
+<br />Square 1 Channel
+<br />
+<br />$4000.5 ;set bit 5 to enable volume decay looping
+<br />
+<br />disable at $4000.4 ; set bit 4 to disable volume decay looping
+<br />
+<br />Thanks,
+<br />T
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Fri Apr 11, 2008 7:22 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Yes.  Decay/Volume is <em>exactly</em> the same for the squares.  Bit positions and everything.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

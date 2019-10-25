@@ -1,0 +1,270 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Understanding fine Y and fine X scroll</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Understanding fine Y and fine X scroll</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=10&amp;t=9324">http://forums.nesdev.com/viewtopic.php?f=10&amp;t=9324</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>fergus_maximus</b> [ Tue Sep 18, 2012 6:49 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Understanding fine Y and fine X scroll</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />So I'm having some difficulty understanding what exactly I want to do with the fine X and fine Y scroll in a per-scanline renderer. I know the fine scroll is an offset. So am I correct in my understanding that the offset is within the palette entries? In other words, if I have a fine X scroll of 4, I'm picking the palette entry for 4 pixels ahead instead of the currently rendered pixel? Likewise, if I'm on the 7th pixel of the row, and the fine X scroll is 4, am I selecting the 3rd pixel of the next tile as the palette color for that pixel?<br /><br />Currently aside from setting the registers (which I've verified against Loopy's doc and a zillion other posts here) I'm not doing anything with the fine X scroll. I've tried a few high level ideas but I'm really just confused as to how and when I need to be using it.<br /><br />Here's what I'm currently using to select tiles:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">func (p *Ppu) renderTileRow() {<br />&nbsp; &nbsp;// Generates each tile, one scanline at a time<br />&nbsp; &nbsp; // and applies the palette<br /><br />&nbsp; &nbsp;// 32 total for 32 tiles, 8 pixels of each<br />&nbsp; &nbsp;for x := 0; x &lt; 32; x++ {<br />&nbsp; &nbsp;&nbsp; &nbsp;attrAddr := 0x23C0 | (p.VramAddress &amp; 0xC00) | int(p.AttributeLocation&#91;p.VramAddress&amp;0x3FF&#93;)<br />&nbsp; &nbsp;&nbsp; &nbsp;shift := p.AttributeShift&#91;p.VramAddress&amp;0x3FF&#93;<br />&nbsp; &nbsp;&nbsp; &nbsp;attr := ((p.Vram&#91;attrAddr&#93; &gt;&gt; shift) &amp; 0x03) &lt;&lt; 2<br /><br />&nbsp; &nbsp;&nbsp; &nbsp;ntAddress := 0x2000 | (p.VramAddress &amp; 0xC00)<br />&nbsp; &nbsp;&nbsp; &nbsp;// bgPatternTableAddress() returns the address of that tile index so 0x0/0x1000 + (address * 0x10)<br />&nbsp; &nbsp;&nbsp; &nbsp;t := p.bgPatternTableAddress(p.Vram&#91;(p.VramAddress&amp;0x3FF)+ntAddress&#93;)<br /><br />&nbsp; &nbsp;&nbsp; &nbsp;tile := p.Vram&#91;t : t+16&#93;<br /><br />&nbsp; &nbsp;&nbsp; &nbsp;xcoord := p.VramAddress &amp; 0x1F<br /><br />&nbsp; &nbsp;&nbsp; &nbsp;p.decodePatternTile(&#91;&#93;Word{tile&#91;p.TilerowCounter&#93;, tile&#91;p.TilerowCounter+8&#93;},<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;xcoord*8,<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;p.Scanline,<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;p.bgPaletteEntry(attr),<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;nil, false)<br /><br />&nbsp; &nbsp;&nbsp; &nbsp;// Flip bit 10 on wraparound<br />&nbsp; &nbsp;&nbsp; &nbsp;if p.VramAddress&amp;0x1F == 0x1F {<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;// If rendering is enabled, at the end of a scanline<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;// copy bits 10 and 4-0 from VRAM latch into VRAMADDR<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;p.VramAddress = p.VramAddress ^ (p.VramLatch &amp; 0x41F)<br />&nbsp; &nbsp;&nbsp; &nbsp;} else {<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;p.VramAddress++<br />&nbsp; &nbsp;&nbsp; &nbsp;}<br />&nbsp; &nbsp;}<br /><br />&nbsp; &nbsp;p.TilerowCounter++<br /><br />&nbsp; &nbsp;if p.TilerowCounter == 8 {<br />&nbsp; &nbsp;&nbsp; &nbsp;p.TilerowCounter = 0<br />&nbsp; &nbsp;}<br />}<br /></div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Dwedit</b> [ Tue Sep 18, 2012 8:05 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Understanding fine Y and fine X scroll</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />The way the PPU actually renders backgrounds:<br />Fetch nametable tile<br />Fetch attribute table byte<br />Fetch first graphics byte<br />Fetch second graphics byte<br />(each of these operations takes 2 cycles, 8 cycles total)<br />Then it takes each graphics byte, and sets it the second byte of a 16-bit shift register.<br /><br />The shift registers:<br />There are two of them.  One for the 'low plane' (adds 1 to a color number for a 1 bit), one for the 'high plane' (adds 2 to a color number for a 1 bit). Each is 16 bits long.  They store the pixels that will be output.<br />xxxxxxxxxxxxxxxx (16 bits long)<br />xxxxxxxxxxxxxxxx (16 bits long)<br />Fine X is used to decide which pixel to take out of the shift register.  So if fine x is zero, it takes the leftmost bit (bit #0) from each.  If it's 2, it takes bit #2, etc.<br />Outputting 1 pixel takes 1 cycle.<br />After each pixel is drawn, both registers are shifted left once.  8 cycles later, the PPU will have done the necessary fetches to put new stuff into the second byte of the shift registers, so it can continue rendering.<br />When new graphics come in, they are 2 tiles ahead of what is currently being displayed.<br /><br />In order to have graphics ready to draw at the beginning of rendering a scanline, it does all the fetches for the first two tiles in advance, starting at cycle #320 of the scanline.<br /><br />There's also some place where it stores which palette the tiles get drawn with.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Tue Sep 18, 2012 9:55 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Understanding fine Y and fine X scroll</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />The attributes are handled by another pair of 8-bit shift registers.<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp; &nbsp; 8-bit SIPO shifter&nbsp; &nbsp;8-bit PISO shifter<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;(4 x 74164)&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; (2 x 74166)<br />&nbsp; &nbsp; &nbsp; &nbsp;7 6 5 4 3 2 1 0&nbsp; &nbsp; &nbsp; 7 6 5 4 3 2 1 0<br />&nbsp; &nbsp;p0 &#91; | | | | | | | &#93; &lt;- &#91; | | | | | | | &#93;&nbsp; From first pattern fetch<br />&nbsp; &nbsp;p1 &#91; | | | | | | | &#93; &lt;- &#91; | | | | | | | &#93;&nbsp; From second pattern fetch<br />&nbsp; &nbsp;p2 &#91; | | | | | | | &#93; &lt;- &#91; &#93;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; From attribute fetch<br />&nbsp; &nbsp;p3 &#91; | | | | | | | &#93; &lt;- &#91; &#93;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; From attribute fetch<br />&nbsp; &nbsp; &nbsp; &nbsp;+ + + + + + + +<br />&nbsp; &nbsp; &nbsp; &nbsp;| | | | | | | |<br />&nbsp; &nbsp; &nbsp; ,v-v-v-v-v-v-v-v.<br />fine X| quad 8:1 mux&nbsp; | -&gt; To sprite/BG mux, then palette register, then RGB lookup<br />&nbsp; &nbsp; &nbsp; `---------------'<br /></div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>fergus_maximus</b> [ Tue Sep 18, 2012 11:25 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Understanding fine Y and fine X scroll</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Thanks for the replies gents! It's starting to click a bit more in my mind, I think I see how I can get this implemented.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>fergus_maximus</b> [ Tue Sep 18, 2012 7:18 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Understanding fine Y and fine X scroll</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Oh hell yeah! Scrolling is working nicely!<br /><br />Here's another semi-related question: games like Castlevania, Mega Man and Duck Tales are working beautifully. Super Mario Bros and Excitebike have really weird stuttery scrolling that doesn't really appear to have &quot;scrolled&quot; until you've walked completely into the next nametable (almost like the second table isn't being read from). Is there a common denominator between those two games or am I looking at some other issue?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Tue Sep 18, 2012 7:34 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Understanding fine Y and fine X scroll</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />How are you handling mixed writes to $2000, $2005, and $2006? Are you following <a href="http://wiki.nesdev.com/w/index.php/Skinny" class="postlink">the skinny</a>?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>fergus_maximus</b> [ Tue Sep 18, 2012 8:36 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Understanding fine Y and fine X scroll</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I've been following Loopy's doc as best I can up to this point, but mixed writes isn't something I've specifically checked out. I'll dig in and see if that's the issue.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>fergus_maximus</b> [ Sat Sep 22, 2012 1:34 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Understanding fine Y and fine X scroll</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Aha. And there is the reason. The next nametable is only selected for a single scanline in those two games. I'm logging the value of the NT selection bits at the end of each scanline and it's only after every 240 scanlines (shocker!) that I'm seeing it switch to nametable 2, and then it goes back to 0 again.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

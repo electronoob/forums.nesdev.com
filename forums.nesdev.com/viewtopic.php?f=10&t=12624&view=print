@@ -1,0 +1,123 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - working with mapper IRQs</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">working with mapper IRQs</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=10&amp;t=12624">http://forums.nesdev.com/viewtopic.php?f=10&amp;t=12624</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>FrankWDoom</b> [ Thu Apr 09, 2015 1:56 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>working with mapper IRQs</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />context: I'm trying to convert Spartan X 2 from <a href="http://wiki.nesdev.com/w/index.php/INES_Mapper_065" class="postlink">mapper 65</a> to <a href="http://wiki.nesdev.com/w/index.php/Sunsoft_FME-7" class="postlink">FME7</a>. I more or less have the bank swap routines in place for prg and chr and I can start the game. It'll run for maybe 10s before I hit a bad opcode and the cpu locks. Onscreen the scrolling and fixed bg graphics don't seem to be split are the right height maybe 6-8 lines below where they should be. This is an irq issue right?<br /><br />Points of concern:<br /><br />The #65 has only 1 enable flag on $9003. The fme7 has separate bits for enable counter and enable irq. Setting the flag/s either way on both mappers acknowledges pending irq. For the conversion I'm enabling both flags on the fme7 any time the single flag on the #65 was enabled, and disabling both for the opposite case. Is there any problem with that approach? (I'm testing with the latest nintendulator build with the fixed irq ack process). <br />Here's how I'm dealing with $9003/4<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">lda #$xx<br />sta $9003<br />sta $9004<br /></div><br /><br />becomes <br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">lda #$xx<br />jsr elsewhere<br />----<br />pha<br />lda #$0D ; single irq control field parameter<br />sta $8100 ; <br />pla<br />sta $a100 ; write enable disable flags<br />rts<br />----<br /></div><br /><br />$9003 and $9004 are always written at the same time afaik. I don't see that fme7 has an explicit write for &quot;reload&quot; equivalent to writing to $9004. Does that mean that reloading the value and enabling (whenever $9003 would be written as such) is the appropriate action?<br /><br />Both mappers have 16-bit counters that tick down to 0 by 1 every cpu cycle. #65 stops at 0 and fires the irq, where fme7 rolls over from 0 to #$FFFF and then fires. So, they work very much the same excepting a 1 cpu cycle difference in timing? Is that significant? Because the fme7 control writes are chewing up way more than that. <br /><br />When setting the counter value, we are aiming for it to fire at a specific scanline right? For NTSC we have 262 scanlines/frame, 29780.5 cpu cycles/frame, 113.667 cpu cycle/scanline? So the counter gets set to 113.667 * N to target a scanline relative to whatever scanline I'm on when the irq counter is enabled again? How am I supposed to know what scanline I'm on at any given moment?<br /><br />counter value writes now look like <br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">lda #$xx<br />sta $9006 ; low byte<br /><br />to <br /><br />lda #$xx<br />jsr lowbytewrite<br />----<br />pha<br />lda #$0E<br />sta $8100<br />pla <br />sta $a100<br />rts<br />----<br /></div><br /><br />$9005 always succeeds the $9006 write, usually with the same value from what I can see. So <br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">sta $9005 <br /><br />becomes <br /><br />jsr hibytewrite<br /></div><br /><br />which is the same pattern using $0F as the control byte. I'm doing prg and chr banks in a similar fashion.<br /><br />I'm guessing the counter values that would work for the original mapper aren't going to apply anymore because cpu cycle counts are likely off writing to the fme7 controls vs a single address. Or am I doing something else wrong? Is there a workable solution to this?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

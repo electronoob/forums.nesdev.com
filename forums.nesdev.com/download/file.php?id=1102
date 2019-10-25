@@ -1,0 +1,174 @@
+From: Mark <mark_k@[deleted]>
+To: nesdev@[deleted]
+Date: Sun, 25 Oct 1998 17:53:13 +0000
+Subject: [nesdev] Action 52 mapper info & image uploaded
+MIME-Version: 1.0
+Content-Type: text/plain
+
+Hi,
+
+I've mostly figured how the mapping works for the (in)famous Action 52 multi-
+game cartridge. This legal unlicensed cartridge was produced and sold in the
+USA by Active Enterprises. It originally sold for US$200. All the games are
+pretty poor quality. Another Active game, Cheetahmen 2(?), may well use the
+same mapper.
+
+I have uploaded an image in .nes format of the Action 52 to:
+       [deleted]  (805016 bytes long)
+
+NOTE:
+- I am using mapper number 228 = $E4 to denote the Action 52 mapper.
+- As per my extended header format proposal, header byte 10 bit 4 is set to
+  indicate that this cartridge does not have extra WRAM at $6000-$7FFF.
+
+
+
+Hardware info
+-------------
+There are nine ICs on the board. PCB is black, making it difficult to follow
+traces visually.
+
+There are two 74LS273s (octal D-type flip-flops), two PAL16L8s, a 4520 (dual
+binary up counters) and four ROM chips. Discrete components are 3 resistors,
+4 capacitors and 2 diodes.
+
+The discrete components and the 4520 are probably to do with defeating the
+lockout system.
+
+This cart has 12Mbit PRG and 4Mbit CHR ROM. It uses three 4Mbit ROMs for the
+PRG data, one for the CHR.
+
+The ROMs in my cartridge are marked as follows:
+     H9224               H9224               H9224               H9224
+ U5: 23C4000-1035    U6: 23C4000-1036    U7: 23C4000-1032    U8: 23C4000-1031
+     ACTION52            ACTION52            ACTION52            ACTION52
+     PGM-A               PGM-B               PGM-C               CHR-A
+     S26401              S26405              S26389              S26384
+
+
+This text is contained in one of the ROMs:
+----
+Copyright 1991 ACTIVE ENTERPRISES All RightsReserved by Author  Driver Version
+2.09
+----
+
+
+
+Mapper description
+------------------
+
+Because of the PALs, I was not been able to figure out everything about this
+mapper without resorting to testing.
+
+I do not know the function of A4. In the cart, the latched A4 state is
+connected to CHR ROM pin 1 (/CS???) and pin 2 of one of the PALs. Having it
+high or low doesn't affect whether CHR data is readable or not, but it must
+have *some* function.
+
+
+Like most other mappers, switching is achieved by writing to addresses $8000-
+$FFFF.
+
+Only the low two bits of the value written are relevant. The address written
+to determines how the mapping is set. It looks something like this:
+
+ Address     A15 A14|A13|A12 A11|A10  A9  A8  A7| A6| A5  A4| A3  A2  A1 A0
+             -------+---+-------+---------------+---+-------+--------------
+              1   - | m | r1  r0| p   p   p   p |u/l| s   ? | c5  c4  c3 c2
+
+ Value written   D7  D6  D5  D4  D3  D2| D1  D0
+                 ----------------------+-------
+                 -   -   -   -   -   - | c1  c0
+
+A14 and D2-D7 are unused.
+
+A13 sets mirroring. 0: PA10 connected to VRAM A10. Same as when the H pads are
+                       connected on a Nintendo PCB. "Vertical mirroring".
+                    1: PA11 connected to VRAM A10. Same as when the V pads are
+                       connected on a Nintendo PCB. "Horizontal mirroring".
+
+A12-A11 select which PRG ROM is active; see below for more details on this.
+
+A10-A7 select which 32K PRG page is in use (from the ROM chip selected using
+A12-A11).
+
+A5 sets PRG page size. If page size is 16K, the 16K page appears at both $8000
+and $C000. 0: 32Kb (A6 ignored in this case)
+           1: 16Kb
+
+A6 is only used if PRG page size is 16K. It determines whether the upper or
+lower half of the chosen 32K PRG page is used (mirrored to $8000 and $C000).
+It is unused if PRG page size is set to 32K. Put another way, in 16K page
+mode A10-A6 select which 16K page is active.
+        0: lower
+        1: upper
+
+A3-A0 and D1-D0 select the 8K CHR-ROM page. D0 is the least significant bit,
+A3 the most significant.
+
+
+Back to the function of A12-A11. These bits determine which of the three PRG
+ROMs is active, like this:
+
+     r1  r0   Active PRG ROM
+     -----------------------
+      0   0   PGM-A
+      0   1   PGM-B
+      1   1   PGM-C
+      1   0   None -- no PRG ROM is selected, meaning that garbage will be
+              read on the data bus (or most likely the previous value on the
+              bus will be read).
+
+When dumping the cartridge, I put PRG data in the order PGM-A, PGM-B, PGM-C.
+There are 48 32K banks (16 32K banks per ROM chip). For supporting this in an
+emulator, you can translate the r1 and r0 bits written into the upper two bits
+of the 32K bank number (b5 and b4, say) like this:
+         r1  r0 |  b5  b4
+        --------+---------
+          0   0 |   0   0
+          0   1 |   0   1
+          1   0 |   ?   ? -- PRG ROMs disabled, reads should return garbage
+          1   1 |   1   0
+
+At power-on time, the mapping functions as if a 0 has just been written to
+$8000. That is, 32K PRG pages, PRG page 0, CHR page 0, vertical mirroring.
+
+Pressing Reset *may* cause the mapper to be reset as at power-on time, but I'm
+not sure of this. Or it could be that every page which appears at $C000 has
+its reset vector pointing to code which handles this.
+
+
+
+Some examples
+-------------
+Hopefully a couple of examples will make things clearer.
+
+1. Setting PRG page size to 32K, 13th 32K page of PGM-B active, CHR page 54,
+   horizontal scrolling = vertical mirroring.
+
+   In binary, 54 = %110110. So the value we need to write must have 10 as its
+   low two bits, e.g. $02, $C2, $FA, etc.
+
+   A suitable address to write would be in binary:
+   Address     A15 A14|A13|A12 A11|A10  A9  A8  A7| A6| A5  A4| A3  A2  A1 A0
+               -------+---+-------+---------------+---+-------+--------------
+                1   - | 0 | 0   1 | 1   1   0   1 | - | 0   ? | 1   1   0  1
+
+   So writing $FA to $CECD would have the desired effect.
+
+
+2. What would a write of $77 to address $BB72 do?
+
+   Low two bits of $77 in binary are 11. In binary, $BB72 reads as follows:
+
+   Address     A15 A14|A13|A12 A11|A10  A9  A8  A7| A6| A5  A4| A3  A2  A1 A0
+               -------+---+-------+---------------+---+-------+--------------
+                1   0 | 1 | 1   1 | 0   1   1   0 | 1 | 1   1 | 0   0   1  0
+
+   This means: 8K CHR page %001011 = 11 is selected, 
+               32K page 6 of PGM-C is selected (page 38 of all ROM data), and
+               the upper half of this appears at both $8000 and $C000.
+               Horizontal mirroring.
+
+
+-- Mark

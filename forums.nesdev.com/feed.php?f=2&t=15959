@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=2&amp;t=15959" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2017-05-19T02:59:10-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=2&amp;t=15959</id>
+<entry>
+<author><name><![CDATA[calima]]></name></author>
+<updated>2017-05-19T02:59:10-07:00</updated>
+<published>2017-05-19T02:59:10-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=15959&amp;p=196162#p196162</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=15959&amp;p=196162#p196162"/>
+<title type="html"><![CDATA[Re: cc65 now supports trampolines]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=15959&amp;p=196162#p196162"><![CDATA[
+Your trampoline is valid, things I do in addition are checking if the bankswitch is needed at all, and jumping to callptr4, which does the same as your @call. The CRT issues would complicate 32k banks, indeed.<br /><br />10 bytes was just a test trampoline that didn't switch banks, a switching one will be larger.<br /><br />Thanks for testing, variadic functions will need special handling, or perhaps just disallowing them. The optimization bug needs some attention.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=7237">calima</a> — Fri May 19, 2017 2:59 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[rainwarrior]]></name></author>
+<updated>2017-05-18T15:35:49-07:00</updated>
+<published>2017-05-18T15:35:49-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=15959&amp;p=196130#p196130</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=15959&amp;p=196130#p196130"/>
+<title type="html"><![CDATA[Re: cc65 now supports trampolines]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=15959&amp;p=196130#p196130"><![CDATA[
+I think there is some problem with parameter passing between this and <strong>-O</strong>?<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">void trampoline(void);<br />#pragma wrapped-call (push, trampoline, 32)<br />int func_c(long arg)<br />{<br />   return arg +3;<br />}<br />#pragma wrapped-call (pop)<br /><br />; without -O func_c(7) produces:<br />   ldx     #$00<br />   stx     sreg<br />   stx     sreg+1<br />   lda     #$07<br />   ldy     #32<br />   sty     tmp4<br />   ldy     #&lt;(_func_c)<br />   sty     ptr4<br />   ldy     #&gt;(_func_c)<br />   sty     ptr4+1<br />   jsr     _trampoline<br /><br />; with -O func_c(7) produces:<br />   ldy     #32<br />   sty     tmp4<br />   ldy     #&lt;(_func_c)<br />   sty     ptr4<br />   ldy     #&gt;(_func_c)<br />   sty     ptr4+1<br />   jsr     _trampoline</div><br /><br />Note the argument setup has entirely disappeared. (Doesn't seem to be a problem with <strong>__cdecl__</strong>/<strong>--standard</strong> calls, since they don't use registers.)<br /><br /><br />There is a maybe related problem with variadic functions. They require the stack size to be passed in Y and the trampoline preamble clobbers it. (Functions without a prototype will also set up Y in this way, though this is a much more obscure case.)<br /><br /><br />I guess it would be more appropriate to report this at the github project, so I will do that: <a href="https://github.com/cc65/cc65/issues/432" class="postlink">https://github.com/cc65/cc65/issues/432</a><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=5165">rainwarrior</a> — Thu May 18, 2017 3:35 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[rainwarrior]]></name></author>
+<updated>2017-05-18T12:39:15-07:00</updated>
+<published>2017-05-18T12:39:15-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=15959&amp;p=196106#p196106</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=15959&amp;p=196106#p196106"/>
+<title type="html"><![CDATA[Re: cc65 now supports trampolines]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=15959&amp;p=196106#p196106"><![CDATA[
+Documentation of the new feature:<br /><a href="http://cc65.github.io/doc/cc65.html#ss7.17" class="postlink">http://cc65.github.io/doc/cc65.html#ss7.17</a><br /><br />That looks nice. I think it could use a little clarification of how the function is called. What does an example &quot;trampoline&quot; routine look like? It says the bank parameter is in tmp4, and the address of the function is in ptr4, but that doesn't really tell the whole story.<br /><br />I'd imagine it is something like this:<br /><ul><li>1. Temporarily preserve A/X/Y (arguments) if overwritten by bankswitch.</li><li>2. Preserve current bank on the stack.</li><li>3. Perform the bankswitch using tmp4.</li><li>4. Restore A/X/Y if needed.</li><li>5. Call the function via ptr4.</li><li>6. Temporarily preserve A/X (return) if overwritten by bankswitch.</li><li>7. Fetch the original bank from the stack and bankswitch.</li><li>8. Restore A/X if needed.</li><li>9. Return.</li></ul><br />Would this be a valid trampoline function?<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">trampoline:<br />   ; preserve A/X arguments<br />   sta tmp1<br />   stx tmp2<br />   ; remember current bank<br />   lda current_bank<br />   pha<br />   ; bankswitch (UNROM style)<br />   lda tmp4<br />   tax<br />   sta bank_table, X<br />   ; call function<br />   lda tmp1<br />   ldx tmp2<br />   jsr @call<br />   ; preserve A/X<br />   sta tmp1<br />   stx tmp2<br />   ; restore original bank<br />   pla<br />   tax<br />   sta bank_table, X<br />   ; restore A/X return value<br />   lda tmp1<br />   ldx tmp2<br />   rts<br />@call:<br />   jmp (ptr4)</div><br /><br />You said in some of the <a href="https://github.com/cc65/cc65/pull/424" class="postlink">github comments</a> that your trampoline is only 10 bytes though. How did you manage that? (Are you implicitly only allowing void functions with no arguments?)<br /><br />It also seems prudent to put the CRT in a fixed bank (e.g. 16/16 mapper arrangement, UNROM). I saw some comments about putting the trampoline in RAM, but I think 32k banks would be a hassle anyway. You'd have to jump through a few hoops to get the CRT linked in more than one place, probably not worth the effort.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=5165">rainwarrior</a> — Thu May 18, 2017 12:39 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[calima]]></name></author>
+<updated>2017-05-18T11:39:34-07:00</updated>
+<published>2017-05-18T11:39:34-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=15959&amp;p=196099#p196099</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=15959&amp;p=196099#p196099"/>
+<title type="html"><![CDATA[cc65 now supports trampolines]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=15959&amp;p=196099#p196099"><![CDATA[
+I needed this for a project, so now cc65 supports trampolines. Makes PRG banking almost nice when you can transparently call anything without manual bankswitching and/or taking care to only call to/from a common bank.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=7237">calima</a> — Thu May 18, 2017 11:39 am</p><hr />
+]]></content>
+</entry>
+</feed>

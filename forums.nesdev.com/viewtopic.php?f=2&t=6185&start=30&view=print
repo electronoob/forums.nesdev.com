@@ -1,0 +1,528 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Ack - another tile data compressor</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Ack - another tile data compressor</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=6185">http://forums.nesdev.com/viewtopic.php?f=2&amp;t=6185</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>3</strong> of <strong>4</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>cadahl</b> [ Tue Mar 23, 2010 3:34 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />All good ideas! I spent a couple hours testing based on that and arrived at something good I think. I removed group repeats, lifted the restrictions on pattern 0 in a group, and added mode 7. This mode is "EOR", but the EOR residual is actually never stored because it doesn't help as such. Instead a good reference pattern is found (and the EOR difference), the differing rows are stored. So:
+<br />
+<br />Mode 7 header 1: xpppppppp (7 bits of offset, -1..-128 patterns)
+<br />Mode 7 header 2: 01234567 (per row, which ones differ from the reference)
+<br />..then byte * set bits in header 2...
+<br />
+<br />Allowing more than 7 bit offset is only of marginal benefit. I did a graph of where the best matches fall in the range of offsets, and it's a strong 1/x-like curve with smaller offsets dominating. Even 6 bits would do well. I figure bit 7 can be used for extensions.
+<br />
+<br />Got the following numbers now (still without Huffman, this is the corpus+smb.chr):
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">30643<br />2331<br />8319<br />9210<br />1583<br />1726<br />1920<br />4462<br />11265<br />5093<br />13843<br />12013<br />16917<br />2016<br />5570<br /></div>
+<br />
+<br />Total ratio of 47.7% against the original data, not bad. I changed the group header so the pattern modes are stored chunkily, not sure if it helped the decoding:
+<br />
+<br />h1: 00011122
+<br />h2: 23334445   (for patterns 0-7)
+<br />h3: 55666777
+<br />
+<br />Edit: NES decoder here: 
+<br /><a href="http://code.google.com/p/artwork-compression-kit/source/browse/trunk/src/deackNES/deack.asm?spec=svn18&amp;r=17" class="postlink">http://code.google.com/p/artwork-compression-kit/source/browse/trunk/src/deackNES/deack.asm?spec=svn18&amp;r=17</a>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Tue Mar 23, 2010 10:52 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Personally, I'd rather keep the pattern modes planar, and use a piece of code like this to read each mode:
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp;asl Header0<br />&nbsp; &nbsp;bne +Skip<br /><br />&nbsp; &nbsp;;READ 3 NEW BYTES AND PUT THEM INTO Header0, Header1 and Header2<br /><br />&nbsp; &nbsp;sec ;might not be necessary if reading the bytes doesn't change the carry<br />&nbsp; &nbsp;rol Header0<br />+Skip:<br />&nbsp; &nbsp;lda #$00<br />&nbsp; &nbsp;rol<br />&nbsp; &nbsp;asl Header1<br />&nbsp; &nbsp;rol<br />&nbsp; &nbsp;asl Header2<br />&nbsp; &nbsp;rol</div>
+<br />You just have to initialize Header0 with $80 (code for empty buffer) and the code above will take care of loading new bytes when necessary. It's much shorter than the huge decoding you have there, and I don't think there's any significant difference in speed.
+<br />
+<br />Still checking out the changes you've made, I didn't quite understand it from the explanation on your post.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>cadahl</b> [ Tue Mar 23, 2010 12:48 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Thanks, going to try to understand the code you posted.
+<br />
+<br />This is what's done for mode 7 in the encoder:
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">- For every pattern P<br />&nbsp; &nbsp; - Try modes with zero pattern cost first.<br />&nbsp; &nbsp; - Speculatively calculate RCR &#40;Mode 1&#41;.<br />&nbsp; &nbsp; - Speculatively calculate RD &#40;Mode 7&#41;.<br />&nbsp; &nbsp; - Pick RCR, RD or RAW based on which uses less bytes.<br /><br />Calculate RD:<br />&nbsp; - For every pattern P' from P-1 to P-128<br />&nbsp; - Use the best candidate P'' with most rows shared with P.<br />&nbsp; - Store offset to P'' in header 1.<br />&nbsp; - Store rows from P where E != 0 and mark bits in header 2.<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;^^^^^^<br /></div>
+<br />
+<br />So it's performing a brute force search 128 patterns back. And the "new rows" in P compared to P'' are stored, plus the headers.
+<br />
+<br />Edit: You know what, I think I've been confusing you (and myself) by insisting on calling it "EOR mode" though the EOR result isn't stored. Even in the encoder, byte comparisons can be used instead. The mode could be called "row differences" or something. Sorry about that. It started out as an EOR-based idea, but halfway through I noted that the only reason to store the EOR is if fewer <strong>set</strong> bits cost less to store somehow. Maybe with a backend entropy encoder that could be true. Anyway I changed the pseudo code above and updated the doc: <!-- m --><a class="postlink" href="http://code.google.com/p/artwork-compression-kit/wiki/NESFormat?ts=1269375096&amp;updated=NESFormat">http://code.google.com/p/artwork-compre ... =NESFormat</a><!-- m -->
+<br />
+<br />Hope it makes sense now.
+<br />
+<br />Edit 2: Reverted the decoder to read "planar" modes again: <!-- m --><a class="postlink" href="http://code.google.com/p/artwork-compression-kit/source/browse/trunk/src/deackNES/deack.asm?spec=svn21&amp;r=21">http://code.google.com/p/artwork-compre ... svn21&amp;r=21</a><!-- m -->
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>cadahl</b> [ Tue Mar 23, 2010 1:31 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Hm. I'm not sure I understand your mode scheme. What if bit 2 of the modes are all 0? Then the byte reading code is triggered. 
+<br />
+<br />Seems like this would need an exception rule along the lines of "the last pattern always has bit 2 set" or something to work. Then you'd know when to load as header0 turned to 0. Otherwise I don't see how to distinguish an "emptied" set of headers from all possible bit patterns of 1..8 remaining modes. This is meant to get rid of the "group" loop, right? That'd be nice.
+<br />
+<br />Be sure to let me know if I'm being dense. <img src="./images/smilies/icon_confused.gif" alt=":?" title="Confused" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Tue Mar 23, 2010 3:54 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">cadahl wrote:</div><div class="quotecontent">What if bit 2 of the modes are all 0? Then the byte reading code is triggered. </div>
+<br />That's why we initialize the variable to $80, to keep it from triggering. Bit 7 will prevent the byte from being $00 until that set bit is shifted out. Note in my code that when Header0 becomes $00 the bit that is shifted out is not used, and when the new value of Header0 is loaded this bit is inserted back into the variable at bit 0 (hence "rol Header0" and the "sec" that might not be necessary), as the real bit of information comes out from the other end.
+<br />
+<br />So by initializing the variable to $80, the very first time we use it it will be detected as empty, and 3 new bytes will be loaded. And it will happen again whenever all 8 bits of each byte are used.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>cadahl</b> [ Tue Mar 23, 2010 5:00 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Doh. Finally I get it. <img src="./images/smilies/icon_rolleyes.gif" alt=":roll:" title="Rolling Eyes" /> I kept thinking there would be an extra unwanted cycle before the load triggered again, and that the load was meant to happen AS the last bit was shifted out. Now it makes sense. I will add this tomorrow, the loops should get cleaner. Thanks!
+<br />
+<br />Some updated stats.. with mode 7, ACK is looking promising.
+<br />
+<br />ZIP: 42.4% of originals in the NesDev Corpus
+<br />Tokumaru/CM: 45.9%
+<br />ACK: 46.6%
+<br />ACK+Huffman: 43.2%
+<br />
+<br />Included in the numbers is a tweak to Mode 7. I managed an extra 1.1% ratio by allowing the referenced pattern to be flipped in Y. That unused header bit is used for flagging it.
+<br />
+<br />I tried, for fun, a few other uses of the bit. E.g. that the referenced tile should be bit inverted, or allowing references in half-pattern steps (4 Bytes). Both did give very minor improvements but I chalk that up mainly to chance. The Y flipped sub-mode seems to hit on some kind of existing redundancy. Maybe it's because bg tiles can't be flipped by hw. If horizontal flipping was cheaper in the decoder, I'd see if that helped too.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Tue Mar 23, 2010 5:40 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">cadahl wrote:</div><div class="quotecontent">You know what, I think I've been confusing you (and myself) by insisting on calling it "EOR mode" though the EOR result isn't stored. Even in the encoder, byte comparisons can be used instead. The mode could be called "row differences" or something.</div>
+<br />Yeah, the "EOR" was throwing me off! =) I would probably get it from looking at the code (sometimes this works better than reading textual descriptions for me), I just didn't have the time to look at all of it.
+<br />
+<br />I find these compression ratios you were able to achieve really good, even without huffman. It's the exact relation between complexity and size I was looking for.
+<br />
+<br />Do you mind if I experiment with a similar compression scheme (using compression modes for each pattern, but experimenting with different modes a bit)? I want to use something more customized for my project, instead of using a generic solution.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Tue Mar 23, 2010 7:16 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">cadahl wrote:</div><div class="quotecontent">I tried, for fun, a few other uses of the bit. E.g. that the referenced tile should be bit inverted, or allowing references in half-pattern steps (4 Bytes).</div><br />Did you try using the bit for row/column selection like in mode 1? I'd be interested in the results of that.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">The Y flipped sub-mode seems to hit on some kind of existing redundancy. Maybe it's because bg tiles can't be flipped by hw. If horizontal flipping was cheaper in the decoder, I'd see if that helped too.</div>
+<br />I think it's much more common for background tiles to be flipped horizontally than vertically. I think you should try it, even if it takes a while to decode (it couldn't be worse than column-oriented mode 1).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>cadahl</b> [ Wed Mar 24, 2010 12:17 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Do you mind if I experiment with a similar compression scheme (using compression modes for each pattern, but experimenting with different modes a bit)? I want to use something more customized for my project, instead of using a generic solution.</div><br /><br />No problem at all, this area could use some research. It'd be nice if you come up with something good, and hoping you won't mind if I borrow it for ACK. <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" /><br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Did you try using the bit for row/column selection like in mode 1? I'd be interested in the results of that. </div><br />Yep I did, but there wasn't much improvement, certainly below what Y-flipped referencing gave. Maybe the bit differences are too randomly distributed.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">I think it's much more common for background tiles to be flipped horizontally than vertically. I think you should try it, even if it takes a while to decode (it couldn't be worse than column-oriented mode 1).</div>
+<br />Awesome. I have to try that. <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" /> As for decoding it should be eight asl/rol pairs per line I guess.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>cadahl</b> [ Wed Mar 24, 2010 4:23 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I implemented the x-flip as you suggested and it helped a lot! Had to find a place to flag it, and I measured a 6-bit offset to be too short. But it turned out that old mode 5 ("same as two back") is rarely useful. It's often used in fonts etc with one bitplane empty or at least identical over a run of many chars. Modes 2/3 (common A/B) fit most of the time and referencing is a good fallback.
+<br />
+<br /><span style="text-decoration: underline">New pattern modes:<br /></span>0: "raw" bytes
+<br />1: row/column repeats
+<br />2: common A
+<br />3: common B
+<br />4: same as one back
+<br />5: same as one back (bitwise NOT)
+<br />6: reference pattern + diff bytes
+<br />7: y-flipped reference pattern + diff bytes
+<br />
+<br /><span style="text-decoration: underline">New numbers:</span>
+<br />ACK+Huffman: 41.6% (!)
+<br />ZIP: 42.4%
+<br />ACK: 44.8%
+<br />Tokumaru/CM: 45.9%
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Wed Mar 24, 2010 5:37 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Very impressive. So you used two modes (6 and 7) to select whether to Y-flip and used bit 7 of the reference byte to select whether to X-flip? It's an interesting way to support all possibilities.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>cadahl</b> [ Thu Mar 25, 2010 1:40 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Yup. I wish I didn't have to (ab)use the mode numbers like that, though.
+<br />
+<br />I'm going to compile some stats and see how often the various modes are being used. I think it can now be seen as a dictionary encoder (with Mode 6 &amp; 7 as the main part) with different code shortening hacks. Modes 2/3 form a tiny fixed dictionary determined at encode time, and Mode 4 is a cheap way for a common case of Mode 6. RCR (mode 1) is just a compact way to express new additions to to the dictionary. The mode that stands out is Mode 5 which does a NOT of the previous pattern. Modes 6/7 don't support that, but in my testing it didn't seem all that useful. Maybe the patterns that benefit are always a direct neighbor (i.e. the companion bitplane).
+<br />
+<br />Seems likely that I'll rearrange the modes once I figure out how it all pieces together.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>cadahl</b> [ Mon Mar 29, 2010 3:57 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Hey, a question for you guys (being NES developers). Is it "trivial" to rearrange the palette for the whole background (and/or all the sprites)? I know color 0 is special, so leave it at 0, but is it ok to allow any permutation of colors 1, 2 and 3? (E.g. the decompressor says "0,3,2,1" so you should set the palette in that order for the gfx to look good.) Letting the encoder select a certain combination in fact helps the compression ratio a little bit.
+<br />
+<br />My question, in more general terms, is this: in YOUR game/demo, could you reorder the palette (except entry 0) arbitrarily without ill effects if you wanted?
+<br />
+<br />On another note, some summary stats for the Corpus + SMB.chr:
+<br />
+<br />CommonA: 25.81%
+<br />CommonB: 3.82%
+<br />SameAsLast: 2.65%
+<br />SameAsLastInverted: 0.89%
+<br />RD: 13.30%
+<br />RD(-x): 7.93%
+<br />RD(-y): 3.74%
+<br />RD(-x,-y): 3.42%
+<br />RCR: 28.65%
+<br />Raw: 9.79%
+<br />
+<br />At least one mode stands out sorely, being used in &lt; 1% of all patterns. <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Mon Mar 29, 2010 4:13 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Very interesting stats. Common plane A is used a lot, I wouldn't expect that much. I expected RCR to be the heart of it though.
+<br />
+<br />About the permutation of the palette, I think that might be a problem. Sometimes palettes are shared between different sets of graphics. Also, some games use a logical order for the colors, such as sorting them by brightness, which makes them interchangeable. So I don't think it's a good idea to have the graphics bossing the palettes around. There are probably more reasons to avoid this, I just can't think of them right now.
+<br />
+<br />If you really think it will help compression, you might add it as something optional, so that those who don't care about the order of the colors can make use of it.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>cadahl</b> [ Tue Mar 30, 2010 2:19 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Good points. I added an option "-c" to allow the color reordering.
+<br />
+<br />Here are the stats per file (more interesting really): <!-- m --><a class="postlink" href="http://www.pastey.net/134730">http://www.pastey.net/134730</a><!-- m -->
+<br />
+<br />Common A clearly dominates some files, and like you say RCR is the main mode but the RD variants contend in many cases. The Raw usage is satisfyingly low in many files but also indicate the problem areas. I've looked at a dump of raw tiles in yy-chr but can't really spot any more obvious redundancies to exploit.
+<br />
+<br />Edit: I came up with an interesting tweak to the Common modes btw. Instead of storing the patterns themselves in the header, I store their indices. When they are first decoded in the stream (using Raw or RCR) they're added to the two-entry dictionary. Any subsequent occurrences use the Common A/B modes. 
+<br />
+<br />Now... this exposes the trick: before the first occurrence of A/B, the two-entry dictionary is unused. I figured why not initialize the entries to (all zeroes) and (all ones)? Then, any occurrences of 0-tiles or 1-tiles can borrow the Common A/B modes until the <strong>actual</strong> A/B values are found in the stream. Additionally, if the actual A/B values <strong>are</strong> (all zeroes) or (all ones) I can just leave them implicitly defined and never really encode them.
+<br />
+<br />This is cheap, almost automatic and actually shaves a little off the result. <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" /> (and I'll try updating the A/B patterns many times in the file.. like you suggested)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>3</strong> of <strong>4</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

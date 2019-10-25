@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=2&amp;t=10104" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2014-03-20T14:10:55-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=2&amp;t=10104</id>
+<entry>
+<author><name><![CDATA[rainwarrior]]></name></author>
+<updated>2014-03-20T14:10:55-07:00</updated>
+<published>2014-03-20T14:10:55-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10104&amp;p=127020#p127020</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10104&amp;p=127020#p127020"/>
+<title type="html"><![CDATA[Re: Random glitchy line in Super Mario Bros. on real hardwar]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10104&amp;p=127020#p127020"><![CDATA[
+Yes, I agree that is a safe/easy/simple way to prevent re-entrant NMI. It's what I now do in my own projects.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=5165">rainwarrior</a> — Thu Mar 20, 2014 2:10 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[BMF54123]]></name></author>
+<updated>2014-03-20T13:58:33-07:00</updated>
+<published>2014-03-20T13:58:33-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10104&amp;p=127019#p127019</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10104&amp;p=127019#p127019"/>
+<title type="html"><![CDATA[Re: Random glitchy line in Super Mario Bros. on real hardwar]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10104&amp;p=127019#p127019"><![CDATA[
+Bit of a bump, but I seem to have fixed this problem in my NES port of Vs. Super Mario Bros. All I had to do was modify the game so that it never disables NMI, but uses a flag in RAM instead (as most newer games seem to do):<br /><br />- When NMI hits, check this flag; if it is clear, proceed with the usual NMI routine, otherwise RTI<br />- Flag is set at beginning of NMI routine (main game loop) and cleared at the end<br /><br />Voila, no more glitchy line. Of course, this doesn't fix the status bar flickering when the game slows down, since that would be a somewhat more involved hack, and difficult to do without a disassembly of the Vs. version (and I didn't really want to alter the game's normal behavior anyway, for accuracy's sake).<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=935">BMF54123</a> — Thu Mar 20, 2014 1:58 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[ulfalizer]]></name></author>
+<updated>2013-07-01T06:10:07-07:00</updated>
+<published>2013-07-01T06:10:07-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10104&amp;p=114387#p114387</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10104&amp;p=114387#p114387"/>
+<title type="html"><![CDATA[Re: Random glitchy line in Super Mario Bros. on real hardwar]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10104&amp;p=114387#p114387"><![CDATA[
+Some of the latches for the $2000/$2001 flag bits have a transistor on their outputs to prevent the value from being read while the bit is being written (though the old value will probably still be read during the write due to capacitance on the output wire). Looks like e.g. the monochrome bit and the blue emphasis bit doesn't have such transistors though (or doesn't use them at least, you get a cut-off wire on the other side).<br /><br />Here's an experiment that would be interesting to try: Set either the monochrome bit or the blue emphasis bit to 1 in a loop during rendering. If that produces colored/un-emphasized spots on the screen, then it's a problem with reading the value at the wrong time while it is being written.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=5911">ulfalizer</a> — Mon Jul 01, 2013 6:10 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[ulfalizer]]></name></author>
+<updated>2013-06-30T11:46:28-07:00</updated>
+<published>2013-06-30T11:46:28-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10104&amp;p=114350#p114350</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10104&amp;p=114350#p114350"/>
+<title type="html"><![CDATA[Re: Random glitchy line in Super Mario Bros. on real hardwar]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10104&amp;p=114350#p114350"><![CDATA[
+If it happens around dot 256 on the scanline, then it's almost certainly due to updating loopy t (specifically bit 10 - the horizontal nametable bit) at the same time that it's being copied into loopy v. Looking in Visual 2C02, the only extraordinary thing that would happen in that situation is that you would have a direct logic path from the first data bus line (line 0, since $2000:0 is the relevant bit) to bit 10 of loopy v (both the <strong>write_2000_vramaddr</strong> signal and the <strong>copy_vramaddr_hscroll</strong> signal would be high, connecting <strong>_io_db0</strong> to <strong>vramaddr_t10</strong> to <strong>vramaddr_v10</strong>).<br /><br />Not sure how that could cause the value to disappear though, since the data bus line should still have the &quot;right&quot; value. Maybe there's some analog thing going on, or maybe it has something to do with M2 out from the CPU having a &gt;50% duty cycle, while the actual write only happens during the &quot;true&quot; last 50% (the PPU &quot;sees&quot; the write while M2 is high).<br /><br />Edit: It works exactly the same for updates to loopy t via $2005 and $2006 by the way. The &quot;connect data bus to relevant t bits&quot; signal in all cases is <em>M2 &amp;&amp; address == $200x</em>, where x is 0, 5, or 6, and the &quot;connect horizontal bits of t to v&quot; signal is triggered at the end of the scanline.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=5911">ulfalizer</a> — Sun Jun 30, 2013 11:46 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[mikejmoffitt]]></name></author>
+<updated>2013-06-19T08:30:27-07:00</updated>
+<published>2013-06-19T08:30:27-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10104&amp;p=113587#p113587</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10104&amp;p=113587#p113587"/>
+<title type="html"><![CDATA[Re: Random glitchy line in Super Mario Bros. on real hardwar]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10104&amp;p=113587#p113587"><![CDATA[
+<div class="quotetitle">Dwedit wrote:</div><div class="quotecontent"><br />I just played a little bit of Super Mario Bros on my NES, and now I can't un-see this.<br /></div><br />My first NES I bought 8 years ago for $12 because it was broken (someone had soldered some stupid hack garbage into it). I got home, removed the non-working hack, and after much cleaning I got it booting Super Mario Brothers. Having played plenty of SMB on both Game Boy Color (Mario DX) as well as in emulators, the glitchy line stood out to me right away, as I wondered whether this NES was on its last legs. Years later I would get a Famicom and see the same bug.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=5314">mikejmoffitt</a> — Wed Jun 19, 2013 8:30 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Dwedit]]></name></author>
+<updated>2013-06-18T20:59:40-07:00</updated>
+<published>2013-06-18T20:59:40-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10104&amp;p=113561#p113561</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10104&amp;p=113561#p113561"/>
+<title type="html"><![CDATA[Re: Random glitchy line in Super Mario Bros. on real hardwar]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10104&amp;p=113561#p113561"><![CDATA[
+I just played a little bit of Super Mario Bros on my NES, and now I can't un-see this.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=53">Dwedit</a> — Tue Jun 18, 2013 8:59 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[ap9]]></name></author>
+<updated>2013-06-07T14:33:12-07:00</updated>
+<published>2013-06-07T14:33:12-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10104&amp;p=112925#p112925</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10104&amp;p=112925#p112925"/>
+<title type="html"><![CDATA[Re: Random glitchy line in Super Mario Bros. on real hardwar]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10104&amp;p=112925#p112925"><![CDATA[
+What struck me about this is that the &quot;glitch&quot; spans no more than one scanline.<br /><br />The images posted by LocalH show the full double-240 (interlaced) scanlines.<br />Shrunken by a factor of 1.25, 384p for 480i — a quarter of the image interpolated out.<br />(Add compression loss; the footage presented is not 100% reliable.)<br />Calculated, lines 171-172 of the &quot;frame 12657&quot; PNG = a scanline bet. 106-107.<br /><br />Seeing that this line has a fixed horizontal scroll, I used FCEUX to look at the name table for similarities— nothing out of the ordinary; just two sections of the map.  So I looked at the execution range during this part of World 1-2.<br /><br />The cart (using the PAL version) uses vertical mirroring, and only sets the x-scroll (for the scoreboard).<br />The NMI routine, with no interrupt pins held low, quickly sets the x-scroll to zero (from $80A6 on, with a double-STA$2005 subroutine), and continues well past the Sprite-0 hit code (where the x-scroll is reset to the game scroll).  After Spr-0 hit, you have updates, $73F and $740 are piped directly to $2005 at scanline 30.<br /><br />The NMI routine ends here at scanline 91, but I've seen it go up to 114, which fits with the PNG image.  This would also mean, depending on game processing, inconsistencies in the vertical offset of the &quot;glitch&quot; line— appears to be the case.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent"> LDA $2002   A:04 X:05 P:A4 Y:04 L: 91 -- clears status reg bit #7<br /> PLA         A:51 X:05 P:24 -- pushed from an earlier routine<br /> ORA #$80    A:11 X:05 P:24 -- hold NMI enable bit on<br /> STA $2000   A:91 X:05 P:A4 -- forces PPU register changes<br /> RTI         A:91 X:05 P:A4<br /> JMP *       P:A5</div><br /><br />If it were to occur after the JMP loop started, _only_ a PPU NMI could do that<br />- not easy to be some stray NMI signal, as the code would be updating parts of the game 50/100% more often/faster.  I've not seen that in the videos.  If the NMI is delayed with overwhelming processing, the game skips, with the scoreboard scroll not zeroed, sound not updated (producing sfx artifacts).  <a href="http://geocities.ws/daedheadap9/gameinfo/smbovw.zip" class="postlink">This occurs easily in SMB</a>.<br /><br />I reject the possibility of these frames being merely due to loose pin contacts, because one bad bit would mean more than one bad scanline (and easily 8 lines consecutive).  No single binary digit would result in a glitch at a scanline 107 (or actual equivalent with the NT daisy chain address).<br /><br />It's been figured that this is due to the $2000 write, performed mid-scanline, forcing an update of PPU registers, registers in a pipeline that are only fully fixed on the next line; the PT-NT pipeline tracking is a little flakey/lossy here.  (Power-on synchronizes it.)  Every three lines reflect the CPU's 3/3.2 per pixel cyc. to the indivisible 341 per line (it takes three lines to come to the same pixel offset without a forced interrupt, as seen in full_nes_palette).  It's a sudden change of pipeline flow right at the point of a calculation phase, where the low-level read address is calculated.<br /><br />Super Mario Bros. is a bit cheap to carry a one-size-fits-all routine to execute things normally only executed before gameplay.  This &quot;glitch&quot; should also occur in other games that write $2000 mid-scanline like this.<br /><br />On emulating this, I would expect Nestopia, which has a very close PT-NT pipeline, to bring out the every-3-lines effect of ppu_2000_glitch.nes, but it doesn't.  It shouldn't be hard to make the code change there.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6020">ap9</a> — Fri Jun 07, 2013 2:33 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[lidnariq]]></name></author>
+<updated>2013-06-04T17:01:43-07:00</updated>
+<published>2013-06-04T17:01:43-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10104&amp;p=112756#p112756</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10104&amp;p=112756#p112756"/>
+<title type="html"><![CDATA[Re: Random glitchy line in Super Mario Bros. on real hardwar]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10104&amp;p=112756#p112756"><![CDATA[
+<div class="quotetitle">LocalH wrote:</div><div class="quotecontent"><br />think that this glitch could be harnessed and made useful for some sort of demo effect?<br /></div>I'd be surprised. At best it can only be used every 3 scanlines, because it depends on the write to $2000 happening at a very precise PPU phase. At worst, it can't be used at all. And an equivalent effect should be possible with timed writes to $2006 on two successive scanlines.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3512">lidnariq</a> — Tue Jun 04, 2013 5:01 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2013-06-04T16:49:50-07:00</updated>
+<published>2013-06-04T16:49:50-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10104&amp;p=112755#p112755</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10104&amp;p=112755#p112755"/>
+<title type="html"><![CDATA[Re: Random glitchy line in Super Mario Bros. on real hardwar]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10104&amp;p=112755#p112755"><![CDATA[
+An emulator could defeat this &quot;cheap way&quot; by emulating an NES that never powers on in the alignment that produces this glitch.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Tue Jun 04, 2013 4:49 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[LocalH]]></name></author>
+<updated>2013-06-04T16:01:37-07:00</updated>
+<published>2013-06-04T16:01:37-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10104&amp;p=112753#p112753</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10104&amp;p=112753#p112753"/>
+<title type="html"><![CDATA[Re: Random glitchy line in Super Mario Bros. on real hardwar]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10104&amp;p=112753#p112753"><![CDATA[
+I think it should be emulated, personally, though I won't flame those who disagree. I do have one question, the answer of which may nudge some opinions towards or away from it - does anyone here with more experience on the NES think that this glitch could be harnessed and made useful for some sort of demo effect? I love seeing things done with hardware that can't normally be done, such as the entirety of the modern C64 demoscene <img src="http://forums.nesdev.com/images/smilies/icon_razz.gif" alt=":P" title="Razz" /><br /><br />If it can be harnessed and &quot;tamed&quot;, then it should be emulated, full stop. Perhaps if nothing else, in today's time where no emulator does emulate it, it could be used as a cheap way to programmatically determine whether one is on an emulator or not? Or is there another, better way to do so? I'm not talking about for &quot;anti-emu&quot; code that stops a ROM from running, but perhaps someone might want to make a demo with some slight differences in text or graphics depending on whether it's an emulator or hardware.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=325">LocalH</a> — Tue Jun 04, 2013 4:01 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Drag]]></name></author>
+<updated>2013-06-02T00:44:58-07:00</updated>
+<published>2013-06-02T00:44:58-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10104&amp;p=112661#p112661</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10104&amp;p=112661#p112661"/>
+<title type="html"><![CDATA[Re: Random glitchy line in Super Mario Bros. on real hardwar]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10104&amp;p=112661#p112661"><![CDATA[
+<div class="quotetitle">Sik wrote:</div><div class="quotecontent"><br />What if you miss the calculation and happen to do the split right in the wrong spot? Especially if whatever effect you want happens to look just fine otherwise (e.g. if done in the nearby dots it'd look right).<br /></div><br />Then you get a flickery scanline. The same problem you get when you time a pair of $2006 writes incorrectly, and just like a badly timed $2006 split, the remedy is to adjust the timing. <img src="http://forums.nesdev.com/images/smilies/icon_razz.gif" alt=":P" title="Razz" /><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=21">Drag</a> — Sun Jun 02, 2013 12:44 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Sik]]></name></author>
+<updated>2013-05-31T17:12:26-07:00</updated>
+<published>2013-05-31T17:12:26-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10104&amp;p=112636#p112636</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10104&amp;p=112636#p112636"/>
+<title type="html"><![CDATA[Re: Random glitchy line in Super Mario Bros. on real hardwar]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10104&amp;p=112636#p112636"><![CDATA[
+<div class="quotetitle">Drag wrote:</div><div class="quotecontent"><br />Either way, you can <em>completely avoid</em> this glitch by not writing to $2000 outside of vblank, unless it's part of a timed screen-split, in which case you can simply time it away from the problem pixel. You'd probably be timing it anyway to make the split nice and neat. <img src="http://forums.nesdev.com/images/smilies/icon_razz.gif" alt=":P" title="Razz" /><br /></div><br />What if you miss the calculation and happen to do the split right in the wrong spot? Especially if whatever effect you want happens to look just fine otherwise (e.g. if done in the nearby dots it'd look right).<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4526">Sik</a> — Fri May 31, 2013 5:12 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Drag]]></name></author>
+<updated>2013-05-30T22:00:05-07:00</updated>
+<published>2013-05-30T22:00:05-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10104&amp;p=112612#p112612</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10104&amp;p=112612#p112612"/>
+<title type="html"><![CDATA[Re: Random glitchy line in Super Mario Bros. on real hardwar]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10104&amp;p=112612#p112612"><![CDATA[
+<div class="quotetitle">blargg wrote:</div><div class="quotecontent"><br />I think the chance is higher. Remember, it can happen on any scanline if the write is on the correct dot. If your game is writing to $2000 after VBL, it's going to be at a fairly consistent place. It may vary by say 100 cycles, with one of them being the bad dot. Since it's due to the 9th bit of X scroll being 1, there's a 1 in 2 chance there. With normal rendering the write can only occur at the bad spot every other frame, so 1 in 2 chance. This totals 1 in 400 chance each frame. When the game powers up on the bad alignment (which is pretty much certain after playing on a few days), and the game running millions of frames over weeks of play, it's bound to happen thousands of times.<br /></div><br /><br />You're absolutely right. My figure assumed uniform distribution because it's been probably 3 years since my college Statistics class, and I've forgotton how to do probability curves. <img src="http://forums.nesdev.com/images/smilies/icon_razz.gif" alt=":P" title="Razz" /><br /><br />Either way, you can <em>completely avoid</em> this glitch by not writing to $2000 outside of vblank, unless it's part of a timed screen-split, in which case you can simply time it away from the problem pixel. You'd probably be timing it anyway to make the split nice and neat. <img src="http://forums.nesdev.com/images/smilies/icon_razz.gif" alt=":P" title="Razz" /><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=21">Drag</a> — Thu May 30, 2013 10:00 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Memblers]]></name></author>
+<updated>2013-05-30T20:21:56-07:00</updated>
+<published>2013-05-30T20:21:56-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10104&amp;p=112611#p112611</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10104&amp;p=112611#p112611"/>
+<title type="html"><![CDATA[Re: Random glitchy line in Super Mario Bros. on real hardwar]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10104&amp;p=112611#p112611"><![CDATA[
+I also saw this in Zelda 2 a couple years ago, and was wondering what the hell was going on.  IIRC it was even right at the beginning (in the temple where Zelda sleeps).  It would be a little interesting to hear if people notice this in other games now.<br /><br />But I guess this is a good reason to be careful about mid-frame $2000 writes just the same as $2001.  If one needs to disable recursive NMIs, it's usually better do it it in software.  In practice, disabling NMI hardware I'd expect would freeze the music/sfx for that frame.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent"> inc nmi_recursive_depth<br /> pha<br /> ; play music, check the state of nmi_recursive_depth, possibly skip all other processing<br /> pla<br /> dec nmi_recursive_depth<br /> rti<br /></div><br /><br />Another time $2000 often is written mid-frame is when changing BG tiles after a sprite zero hit or timed wait.  But obviously this should be happening on a known position.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=10">Memblers</a> — Thu May 30, 2013 8:21 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[blargg]]></name></author>
+<updated>2013-05-30T10:57:25-07:00</updated>
+<published>2013-05-30T10:57:25-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10104&amp;p=112597#p112597</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10104&amp;p=112597#p112597"/>
+<title type="html"><![CDATA[Re: Random glitchy line in Super Mario Bros. on real hardwar]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10104&amp;p=112597#p112597"><![CDATA[
+I think the chance is higher. Remember, it can happen on any scanline if the write is on the correct dot. If your game is writing to $2000 after VBL, it's going to be at a fairly consistent place. It may vary by say 100 cycles, with one of them being the bad dot. Since it's due to the 9th bit of X scroll being 1, there's a 1 in 2 chance there. With normal rendering the write can only occur at the bad spot every other frame, so 1 in 2 chance. This totals 1 in 400 chance each frame. When the game powers up on the bad alignment (which is pretty much certain after playing on a few days), and the game running millions of frames over weeks of play, it's bound to happen thousands of times.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=17">blargg</a> — Thu May 30, 2013 10:57 am</p><hr />
+]]></content>
+</entry>
+</feed>

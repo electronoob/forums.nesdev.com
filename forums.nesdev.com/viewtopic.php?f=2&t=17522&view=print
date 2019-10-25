@@ -1,0 +1,186 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Little coroutine lib for cc65. (In progress)</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Little coroutine lib for cc65. (In progress)</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=17522">http://forums.nesdev.com/viewtopic.php?f=2&amp;t=17522</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>slembcke</b> [ Thu Jul 12, 2018 10:17 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Little coroutine lib for cc65. (In progress)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I recently started working a a little coroutine library for cc65 very similar to the simple API for Lua coroutines. It currently comes in at ~200 bytes of code, and I think the yield/resume cost is reasonable from eyeballing the asm, but I haven't actually done any cycle counting.<br /><!-- m --><a class="postlink" href="https://gist.github.com/slembcke/ef7ae2214e3687b4f8c3efe9b2cbb948">https://gist.github.com/slembcke/ef7ae2 ... e9b2cbb948</a><!-- m --><br /><br />For anyone that's not familiar, they are basically really lightweight threads that you explicitly switch between. They are really useful for things like animations or state machines where you want to a function that runs over several frames.<br /><br />Basically, the game loop code for the block falling game I'm working on was getting a little confusing. A lot of code was spread out over several frames for animation or cost amortization reasons, and it was getting hard to see what the actual flow was. Something gross like this:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">void update(){<br />&nbsp; &nbsp;if(timer == 0){<br />&nbsp; &nbsp;&nbsp; &nbsp;// Make blocks fall<br />&nbsp; &nbsp;} else if(timer &lt; grid_height){<br />&nbsp; &nbsp;&nbsp; &nbsp;// Blit updated tiles to the screen one row of blocks at a time<br />&nbsp; &nbsp;} else if(timer &lt; wait_time){<br />&nbsp; &nbsp;&nbsp; &nbsp;// Apply matching logic, etc<br />&nbsp; &nbsp;&nbsp; &nbsp;// Possibly reset timer to grid_height to reset the wait, but not trigger logic above.<br />&nbsp; &nbsp;} else if(){<br />&nbsp; &nbsp;&nbsp; &nbsp;// ... more of the same<br />&nbsp; &nbsp;}<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;++timer;<br />}<br /></div><br /><br />Gross and unwieldy, so I started refactoring it to use function pointers to separate the flow better than an else-if chain, but the code to switch between state functions was kinda dumb too. Either it had to be inlined into the previous state's function, where it didn't really seem to belong, or separated out into yet another function. Coroutines seemed like they would be fun to implement, so I did. Now the code looks more like this:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">// ... Somewhere in the game init code.<br />// Sets the function to use as a coroutine.<br />coro_start(update_coro);<br /><br />void update(){<br />&nbsp; &nbsp;// Resume executing the coroutine from where it last yielded.<br />&nbsp; &nbsp;coro_resume();<br />}<br /><br />void update_coro(){<br />&nbsp; &nbsp;while(true){<br />&nbsp; &nbsp;&nbsp; &nbsp;// Make blocks fall.<br />&nbsp; &nbsp;&nbsp; &nbsp;<br />&nbsp; &nbsp;&nbsp; &nbsp;// Yield jumps back to the main thread as if coro_resume() was returning.<br />&nbsp; &nbsp;&nbsp; &nbsp;coro_yield();<br />&nbsp; &nbsp;&nbsp; &nbsp;<br />&nbsp; &nbsp;&nbsp; &nbsp;for(...){<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;// Blit row of blocks to the screen<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;coro_yield();<br />&nbsp; &nbsp;&nbsp; &nbsp;}<br />&nbsp; &nbsp;&nbsp; &nbsp;<br />&nbsp; &nbsp;&nbsp; &nbsp;timer = 0<br />&nbsp; &nbsp;&nbsp; &nbsp;while(timer &lt; wait_time){<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;// Apply matching logic and such.<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;// Possibly reset timer back to 0.<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;coro_yield();<br />&nbsp; &nbsp;&nbsp; &nbsp;}<br />&nbsp; &nbsp;&nbsp; &nbsp;<br />&nbsp; &nbsp;&nbsp; &nbsp;// ... More events in the loop.<br />&nbsp; &nbsp;}<br />}<br /></div><br /><br />Using coroutines this way, basically every time coro_yield() is called, it waits for a frame and goes back to executing the &quot;main thread&quot; until it's resumed again. This makes it really easy to write code that happens over time, but is nicely contained in a single function without obscuring the control flow.<br /><br />On my TODO list yet:<br /><ul><li> Allow the stack buffer to be placed anywhere in RAM and not hard coded in the .s file.</li><li> Allow switching coroutines (push their state onto their stack buffers).</li><li> Maybe remove the values passed in and out of yield/resume. Not as useful as in Lua without dynamic typing.</li></ul>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Jarhmander</b> [ Fri Jul 13, 2018 5:48 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Little coroutine lib for cc65. (In progress)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I'm pretty sure there's a demo on this board that uses cooperative multi-threading. If my memory serves right, it's blargg that did it, and moved 128? 256? objects on the screen. Might find it this evening if someone didn't already since then.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>slembcke</b> [ Tue Jul 17, 2018 12:58 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Little coroutine lib for cc65. (In progress)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I made good progress on this recently. Coroutines are initialized/called by passing a pointer to their stack buffer, and I managed to refactor it a bit so the code size is still barely over 200 bytes. It's <em>reasonably</em> efficient, at about 600 cycles to resume + yield. I certainly wouldn't make one for every sprite, but it's cheap enough that using 2-3 of them to manage player or game state won't eat up more than a few percent of the total cycles each frame. Other than the two issues below, it's pretty complete I think. I decided to call it &quot;Naco&quot;.<br /><br /><!-- m --><a class="postlink" href="https://gist.github.com/slembcke/0438c6092109ea1f632c81ca581c495a">https://gist.github.com/slembcke/0438c6 ... ca581c495a</a><!-- m --><br /><br />Known issues:<br /><ul><li> Coroutines can only be resumed from the main thread, not other coroutines.</li><li> Register variables are not saved when resuming, so a coroutine cannot be in a function that uses register vars when it yields.</li></ul><br />Hopefully somebody else finds it useful! <img src="./images/smilies/icon_biggrin.gif" alt=":D" title="Very Happy" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>thefox</b> [ Tue Jul 24, 2018 11:18 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Little coroutine lib for cc65. (In progress)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Cool!
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

@@ -1,0 +1,417 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - NMI/BRK timing and such</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">NMI/BRK timing and such</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=3&amp;t=10006">http://forums.nesdev.com/viewtopic.php?f=3&amp;t=10006</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>3</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>proxy</b> [ Wed Apr 10, 2013 1:46 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>NMI/BRK timing and such</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I have been trying to get my NMI/BRK timing just right and am a bit stumped (it always seems just a hair off, not matter what I do), so I have a few questions, the first I think is the easiest:<br /><br />1. Since IRQ/NMI/RESET are basically special cases of BRK. Does they still check if an interrupt should happen during the last cycle? I would assume yes. I doubt it matters much since Interrupts will be disabled by that time, but perhaps NMI could do something weird there? I dunno.<br /><br />2. The normal operation of execution always has the first cycle do a read from PC and then increment PC. During an IRQ/NMI/RESET, the CPU will force the IR to be $00 in order to trigger the interrupt dispatch logic. That's fine. My question is **Does the CPU still do the read from PC like normal, skip incrementing PC and THEN force the IR to $00. Or is forcing the IR to $00 pretty much the only thing it does during that cycle if an interrupt is pending?<br /><br />4. At the moment I assume that the forcing of the IR to $00 is just about the only real thing that happens during that cycle (it obviously does some other stuff to make the BRK act like an IRQ/NMI, but I'm keeping it simple). Based on that assumption, here's my core execution logic for executing 1 cycle of the CPU. Is there any obvious flaw? NOTE: instructions $100, $101, $102 are special indexes for RST/NMI/IRQ:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">void clock() {<br />&nbsp; &nbsp;if(current_cycle == 0) {<br />&nbsp; &nbsp;&nbsp; &nbsp;if(rst_executing) {<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;instruction = 0x100;<br />&nbsp; &nbsp;&nbsp; &nbsp;} else if(nmi_executing) {<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;instruction = 0x101;<br />&nbsp; &nbsp;&nbsp; &nbsp;} else if(irq_executing) {<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;instruction = 0x102;<br />&nbsp; &nbsp;&nbsp; &nbsp;} else {<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;instruction = read_byte(PC++);<br />&nbsp; &nbsp;&nbsp; &nbsp;}<br />&nbsp; &nbsp;} else {<br />&nbsp; &nbsp;&nbsp; &nbsp;// execute the current part of the instruction<br />&nbsp; &nbsp;&nbsp; &nbsp;execute_opcode();<br />&nbsp; &nbsp;}<br /><br />&nbsp; &nbsp;++current_cycle;<br />}<br /></div><br /><br />Thanks guys.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>beannaich</b> [ Wed Apr 10, 2013 1:56 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: NMI/BRK timing and such</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Here is my interrupt service routine, that passes all the IRQ tests:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">private void IsrIrq()<br />{<br />&nbsp; &nbsp; PeekByte(pc.uw0); // 2 wait states at the beginning of irq<br />&nbsp; &nbsp; PeekByte(pc.uw0);<br />&nbsp; &nbsp; PokeByte(sp.uw0, pc.ub1); sp.ub0--;<br />&nbsp; &nbsp; PokeByte(sp.uw0, pc.ub0); sp.ub0--;<br />&nbsp; &nbsp; PokeByte(sp.uw0, sr); sp.ub0--;<br /><br />&nbsp; &nbsp; sr.i = !nmi; // todo: make sure i isn't set on nmi<br /><br />&nbsp; &nbsp; var vector = nmi ? 0xFFFAU : 0xFFFEU;<br />&nbsp; &nbsp; nmi = false;<br /><br />&nbsp; &nbsp; pc.ub0 = PeekByte(&nbsp; vector);<br />&nbsp; &nbsp; pc.ub1 = PeekByte(++vector, true);<br />}</div><br /><br />that method is called if the variable &quot;interrupt&quot; is true. interrupt is set on the last cycle as: &quot;interrupt = nmi || (irq &amp;&amp; !sr.i);&quot;. BRK has a similar vectoring scheme where the vector can be replaced by 0xFFFA if nmi occurred. In the code above PeekByte(addr, true); will do the last cycle interrupt flag polling. So in my code the ISR does poll at the last cycle.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>proxy</b> [ Wed Apr 10, 2013 2:16 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: NMI/BRK timing and such</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I just want to make sure we are testing the same stuff. Which IRQ tests do you pass?<br /><br />I am specifically looking at the ones which deal with NMI and BRK happing at the same time and the BRK vectoring to NMI instead. Likewise, this is what my BRK routine looks like at the moment (but doesn't quite pass, it's off by a cycle or 2):<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">void op_brk() {<br />&nbsp; &nbsp;static uint16_t vector_address;<br /><br />&nbsp; &nbsp;switch(current_cycle) {<br />&nbsp; &nbsp;case 1:<br />&nbsp; &nbsp;&nbsp; &nbsp;// read next instruction byte (and throw it away),<br />&nbsp; &nbsp;&nbsp; &nbsp;// increment PC<br />&nbsp; &nbsp;&nbsp; &nbsp;vector_address = IRQ_VECTOR_ADDRESS;<br />&nbsp; &nbsp;&nbsp; &nbsp;read_byte(PC++);<br />&nbsp; &nbsp;&nbsp; &nbsp;break;<br />&nbsp; &nbsp;case 2:<br />&nbsp; &nbsp;&nbsp; &nbsp;// push PCH on stack, decrement S<br />&nbsp; &nbsp;&nbsp; &nbsp;write_byte(S-- + STACK_ADDRESS, pc_hi());<br />&nbsp; &nbsp;&nbsp; &nbsp;break;<br />&nbsp; &nbsp;case 3:<br />&nbsp; &nbsp;&nbsp; &nbsp;// push PCL on stack, decrement S<br />&nbsp; &nbsp;&nbsp; &nbsp;write_byte(S-- + STACK_ADDRESS, pc_lo());<br />&nbsp; &nbsp;&nbsp; &nbsp;break;<br />&nbsp; &nbsp;case 4:<br />&nbsp; &nbsp;&nbsp; &nbsp;// push P on stack, decrement S<br />&nbsp; &nbsp;&nbsp; &nbsp;write_byte(S-- + STACK_ADDRESS, P | B_MASK);<br />&nbsp; &nbsp;&nbsp; &nbsp;set_flag(I_MASK);<br />&nbsp; &nbsp;&nbsp; &nbsp;break;<br />&nbsp; &nbsp;case 5:<br />&nbsp; &nbsp;&nbsp; &nbsp;// fetch PCL<br />&nbsp; &nbsp;&nbsp; &nbsp;set_pc_lo(read_byte(vector_address + 0));<br />&nbsp; &nbsp;&nbsp; &nbsp;break;<br />&nbsp; &nbsp;case 6:<br />&nbsp; &nbsp;&nbsp; &nbsp;LAST_CYCLE; // this macro updates the various &quot;nmi_pending/irq_pending/rst_pending&quot; flags<br />&nbsp; &nbsp;&nbsp; &nbsp;// fetch PCH<br />&nbsp; &nbsp;&nbsp; &nbsp;set_pc_hi(read_byte(vector_address + 1));<br />&nbsp; &nbsp;&nbsp; &nbsp;return;<br />&nbsp; &nbsp;default:<br />&nbsp; &nbsp;&nbsp; &nbsp;abort();<br />&nbsp; &nbsp;}<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;if(nmi_pending) {<br />&nbsp; &nbsp;&nbsp; &nbsp;if(current_cycle &lt; 5 &amp;&amp; current_cycle &gt; 1) {<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;vector_address = NMI_VECTOR_ADDRESS;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;nmi_pending = false;<br />&nbsp; &nbsp;&nbsp; &nbsp;}<br />&nbsp; &nbsp;}<br />}<br /></div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>beannaich</b> [ Wed Apr 10, 2013 2:38 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: NMI/BRK timing and such</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">proxy wrote:</div><div class="quotecontent">I just want to make sure we are testing the same stuff. Which IRQ tests do you pass?</div><br /><br />blargg's cpu interrupts tests, which contains the nmi/brk test.<br /><br />Your brk function looks okay, are you sure that your nmi timing is correct?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>proxy</b> [ Wed Apr 10, 2013 4:09 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: NMI/BRK timing and such</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />heh, no I'm not sure that my NMI timing is correct. But I'm not sure where it could be wrong. Is there any particulars that I should know of besides:<br /><br />1. At cycle 0 if an NMI has been determined to be pending, IR is forced to $00 instead of a normal instruction fetch.<br />2. The NMI process is more or less the same as BRK (except it doesn't increment PC and vectors differently)<br />3. An NMI is pending if at the start of the last cycle of an instruction the NMI line is asserted.<br /><br /><br />Anything I'm missing timing wise?<br /><br />I do pass the CLI latency tests, so I believe that point 3 is done correctly.<br /><br />I currently Pass:<br />IRQ Flag Timing Test by Shay Green (30 Jun 2005) (PD).nes<br />IRQ Handler Test by Shay Green (30 Jun 2005) (PD).nes<br />IRQ Flag Operation Test by Shay Green (30 Jun 2005) (PD).nes<br /><br /> I fail:<br />NMI Suppression Timing Test by Shay Green (6 Nov 2005) (PD).nes (#3)<br />Disable NMI Timing Test by Shay Green (6 Nov 2005) (PD).nes (#2)<br />NMI Timing Test by Shay Green (6 Nov 2005) (PD).nes (#3)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>beannaich</b> [ Wed Apr 10, 2013 4:49 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: NMI/BRK timing and such</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Until your NMI timing is right I wouldn't expect to pass the BRK/NMI test.<br /><br />NOTE: The following is conjecture, but seems to go along with observations.<br /><br />All interrupts use the same logic, with a few differences depending on the type of interrupt. For example RST forces /RW high during the pushes (This is why SP is decremented by 3, but nothing is written to the stack, and also why the i flag is set on resets). I believe the decision for which vector to use isn't made until after the return address and flags are pushed, which is why NMI can beat an IRQ or BRK. There are 4 actions that can trigger this logic, IRQ, NMI, RST, and a BRK (Software interrupt) instruction. The logic doesn't increment the PC, so there is some difference between IRQ/NMI/RST and BRK as far as that is concerned. So I suppose a &quot;universal&quot; interrupt service routine logic could look something like this (pseudocode):<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">void isr(bool brk = false)<br />{<br />&nbsp; &nbsp; // 2 wait states would be consumed by BRK opcode, so the caller of this function for NMI/IRQ/RST would have to do the same before calling<br />&nbsp; &nbsp; rw = rst ? 1 : 0;<br /><br />&nbsp; &nbsp; put_addr_on_bus( ( sp-- ) | 0x100 );<br />&nbsp; &nbsp; put_data_on_bus( pch ); // not sure if the real hardware has this data on the bus with RW set to 1, just makes for cleaner code.<br />&nbsp; &nbsp; put_addr_on_bus( ( sp-- ) | 0x100 );<br />&nbsp; &nbsp; put_data_on_bus( pcl );<br />&nbsp; &nbsp; put_addr_on_bus( ( sp-- ) | 0x100 );<br />&nbsp; &nbsp; put_data_on_bus( sr | ( brk ? 0x10 : 0x00 ) );<br /><br />&nbsp; &nbsp; sr.i = true; // not sure whether i gets set on nmi or not<br /><br />&nbsp; &nbsp; u16_t vector = rst ? 0xFFFC : nmi ? 0xFFFA : 0xFFFE; // simulate vector priority<br />&nbsp; &nbsp; rst = false;<br />&nbsp; &nbsp; nmi = false;<br />&nbsp; &nbsp; irq = false; // for devices with persistent logic, IRQ will be held high until acknowledged, this is partly why the i flag matters :)<br /><br />&nbsp; &nbsp; rw = 1; // read<br /><br />&nbsp; &nbsp; put_addr_on_bus( vector + 0 );<br />&nbsp; &nbsp; pcl = get_data_from_bus( );<br />&nbsp; &nbsp; put_addr_on_bus( vector + 1 );<br />&nbsp; &nbsp; pch = get_data_from_bus( );<br />}</div><br /><br />That SHOULD emulate all the quirks observed in the IRQ logic as long as you do the polling correctly on the last cycle. BRK would just do opcode fetch, data fetch, then call that as &quot;isr( true );&quot;, your actual interrupt check would do two reads from the PC before calling the above as &quot;isr( );&quot;. If anyone has any problems with what I just said, please let me know <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ulfalizer</b> [ Wed Apr 10, 2013 9:14 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: NMI/BRK timing and such</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I did some tracing in Visual 6502. With a CLI+BRK, asserting NMI (which is active low btw) within the interval denoted by &quot;----&quot; below causes the BRK to be missed (each [] is a CPU tick):<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp; &nbsp;--------------------<br />&#91;CLI&#93;&#91;CLI&#93;&#91;BRK&#93;&#91;BRK&#93;&#91;BRK&#93;&#91;BRK&#93;&#91;BRK&#93;&#91;BRK&#93;&#91;BRK&#93;</div><br /><br />When the BRK is missed, you also get a weird mix of NMI and BRK that's exactly like a BRK only it branches to the NMI vector instead. Here's a tick-by-tick breakdown of BRK from <!-- m --><a class="postlink" href="http://nesdev.com/6502_cpu.txt">http://nesdev.com/6502_cpu.txt</a><!-- m --> along with what seems to be going on:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp;#&nbsp; address R/W description<br />--- ------- --- -----------------------------------------------<br />&nbsp;1&nbsp; &nbsp; PC&nbsp; &nbsp; &nbsp;R&nbsp; fetch opcode, increment PC<br />&nbsp;2&nbsp; &nbsp; PC&nbsp; &nbsp; &nbsp;R&nbsp; read next instruction byte (and throw it away),<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; increment PC<br />&nbsp;3&nbsp; $0100,S&nbsp; W&nbsp; push PCH on stack, decrement S<br />*** At this point, the signal status is queried to determine which interrupt vector to use ***<br />&nbsp;4&nbsp; $0100,S&nbsp; W&nbsp; push PCL on stack, decrement S<br />&nbsp;5&nbsp; $0100,S&nbsp; W&nbsp; push P on stack (with B flag set), decrement S<br />&nbsp;6&nbsp; &nbsp;$FFFE&nbsp; &nbsp;R&nbsp; fetch PCL<br />&nbsp;7&nbsp; &nbsp;$FFFF&nbsp; &nbsp;R&nbsp; fetch PCH</div><br /><br />The BRK-specific behavior (incrementing of PC and pushing B -- NMI doesn't do that) seems to be triggered when NMI occurs within the interval above.<br /><em><br />Is this information available anywhere on the wiki btw?</em>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ulfalizer</b> [ Wed Apr 10, 2013 9:19 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: NMI/BRK timing and such</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />To clarify, the BRK isn't really &quot;skipped&quot; - it's just hijacked by the NMI so that it uses the NMI interrupt vector instead of the BRK one.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Wed Apr 10, 2013 9:30 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: NMI/BRK timing and such</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Just for another verification: Are you saying that it begins execution at the NMI vector, but in the flags pushed on the stack, the B bit is set?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ulfalizer</b> [ Wed Apr 10, 2013 9:34 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: NMI/BRK timing and such</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">lidnariq wrote:</div><div class="quotecontent">Just for another verification: Are you saying that it begins execution at the NMI vector, but in the flags pushed on the stack, the B bit is set?</div><br /><br />Yup - the BRKy behavior extends to the point where it pushes with the B bit set even though it branches to the NMI vector.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ulfalizer</b> [ Wed Apr 10, 2013 9:50 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: NMI/BRK timing and such</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I experimented with some slower instructions before the BRK, and the condition for getting the glitchy behavior seems to be that NMI is asserted at or after the last tick of the previous instructions (or put another way, at or after the BRK opcode is fetched).<br /><br />With LDX zero,y, which takes 4 cycles, you get this interval for example:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ---------------------------<br />&#91;LDX zero,y&#93;&#91;LDX zero,y&#93;&#91;LDX zero,y&#93;&#91;LDX zero,y&#93;&#91;BRK&#93;&#91;BRK&#93;&#91;BRK&#93;&#91;BRK&#93;&#91;BRK&#93;&#91;BRK&#93;&#91;BRK&#93;<br /></div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>beannaich</b> [ Wed Apr 10, 2013 10:00 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: NMI/BRK timing and such</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />It may be more accurate to say the the flags are polled in each cycle except for the last cycle due to the 2-stage pipeline the CPU has.<br /><br />Example:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">and #$nn takes &#91;b&#93;3&#91;/b&#93; cycles<br />1. opcode fetch<br />2. data fetch<br />3. perform and<br /></div><br /><br />While cycle 3 is occurring, the next instruction is being fetched, since the accumulator will never be important during that cycle. Now imagine that the cpu was allowed to be interrupted during that opcode fetch (AND's last cycle), and an interrupt indeed occurred. The PC would now no longer point to the next opcode (unless you got lucky and it was an implied instruction, but even then it'd be skipped outright). So the CPU doesn't allow interrupts to occur during that cycle. Instead if an interrupt was detected in the first 2 cycles (Or for ease of emulating, the cycle before the last), it forces the instruction register to 0, inhibits pc increments and executes a BRK instruction (The reason for the 2 reads at the beginning of the ISR i noted earlier). <img src="./images/smilies/icon_biggrin.gif" alt=":D" title="Very Happy" /><br /><br />edit: typos
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Wed Apr 10, 2013 10:35 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: NMI/BRK timing and such</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I'm pretty sure there's a test ROM for this hijacking behavior as well, in case you want to emulate it properly.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ulfalizer</b> [ Wed Apr 10, 2013 10:46 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: NMI/BRK timing and such</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">blargg wrote:</div><div class="quotecontent">I'm pretty sure there's a test ROM for this hijacking behavior as well, in case you want to emulate it properly.</div><br /><br />Would be nice to have on the wiki too, in case it isn't already there and I'm not blind. I'm assuming NMI can hijack IRQ in a similar way too, and that IRQ can hijack BRK (though it wouldn't be as visible since they use the same interrupt vector. Might cause you to &quot;miss&quot; the IRQ perhaps...).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Wed Apr 10, 2013 10:56 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: NMI/BRK timing and such</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">I'm assuming NMI can hijack IRQ in a similar way too, and that IRQ can hijack BRK (though it wouldn't be as visible since they use the same interrupt vector. Might cause you to &quot;miss&quot; the IRQ perhaps...).</div><br />Wouldn't matter with BRK and IRQ, since BRK hijacking IRQ would just mean that it would just delay the real IRQ vectoring until the BRK returned. IRQ hijacking BRK would be nasty, since it would be as if the CPU skipped the BRK. I believe this is what happens, though looks like ROM doesn't test it.<br /><br /><a href="http://wiki.nesdev.com/w/index.php/Emulator_tests#CPU" class="postlink">cpu_interrupts_v2</a><br /><br />It even checks an NMI occurring during each cycle of an IRQ. And even checks the interrupt-delaying effect of the last cycle of a taken branch. Crazy.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>3</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

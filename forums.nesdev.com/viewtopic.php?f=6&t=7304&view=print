@@ -1,0 +1,564 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - NSF 2.0 Featureset</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">NSF 2.0 Featureset</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=6&amp;t=7304">http://forums.nesdev.com/viewtopic.php?f=6&amp;t=7304</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>3</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>kevtris</b> [ Wed Dec 22, 2010 8:41 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>NSF 2.0 Featureset</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />ack.  it ate my formatting!  edited.
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">Well, I was talking with gil_ on IRC and we were discussing how a potential NSF 2.0 would be approached.<br /><br />The goals are:<br /><br />* IRQ supprt<br />* &quot;no return&quot; init addresses<br />* information block<br /><br /><br />For IRQ support, I figured allowing the use of frame IRQs and DPCM IRQs just like on the NES, and then a 16 bit IRQ timer which would be connected to the CPU in the usual way &#40;via its IRQ input&#41;.<br /><br />This would allow a real NES to play 2.0 NSFs using say a powerpak or similar.<br /><br />So my proposal for IRQ hardware:<br /><br />* a 16 bit IRQ timer that sits at 0x4018-0x401a<br />&nbsp; &nbsp; * 4018 = lower 8 bits of the 16 bit timer reload value<br />&nbsp; &nbsp; * 4019 = upper 8 bits of the 16 bit timer reload value<br />&nbsp; &nbsp; * 401a = control register.&nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; * bit 0 - 0 = timer off, reset.&nbsp; 1 = timer is running<br />&nbsp; &nbsp; * all registers are readable and writable.&nbsp; on a real NES, these<br />&nbsp; &nbsp; &nbsp; &nbsp;addresses are fully readable/writable to the cartridge.<br /><br />* allowing the use of DPCM and frame IRQs.&nbsp; <br />&nbsp; &nbsp; * these will work like on a real NES. you MUST write to 0x4017<br />&nbsp; &nbsp; &nbsp; &nbsp;to enable the external &#40;timer&#41; IRQ, and to reset the frame IRQ,<br />&nbsp; &nbsp; &nbsp; just like a regular NES.<br /><br />* IRQ vector.<br />&nbsp; &nbsp; * write the vector to FFFE and FFFF.&nbsp; These two locations hold the <br />&nbsp; &nbsp; &nbsp; &nbsp;IRQ vector like usual, but are writable.&nbsp; When read by&nbsp; the CPU,<br />&nbsp; &nbsp; &nbsp; &nbsp;these two locations must return the two bytes written there.<br />&nbsp; &nbsp; * when written, you DO NOT write to the underlying NSF data bank.<br />&nbsp; &nbsp; * in effect, FFFE/FFFF become two bytes of RAM which are separate<br />&nbsp; &nbsp; &nbsp; from the rest of NSF space.<br /><br />And the proposal for no return on the init address:<br /><br />&nbsp; &nbsp; * Allow for the init address to never return. <br /><br />&nbsp; &nbsp; this basically means:<br />&nbsp; &nbsp; * init becomes the reset vector <br />&nbsp; &nbsp; * play becomes the NMI vector<br />&nbsp; &nbsp; * and IRQ has its vector at FFFE/FFFF<br /><br /><br /><br /><br /><br />Proposed header changes:<br /><br /><br />0005&nbsp; &nbsp; 1&nbsp; &nbsp;BYTE&nbsp; &nbsp; Version number &#40;currently 01h&#41;<br /><br />this will be bumped to 02h for version 2.0<br /><br /><br />007c&nbsp; &nbsp; 4&nbsp; &nbsp;----&nbsp; &nbsp; 4 extra bytes for expansion &#40;must be 00h&#41;<br /><br />these will be used as follows:<br /><br />007c&nbsp; &nbsp; 1&nbsp; BYTE&nbsp; &nbsp;NSF 2.0 feature enables<br />&nbsp; &nbsp; &nbsp; &nbsp;bit:<br />&nbsp; &nbsp; &nbsp; &nbsp;0&nbsp; &nbsp; - when set, enables the IRQ features. when clear, disables them<br />&nbsp; &nbsp; &nbsp; &nbsp;1&nbsp; &nbsp; - when set, allows for a non-returning init address.<br />&nbsp; &nbsp; &nbsp; &nbsp;2&nbsp; &nbsp; - when set, allows play calling to be disabled<br />&nbsp; &nbsp; &nbsp; &nbsp;3-6 - maintain 0<br />&nbsp; &nbsp; &nbsp; &nbsp;7&nbsp; &nbsp; - an extended info block follows nsf data. &#40;see below&#41;<br /><br />007d&nbsp; &nbsp; 3&nbsp; WORD&nbsp; length of NSF data block, in bytes.&nbsp; LSB first &#40;little endian&#41;<br /><br /><br />Extended data block:<br /><br />&nbsp; &nbsp;* an extended block of data that is optional to include.<br />&nbsp; &nbsp;* it has the following features:<br />&nbsp; &nbsp; &nbsp; &nbsp;* stores a unicode? title up to N characters long<br />&nbsp; &nbsp; &nbsp; &nbsp;* stores the same for copyright, author, and ripper<br />&nbsp; &nbsp; &nbsp; &nbsp;* allow for separate author/copyright/title on each track?<br />&nbsp; &nbsp; &nbsp; &nbsp;* lengths of tracks<br />&nbsp; &nbsp; &nbsp; &nbsp;* any other possible ancillary data?<br />&nbsp; &nbsp;* the reason for placing it at the end, is so that 1.0 players can still<br />&nbsp; &nbsp; &nbsp; use these NSFs.&nbsp; they will append the extra data into NSF space, and <br />&nbsp; &nbsp; &nbsp; it should not affect the playback if it doesn't use any of the other<br />&nbsp; &nbsp; &nbsp; features &#40;IRQs, non-return init addresses&#41;<br />&nbsp; &nbsp; * You MUST still populate the original author/copyright/title strings<br />&nbsp; &nbsp; &nbsp; &nbsp;in the original header for backwards compatibility.<br /><br /><br />So that's basically it.&nbsp; I think it adds all the features that can be added and still function properly on an NES with a powerpak or similar player cartridge.<br /><br />I'm open to suggestions or feedback on it.&nbsp; If people like it, I will formalize it and update the existing NSF document, and modify my FPGA synth to conform to the document for testing.<br /><br /><br /></div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Hamtaro126</b> [ Thu Dec 23, 2010 2:19 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: NSF 2.0 Featureset</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">kevtris wrote:</div><div class="quotecontent">Well, I was talking with gil_ on IRC and we were discussing how a potential NSF 2.0 would be approached.<br /><br />For IRQ support, I figured allowing the use of frame IRQs and DPCM IRQs just like on the NES, and then a 16 bit IRQ timer which would be connected to the CPU in the usual way (via its IRQ input).<br /><br />This would allow a real NES to play 2.0 NSFs using say a powerpak or similar.<br /><br />I think it adds all the features that can be added and still function properly on an NES with a powerpak or similar player cartridge.<br /><br />I'm open to suggestions or feedback on it.  If people like it, I will formalize it and update the existing NSF document, and modify my FPGA synth to conform to the document for testing.</div>
+<br />
+<br />Good idea, I approve of this, Just wait for more to approve,
+<br />
+<br />EDIT: Fixed my formatting too,
+<br />EDIT2: What do I say about my post level - It's Over 300!!!
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Thu Dec 23, 2010 12:44 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: NSF 2.0 Featureset</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">kevtris wrote:</div><div class="quotecontent">* a 16 bit IRQ timer that sits at 0x4018-0x401a</div>Clocked by the standard 1.8MHz (1.6MHz on pal) cpu instruction clock, I assume?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>kevtris</b> [ Thu Dec 23, 2010 3:52 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: NSF 2.0 Featureset</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">lidnariq wrote:</div><div class="quotecontent"><div class="quotetitle">kevtris wrote:</div><div class="quotecontent">* a 16 bit IRQ timer that sits at 0x4018-0x401a</div>Clocked by the standard 1.8MHz (1.6MHz on pal) cpu instruction clock, I assume?</div>
+<br />
+<br />That's correct.  It would decrement at the CPU clock rate, whether it be NTSC or PAL rate (so 1.79MHz or 1.66MHz or so).
+<br />
+<br />The counter is a modulus N counter and has the following behaviour:
+<br />
+<br />When the counter is off (whenever 401a bit 0 is clear) it is constantly being reloaded with the values in 4018/4019, and the counter IRQ flag is cleared.
+<br />
+<br />When the counter is on (401a bit 0 is set), it will decrement once per CPU cycle.  When it hits 0, it is reloaded from 4018/4019, the IRQ flag is set and an IRQ is asserted.
+<br />
+<br />This means an IRQ will be generated every N+1 clock cycles, where N is the value loaded into the counter. (it is N+1 because 0 is counted too).
+<br />
+<br />To clear the IRQ flag, you read 401a.  I should probably put the IRQ flag at bit 7 (read only) to allow easy testing of IRQ source.
+<br />
+<br />Thusly, your code would look something like this to use the IRQ timer:
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent"><br />timervalue:&nbsp; .equ 01fffh&nbsp; &nbsp; &nbsp; &nbsp;;desired # of cpu cycles minus 1<br /><br />starttimer: LDA #000h<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;STA 0401ah&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;;reset and shut off timer in case it was on<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;LDA #&lt;irqvector<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;STA 0fffeh&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;;store interrupt vector low of our handler<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;LDA #&gt;irqvector<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;STA 0ffffh&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ;store interrupt vector high<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;LDA #&lt;timervalue<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;STA 04018h&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;;low byte of timer value<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;LDA #&gt;timervalue<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;STA 04019h&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;;high byte of timer value<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;LDA #0c0h<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;STA 04017h&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;;turn off frame IRQs<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;LDA 04015h&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;;ack any pending DPCM IRQ if, it exists<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;CLI&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;;enable IRQs<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;LDA #01h<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;STA 0401ah&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;;turn the timer on<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;RTS<br /><br />stoptimer: SEI&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ;turn off IRQs<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; LDA #000h<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; STA 0401ah&nbsp; &nbsp; &nbsp; &nbsp; ;turn timer off<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; RTS<br /><br />irqvector:&nbsp; &lt;perform our interrupt code here&gt;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ....<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ....<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; LDA 0401ah&nbsp; &nbsp; &nbsp; &nbsp; ;reading 401a resets IRQ flag<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; RTI&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ;return from interrupt<br /><br /><br />alternatively, if you wish to determine WHAT caused the IRQ &#40;if you're using more than one source&#41; you'd do something like this...<br /><br />irqvector:&nbsp; &nbsp;BIT 0401ah&nbsp; &nbsp; &nbsp; &nbsp; ;bit 7 indicates we have a timer IRQ waiting<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;BPL +<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;JSR timer&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;;if bit 7 was set, call timer subroutine<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;+ BIT 04015h<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;BPL +<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;PHP&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;;save flags if we have DPCM int.<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;JSR dpcm&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;;if bit 7 was set, call DPCM sub<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;PLP<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;+ BVC +<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;JSR frame&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ;bit 6 of 4015 = frame IRQ<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;+ RTI&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ;exit interrupt<br /><br />timer:&nbsp; &nbsp; &nbsp; &nbsp; &lt;do stuff here&gt;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;RTS<br /><br />dpcm:&nbsp; &nbsp; &nbsp; &nbsp; &lt;do stuff here&gt;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;RTS<br /><br />frame:&nbsp; &nbsp; &nbsp; &nbsp; &lt;do stuff here&gt;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; RTS<br /><br />There's a lot of ways to skin this cat, but this is one particular method.&nbsp; The idea is to read the status regs to figure out which source caused the interrupt, then run code to service it, then go back and check the other sources just in case one of them also needs servicing.<br /><br /><br /></div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Lord Nightmare</b> [ Thu Dec 23, 2010 4:03 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Technicality: does it reload when it HITS 0 (on 1-&gt;0 transition, so 0 is only in timer for an irerelevantly small time period before reload) or does it reload on underflow FROM 0 (0-&gt;"-1" transition)?
+<br />
+<br />LN
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>kevtris</b> [ Thu Dec 23, 2010 4:06 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Lord Nightmare wrote:</div><div class="quotecontent">Technicality: does it reload when it HITS 0 (on 1-&gt;0 transition, so 0 is only in timer for an irerelevantly small time period before reload) or does it reload on underflow FROM 0 (0-&gt;"-1" transition)?<br /><br />LN</div>
+<br />
+<br />when it hits 0, the NEXT clock performs a reload.  so, the counter would count like so:
+<br />
+<br />if the reload is 10h...
+<br />
+<br />(reset)
+<br />10
+<br />10
+<br />10
+<br />(counter enabled)
+<br />0f
+<br />0e
+<br />0d
+<br />0c
+<br />...
+<br />02
+<br />01
+<br />00
+<br />10
+<br />0f
+<br />0e
+<br />0d
+<br />0c
+<br />
+<br />when the counter is reloaded, the IRQ flag would be set also.
+<br />
+<br />02  0
+<br />01  0
+<br />00  0
+<br />10  1
+<br />
+<br />the second number being the IRQ flag.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Memblers</b> [ Thu Dec 23, 2010 5:03 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Actually what would be nice in the info field is to follow what MML format does, by having title, composer, and programer (sic) fields for each track.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Dwedit</b> [ Thu Dec 23, 2010 5:43 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I'd like to see individual track information saved into the file, including an indication of whether a track is a song, jingle or sound effect.  Then with your magical NSF player plugin for winamp, you can enqueue only songs and not sound effects.
+<br />
+<br />Also, maybe an "Initial ram image and sound registers" feature, so you don't need to make your own 6502 code.  It would make it more like SPC files.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>B00daW</b> [ Thu Dec 23, 2010 10:49 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Dwedit is onto something...
+<br />
+<br />Some standardization n the optional info block for players somewhat in the lines of markup language would be pretty useful.  Of course we would want to conserve as much space as possible for hardware players.
+<br />
+<br />Take for example Track info:
+<br />
+<br />(Open by &lt; and close by &gt;)
+<br />
+<br />&lt;AUzan-zan-zawa-veia&gt;AU&lt;CPzan-zan-zawa-veia 2010&gt;CP&lt;TR3dirt hole:145Table jump:505Tfour word:430T&gt;TR
+<br />
+<br />This would decode as the author being "zan-zan-zawa-veia", the copyright being "zan-zan-zawa-veia 2010", and there being 3 tracks, named "dirt hole," "able jump," "four word," and their respective times, last two characters being seconds, and two preceding being minutes.  (I doubt that many tracks would be more than an 59 minutes and 59 seconds, right?  Even so, someone may do it just to see if they can.  A byte for hours might be desirable.  It wouldn't be impossible for someone to create a nine hour long 2a0x track with the slowest possible time and refresh, but then they are just sadistic.  Just thinking ahead...)  At the end of the track length info would be the type of track:  T for track, J for jingle, X for effect, D for stand-alone DPCM data with pointer, and P for stand-alone PCM data with pointer.
+<br />
+<br />&lt;RS(RAM/REG state dump here)&gt;RS
+<br />
+<br />The above information tries to make an attempt at conserving space and allowing for the standard desirable categorization of information.  Moving forward, the markup code for the info block shouldn't need more than 2 characters per attribute.
+<br />
+<br />As for some additional information, it might be nice to know what sound engine is being used in the NSF.  For example: FamiTracker vXXX, PornoTracker vXXX, NerdTracker vXXX, SuperNSF vXXX, it2nsf vXXX, etc...
+<br />
+<br />&lt;SEFamiTracker vXXX&gt;SE
+<br />
+<br />...  I believe this can be expanded to infinity ...and beyond.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Fri Dec 24, 2010 6:16 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Interesting. First I thought "How would you escape : and &gt; characters in titles?" and then I realized that one might choose <a href="http://www.json.org/" class="postlink">JSON</a> instead of an ad hoc markup language, and lengths in seconds instead of minutes and seconds. This is more verbose, but at least less so than XML, and it's self-describing and probably already has a parser in your favorite language.
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&#123;<br />&quot;title&quot;:&quot;didder&quot;,&quot;engine&quot;:&quot;FamiTracker vXXX&quot;,<br />&quot;author&quot;:&quot;zan-zan-zawa-veia&quot;,&quot;copr&quot;:&quot;zan-zan-zawa-veia 2010&quot;,<br />&quot;tracks&quot;:&#91;<br />&nbsp; &#123;&quot;n&quot;:&quot;dirt hole&quot;,&quot;t&quot;:105,&quot;d&quot;:&quot;bgm&quot;&#125;,<br />&nbsp; &#123;&quot;n&quot;:&quot;able jump&quot;,&quot;t&quot;:305,&quot;d&quot;:&quot;bgm&quot;&#125;,<br />&nbsp; &#123;&quot;n&quot;:&quot;four word&quot;,&quot;t&quot;:270,&quot;d&quot;:&quot;bgm&quot;&#125;<br />&#93;&#125;</div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>kevtris</b> [ Fri Dec 24, 2010 1:18 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tepples wrote:</div><div class="quotecontent">Interesting. First I thought "How would you escape : and &gt; characters in titles?" and then I realized that one might choose <a href="http://www.json.org/" class="postlink">JSON</a> instead of an ad hoc markup language, and lengths in seconds instead of minutes and seconds. This is more verbose, but at least less so than XML, and it's self-describing and probably already has a parser in your favorite language.<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&#123;<br />&quot;title&quot;:&quot;didder&quot;,&quot;engine&quot;:&quot;FamiTracker vXXX&quot;,<br />&quot;author&quot;:&quot;zan-zan-zawa-veia&quot;,&quot;copr&quot;:&quot;zan-zan-zawa-veia 2010&quot;,<br />&quot;tracks&quot;:&#91;<br />&nbsp; &#123;&quot;n&quot;:&quot;dirt hole&quot;,&quot;t&quot;:105,&quot;d&quot;:&quot;bgm&quot;&#125;,<br />&nbsp; &#123;&quot;n&quot;:&quot;able jump&quot;,&quot;t&quot;:305,&quot;d&quot;:&quot;bgm&quot;&#125;,<br />&nbsp; &#123;&quot;n&quot;:&quot;four word&quot;,&quot;t&quot;:270,&quot;d&quot;:&quot;bgm&quot;&#125;<br />&#93;&#125;</div></div>
+<br />
+<br />
+<br />I was thinking something a lot simpler- this should ideally be readable on an NES and parsing some kind of higher level thing would be a pain to do I think.
+<br />
+<br />my approach would be to have records that contain track # and then information fields... something like this:
+<br />
+<br />record:
+<br />
+<br />
+<br />offset, # of bytes, type, description
+<br />----------------------------------------
+<br />0  1  BYTE   record type
+<br />1  2  WORD record length
+<br />3  1  BYTE   track #
+<br />4  N    ---    record data
+<br />
+<br />Records would be one after another, and a record of 4 00h bytes would signify the end of the data.  
+<br />
+<br />the type would be something like:
+<br />
+<br />0 - last record
+<br />1 - title
+<br />2 - composer
+<br />3 - copyright
+<br />
+<br />etc.
+<br />
+<br />Track # 0ffh could be reserved, and used as a wildcard indicator,
+<br />allowing for things like this:
+<br />
+<br />composer, track 0ffh, jimbob
+<br />title, track 0,  my first song
+<br />title, track 1, my second song
+<br />title, track 2, a song by someone else
+<br />composer, track 2,  billy
+<br />title, track 3, another song
+<br />
+<br />this would populate all the "composer" entries on the tracks which do not have a specific composer (i.e. everything but track 2 in the above example).
+<br />
+<br />This would allow removal of most duplicated material and allow for individual track fields to be populated with different info if required.
+<br />
+<br />Also, it'd be pretty trivial to process this type of data on a real NES or other hardware player.
+<br />
+<br />Possible fields could be (with tentative ID's):
+<br />
+<br />01 Title followed by ASCII or unicode? data.  A max length should be specified.
+<br />02 Composer (Same as above)
+<br />03 Copyright (Same as above)
+<br />04 Ripper (Same as above)
+<br />05 length (in seconds? milliseconds?  NMI counts?)
+<br />06 type (maybe?  i.e. SFX, BGM, title tune, etc)
+<br />07 ancillary data (i.e. compo entry #? "this is a cover of xyz")
+<br />
+<br />Any other fields that would be useful?   As usual, all fields are optional, and you only use the ones you need/want.
+<br />
+<br />This would make it pretty easy to read via a real NES, vs. some feel-good text format.  As such, it'd probably be a decent idea to only allow ASCII in the fields since an NES cannot read unicode too easily.  (Also, a simple converter could be written to "compile" a desired text format into the binary format for stuffing onto the end of the NSF.)
+<br />
+<br />As for a pure text format, I ran into this issue with .SAP files.  I had to write a somewhat annoying complicated parser for these files, because they have a human-generated header with the binary data just appended on.  Because of this, you have to account for all sorts of weird cases;  tabs, spaces, CRLF, LF only, etc.
+<br />
+<br />It's kind of a nightmare to handle in 6502 asm.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>B00daW</b> [ Fri Dec 24, 2010 1:37 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />The Ripper field could be interchangeable for Engine.  Since it's unlikely that the engine will be known if it is ripped from a commercial game.  The engine information would be useful for modern composed NSFs.
+<br />
+<br /><div class="quotetitle">kevtris wrote:</div><div class="quotecontent">01 Title followed by ASCII or unicode? data. A max length should be specified.<br />02 Composer (Same as above)<br />03 Copyright (Same as above)<br /><strong>04 Ripper (Same as above)</strong><br />05 length (in seconds? milliseconds? NMI counts?)<br />06 type (maybe? i.e. SFX, BGM, title tune, etc)<br />07 ancillary data (i.e. compo entry #? "this is a cover of xyz")</div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Fri Dec 24, 2010 4:21 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />If you want the header readable on the NES, then how are you going to handle Unicode UTF-8 character encoding? A player running on an NES would have to include a font covering the whole Unicode BMP including CJK, a layout engine including stacked accents, bidirectional reordering, and contextual glyph replacements, just in case an NSF has Arabic song titles.
+<br />
+<br />"Engine" is known for any game whose music data format has been described on romhacking.net. For example, a lot of Capcom games use substantially the same engine.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>clueless</b> [ Fri Dec 24, 2010 6:23 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Kevtris, your approach seems very similar to how a TIFF image encodes image meta-data in "tiff tags".  I like the idea that the info is easily extracted with 6502/NES software.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>thefox</b> [ Fri Dec 24, 2010 6:48 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">kevtris wrote:</div><div class="quotecontent">As such, it'd probably be a decent idea to only allow ASCII in the fields since an NES cannot read unicode too easily.  (Also, a simple converter could be written to "compile" a desired text format into the binary format for stuffing onto the end of the NSF.)</div><br />Standardizing it as UTF-8 is probably the best choice, since it's backwards compatible with ASCII.<br /><br /><div class="quotetitle">tepples wrote:</div><div class="quotecontent">If you want the header readable on the NES, then how are you going to handle Unicode UTF-8 character encoding? A player running on an NES would have to include a font covering the whole Unicode BMP including CJK, a layout engine including stacked accents, bidirectional reordering, and contextual glyph replacements, just in case an NSF has Arabic song titles.</div>
+<br />Yeah if you really need to nitpick. Most players would be fine with displaying only ASCII characters though and maybe display a message if non-ASCII characters are detected.
+<br />
+<br />I would also go with a binary format for the meta-data.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>3</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

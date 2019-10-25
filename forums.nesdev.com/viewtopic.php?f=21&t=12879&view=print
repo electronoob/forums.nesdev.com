@@ -1,0 +1,270 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Lossless NES-specific video encoding/stream format thoughts</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Lossless NES-specific video encoding/stream format thoughts</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=21&amp;t=12879">http://forums.nesdev.com/viewtopic.php?f=21&amp;t=12879</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Myask</b> [ Mon Jun 08, 2015 9:25 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Lossless NES-specific video encoding/stream format thoughts</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I was <a href="http://forums.nesdev.com/viewtopic.php?f=3&amp;t=12876&amp;p=148886#p148886" class="postlink">musing about this</a> and had a preliminary notion of how to do it, like MIDI (but actually being a compliant IFF)<br /><tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">NES video format<br />extensions: .nvf, .nesv, .nesvideo<br />big-endian &#40;for little-endian long-values begin with &quot;RIFF&quot; instead&#41;<br />[Reminder: AIFF = 4-char chunkname, ULONG chunklength,then chunkdata, except for the FORM chunk which excludes the filetype. Even-length chunks only.]<br /><br />always: &quot;FORM&quot; + ULONG&#40;4B&#41;: bytes in file &#40;excl. this 12&#41; + &quot;NESV&quot;<br />always: &quot;NVhd&quot; [+ ULONG&#40;4B&#41;: bytes in header]<br /> -NTSC? PAL? DEND?<br /> -Mapper? &#40;what kind of sounds&#41;<br /> <br />usually: &quot;NAME&quot; [+len] + string of title. Null terminator unnecessary.<br />&#39;AUTH&#39;   /* chunkID for Author Chunk */<br />&#39;&#40;c&#41; &#39;   /* chunkID for Copyright Chunk */<br />&#39;ANNO&#39;   /* chunkID for Annotation Chunk */<br />&#39;COMT&#39; : comments chunk &#40;standard AIFF&#41;<br />&#39;MARK&#39; : markers chunk &#40;standard AIFF&#41;<br />&#39;ROM &#39; : what rom is it on &#40;for use with? to get CHR?&#41;<br /><br />always: &quot;NViD&quot; [+len] + any number of events, in sequential order.<br />Byte of scanline to execute event &#40;0 = &quot;prerender&quot;, 241+ = postrender&#41;, then bytecode of event, then data.<br />-00 Frame break: VWF # frames to skip &#40;0 = &quot;done for this frame&quot;&#41;<br />-xx &quot;fine&quot;/Mid-line-event: Which pixel specifically to execute the next event, rather than before the scanline.<br /><br />-$20-$27 PPU Register hits &#40;one can, in theory, use only this + framebreaks&#41;<br />--PPUCTRL,PPUMASK,PPUSTATUS,OAMADDR,OAMDATA,PPUSCROLL,PPUADDR,PPUDATA<br />--then databyte<br />--$28: PPU_SCROLL_WHOLE: both bytes<br />--$29: PPU_ADDR_WHOLE: both bytes<br />-$40-$57 APU/I/O register hits<br />--$58: DMC_WHOLE: the waveform itself, rather than pointer/length<br />--$59: OAMDMA_WHOLE: then whole OAM contents, rather than the byte of address to copy from<br />-xx Palette change &#40;whole palette? redundant with...&#41;<br />-xx PPURAM data block &#40;incl. PT, NT, AT&#41;<br />--address to start at &#40;2 byte&#41;, length of block &#40;2 byte&#41;, then data.<br />-xx Fine palette block<br />--NT address of tile to start at, number of tiles to hit, then each&#39;s palette, four to a byte<br />[actual ExGrafx-style would require including the whole of CHR/referring to the proper ROM- which is probably desirable space-wise, rather than just acting like there&#39;s RAM and overwriting to emulate a bankswitch]</tt><br /><br />As the original notion was also about streaming, the events could also be sent as a stream (again, MIDI-style) (scanline-positions, frame-terminators would still be present, but would be less likely to include more frames of inactivity).<br /><br />Thoughts/revisions/suggestions welcome.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Mon Jun 08, 2015 9:39 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Lossless NES-specific video encoding/stream format thoug</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Well, the existing method is just ROM + starting savestate + input stream, which works pretty well for a lot of purposes, and has relatively compact data.<br /><br />If you want to make a movie-maker application for people to create an NES video, and then export it to a ROM or something like that, I figure the format of your file should be based around the technical needs of that tool and compiled ROM, not some general idea of everything the NES can do. This is approach is a little bit inside-out for that, I think.<br /><br />What other applications are you thinking of? What's the intended use of this file format?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Mon Jun 08, 2015 10:01 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Lossless NES-specific video encoding/stream format thoug</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">rainwarrior wrote:</div><div class="quotecontent">Well, the existing method is just ROM</div><br />Video game publishers are historically more likely to use copyright to shut down a stream that begins with a ROM file than a stream that contains only video. <br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">What other applications are you thinking of? What's the intended use of this file format?</div><br />Based on <a href="http://forums.nesdev.com/viewtopic.php?p=148882#p148882" class="postlink">the previous topic</a>, I think it's to stream video to the public.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Myask</b> [ Mon Jun 08, 2015 10:53 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Lossless NES-specific video encoding/stream format thoug</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />(TASvideos, formerly NESvideos, could also have a use for it in encodes of NES games, as might speedrunners...or just people who want to make demos or mockups?) It could also just be for encoding NES screenshots, even, as that would be a single frame, though I doubt there'd be much if any advantage over existing image formats. (Note to self: add compression option of some form)<br /><br /><div class="quotetitle">rainwarrior wrote:</div><div class="quotecontent">If you want to make a movie-maker application for people to create an NES video, and then export it to a ROM or something like that, I figure the format of your file should be based around the technical needs of that tool and compiled ROM, not some general idea of everything the NES can do. This is approach is a little bit inside-out for that, I think.</div>That's because it's more about capturing video from a played ROM (like NSF is for audio) and encoding it in a way that reduces/removes desynch from the equation without removing any of the video data. Obviously not every event is compatible with export-to-ROM, and one could in theory make a mapper that supports a lot of it, arguably all of what commercial games did.<br /><br />Strictly speaking, one could do with just...PPUScroll, PPUMask, PPUCtrl, PPURAM-block, and OAM_Whole (and audio) events, with frame delineation. (It allows for iframes or delta just fine.) <br /><br />The problem mentioned <a href="http://forums.nesdev.com/viewtopic.php?f=3&amp;t=12876#p148890" class="postlink">here</a> about having to develop a new client-side thing would be sidestepped, as one would basically be making a pseudo-mapper (again à la NSF) though strictly-speaking the file format can do things the NES can't (really, just a full-palette change in one pixel). As long as an emulator renders by-scanline, it's basically a scanline-interrupt (possibly pixel-interrupt, though I can't actually think of any legitimate, desirable effects that require it, except maybe MMC2-style bankswitch) mapper with cart-side always-accessible nametables, dense paletting, and expansion audios in the truly-general case. (A very smart mapper wouldn't need to bother running much at all through the CPU except for palettes, OAM, 2A03 audio...but that's a slightly different <strong>pie-in-the-sky</strong>)<br /><br /><span style="font-size: 80%; line-height: normal">(Now why did I calculate that a feeder mapper could do 4963 straight register writes per NTSC frame...?)LDA #xx STA $yyyy, obviously you'd only need two bytes per write as there aren't so many registers...one could just point the NMI vector at the start of the 32k, do 4963 writes, and some NOPs to last until the NMI hits again, with some room for init routine...</span>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Mon Jun 08, 2015 11:58 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Lossless NES-specific video encoding/stream format thoug</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />TASvideos actually takes a lot of submissions in the existing compact form of savestate + input stream (and you find the ROM yourself, obviously). If copyright is a concern, obviously storing the CHR data is going to be a sticky problem, which this existing method already works around.<br /><br /><br />If you're trying to facilitate high quality streaming with low bandwidth, a different approach might be to try to implement a lossless RGB video codec directed toward emulated games in general (not just NES). Something like <a href="http://lags.leetcode.net/codec.html" class="postlink">Lagarith</a>, but with features like multiple planes/layers and indexed colours w/palette. It could be integrated with emulators for efficient encoding, and an available codec could make it easy to add support from streaming services. Or even just an NES codec if that's the approach you'd rather take, but I think you could get a lot more versatile by getting away from the specifics of NES.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Myask</b> [ Mon Jun 08, 2015 12:29 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Lossless NES-specific video encoding/stream format thoug</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I know input-files [+ROM-identity] is how the submissions work at TASvideos, because it makes for easy verifiability.<br /><br />[size]Savestate-starts are generally banned at TASvideos. Did you mean save-data for the relatively-rare from-save plays, such as for when a mode isn't available on first-play?[/size]<br /><br />This would be worthless as <em>submissions</em> because it could be easily &quot;cheated&quot;/done in a way that the game can't (or has nothing to do with a game! Video game hoaxes made easy!) It would be more for encodes as a possibility, though I suppose it would be an odd intermediate...<br /><br /><span style="font-size: 75%; line-height: normal">I was kind of disappointed back when I learned how NSFs work.</span><br /><br />(/tangent)<br /><br />I suppose including the CHR data proper is in that &quot;Hmm, copyright?&quot;, but at some level it's going to be there anyway in a video, less unused tiles, unless one goes the &quot;oh and get the ROM too&quot; way...
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Mon Jun 08, 2015 12:49 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Lossless NES-specific video encoding/stream format thoug</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />&lt;tangent&gt;<div class="quotetitle">Myask wrote:</div><div class="quotecontent">I was kind of disappointed back when I learned how NSFs work.<br /></div>As opposed to, what, a more MIDI-like format like VGMs?<br /><br />There's a fairly well established tradition of using &quot;strip out the non-music code&quot; for chiptune formats: SID, SNDH, AY, &amp;c &amp;c.<br /><div class="quotetitle"><a href="http://www.worldofspectrum.org/projectay/gdmusic.htm" class="postlink">Project AY</a> wrote:</div><div class="quotecontent">The main benefits of the AY file format (when compared to logged file formats, for example) are as follows:<br /><ul><li>Multiple tunes can be stored in a single AY file.</li><li>The original Z80 code remains completely intact meaning that unused tunes can be played, as can samples.</li><li>AY files are small - 8KB per file on average.</li><li>Perfect tune looping is maintained where tunes are programmed to loop.</li><li>AY files can be loaded back into an original Spectrum/CPC computer.</li></ul></div>&lt;/tangent&gt;
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Mon Jun 08, 2015 2:09 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Lossless NES-specific video encoding/stream format thoug</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Myask wrote:</div><div class="quotecontent">Savestate-starts are generally banned at TASvideos. Did you mean...</div><br />I was referring to the FCEUX movie file format used, which can include savestates as well as the input stream, and some other miscellaneous bits. Whether or not TASvideos would allow a savestate seems unimportant to this discussion. My point was this format is established and used already by them and others, and it works very well for the purpose of delivering low-bandwidth perfect-quality NES video.<br /><br />(It's just not very good for integration into existing streaming forms, or for people who don't want to hunt down ROMs, etc.)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

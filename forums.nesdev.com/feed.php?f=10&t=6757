@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=10&amp;t=6757" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2010-08-07T11:52:06-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=10&amp;t=6757</id>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2010-08-07T06:46:22-07:00</updated>
+<published>2010-08-07T06:46:22-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6757&amp;p=65618#p65618</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6757&amp;p=65618#p65618"/>
+<title type="html"><![CDATA[Random Number Generation?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6757&amp;p=65618#p65618"><![CDATA[
+Or in C:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">unsigned char rand80&#40;&#41; &#123;<br />  unsigned char raw;<br />  do &#123;<br />    raw = random_256&#40;&#41;;<br />  &#125; while &#40;raw &gt;= 240&#41;;<br />  return raw % 80;<br />&#125;</div><br /><div class="quotetitle">blargg wrote:</div><div class="quotecontent"><br />If random_256 is a simple 8-bit LFSR, this routine will always terminate<br /></div><br />In a video game or a real-time demo, you want the RNG to terminate within a guaranteed amount of cycles so that you don't overflow frame time. In this case, I'd recommend something similar to possession arrow logic for cases where the base RNG returns 240-255: increment a counter by 16 (mod 80) and then combine that with the low bits of the remainder. Or 3 bits for Y and 3 bits plus an LRU unit for X.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Sat Aug 07, 2010 6:46 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[blargg]]></name></author>
+<updated>2010-08-07T04:46:58-07:00</updated>
+<published>2010-08-07T04:46:58-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6757&amp;p=65615#p65615</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6757&amp;p=65615#p65615"/>
+<title type="html"><![CDATA[Random Number Generation?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6757&amp;p=65615#p65615"><![CDATA[
+Here's one I came up with for use to generate a random value between 0-79, with uniform distribution (for use in Litewall, which has a 10x8 grid it wants to generate random coordinates into):<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">random_80:<br />@retry:<br />    jsr random_256 ; A = random 8-bit value<br />    sec<br />    sbc #80<br />    bcc @done<br />    sbc #80<br />    bcc @done<br />    sbc #80<br />    bcs @retry<br />@done:<br />    adc #80<br />    rts</div><br />It divides by 80 and takes the modulus. This takes care of the first 240 values, leaving 16 extra. In that case, it gets a new random value and tries again. The probability of retrying the first time is 16 in 256, or 1 in 16. The probability of it retrying two times in a row is 1 in 16*16 = 1 in 256, and so on. This means that on average, it takes only slightly longer than random_256, but worst-case, it could take forever, assuming random_256 has an infinite period. If random_256 is a simple 8-bit LFSR, this routine will always terminate, since random_256 would then generate each value every 256 calls.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=17">blargg</a> — Sat Aug 07, 2010 4:46 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[bogax]]></name></author>
+<updated>2010-08-07T11:52:06-07:00</updated>
+<published>2010-08-07T02:25:21-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6757&amp;p=65613#p65613</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6757&amp;p=65613#p65613"/>
+<title type="html"><![CDATA[Random Number Generation?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6757&amp;p=65613#p65613"><![CDATA[
+This question comes up a lot, so I've thought about it some.<br /> I'm not sure I'm analyzing it correctly (and I haven't actually<br /> tested it so take this with agrain of salt <img src="http://forums.nesdev.com/images/smilies/icon_wink.gif" alt=";)" title="Wink" /> )<br /><br /> My thought is to take a random number MOD your range and then<br /> accumulate and hope that the bias accumulates and distributes<br /> itself over the range. (or the bias ends up "diluted" in the<br /> accumulation, depending on how you look at it)<br /><br /> Choose a range of random numbers that's easy to MOD to your target<br /> range.<br /><br /> So eg if you random number generator returns numbers 0-FF,  <br /> and you want random numbers in the range 0-1B mask off the lower<br /> five bits (the next higher power of two, and if you start with<br /> a range that's a power of two and MOD for a range thats a power<br /> of two that shouldn't introduce any bias)<br /> <br /> MOD that to your target range<br /><br /> Add it to your random number accumulator<br /><br /> MOD that to your target range.<br /><br /> something like this:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent"> ; return a number in the range 0-1B <br /> ; start with a random number 0-FF in a<br /> ; myrand needs to be intialized to be in range<br /><br /> ; MOD to an easier power of two<br /> and #$1F           ; the assumption is if a is random in a range<br />                    ; that's a power of two this result should be random<br /><br /> ; MOD that to the target range<br /> cmp #$1C<br /> bcs ACCUMULATE <br /> sbc #$1B           ; biased to account for carry clear <br /><br />ACCUMULATE<br /> clc<br /> adc myrand<br /><br /> ; MOD to the target range<br /> cmp #$1C<br /> bcs SAVE_MYRAND <br /> sbc #$1B           ; biased to account for carry clear <br /><br />SAVE_MYRAND<br /> sta myrand<br /> rts</div><br /><br />Edit:<br /><br /> I forgot to mention you could use the next lesser power of two<br /> to start and save some MODing.<br /><br /> My gut says that the larger the range you start with the better<br /> off you'll be distribution wise.<br /> So it becomes something of a trade off between the size of the range<br /> and the effort spent doing the MOD.<br /><br /> I'd guess that using the next lesser power of two probably<br /> wouldn't make a lot of difference especially if it's close to <br /> your target range.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3594">bogax</a> — Sat Aug 07, 2010 2:25 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[neilbaldwin]]></name></author>
+<updated>2010-08-07T00:51:49-07:00</updated>
+<published>2010-08-07T00:51:49-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6757&amp;p=65611#p65611</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6757&amp;p=65611#p65611"/>
+<title type="html"><![CDATA[Random Number Generation?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6757&amp;p=65611#p65611"><![CDATA[
+@Tetris randomiser : just ace! I wish I could think like that <img src="http://forums.nesdev.com/images/smilies/icon_biggrin.gif" alt=":D" title="Very Happy" /><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3896">neilbaldwin</a> — Sat Aug 07, 2010 12:51 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2010-08-06T18:26:47-07:00</updated>
+<published>2010-08-06T18:26:47-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6757&amp;p=65607#p65607</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6757&amp;p=65607#p65607"/>
+<title type="html"><![CDATA[Random Number Generation?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6757&amp;p=65607#p65607"><![CDATA[
+<div class="quotetitle">Kasumi wrote:</div><div class="quotecontent"><br />Seven pieces. He used 3 bits. Seven of the possibilities deal the piece it corresponds to. (1= I, 2 = O, etc.) When the eighth possibility comes up he increments (or decrements) and wraps around a variable and deals the piece that corresponds to the current value of the variable.<br /></div><br />I used this method, which I called "possession arrow", to simulate a uniform randomizer in versions of LJ65 (then called tetramino) prior to 0.33. In that version, I switched to the LRU system to reduce repetition, following Arika's TGM games that use a conceptually similar system.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Fri Aug 06, 2010 6:26 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Kasumi]]></name></author>
+<updated>2010-08-06T17:33:19-07:00</updated>
+<published>2010-08-06T17:33:19-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6757&amp;p=65604#p65604</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6757&amp;p=65604#p65604"/>
+<title type="html"><![CDATA[Random Number Generation?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6757&amp;p=65604#p65604"><![CDATA[
+Edit: Somewhat ninja'd by Tepples.<br /><br /><div class="quotetitle">blargg wrote:</div><div class="quotecontent"><br />Kasumi, that only works if you need a range that's a power of 2. It's more involved if you need another range, especially if it needs to be uniformly distributed. Maybe you can adjust your algorithm so that it works for values in a power-of-2 range.<br /></div><br /><br />True, but he did specifically ask for something that would give him 16 different values.<br /><br />If you want something that gives you a different range you could try the method Tepples uses for his Tetris randomizer which I think is pretty clever. (At least, I think. I haven't checked the source code, but he described it this way once, I believe)<br /><br />Seven pieces. He used 3 bits. Seven of the possibilities deal the piece it corresponds to. (1= I, 2 = O, etc.) When the eighth possibility comes up he increments (or decrements) and wraps around a variable and deals the piece that corresponds to the current value of the variable.<br /><br />Something like this:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">Randseven:This routine will end with a random number 0-6 in the accumulator<br /><br /> jsr randomgen<br /> and #%00000111<br /> cmp #$07<br /> bcc endrandseven<br /><br /> dec incvalue<br /> bpl randseven.nowrap<br /> lda #$06<br /> sta incvalue<br />randseven.nowrap:<br /><br />  lda incvalue<br />  <br />endrandseven:<br />  rts</div><br /><br />This could work even if say one needed 12 values out of 16. Just change the and to add another bit as 1, and change the cmp. The downside is that if you get multiple numbers greater than or equal to the cmp value in a row, they'll be decremented by one which isn't very random. But I'd probably cut my losses at that point. To combat this you could use a variable for each of the extra numbers, or I could try to design something else.<br /><br />edit: or you could use a queue as described by Tepples above.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3504">Kasumi</a> — Fri Aug 06, 2010 5:33 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2010-08-06T17:20:36-07:00</updated>
+<published>2010-08-06T17:20:36-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6757&amp;p=65602#p65602</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6757&amp;p=65602#p65602"/>
+<title type="html"><![CDATA[Random Number Generation?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6757&amp;p=65602#p65602"><![CDATA[
+One thing you can do, and which is done in four projects of mine (LJ65 for NES, FK Convey for PC, Lockjaw for PC/GBA/DS, and something unreleased for NES), is feed the power-of-two PRNG through a least-recently-used queue. Put the numbers in a queue, select one of the members at the front of the queue at random, and rotate it to the back of the queue. This also avoids generating the same number several times in a row, if your game rules consider repetition to be a problem.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Fri Aug 06, 2010 5:20 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tokumaru]]></name></author>
+<updated>2010-08-06T16:00:19-07:00</updated>
+<published>2010-08-06T16:00:19-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6757&amp;p=65599#p65599</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6757&amp;p=65599#p65599"/>
+<title type="html"><![CDATA[Random Number Generation?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6757&amp;p=65599#p65599"><![CDATA[
+<div class="quotetitle">blargg wrote:</div><div class="quotecontent"><br />Kasumi, that only works if you need a range that's a power of 2. It's more involved if you need another range, especially if it needs to be uniformly distributed.<br /></div><br />So far I never needed uniformly distributed random numbers in a range that wasn't a power of 2, so I just truncate the numbers in the easiest possible way that will make it fit in the range I want.<br /><br />I can't think of a way to uniformly distribute random numbers in arbitrary ranges that doesn't involve at least a multiplication. For a maximum range of 0-255 I'd probably do something like ((upper limit + 1) * 8-bit random number) / 256. The division would be accomplished by simply ignoring the lower bits of the multiplication result. But now that I think of it, it wouldn't be very uniform... because of rounding some numbers would be selected twice...<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=95">tokumaru</a> — Fri Aug 06, 2010 4:00 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tokumaru]]></name></author>
+<updated>2010-08-06T15:44:10-07:00</updated>
+<published>2010-08-06T15:44:10-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6757&amp;p=65598#p65598</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6757&amp;p=65598#p65598"/>
+<title type="html"><![CDATA[Random Number Generation?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6757&amp;p=65598#p65598"><![CDATA[
+<div class="quotetitle">Zsy wrote:</div><div class="quotecontent"><br />Oh, so I can address a hex value as if it were a binary value and it'll work just fine?<br /></div><br />Internally, all computers store numbers in binary. Hex is just a (usually) more convenient way for programmers to visualize that data. But you can still easily manipulate the individual bits. Several 6502 instructions can be used for manipulating bits (AND, ORA, EOR, ROL, ROR, ASL, LSR, and so on). In your ASM code, just like you use "$" to represent hex values you can use "%" to represent binary numbers.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=95">tokumaru</a> — Fri Aug 06, 2010 3:44 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[blargg]]></name></author>
+<updated>2010-08-06T15:41:47-07:00</updated>
+<published>2010-08-06T15:41:47-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6757&amp;p=65597#p65597</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6757&amp;p=65597#p65597"/>
+<title type="html"><![CDATA[Random Number Generation?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6757&amp;p=65597#p65597"><![CDATA[
+Kasumi, that only works if you need a range that's a power of 2. It's more involved if you need another range, especially if it needs to be uniformly distributed. Maybe you can adjust your algorithm so that it works for values in a power-of-2 range.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=17">blargg</a> — Fri Aug 06, 2010 3:41 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Zsy]]></name></author>
+<updated>2010-08-06T15:23:34-07:00</updated>
+<published>2010-08-06T15:23:34-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6757&amp;p=65595#p65595</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6757&amp;p=65595#p65595"/>
+<title type="html"><![CDATA[Random Number Generation?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6757&amp;p=65595#p65595"><![CDATA[
+Oh, so I can address a hex value as if it were a binary value and it'll work just fine?<br /><br />That's what I was hoping, but I thought I might have to convert it first.<br /><br />This is awesome, and makes my life 100 times easier, thanks!<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4485">Zsy</a> — Fri Aug 06, 2010 3:23 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Kasumi]]></name></author>
+<updated>2010-08-06T15:19:54-07:00</updated>
+<published>2010-08-06T15:19:54-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6757&amp;p=65594#p65594</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6757&amp;p=65594#p65594"/>
+<title type="html"><![CDATA[Random Number Generation?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6757&amp;p=65594#p65594"><![CDATA[
+And it.<br /><br />  and #%00000001<br /><br />Will make it 0 or 1. You can then beq or bne depending on the condition.<br /><br />   and #%00001111<br /><br />will make it a number between 0 and 15.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3504">Kasumi</a> — Fri Aug 06, 2010 3:19 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Zsy]]></name></author>
+<updated>2010-08-06T14:33:42-07:00</updated>
+<published>2010-08-06T14:33:42-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6757&amp;p=65588#p65588</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6757&amp;p=65588#p65588"/>
+<title type="html"><![CDATA[Random Number Generation?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6757&amp;p=65588#p65588"><![CDATA[
+Tokumaru's method seems the least processor intensive, but I need to generate numbers within ranges, specifically, I need to generate 16 individual random binary values.  Is there a way to read a single bit of a number stored in hex?<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4485">Zsy</a> — Fri Aug 06, 2010 2:33 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[neilbaldwin]]></name></author>
+<updated>2010-08-06T00:11:16-07:00</updated>
+<published>2010-08-06T00:11:16-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6757&amp;p=65565#p65565</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6757&amp;p=65565#p65565"/>
+<title type="html"><![CDATA[Random Number Generation?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6757&amp;p=65565#p65565"><![CDATA[
+Further to this, any good methods for generating an 8-bit number within a range without doing (too much) multiplication or division (i.e. fast)?<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3896">neilbaldwin</a> — Fri Aug 06, 2010 12:11 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tokumaru]]></name></author>
+<updated>2010-08-05T19:38:51-07:00</updated>
+<published>2010-08-05T19:38:51-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6757&amp;p=65555#p65555</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6757&amp;p=65555#p65555"/>
+<title type="html"><![CDATA[Random Number Generation?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6757&amp;p=65555#p65555"><![CDATA[
+I use a simple, small routine like the one described in <a href="http://codebase64.org/doku.php?id=base:small_fast_8-bit_prng" class="postlink">this page</a>.<br /><br />To increase randomness across frames, I call this routine several times while waiting for the NMI in order to advance a "random" amount of numbers in the sequence.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=95">tokumaru</a> — Thu Aug 05, 2010 7:38 pm</p><hr />
+]]></content>
+</entry>
+</feed>

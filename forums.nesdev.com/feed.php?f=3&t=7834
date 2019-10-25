@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=3&amp;t=7834" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2011-06-09T10:56:42-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=3&amp;t=7834</id>
+<entry>
+<author><name><![CDATA[cpow]]></name></author>
+<updated>2011-06-09T10:56:42-07:00</updated>
+<published>2011-06-09T10:56:42-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=7834&amp;p=79492#p79492</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=7834&amp;p=79492#p79492"/>
+<title type="html"><![CDATA[Error #6 in Ppu Access in Blargg's PPU Test]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=7834&amp;p=79492#p79492"><![CDATA[
+Okay, here's the relevant code for the test you're failing...I annotated with comments.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">; Set VRAM addr to $2f00 + A<br />; Preserved: A, X, Y<br />set_vram_pos:<br />      pha<br />      lda   #$2f<br />      sta   $2006<br />      pla<br />      sta   $2006<br />      rts<br /><br />...<br /><br />      lda   #6;&#41; Palette read should also read VRAM into read buffer<br />      sta   result<br />      lda   #$12<br />      jsr   set_vram_pos    ; sets VRAM address to $2f12<br />      lda   #$9a                <br />      sta   $2007              ; stores $9a at $2f12, increments VRAM address to $2f13<br />      lda   $2007              ; returns VRAM read-buffered data, and reads from $2f13 &#40;which will not contain $9a so you'd know if you read the wrong byte back or didn't do the buffering correctly&#41;<br />      lda   #$3f                ;<br />      sta   $2006              ; <br />      lda   #$12               ;<br />      sta   $2006              ; the above lines set VRAM address to $3f12<br />      lda   $2007       ; fills buffer with VRAM hidden by palette &#40;in this case, $9a from $2f12, because $2000-$2fff are mirrored at $3000-$3fff&#41;<br />      lda   #$13        ; change back to non-palette addr to enable buffer<br />      jsr   set_vram_pos ; set VRAM address to $2f13<br />      lda   $2007            ; read from VRAM, should return $9a which is in the buffer, perform a read from VRAM $2f13, and increment VRAM address<br />      cmp   #$9a<br />      jsr   error_if_ne      ; if you didn't get $9a from that VRAM read you fail.<br /></div><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3705">cpow</a> — Thu Jun 09, 2011 10:56 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Anes]]></name></author>
+<updated>2011-06-09T10:39:49-07:00</updated>
+<published>2011-06-09T10:39:49-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=7834&amp;p=79491#p79491</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=7834&amp;p=79491#p79491"/>
+<title type="html"><![CDATA[Error #6 in Ppu Access in Blargg's PPU Test]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=7834&amp;p=79491#p79491"><![CDATA[
+<div class="codetitle"><b>Code:</b></div><div class="codecontent">read_2007: <br />  previously_buffered = vram_buffer <br />  vram_buffer = read_ppu_memory&#40;address&#41; <br />  if address &gt;= $3F00 <br />    return read_palette&#40;address&#41; <br />  else <br />    return previously_buffered <br /> </div><br /><br />Thanks for your code, but it didn't work for me I dont know why.<br />It's supoussed that the code explain more or less how the buffer works, but i dont get it.<br />Can somebody explain me how the buffer works?<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=72">Anes</a> — Thu Jun 09, 2011 10:39 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Nessie]]></name></author>
+<updated>2011-06-08T17:53:26-07:00</updated>
+<published>2011-06-08T17:53:26-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=7834&amp;p=79461#p79461</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=7834&amp;p=79461#p79461"/>
+<title type="html"><![CDATA[Error #6 in Ppu Access in Blargg's PPU Test]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=7834&amp;p=79461#p79461"><![CDATA[
+Reading $3F00-$3FFF should work just like $3000-$3EFF, i.e. a nametable byte should be put in the VRAM buffer as usual.<br />However, the value that is finally returned to the CPU will not be the what was previously in the VRAM buffer. Instead, it will be a value from the palette.<br /><br />Something like this:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">read_2007:<br />  previously_buffered = vram_buffer<br />  vram_buffer = read_ppu_memory&#40;address&#41;<br />  if address &gt;= $3F00<br />    return read_palette&#40;address&#41;<br />  else<br />    return previously_buffered<br /></div><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=12">Nessie</a> — Wed Jun 08, 2011 5:53 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[cpow]]></name></author>
+<updated>2011-06-08T17:31:57-07:00</updated>
+<published>2011-06-08T17:31:57-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=7834&amp;p=79459#p79459</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=7834&amp;p=79459#p79459"/>
+<title type="html"><![CDATA[Re: Error #6 in Ppu Access in Blargg's PPU Test]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=7834&amp;p=79459#p79459"><![CDATA[
+<div class="quotetitle">Anes wrote:</div><div class="quotecontent"><br />Im asking for help since vram_access.nes throw me error #6.<br />According to blargg doc the error is <br /><br /><strong>"Palette read should also read VRAM into read buffer"</strong><br /><br />Im using a buffer for 2007 reads, but not for Pallete addr read.<br />Can somebody help me?<br /></div><br /><br />Usually a quick peek at the source code for those tests will tell you what the test is expecting to be "truth" and then you should be able to step through your code while executing the test and inspect your variation of "truth".<br /><br />Have you looked at the test source code yet?<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3705">cpow</a> — Wed Jun 08, 2011 5:31 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Anes]]></name></author>
+<updated>2011-06-08T17:24:19-07:00</updated>
+<published>2011-06-08T17:24:19-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=7834&amp;p=79458#p79458</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=7834&amp;p=79458#p79458"/>
+<title type="html"><![CDATA[Error #6 in Ppu Access in Blargg's PPU Test]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=7834&amp;p=79458#p79458"><![CDATA[
+Im asking for help since vram_access.nes throw me error #6.<br />According to blargg doc the error is <br /><br /><strong>"Palette read should also read VRAM into read buffer"</strong><br /><br />Im using a buffer for 2007 reads, but not for Pallete addr read.<br />Can somebody help me?<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=72">Anes</a> — Wed Jun 08, 2011 5:24 pm</p><hr />
+]]></content>
+</entry>
+</feed>

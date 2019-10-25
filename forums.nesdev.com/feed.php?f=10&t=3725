@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=10&amp;t=3725" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2009-07-31T15:54:37-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=10&amp;t=3725</id>
+<entry>
+<author><name><![CDATA[tokumaru]]></name></author>
+<updated>2009-07-31T15:54:37-07:00</updated>
+<published>2009-07-31T15:54:37-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=3725&amp;p=49398#p49398</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=3725&amp;p=49398#p49398"/>
+<title type="html"><![CDATA[Re: A*]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=3725&amp;p=49398#p49398"><![CDATA[
+<div class="quotetitle">tepples wrote:</div><div class="quotecontent"><br />Now we're down to two bytes for a new block: table A, and the information needed to generate tables B, C, and D.<br /></div><br />Why 2 bytes? I think it will often be less. 1 byte is always needed, because we need to define how many colors can follow each color, so 2 bits x 4 colors = 1 byte. After that, it varies depending on whether colors are followed by any other or not, and if the followers will be represented in 1 or 2 bits.<br /><br />Like you cleverly observed, in all modes only one color must be defined and the others (if any) can be discovered based on it.<br /><br /><strong>.1 color follows the original one:</strong> the color in question is specified;<br /><strong>.2 colors follow the original one:</strong> the color that never follows the original one is specified, so the remaining 2 are used (the other doesn't matter, as both will be encoded using the same number of bits, but the encoder and the decoder must agree on an order);<br /><strong>.3 colors follow the original one:</strong> the color that will be encoded with fewer bits is specified, and the remaining 2 are used in whatever other encoder and decoder agreed on (it also doesn't matter because both will be encoded using the same number of bits);<br /><br />It's really great that it's possible to encode the tables in 2 bytes or less. I believe it will very often be less, because there are always only 3 colors to pick from (the original can't be repeated), and one of them can be specified with a single bit.<br /><br />I'm feeling awfully tempted to make an encoder for this. Seeing how compact the tables can be makes me want to see how much better than the original compression this can be.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=95">tokumaru</a> — Fri Jul 31, 2009 3:54 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2009-07-22T15:43:24-07:00</updated>
+<published>2009-07-22T15:43:24-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=3725&amp;p=49122#p49122</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=3725&amp;p=49122#p49122"/>
+<title type="html"><![CDATA[A*]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=3725&amp;p=49122#p49122"><![CDATA[
+I had in mind something more like the <a href="http://en.wikipedia.org/wiki/A%2A_search_algorithm" class="postlink">A* algorithm</a>. After each tile, there are two paths: start a new block here or don't start a new block here. Then g(x) is the number of bits from the tiles encoded so far, and h(x) is an underestimate of the remaining data size, such as 1 bit per remaining pixel.<br /><br />EDIT: I just thought up a new way to encode tables B and C for colors that use mode 2: have the two bits represent the one color that isn't i, B[i], or C[i]. Now we're down to two bytes for a new block: table A, and the information needed to generate tables B, C, and D. The more tightly the codec packs the tables, the less costly starting a new block can be.<br /><br />Mode 0 can only be used for a color that appears exclusively at the right side of a tile. Most often, this would be the background color for a large area. But without large areas of repeated rows or mode 0 pixels, I can't see how this codec could pack a CHR smaller than about 60 percent. Breaking the 50 percent barrier would take some work.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Wed Jul 22, 2009 3:43 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tokumaru]]></name></author>
+<updated>2009-07-22T10:05:07-07:00</updated>
+<published>2009-07-22T10:05:07-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=3725&amp;p=49117#p49117</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=3725&amp;p=49117#p49117"/>
+<title type="html"><![CDATA[Bee52: Crashes depend on CHRRAM data]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=3725&amp;p=49117#p49117"><![CDATA[
+Your understanding of the compression is correct.<br /><br />I can understand how to find the optimum blocks in LZ compression, because the matches have a well defined length (meaning that if you select the longest ones you'll end up with less blocks and better compression), but in Bee 52's compression the blocks can be as long as the whole stream.<br /><br />To me it's a kind of paradox: In order too see how well a group of tiles compresses, you must have the tables ready. However, in order to build the tables you must gather statistics from the group of tiles that will be compressed with them. See? Since you don't know how long the block is you can't build the optimum tables for said block, and without tables you can't verify how many blocks will compress well with it.<br /><br />Also, defining a new set of tables has a cost itself, which should be considered when setting a new boundary.<br /><br />I'm sure there is an answer, because the data is successfully compressed with this scheme, I'm just not seeing it.<br /><br />EDIT: I guess it would make sense to do something like this:<br /><br />1. Try to start a new block at every single tile, with all blocks ending at the last tile, storing the cost of encoding each of these blocks;<br />2. Looking from the last block backwards, select the one with the best compression ratio to be the last block.<br />3. Repeat the process, with the new last tile being the one before the previously selected block;<br />4. After all the best blocks have been selected, output them in the correct order.<br /><br />Did you have something like this in mind, tepples?<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=95">tokumaru</a> — Wed Jul 22, 2009 10:05 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2009-07-22T08:42:27-07:00</updated>
+<published>2009-07-22T08:42:27-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=3725&amp;p=49112#p49112</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=3725&amp;p=49112#p49112"/>
+<title type="html"><![CDATA[Bee52: Crashes depend on CHRRAM data]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=3725&amp;p=49112#p49112"><![CDATA[
+As I understand your description, it's more of a Markov-chain algorithm than anything else.<br /><br />Each color is associated with a mode number in table A, which equals the number of distinct colors that can follow this color on a scanline in this block of tiles. When you compress tiles, you count the number of distinct colors that can appear to the right of this color, disregarding duplicate rows and pixels that are the same. The most common color goes in table B.<br /><br />For each non-repeated row:<br />mode = A[color]<br /><ul><li><strong>mode == 0:</strong> Repeat this color to end of line. </li><li><strong>mode == 1:</strong> Read a bit for each pixel to determine repeat or B:<br />1: color<br />0: B[color] </li><li><strong>mode == 2:</strong> Read a bit to determine repeat or B/C, then possibly another bit to determine B or C.<br />1: color<br />00: B[color]<br />01: C[color] </li><li><strong>mode == 3:</strong> Read a bit to determine repeat or B/C/D, then one or two bits to determine which table.<br />1: color<br />01: B[color]<br />000: C[color]<br />001: D[color] </li></ul><br />But in fact, for mode 3, tables C and D could have been computed from B, where C[i] is the lower-numbered color that isn't i or B[i], and D[i] is the remaining color. That would save 8 bits per block of tiles (no need to store D) but take slightly longer to decode.<br /><br />To determine where to place the block boundaries, you could just punt and use a Pucrunch-style algorithm to represent encoding as a <a href="http://www.cs.tut.fi/~albert/Dev/pucrunch/#Graph" class="postlink">search over the graph</a> of all possible bitstreams for the most efficient path from 0 to the decoded string.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Wed Jul 22, 2009 8:42 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tokumaru]]></name></author>
+<updated>2009-07-22T07:45:45-07:00</updated>
+<published>2009-07-22T07:45:45-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=3725&amp;p=49110#p49110</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=3725&amp;p=49110#p49110"/>
+<title type="html"><![CDATA[Bee52: Crashes depend on CHRRAM data]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=3725&amp;p=49110#p49110"><![CDATA[
+<div class="quotetitle">griever wrote:</div><div class="quotecontent"><br />I have no idea how did you unscramble this mess<br /></div><br />I'm not used to reverse engineering code but I was so curious that I decided to go through with it.<br /><br />I basically rewrote the program several times, each time increasing the level of abstraction. The first time was basically comments to the raw assembly program. From there I replaced longer sequences of code with smaller sentences describing what was done. Then I wrote some indented pseudo-code in order to follow it better. Lastly, I made a schematic of what was done for each bit read, and if finally became clear what sequence of bits would do what. During this process, the function of every variable became clear as well.<br /><br />It was a lot of work, and I can safely say I'm not looking forward to doing anything like this any time soon! =)<br /><br />I'm really curious about how an optimum encoder for this scheme would work though... but I shouldn't think about this too much, or I'll end up trying when I don't really have the time! O_o<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=95">tokumaru</a> — Wed Jul 22, 2009 7:45 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[griever]]></name></author>
+<updated>2009-07-21T23:18:49-07:00</updated>
+<published>2009-07-21T23:18:49-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=3725&amp;p=49108#p49108</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=3725&amp;p=49108#p49108"/>
+<title type="html"><![CDATA[Bee52: Crashes depend on CHRRAM data]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=3725&amp;p=49108#p49108"><![CDATA[
+Ah! This compression scheme already drove me to despair! What a great job, Tokumaru. Thanks a lot and I have no idea how did you unscramble this mess, but that's impressive - need to comment out my graph, I guess.<br />Thanks again!<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3104">griever</a> — Tue Jul 21, 2009 11:18 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tokumaru]]></name></author>
+<updated>2009-07-07T21:21:07-07:00</updated>
+<published>2009-07-07T21:21:07-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=3725&amp;p=48658#p48658</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=3725&amp;p=48658#p48658"/>
+<title type="html"><![CDATA[Bee52: Crashes depend on CHRRAM data]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=3725&amp;p=48658#p48658"><![CDATA[
+<strong>Bump!</strong> For a good reason. I figured the compression out. It was a lot of work, I've been working on it for like, 4 days (with breaks for real life things, of course). It isn't so difficult once you get past all the bit-reading and spaghetti branching and try to describe it in plain text.<br /><br />Here are my notes on the compression format used in tiles in the game "Bee 52" by Codemasters. This game was used during the whole reverse engineering process, but apparently the format is used some of their other games as well. I checked the game "Big Nose Freaks Out" and it appears to contain the exact same decompression logic, it was just assembled to a different location, and the variables are at different locations as well.<br /><br /><strong>[Overview]</strong><br /><br />I don't really know what to call this compression scheme. From a point it looks like it's dictionary-based, because it defines common pixel sequences that can be reused, but it also offers the possibility to deviate from the pre-defined sequences by using variable-length codes (longer codes for values that deviate more), something typical of entropy encoding. So all I can say for sure is that it's a hybrid of some sort, unlike anything I've seen before.<br /><br />The compression scheme is based on pixels (2-bit values) and how likely it is for a color to be followed by another. The compressed stream contains information on how to configure a set of tables that will be used during decompression, until a new set of tables is defined, which can happen before the decompression of any tile. The tables have to be built before any tiles are decompressed, and after that they are reconfigured only when necessary (in theory, it's possible to not set up the tables, but I doubt anyone would decompress several blocks of data using the same statistics).<br /><br />The first byte in the compressed stream is the tile count, which means that a maximum of 256 tiles are allowed per compressed block. The rest of the stream contains only 1-bit and 2-bit values. Following the tile count is a bit that selects between updating the tables (0) or decoding a tile (1).<br /><br /><strong>[Updating Tables]</strong><br /><br />There are 4 tables, which I'll call A, B, C and D, each one is 4 bytes long (because there are 4 possible pixel values). Table A defines what happens after each of the 4 possible pixel values is used (index 0 tells what happens when color 0 is used, index 1 tells what happens when color 1 is used, and so on). Each pixel, after drawn, is used as an index into this table. The possible values for this table are:<br /><br />%00: The color will always be followed by itself. The same pixel will be used until the end of the row.<br />%01: The color is always followed by a single specific color, which will be stored in table B.<br />%10: The color can be followed by 2 other colors, in tables B or C (depends on bit from the stream).<br />%11: The color can be followed by all others, and they may be in tables B, C or D (depends on bit(s) from the stream).<br /><br />Tables B, C and D are used to hold up to 3 colors (depends on the mode selected) that might follow the original one. The colors that follow the original ones are represented differently depending on the original color. The following is a list of the codes of each color depending on the original one:<br /><br />original %00:<br /><br />%01 = %1<br />%10 = %01<br />%11 = %00<br /><br />original %01:<br /><br />%00 = %1<br />%10 = %01<br />%11 = %00<br /><br />original %10:<br /><br />%00 = %1<br />%01 = %01<br />%11 = %00<br /><br />original %11:<br /><br />%00 = %1<br />%01 = %01<br />%10 = %00<br /><br />The tables are updated quite frequently, it seems. The initial tileset (for the Codemasters logo) contains 157 tiles, and the tables are modified 31 times during their decoding. So, in average, each set of tables was used for about 5 tiles. I wonder what criteria an encoder might use to pick the best times to reload the tables.<br /><br /><strong>[Decoding Tiles]</strong><br /><br />The tiles are processed one row at a time. A bit from the stream selects between drawing a new row (0) or using the previous row again. Reusing rows is great for vertical redundancy. Rows are drawn from left to right, and 2 bits are read from the stream in order to draw the first pixel. After this pixel is drawn, it's used as an index into table A. If the code read from the table is %00 (means that the color is always followed by itself), the same pixel will be repeated for the whole row. If it's not %00, a bit from the stream selects between repeating the previous pixel (1) or processing a new one (0). Repeating the previous pixel using a single bit allows for runs of the same color to be represented in about half their size (a single bit per pixel is used instead of 2).<br /><br />Code %01 means that the color in question is always followed by a single specific color (unless the previously mentioned bit causes it to repeat, which always an option no matter the color), to be fetched from table B (using the old pixel as an index). Code %10 means that the color in question can be followed by other 2 colors. A bit from the stream selects between fetching the new pixel from table B (0) or C (1). Code %11 means that the color in question can be followed by any of the other 3 colors. A 1 from the stream means that table B should be used. A 0 followed by another 0 selects table C, while a 0 followed by a 1 selects table C. The conclusion is that a color that is followed by fewer colors will be encoded with fewer bits.<br /><br />The decompressor always checks for the end of the row and for the end of the tile, so that it can decide between continuing to process the current one or starting to process the next one.<br /><br /><strong>[Sample Data]</strong><br /><br />The following is a very simple example of a valid compressed block of tiles. It doesn't use most of the format's features, but serves as way to illustrate a bit better how it works. The following is valid data for drawing 4 plain tiles, one of each color:<br /><br />$04: block contains 4 tiles;<br /><br />0: update decompression tables; <br />00: pixels of color 3 should be repeated for the whole row;<br />00: pixels of color 2 should be repeated for the whole row;<br />00: pixels of color 1 should be repeated for the whole row;<br />00: pixels of color 0 should be repeated for the whole row;<br /><br />0: new row;<br />00: first pixel is color 0;<br />1111111: repeat row 7 times;<br /><br />1: decode tile;<br />0: new row;<br />01: first pixel is color 1;<br />1111111: repeat row 7 times;<br /><br />1: decode tile;<br />0: new row;<br />10: first pixel is color 2;<br />1111111: repeat row 7 times;<br /><br />1: decode tile;<br />0: new row;<br />11: first pixel is color 3;<br />1111111: repeat row 7 times;<br /><br />Here are the bytes that are formed by the bits above, in case anyone wants to try it out for themselves (you can patch the game replacing original data with this or simply put this somewhere in RAM and have the game decompress it from there):<br /><br />$04<br />%00000000 ;$00<br />%00001111 ;$0F<br />%11110011 ;$F3<br />%11111110 ;$FE<br />%10111111 ;$BF<br />%11011111 ;$DF<br />%11110000 ;$F0<br /><br /><strong>[Conclusion]</strong><br /><br />This compression scheme yields a respectable amount of compression. I can't say what part of it is most effective (in fact, to me it seems that in many cases representing complex rows of pixels with it might cause a great deal of expansion!), but the truth is that I couldn't achieve comparable compression ratios with any other scheme I tried.<br /><br />I'm not sure if the decompressor is as well coded as it could be. I found it very hard to follow, and by reading my description of the format it seems like it didn't need to be so messy. On the other hand, the messy code might even have been an attempt to protect the format.<br /><br />Anyway, I decided to study this because I really wanted to know what kind of tile compression would always beat my best one by about 8%. I'm not sure if I'll work on this any further (like coding an encoder), as I wouldn't feel well using something I didn't invent (or at least figured out myself, even if it was invented before). I will probably consider applying some of the ideas to my own format, but that's all.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=95">tokumaru</a> — Tue Jul 07, 2009 9:21 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[griever]]></name></author>
+<updated>2007-11-25T13:01:34-07:00</updated>
+<published>2007-11-25T13:01:34-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=3725&amp;p=28728#p28728</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=3725&amp;p=28728#p28728"/>
+<title type="html"><![CDATA[Bee52: Crashes depend on CHRRAM data]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=3725&amp;p=28728#p28728"><![CDATA[
+<div class="quotetitle"><b>Quote:</b></div><div class="quotecontent"><br />Is everything here?<br /></div><br />That's the whole Decompress Subroutine, but some little soubroutines (like 'load_New_gfx_byte') are not displayed.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3104">griever</a> — Sun Nov 25, 2007 1:01 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tokumaru]]></name></author>
+<updated>2007-11-25T11:16:11-07:00</updated>
+<published>2007-11-25T11:16:11-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=3725&amp;p=28721#p28721</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=3725&amp;p=28721#p28721"/>
+<title type="html"><![CDATA[Bee52: Crashes depend on CHRRAM data]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=3725&amp;p=28721#p28721"><![CDATA[
+<div class="quotetitle">griever wrote:</div><div class="quotecontent"><br /><a href="http://griever.ucoz.ru/files/bee52graph.png" class="postlink">Here it is</a><br /></div><br />Cool! Is everything here? This sure makes things easier!<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=95">tokumaru</a> — Sun Nov 25, 2007 11:16 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[griever]]></name></author>
+<updated>2007-11-25T06:22:46-07:00</updated>
+<published>2007-11-25T06:22:46-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=3725&amp;p=28716#p28716</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=3725&amp;p=28716#p28716"/>
+<title type="html"><![CDATA[Bee52: Crashes depend on CHRRAM data]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=3725&amp;p=28716#p28716"><![CDATA[
+<div class="quotetitle"><b>Quote:</b></div><div class="quotecontent"><br />What is this?<br /></div><br />Ah, sorry... As I said, that I have net problems =)<br /><a href="http://griever.ucoz.ru/files/bee52graph.png" class="postlink">Here it is</a><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3104">griever</a> — Sun Nov 25, 2007 6:22 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tokumaru]]></name></author>
+<updated>2007-11-25T02:46:06-07:00</updated>
+<published>2007-11-25T02:46:06-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=3725&amp;p=28715#p28715</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=3725&amp;p=28715#p28715"/>
+<title type="html"><![CDATA[Bee52: Crashes depend on CHRRAM data]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=3725&amp;p=28715#p28715"><![CDATA[
+<div class="quotetitle">griever wrote:</div><div class="quotecontent"><br />OK, also you can try <a href="http://griever.ucoz.ru/files/Bee52Graph.png" class="postlink">this</a> (sorry for shitty colors, but I have net problems, so just had to compess image).<br /></div><br />What is this? I only see a very tall image with a white-ish rectangle at the top...<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=95">tokumaru</a> — Sun Nov 25, 2007 2:46 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[griever]]></name></author>
+<updated>2007-11-25T06:18:20-07:00</updated>
+<published>2007-11-25T01:19:01-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=3725&amp;p=28713#p28713</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=3725&amp;p=28713#p28713"/>
+<title type="html"><![CDATA[Bee52: Crashes depend on CHRRAM data]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=3725&amp;p=28713#p28713"><![CDATA[
+<div class="quotetitle"><b>Quote:</b></div><div class="quotecontent"><br />Get the LZSS compressor/decompressor here.<br /></div><br />Arright, thanks a lot.<br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent"><br />If I have the time I'll take another look at that Bee52 code.<br /></div><br />OK, also you can try <a href="http://griever.ucoz.ru/files/bee52graph.png" class="postlink">this</a> (sorry for shitty colors, but I have net problems, so just had to compess image).<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3104">griever</a> — Sun Nov 25, 2007 1:19 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tokumaru]]></name></author>
+<updated>2007-11-24T14:27:24-07:00</updated>
+<published>2007-11-24T14:27:24-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=3725&amp;p=28699#p28699</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=3725&amp;p=28699#p28699"/>
+<title type="html"><![CDATA[Bee52: Crashes depend on CHRRAM data]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=3725&amp;p=28699#p28699"><![CDATA[
+Get the LZSS compressor/decompressor <a href="http://www.nesstuff.kit.net/lzss_tokumaru.jpg" class="postlink">here</a>. The host does not allow ZIP files, so change the extension from JPG to ZIP.<br /><br />I tested it a bit, and I'm not so sure it performs that well anymore... This is just a generic compression algorithm, so it'd be no surprise if it didn't do very well with NES tiles.<br /><br />I'm still thinking of a way to make better use of the 2D redundancy present in the tiles... generic compression algorithms are 1D, and will ignore that.<br /><br />If I have the time I'll take another look at that Bee52 code.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=95">tokumaru</a> — Sat Nov 24, 2007 2:27 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tokumaru]]></name></author>
+<updated>2007-11-24T13:30:08-07:00</updated>
+<published>2007-11-24T13:30:08-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=3725&amp;p=28693#p28693</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=3725&amp;p=28693#p28693"/>
+<title type="html"><![CDATA[Bee52: Crashes depend on CHRRAM data]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=3725&amp;p=28693#p28693"><![CDATA[
+<div class="quotetitle">griever wrote:</div><div class="quotecontent"><br />That's the VERY beginning of the hell =)<br /></div><br />Yeah, I gave up because it was getting hard to keep track of all the branches... maybe looking at a log of the executed instructions would make it easier to understand... as we could see exactly what happens for each bit read...<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent"><br />Maybe. BTW how about kirby's adventure tile map compression scheme? Have you seen it? Well, It's easy <div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">It uses seven different kinds of compression techniques, which includes the common LZ-Copy,RLE, and uncompressed data methods. The remaining types are simply variations of LZ-Copy and RLE.<br /></div></div><br />Sounds like what's used in SMW and many other SNES (and even the Pokemon games on the Game Boy, I think) games... is this it? This was pretty well documented. This seems hard to encode efficiently, as you'd have to try every type of compression for each byte and see what works best.<br /><br />The compression schemes used in Sonic games are also very interesting (the Mega Drive ones, as the SMS ones just seem to use simple RLE). They have 3 or 4 different formats, each used in differenttypesof data (level maps, graphics, music, etc). The most interesting one is some sort of LZSS optimized to encode small runs ofrepeated bytes, IIRC. gotta check that out again.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent"><br />Why not? It's interesting...<br /></div><br />I'll upload it to a more permanent place in a few minutes... The compression ratio for the CHR I tried was about 1.5 to 1.6... The decompressor written in 6502 assembly will output the data to $2007, but I should probably make a version that outputs to regular RAM.<br /><br /><div class="quotetitle">tepples wrote:</div><div class="quotecontent"><br />Fact: RLE is nothing more than the special case of LZ with a 1-byte window.<br /></div><br />You are right. The cool thing about LZ is that, being a step up from RLE, it has built-in RLE support.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=95">tokumaru</a> — Sat Nov 24, 2007 1:30 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2007-11-24T06:30:50-07:00</updated>
+<published>2007-11-24T06:30:50-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=3725&amp;p=28684#p28684</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=3725&amp;p=28684#p28684"/>
+<title type="html"><![CDATA[Bee52: Crashes depend on CHRRAM data]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=3725&amp;p=28684#p28684"><![CDATA[
+Fact: RLE is nothing more than the special case of LZ with a 1-byte window.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Sat Nov 24, 2007 6:30 am</p><hr />
+]]></content>
+</entry>
+</feed>

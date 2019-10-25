@@ -1,0 +1,417 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Verilog MBC5</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Verilog MBC5</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=20&amp;t=17434">http://forums.nesdev.com/viewtopic.php?f=20&amp;t=17434</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>NovaSquirrel</b> [ Sat Jun 09, 2018 5:37 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Verilog MBC5</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="codetitle"><b>Code:</b></div><div class="codecontent">module MBC5<br />&nbsp; (<br />&nbsp; &nbsp; input not_reset,<br />&nbsp; &nbsp; input not_cs,<br />&nbsp; &nbsp; input not_wr,<br />&nbsp; &nbsp; input &#91;7:0&#93; data,&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; // data bus value<br />&nbsp; &nbsp; input &#91;3:0&#93; address,&nbsp; &nbsp; &nbsp; &nbsp;// top 4 bits of address<br />&nbsp; &nbsp; output &#91;8:0&#93; out_rom_bank, // 9-bit ROM bank to use<br />&nbsp; &nbsp; output reg &#91;3:0&#93; ram_bank, // 4-bit RAM bank to use<br />&nbsp; &nbsp; output out_ram_enable&nbsp; &nbsp; &nbsp; // active low RAM enable<br />&nbsp; );<br />&nbsp; reg &#91;8:0&#93; rom_bank;&nbsp; &nbsp; &nbsp; &nbsp; // currently selected ROM bank<br />&nbsp; reg ram_enable;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; // is RAM enabled?<br /><br />&nbsp; always@(posedge not_wr or negedge not_reset) begin // may need negedge instead?<br />&nbsp; &nbsp; if (!not_reset) begin<br />&nbsp; &nbsp; &nbsp; ram_enable &lt;= 0;<br />&nbsp; &nbsp; &nbsp; rom_bank &lt;= 1;<br />&nbsp; &nbsp; &nbsp; ram_bank &lt;= 0;<br />&nbsp; &nbsp; end<br />&nbsp; &nbsp; else if(!not_wr) begin<br />&nbsp; &nbsp; &nbsp; case(address) // select based on top 4 bits of address<br />&nbsp; &nbsp; &nbsp; &nbsp; 0, 1:<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ram_enable &lt;= data == 8'h0a;<br />&nbsp; &nbsp; &nbsp; &nbsp; 2:<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; rom_bank&#91;7:0&#93; &lt;= data;<br />&nbsp; &nbsp; &nbsp; &nbsp; 3:<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; rom_bank&#91;8&#93; &lt;= data&#91;0&#93;;<br />&nbsp; &nbsp; &nbsp; &nbsp; 4, 5:<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ram_bank &lt;= data&#91;3:0&#93;;<br />&nbsp; &nbsp; &nbsp; &nbsp; // anything 6 or above ignored<br />&nbsp; &nbsp; &nbsp; &nbsp; endcase<br />&nbsp; &nbsp; &nbsp;end<br />&nbsp; end<br /><br />&nbsp; // select fixed bank or switchable bank<br />&nbsp; assign out_rom_bank = address&#91;2&#93; ? rom_bank : 0;<br />&nbsp; // select external RAM at 0xA000 - 0xBFFF<br />&nbsp; assign out_ram_enable = !(ram_enable &amp;&amp; address&#91;3:1&#93; == 3'b101);<br />endmodule<br /></div><br />I don't know if the lack (is there one? Tepples keeps mentioning it) of &gt;32KB Game Boy boards is because of a lack of open MBC implementations or some other reasons, but I really doubt it's a cost problem because the parts to implement a mapper are so cheap. In any case, here's a (public domain) MBC5 I wrote, that works in simulation at least. I'm not entirely confident in the clocking being correct, or what the reset values should be, but it should hopefully only require minor changes. It easily fits in an Xilinx XC9536XL, using 24 of the 36 macrocells.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Sat Jun 09, 2018 5:52 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Verilog MBC5</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Of all the MBCs, even the MBC5 is really quite simple; it's <em>almost</em> something you can build in discrete 74xx logic (QFN parts) and fit inside a DMG shell.<br /><br />My hunch is what is holding back DMG carts is<br />1- People like DIP; DIP is mostly a nonstarter to fit inside existing DMG shells.<br />2- People mostly don't have nostalgia for the original DMG games (which were mostly 5V-friendly 512 KiB and smaller) but instead for the larger GBC carts, and then you have the problem of fitting a 3V ROM and logic translation inside a shell
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Sat Jun 09, 2018 5:55 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Verilog MBC5</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><a href="https://catskullelectronics.com/32kcart" class="postlink">Catskull's GB flash cart</a> is 32K. That's not quite big enough for even a game of similar scope to the first <em>Super Mario Land</em>. There's plenty of room for homebrew to grow from 64K to 512K as the scene grows. And some GBC-era games are still 512K or smaller: <em>Elmo in Grouchland</em>, for instance, is 256K of game plus 768K of irrelevant padding.<br /><br />The equivalent of UNROM/UOROM would be about two chips: a latch and a quad OR. This would allow up to 256K. And the presence of separate read and write signals on the GB cart edge means bus conflicts might be easier to avoid, allowing the cart to present a port at $2000 that allows use of a ROM on both an MBC (for emulators) and the discrete hardware. The MBC would decode the port at only $2000-$3FFF or $2000-$2FFF, with the rest devoted mostly to SRAM selection, while the simplified hardware decodes the port across all of $0000-$7FFF.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Thu Jun 14, 2018 1:15 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Verilog MBC5</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tepples wrote:</div><div class="quotecontent">The MBC would decode the port at only $2000-$3FFF or $2000-$2FFF, with the rest devoted mostly to SRAM selection, while the simplified hardware decodes the port across all of $0000-$7FFF.<br /></div>That really doesn't actually save you much: just decoding $2000-$2FFF vs all of $0000-$7FFF is 4 ICs vs 3 ICs.<br />Limit the size to 256 KiB and that only takes 2 ICs.<br />Drop standard MBC 16F+16 banking and you can get down to 1 IC and back up to 512 KiB. (And as memblers pointed out with GTROM, one can emulate 16F+16 at programming time given a double-size ROM anyway).<br /><br />I actually already have an eagle schematic/board for the four 74xx version. Fits in the standard cheap (5cm)² bulk-orderable PCBs. Never bothered to have it made because the routing was ugly.... and now you can't buy M29F160s anymore.<br /><br />(edit) Gekkio says that in the original DMG, /CS arrives ½ master cycle after A14, so I should see if that's true in GBC/GBA also. If so, I could get away with just a 74'161 for a super-cheap self-flashable option...
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>qwertymodo</b> [ Mon Jun 18, 2018 11:45 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Verilog MBC5</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />A couple of issues I see from my own testing, the ROM bank should be set to 1 on reset, not 0, and the ram enable decoding isn't quite right.  You forgot to include the not_cs input, and the decoding actually only cares that A14 is low (rather than A15:13 = 101).<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">assign out_ram_enable = cs || !ram_enable || address&#91;2&#93;;</div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Mon Jun 18, 2018 11:52 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Verilog MBC5</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">qwertymodo wrote:</div><div class="quotecontent">the decoding actually only cares that A14 is low (rather than A15:13 = 101).<br /></div>Per what <a href="https://forums.nesdev.com/viewtopic.php?p=181040#p181040" class="postlink">Gekkio said</a>, /CS is asserted for the memory range from $A000-$FDFF. On the DMG, it's specifically asserted after the first half master cycle, for the remaining 3.5 master cycles.<br /><br />Other that timing difference, at least on DMG, there's no functional difference between (/CS=0 AND A14=0) and (A[15..13]='b'101).<br /><br />Obviously Gekkio's data only concerns the DMG; the GBC and GBA's timing and ranges need to be compared.<br /><br />... also, those linked timing graphs are subtly different from their graphs in their <a href="https://github.com/Gekkio/gb-ctr" class="postlink">Complete Technical Reference</a>.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>gekkio</b> [ Tue Jun 19, 2018 12:21 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Verilog MBC5</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">lidnariq wrote:</div><div class="quotecontent">... also, those linked timing graphs are subtly different from their graphs in their Complete Technical Reference.</div><br /><br />Yeah, trust GBCTR in this case <img src="./images/smilies/icon_wink.gif" alt=";)" title="Wink" /> The difference is naming (CS vs MREQ) and in GBCTR the graphs continue for one more clock edge to illustrate the fact that some signals are deasserted (or &quot;reset&quot; to default state) after the machine cycle.<br />Even if the intent is to read a 16-bit value, the CPU deasserts the relevant control signals between those reads, so it really is two 8-bit reads in sequence than a &quot;16-bit read&quot;.<br />For example, if it reads a 16-bit value from $1234, A15 goes high for one clock cycle in the middle.<br /><br />Note that OAM DMA is different and I don't have graphs for that right now. But IIRC basically it sets all signals on the first rising edge of the first actual OAM DMA machine cycle and further cycles just increment the address without pulsing any control signals.<br /><br />CS *must be* included in chip select handling for external RAM, because the address bus can have a value with A[15..13] = 101 even when the data bus shouldn't be driven. (+ the default state of RD is low, so you can't really rely on that)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Tue Jun 19, 2018 12:30 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Verilog MBC5</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I was going to separately call out <a href="https://forums.nesdev.com/viewtopic.php?p=210207#p210207" class="postlink">this link where calima says that bennvenn said that</a> /CS doesn't pulse on every memory cycle on the GBA. Be nice if I could find an original post to cite instead.<br /><br />And, of course, Gekkio mentions the <a href="https://forums.nesdev.com/viewtopic.php?p=181040#p181040" class="postlink">same thing</a> in the post I linked to just above.<br /><br />—<br /><br /><div class="quotetitle">gekkio wrote:</div><div class="quotecontent">CS *must be* included in chip select handling for external RAM, because the address bus can have a value with A[15..13] = 101 even when the data bus shouldn't be driven. (+ the default state of RD is low, so you can't really rely on that)<br /></div>... Wait, what? How does that happen?<br /><div class="quotetitle">gekkio wrote:</div><div class="quotecontent">For example, if it reads a 16-bit value from $1234, A15 goes high for one clock cycle in the middle.<br /></div>... I need to get better at reading.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>qwertymodo</b> [ Tue Jun 19, 2018 1:17 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Verilog MBC5</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">lidnariq wrote:</div><div class="quotecontent">Other that timing difference, at least on DMG, there's no functional difference between (/CS=0 AND A14=0) and (A[15..13]='b'101).</div><br /><br />I'm just telling you what I have found from my MBC5 test bench.  A15 and A13 are ignored by the /RAMCS decoder.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">Enabling RAM<br />Loading address $0000, /CS LOW<br />SRAM /CS Status: LOW<br />Loading address $1000, /CS LOW<br />SRAM /CS Status: LOW<br />Loading address $2000, /CS LOW<br />SRAM /CS Status: LOW<br />Loading address $3000, /CS LOW<br />SRAM /CS Status: LOW<br />Loading address $4000, /CS LOW<br />SRAM /CS Status: HIGH<br />Loading address $5000, /CS LOW<br />SRAM /CS Status: HIGH<br />Loading address $6000, /CS LOW<br />SRAM /CS Status: HIGH<br />Loading address $7000, /CS LOW<br />SRAM /CS Status: HIGH<br />Loading address $8000, /CS LOW<br />SRAM /CS Status: LOW<br />Loading address $9000, /CS LOW<br />SRAM /CS Status: LOW<br />Loading address $A000, /CS LOW<br />SRAM /CS Status: LOW<br />Loading address $B000, /CS LOW<br />SRAM /CS Status: LOW<br />Loading address $C000, /CS LOW<br />SRAM /CS Status: HIGH<br />Loading address $D000, /CS LOW<br />SRAM /CS Status: HIGH<br />Loading address $E000, /CS LOW<br />SRAM /CS Status: HIGH<br />Loading address $F000, /CS LOW<br />SRAM /CS Status: HIGH<br /></div><br /><br /><div class="quotetitle">lidnariq wrote:</div><div class="quotecontent">I was going to separately call out <a href="https://forums.nesdev.com/viewtopic.php?p=210207#p210207" class="postlink">this link where calima says that bennvenn said that</a> /CS doesn't pulse on every memory cycle on the GBA. Be nice if I could find an original post to cite instead.</div><br /><br />Here's a logic trace of OAM DMA that gekkio sent me that supports this.  Normal memory accesses do seem to pulse /CS on each access though.<br /><br /><img src="https://cdn.discordapp.com/attachments/432191943628423186/450217237513764899/Screenshot_from_2018-05-27_11-41-28.png" alt="Image" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>gekkio</b> [ Thu Jun 21, 2018 6:37 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Verilog MBC5</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">... Wait, what? How does that happen?</div><br /><br />There's a couple of possible scenarios, but to be fair, using A[15..13] wouldn't probably lead to any actually bad thing. It's more about principles: there's a chip select signal (CS or A15 depending on the memory area), and when it's high, you're not supposed to drive the bus. On GB there won't be any other device with A[15..13] = 101 that would drive the bus at the same time, but one practical thing about not using CS is that you might end up doing some unnecessary extra switching (-&gt; extra power consumption).<br /><br />In normal conditions (= normal GB unit), the CPU chip always drives the address bus, so there is a value there even outside memory accesses.<br />In special conditions (e.g. CPU soldered to my test bench), the address bus is 3-state and things other than addresses may appear there, such as intermediate 16-bit values during some CPU instructions.<br /><br />So, using A[15..13] is probably fine, but using /CS=0 AND A14=0 is the technically correct way and arguably as easy or even easier than doing the wrong thing.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Thu Jun 21, 2018 9:08 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Verilog MBC5</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Is failure to take /CS into account the cause of the <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">inc de</tt> bug while DE points at OAM ($FE00-$FE9F)? If so, that might inform your design.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Thu Jun 21, 2018 10:44 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Verilog MBC5</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">qwertymodo wrote:</div><div class="quotecontent">Here's a logic trace of OAM DMA that gekkio sent me that supports this. Normal memory accesses do seem to pulse /CS on each access though.<br /></div>Ah. Thank you.<br /><br /><div class="quotetitle">gekkio wrote:</div><div class="quotecontent">It's more about principles: there's a chip select signal (CS or A15 depending on the memory area), and when it's high, you're not supposed to drive the bus.<br /></div>Thinking about your CTR diagrams some more, it's pretty clear that &quot;A15&quot; is really &quot;/LowMemorySelect&quot; and &quot;/CS&quot; is really &quot;/HighExternalMemorySelect&quot;. That /LowMemorySelect happens to be almost identical to A15 doesn't really change what it is, similar to how the Master System has both <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">A15</tt> and <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">/M0-7</tt> on its cartridge connector.<br /><br />(edit: Even more so, when you consider that the Power Base Converter used the same signal from the Genesis for both when running SMS games. Given the shared 8080-ish ancestry, it makes me inclined to personally rename the two signals on the DMG's card edge to be <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">/M0-7</tt> and <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">/MA-E</tt>)<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">On GB there won't be any other device with A[15..13] = 101 that would drive the bus at the same time, but one practical thing about not using CS is that you might end up doing some unnecessary extra switching (-&gt; extra power consumption).<br /></div>For example, reading from or writing to $2000 would look like a read from $A000 during the first 1 or ½ CLK respectively...
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>qwertymodo</b> [ Thu Jun 21, 2018 12:24 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Verilog MBC5</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">lidnariq wrote:</div><div class="quotecontent"><div class="quotetitle">qwertymodo wrote:</div><div class="quotecontent">Here's a logic trace of OAM DMA that gekkio sent me that supports this. Normal memory accesses do seem to pulse /CS on each access though.<br /></div>Ah. Thank you.</div><br /><br />Just to clarify, I don't believe that trace was from a GBA, but from a DMG executing OAM DMA.  So maybe it isn't directly relevant to your statement, but it is an example of accessing memory without pulsing /CS, which is relevant to FRAM mods, since you can't always rely on that pulse to occur.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>NovaSquirrel</b> [ Thu Jun 21, 2018 6:10 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Verilog MBC5</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="codetitle"><b>Code:</b></div><div class="codecontent">module MBC5<br />&nbsp; (<br />&nbsp; &nbsp; input not_reset,<br />&nbsp; &nbsp; input not_cs,<br />&nbsp; &nbsp; input not_wr,<br />&nbsp; &nbsp; input &#91;7:0&#93; data,&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; // data bus value<br />&nbsp; &nbsp; input &#91;3:0&#93; address,&nbsp; &nbsp; &nbsp; &nbsp;// top 4 bits of address<br />&nbsp; &nbsp; output &#91;8:0&#93; out_rom_bank, // 9-bit ROM bank to use<br />&nbsp; &nbsp; output reg &#91;3:0&#93; ram_bank, // 4-bit RAM bank to use<br />&nbsp; &nbsp; output out_ram_enable&nbsp; &nbsp; &nbsp; // active low RAM enable<br />&nbsp; );<br />&nbsp; reg &#91;8:0&#93; rom_bank;&nbsp; &nbsp; &nbsp; &nbsp; // currently selected ROM bank<br />&nbsp; reg ram_enable;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; // is RAM enabled?<br /><br />&nbsp; always@(posedge not_wr or negedge not_reset) begin<br />&nbsp; &nbsp; if (!not_reset) begin<br />&nbsp; &nbsp; &nbsp; ram_enable &lt;= 0;<br />&nbsp; &nbsp; &nbsp; rom_bank &lt;= 1;<br />&nbsp; &nbsp; &nbsp; ram_bank &lt;= 0;<br />&nbsp; &nbsp; end<br />&nbsp; &nbsp; else if(not_cs) begin<br />&nbsp; &nbsp; &nbsp; case(address) // select based on top 4 bits of address<br />&nbsp; &nbsp; &nbsp; &nbsp; 0, 1:<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ram_enable &lt;= data == 8'h0a;<br />&nbsp; &nbsp; &nbsp; &nbsp; 2:<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; rom_bank&#91;7:0&#93; &lt;= data;<br />&nbsp; &nbsp; &nbsp; &nbsp; 3:<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; rom_bank&#91;8&#93; &lt;= data&#91;0&#93;;<br />&nbsp; &nbsp; &nbsp; &nbsp; 4, 5:<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ram_bank &lt;= data&#91;3:0&#93;;<br />&nbsp; &nbsp; &nbsp; &nbsp; // anything 6 or above ignored<br />&nbsp; &nbsp; &nbsp; &nbsp; endcase<br />&nbsp; &nbsp; &nbsp;end<br />&nbsp; end<br /><br />&nbsp; // select fixed bank or switchable bank<br />&nbsp; assign out_rom_bank = address&#91;2&#93; ? rom_bank : 0;<br />&nbsp; // select external RAM at 0xA000 - 0xBFFF<br />&nbsp; assign out_ram_enable = !(ram_enable &amp;&amp; !not_cs &amp;&amp; !address&#91;2&#93;);<br />endmodule</div><br /><br />Modified version that sets the starting bank to 1, and uses not_cs, though I'm still not 100% sure the configuration registers are clocked right.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Mon Jun 25, 2018 12:49 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Verilog MBC5</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><a href="https://forums.nesdev.com/viewtopic.php?p=220217#p220217" class="postlink">in this post, Great Hierophant</a> wrote:</div><div class="quotecontent">.ws - Wisdom Tree Mapper (Uses a 74'377)<br /></div>Curious, I looked more closely.<br /><br /><div class="quotetitle">lidnariq wrote:</div><div class="quotecontent">Drop standard MBC 16F+16 banking and you can get down to 1 IC and back up to 512 KiB. (And as memblers pointed out with GTROM, one can emulate 16F+16 at programming time given a double-size ROM anyway).<br /></div>For reference, this appears to be Wisdom Tree's Game Boy mapper.<br /><br /><tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">Writes: A~[q0.. .... bbbb bbbb] -- select 32K bank at $0000.</tt><br /><span style="font-size: 85%; line-height: normal"><br />(q - per the description, the 74'377 appears to be connected to /WR and A14, ignoring &quot;A15&quot; and /CS. According to Gekkio's timing diagrams, /WR doesn't toggle during access to the internal memory regions, so  the register will be at $0000-$3FFF and $A000-$BFFF)</span><br /><br />At least, if I'm reading MAME's source correctly:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">READ8_MEMBER(gb_rom_wisdom_device::read_rom)<br />{<br />&nbsp; &nbsp; &nbsp; &nbsp; return m_rom&#91;rom_bank_map&#91;m_latch_bank&#93; * 0x4000 + offset&#93;;<br />}<br /><br />WRITE8_MEMBER(gb_rom_wisdom_device::write_bank)<br />{<br />&nbsp; &nbsp; &nbsp; &nbsp; if (offset &lt; 0x4000)<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; m_latch_bank = (offset &lt;&lt; 1) &amp; 0x1ff;<br />}<br /></div>(Yes, <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">* 0x4000</tt>, but also <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">&lt;&lt; 1</tt>)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

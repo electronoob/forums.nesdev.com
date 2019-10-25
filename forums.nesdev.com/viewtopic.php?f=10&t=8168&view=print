@@ -1,0 +1,461 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - MMC1 boot code questions...</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">MMC1 boot code questions...</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=10&amp;t=8168">http://forums.nesdev.com/viewtopic.php?f=10&amp;t=8168</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>3gengames</b> [ Fri Sep 30, 2011 10:16 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>MMC1 boot code questions...</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Well, the main question I have right now, is this okay to boot safely into a program from MMC1 to all situations? And DMC fires IRQ's, correct? FCEUX doesn't boot into multiple banks, but this is correct way to do it right amd should work? In A I return the bank number because this is going to be a bank test for an MMC1 cart later. [hopefully today] It's taken me a little to write this because going all out to get a program into X bytes is something I'm not used to yet. <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" /> Thanks!
+<br />
+<br />Also, just making sure, the fixed bank is always the last bank on the chip, correct?
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; .bank 31<br />&nbsp; .org $FFF0<br />&nbsp; .db $00<br />MMC1GlitchBoot31:<br />&nbsp; SEI<br />&nbsp; LDA #$9F<br />RTIBank31:<br />&nbsp; STA $8040<br />&nbsp; JMP &#91;$FFFC&#93;<br />&nbsp; .dw RTIBank31+1 ;NMI<br />&nbsp; .dw MMC1GlitchBoot31 ;Reset<br />&nbsp; .dw RTIBank31+1 ;IRQ<br /></div>
+<br />
+<br />Also, each bank is 8KB and we're going to use a 256K ROM for this. FFF0 is 0 in all banks, nothing useful can be used for it really.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Fri Sep 30, 2011 10:39 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Writing any value from $80 through $FF to any address from $8000 through $FFFF will reset the MMC1. This changes the PRG mode to fixed last bank in $C000 and resets the 5-bit shift register.
+<br />
+<br />It shouldn't be JMP [$FFFC]; it should be JMP to the real entry point of your program. Otherwise, you'll end up in an infinite loop executing MMC1GlitchBoot31 over and over again because $FFFC still points at MMC1GlitchBoot31.
+<br />
+<br />It's also wise to have these vectors at the end of each 16 KiB bank of the program, just in case you get reset while using 32 KiB mode or fixed-$8000 mode, or just in case you end up running on an MMC1 revision with poorly defined initial PRG bank values. See <a href="http://nesdev.com/bbs/viewtopic.php?t=7991" class="postlink">my SGROM/SNROM template</a> for how to get ca65 to do this. I haven't used NESASM, but I <em>think</em> you'll probably have to repeat that code in every odd numbered half-bank (1, 3, 5, 7, ... 31).
+<br />
+<br />DMC has three actions it can apply at the end of the waveform: stop ($00), repeat ($40), or stop and IRQ ($80). In stop and IRQ mode, the DMC will fire an interrupt eight samples (one byte) before playback ends, giving you a few hundred CPU cycles to set up the next sample for gapless playback. It won't trigger any IRQs unless you CLI (set minimum interrupt priority to 0) and actually put DMC in stop and IRQ mode, but I still wouldn't recommend handling NMI and IRQ from the same routine.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>3gengames</b> [ Fri Sep 30, 2011 11:00 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />31 is the last bank, and yeah before you replied I changed it to an actual entry point for that bank, and it seems to work in FCEUX. But FCEUX doesn't open in other emulators. And yeah, I guess it could be taken out, but 16 bytes is an okay header size for me, nice and "round, I think I'll just keep it in all banks *just in case* the MMC1 didn't take the read and then the boot code could run again if it fails.
+<br />
+<br />Yep, the 9F in bank 0 is $80, $81 in bank 1, etc. And yeah, 8KB sized banks is something I didn't take account for, then that means not needing it in all banks, so that should be $8F in the last bank and I need to change my code later for that.
+<br />
+<br />
+<br />Also, not that I'm relying on it for something, but is the reset state of the CPU the same as the cold boot state? Or would A,X,Y just all be unchanged?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Fri Sep 30, 2011 11:22 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Only bit 0 ($01) and bit 7 ($80) of the value written to $8000-$FFFF are ever used. If bit 7 is true, all other bits are <em>ignored.</em> So $9F, $81, and $8F all have the same effect.
+<br />
+<br />You say having the actual entry point in the JMP fails in other emulators. What does it do if you step through it in Nintendulator?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>3gengames</b> [ Fri Sep 30, 2011 11:55 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />It's not that it fails, it's just there because if I have more code I can swap banks without changing headers and also because it just seemed right to keep something there, so even if it has an undesired effect for any reason, it'll still work. And yeah, I'm at home now, I'll try it on all other emulators now to see if one boots in any bank.
+<br />
+<br />And yep, that's how I understood it. That's why my load number to write to the MMC1 is also doubling as my "booted in bank" numbers for the main routine.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>doppelganger</b> [ Sat Oct 01, 2011 4:30 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">3gengames wrote:</div><div class="quotecontent"><br />Also, not that I'm relying on it for something, but is the reset state of the CPU the same as the cold boot state? Or would A,X,Y just all be unchanged?</div>
+<br />
+<br />The state of the CPU upon pressing the reset button, that is, the warm boot state, is whatever it was just before the reset line to the CPU went low.  The registers A, X and Y are not affected by any of the interrupt lines or the reset line going low.
+<br />
+<br />As far as A, X and Y being a known value in the warm boot state, that would depend on whether the CPU executes a JMP ($FFFC) or the reset line goes low.  If a JMP ($FFFC) is performed, A X and Y could definitely contain a known value.  A press of the reset button, however, could happen at any time, and with code executing incredibly fast by human standards (approximately 1,786,840 cycles in a second) the registers A X and Y will have to be taken as indeterminate.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Sat Oct 01, 2011 4:36 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">doppelganger wrote:</div><div class="quotecontent">A press of the reset button, however, could happen at any time</div>
+<br />Unless you wrote a "please reset your console" message to the screen and entered a loop that doesn't alter the registers you'll want to check later, in order to tell if the player followed your instructions... =)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Sat Oct 01, 2011 4:53 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tokumaru wrote:</div><div class="quotecontent">Unless you wrote a "please reset your console" message to the screen and entered a loop that doesn't alter the registers you'll want to check later, in order to tell if the player followed your instructions... =)</div>
+<br />Then your game wouldn't run properly on some emulators or console revisions. <em>X-Men</em> for Sega Genesis has exactly the situation you describe where the player needs to <a href="http://en.wikipedia.org/wiki/X-Men_%28Sega%29#Resetting_the_Computer" class="postlink">press Reset to continue</a>. On a Nomad, the game is unplayable past that point.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>3gengames</b> [ Sat Oct 01, 2011 5:27 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />This isn't for anything like that, just trying [which has been done now and just needs a UI for my console] to record boot state, report to the user all info about the MMC1 boot, banks wired good, etc. I just got done with this program and it's pretty good. I'll post it later for people who want to test emulator parts with it when it's done. It's nothing big, I just kinda needed this for the project because never messing with MMC1, need to learn it inside and out, which has been done thanks to the info here. <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" />
+<br />
+<br />And even if you had to reset to continue past something. Besides using a CPU location [Backup'd SRAM would be the logical place of choice, right?) if you did it just based on registers, then you *could* possibly reset at the perfect time and then have that cause them to skip past a majority of the game. I can assure you I'd never do this....that just....not well thought out, even though it'd probably never happen.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Sat Oct 01, 2011 7:02 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tepples wrote:</div><div class="quotecontent"><em>X-Men</em> for Sega Genesis has exactly the situation you describe where the player needs to <a href="http://en.wikipedia.org/wiki/X-Men_%28Sega%29#Resetting_the_Computer" class="postlink">press Reset to continue</a>.</div>
+<br />Cool, I never though this had actually been done! And I used to think that the second X-Men game was unusual, for dropping you directly into an action stage with a random character before even showing any sort of title screen or menu.
+<br />
+<br />As for detecting resets, <em>Kirby's Adventure</em> on the NES does it... Not for anything important I think, it just seems to skip the part that teaches how to draw Kirby.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Sun Oct 02, 2011 9:39 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Square seems to like detecting resets. In Final Fantasy games, they skip the story intro. In Rad Racer and 3D World Runner they also skip the title screen, and if you're in the ending you can press reset to watch the ending again !
+<br />
+<br />They do that just by having some particular variable set to particular states, and they check those variables when booting. Note that those games does not clear the memory so this technique works.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>3gengames</b> [ Tue Oct 04, 2011 10:47 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Well, if anybody makes an MMC1 cart, this is what I was working on to learn how to use MMC1, my first mapper, and to test our cartridge we made. It works for now, but it's not final at all, I plan to add detection if SRAM is even there and then also condense it all into the last 16KB bank. It's no problem size-wise. I just have to put it together. Have fun. Source included and it's ready to compile, the rom is in program and all files should be self descriptive. Code will be comment with the later final versions.
+<br />
+<br /><!-- m --><a class="postlink" href="http://www.2shared.com/file/EJYpZ4Tm/MMC1TestBetaNoSRAMHeader.html">http://www.2shared.com/file/EJYpZ4Tm/MM ... eader.html</a><!-- m -->
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>3gengames</b> [ Wed Oct 05, 2011 10:35 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I just ran that on the emulators NESICIDE and Nintendulator. It reports all banks bad except bank 0, and it boots in 0F so that's how it runs. Anybody know why it fails? Is it because of the indirect addressing to address the last write's location? This is the code it uses:
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">BankswitchControl:<br />&nbsp; LDY #$80<br />&nbsp; STY ZeroWrite<br />&nbsp; JMP MainBankSwitch<br />BankswitchCharacterLower:<br />&nbsp; LDY #$A0<br />&nbsp; STY ZeroWrite<br />&nbsp; JMP MainBankSwitch<br />BankswitchCharacterUpper:<br />&nbsp; LDY #$C0<br />&nbsp; STY ZeroWrite<br />&nbsp; JMP MainBankSwitch<br />BankswitchProgram:<br />&nbsp; LDY #$E0<br />&nbsp; STY ZeroWrite<br />MainBankSwitch:<br />&nbsp; AND #$1F<br />&nbsp; STA $8000<br />&nbsp; LSR A<br />&nbsp; STA $8000<br />&nbsp; LSR A<br />&nbsp; STA $8000<br />&nbsp; LSR A<br />&nbsp; STA $8000<br />&nbsp; LSR A<br />&nbsp; STA &#91;Zero&#93;,Y<br />&nbsp; RTS<br /></div>
+<br />
+<br />Also it should be noted the program works fine on an MMC1B2 that I've tested on real hardware without any problems at all. Also, one day or not I will probably also edit it to only show SRAM stuff if it's detected. For now, if you have no SRAM, just don't mind it.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Thu Oct 06, 2011 7:37 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I'd advise against using indirect or indexed addressing for writing to the MMC1 ports. Instead, I've seen most MMC1 games use separate subroutines that write to $8000, $A000, $C000, and $E000.
+<br />
+<br />Are you using CHR ROM or CHR RAM?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>3gengames</b> [ Thu Oct 06, 2011 9:37 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />CHR-RAM, 8KB.
+<br />
+<br />And why would you advise against it? While I probably am going to separate them to write better equipped bank switching routines where it rewrites the least possible of the port, still, is there any reason for it to fail?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

@@ -1,0 +1,454 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - PPU render timing basic questions</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">PPU render timing basic questions</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=10&amp;t=6392">http://forums.nesdev.com/viewtopic.php?f=10&amp;t=6392</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Petruza</b> [ Sun May 16, 2010 8:35 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>PPU render timing basic questions</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Source: Brad Taylor's NTSC 2C02 tech ref
+<br />(This post implies NTSC)
+<br />
+<br />I finished the CPU emulation, and heading now towards the PPU.
+<br />I'm finding the PPU render timing really complex, so I want to know if I understand it at least roughly so I can start to figure out how to implement it.
+<br />
+<br />So What I understand is this:
+<br />Each CPU cycle equals 12 PPU cycles, CPU runs at 1.79 Mhz and PPU at 21.47 Mhz.
+<br />The source of timing in my emulator are the instructions that are being executed, so for each CPU cycle executed in its instructions, I advance the PPU renderer 12 cycles.
+<br />Each pixel takes 1 PPU cycle, so each scanline takes 341 PPU cycles including hblank.
+<br />There are 262 scanlines including vblank period, so a frame occurs every 89342 PPU cycles.
+<br />89342 / 12 = 7445.17, so each 7445.17 CPU cycles are executed, I trigger an NMI.
+<br />What I never saw in a doc is when I have to start counting down to the first NMI, so I guess it's from the first ever cycle executed by the CPU, that's the first cycle of the first instruction at the RESET address.
+<br />
+<br />Is this right? did I get something wrong?
+<br />Thanks!
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Sun May 16, 2010 8:48 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: PPU render timing basic questions</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Petruza wrote:</div><div class="quotecontent">Each CPU cycle equals 12 PPU cycles, CPU runs at 1.79 Mhz and PPU at 21.47 Mhz.</div><br /><br />No.<br /><br />1 NTSC CPU cycle = 3 PPU cycles<br />1 PAL CPU cycle = 3.2 PPU cycles<br /><br />In order to work with these ratios, I employed a "master cycle" system, where:<br /><br />1 NTSC CPU cycle = 15 "master cycles"<br />1 PAL CPU cycle = 16 "master cycles"<br />1 PPU cycle = 5 "master cycles"<br /><br />Basically you multiply passing CPU cycles by 15 (or 16 if emulating PAL), and multiply passing PPU cycles by 5... then your timestamps are using the same base.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">The source of timing in my emulator are the instructions that are being executed, so for each CPU cycle executed in its instructions, I advance the PPU renderer 12 cycles.</div><br /><br />That's a slow way to do it, but yeah that's the basic idea.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Each pixel takes 1 PPU cycle, so each scanline takes 341 PPU cycles including hblank.</div><br /><br />Yes... but "HBlank" is kind of a subjective term.<br /><br />The PPU is actively performing fetches, and updating counters and stuff during the first 340 cycles of every scanline.  It only draws pixels for the first 256 cycles.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">There are 262 scanlines including vblank period, so a frame occurs every 89342 PPU cycles.<br />89342 / 12 = 7445.17, so each 7445.17 CPU cycles are executed, I trigger an NMI.</div><br /><br />You have the right idea, but your numbers are a bit wrong.<br /><br />341 * 262 = 89342 PPU cycles per frame<br />89342 * 5 = 446710 "master cycles" per frame<br />446710 / 15 = 29780.667 NTSC CPU cycles per frame<br /><br />Basically your CPU is running way too slow.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">What I never saw in a doc is when I have to start counting down to the first NMI</div><br /><br />IIRC the frame starts some time into VBlank.  I don't remember exactly where.  blargg wrote a test ROM on it I think.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Is this right? did I get something wrong?<br />Thanks!</div>
+<br />
+<br />For the most part you understand it correctly.  Your numbers were just a little off.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Petruza</b> [ Sun May 16, 2010 9:04 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: PPU render timing basic questions</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Disch wrote:</div><div class="quotecontent"><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">The source of timing in my emulator are the instructions that are being executed, so for each CPU cycle executed in its instructions, I advance the PPU renderer ** cycles.</div><br />That's a slow way to do it, but yeah that's the basic idea.<br /></div>
+<br />
+<br />So what would be a better/faster way?
+<br />
+<br />I like your idea of master cycles, I'll use it.
+<br />
+<br />I guess I'll start the rendering loop together with the first CPU instruction, and having rendering disabled by default, until the program turns it on.
+<br />I guess that although rendering is turned off by the program, the vblank countdown is not altered, right?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Sun May 16, 2010 9:07 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: PPU render timing basic questions</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Disch wrote:</div><div class="quotecontent">1 NTSC CPU cycle = 3 PPU cycles<br />1 PAL CPU cycle = 3.2 PPU cycles<br /><br />In order to work with these ratios, I employed a "master cycle" system, where:<br /><br />1 NTSC CPU cycle = 15 "master cycles"<br />1 PAL CPU cycle = 16 "master cycles"<br />1 PPU cycle = 5 "master cycles"</div><br />On NTSC, 1 CPU cycle is 12 master cycles and 1 PPU cycle is 4 master cycles. The only CPU with a divide by 15 is Dendy, a famiclone popular in Russia, or any famiclone based on a similar chipset, and its ratio of 15/5 was chosen to equal the 12/4 ratio of an authentic Famicom or NTSC NES yet still output PAL video. But only mappers that depend on cartridge pin 37 (SYSTEM CLK) can tell the difference between 12/4 and 15/5.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Yes... but "HBlank" is kind of a subjective term.<br /><br />The PPU is actively performing fetches, and updating counters and stuff during the first 340 cycles of every scanline.  It only draws pixels for the first 256 cycles.</div>
+<br />HBlank as used in descriptions of NES hardware is any part of the scanline that is not dots 0-255.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Sun May 16, 2010 9:16 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: PPU render timing basic questions</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tepples wrote:</div><div class="quotecontent">On NTSC, 1 CPU cycle is 12 master cycles and 1 PPU cycle is 4 master cycles.</div><br /><br />Hence why I put master cycles in quotes.<br /><br />They're not real cycles, they're just a fabricated timestamp system to keep everything in the same base units.<br /><br />12/4 doesn't work well with PAL, whereas 15/5 does.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">HBlank as used in descriptions of NES hardware is any part of the scanline that is not dots 0-255.</div>
+<br />
+<br />But in other descriptions it's time similar to VBlank where writing to the PPU is safe.  Of course the NES has no such time between scanlines because it's always busy fetching.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Petruza</b> [ Sun May 16, 2010 9:33 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: PPU render timing basic questions</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Disch wrote:</div><div class="quotecontent"><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">HBlank as used in descriptions of NES hardware is any part of the scanline that is not dots 0-255.</div><br />But in other descriptions it's time similar to VBlank where writing to the PPU is safe.  Of course the NES has no such time between scanlines because it's always busy fetching.</div>
+<br />So no writes to VRAM can be made between scanlines? at least scrolling writes can be made, or at least that's how I always thought mid-frame scrolling effects were made.
+<br />
+<br />Even if I don't get PPU timing totally accurate, games that don't use mid-scanline or mid-frame effects other than sprite 0 hit test, will work well anyway, right?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Sun May 16, 2010 9:50 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: PPU render timing basic questions</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Petruza wrote:</div><div class="quotecontent">So no writes to VRAM can be made between scanlines? at least scrolling writes can be made, or at least that's how I always thought mid-frame scrolling effects were made.</div><br /><br />Yes.  $2003, $2004, $2007 are all offlimits during rendering<br /><br />All other $200x regs can be accessed at any time.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Even if I don't get PPU timing totally accurate, games that don't use mid-scanline or mid-frame effects other than sprite 0 hit test, will work well anyway, right?</div>
+<br />
+<br />Yes you don't have to be super accurate for most games to run.  But the more accurate you are, the less chance of visual glitches and shaking status bars.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Sun May 16, 2010 10:09 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: PPU render timing basic questions</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Disch wrote:</div><div class="quotecontent">But the more accurate you are, the less chance of visual glitches and shaking status bars.</div>
+<br />Although some games made back in the day did include such "features" when running on actual hardware.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Petruza</b> [ Mon May 17, 2010 6:11 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: PPU render timing basic questions</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Disch wrote:</div><div class="quotecontent"><div class="quotetitle">Petruza wrote:</div><div class="quotecontent">Each CPU cycle equals 12 PPU cycles, CPU runs at 1.79 Mhz and PPU at 21.47 Mhz.</div><br /><br />No.<br /><br />1 NTSC CPU cycle = 3 PPU cycles<br />1 PAL CPU cycle = 3.2 PPU cycles<br /></div>
+<br />
+<br />I'm confused, so why does the NTSC PPU run at 21.47 Mhz which is 12 times the 1.79 Mhz of the CPU ?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Mon May 17, 2010 6:26 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />The PPU pixel rate is not 21.47 MHz; it's 3 times the CPU rate for NTSC, and 3.2 times for PAL.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Mon May 17, 2010 6:32 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />The NES PPU can display twelve distinct hues. The hue signal generator (see <a href="http://wiki.nesdev.com/w/index.php/NTSC_video" class="postlink">NTSC video</a>) needs a clock signal with twelve edges for each cycle of the color subcarrier, which in the case of NTSC is 3.58 MHz. So the master clock is always set at six times the subcarrier's frequency, which provides the desired signal with six rises and six falls. Only the hue generator uses this clock signal directly; it is divided down by 4 (NTSC) or 5 (PAL) before it hits the rest of the PPU.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Petruza</b> [ Mon May 17, 2010 7:20 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Ok, so the 21.47 Mhz is some sort of video clock signal I shouldn't care about.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Mon May 17, 2010 9:45 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />It depends on how accurately you're emulating the PPU. As I mentioned in another post, the fact that it's running at 21.47 MHz affects the various synchronizations it powers up in relative to the CPU.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Petruza</b> [ Mon May 17, 2010 9:59 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Ok, but 21.47 Mhz means that something occurs once every 21,470,000 th of a second. We already stated that that are not PPU cycles, so what are they?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Mon May 17, 2010 11:59 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />They are master clock cycles.
+<br />
+<br />Depending on the <a href="http://catb.org/jargon/html/P/phase-of-the-moon.html" class="postlink">phase of the moon</a> at power-on, the CPU clock (master/12) can be delayed by 0, 1, 2, or 3 master clock cycles from the dot clock (master/4). This can cause a program that depends on certain edge cases to behave differently from one reset to the next.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

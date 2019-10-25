@@ -1,0 +1,333 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Protip for TNROM on hardware using INL-ROM!</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Protip for TNROM on hardware using INL-ROM!</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=10742">http://forums.nesdev.com/viewtopic.php?f=2&amp;t=10742</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>mrmmaclean</b> [ Sat Nov 30, 2013 12:04 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Protip for TNROM on hardware using INL-ROM!</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Been playing with INL's TNROM board and it rules but I thought I would share an interesting caveat when working with it!<br /><br />I had recently shared a ROM for people to test on their Powerpaks, etc, when I was having problems with FCEUX emulation (that ended up being a bad version of FCEUX, but that's for another thread). It seemed to work fine on consoles everywhere and when using a good emulator all is well.<br /><br />I tried the same ROM on an INL TNROM board? Nothing! Before I decided to fret, I loaded up a familiar title to see if it was my ROM. Final Fantasy 3 worked like a dream!<br /><br />So, I tried making the most basic program I could think of: a simple image appearing on the screen. Still didn't work. This was when I suspected it had something to do with my init code, which is of course the universal start up code, I'm certain most people use, found on the wiki.<br /><br />I stepped through FF3 using Nintendulator's debugger and soon discovered that even though TNROM's use CHR RAM and not ROM, they had some bank switching code for the RAM as part of the init! Sure enough, once I put this code into my own init, everything was fine. It seems that actual TNROM hardware requires at least a basic set up of the CHR RAM where emulators and even the Powerpak don't! I'm not sure if the Powerpak is doing some kind of emulation inside but don't let it fool you into thinking a TNROM game is working the way it would on a TNROM board!<br /><br />Now here's the code (for ASM6). This would go wherever you choose to do your mapper setup but BEFORE any PPU code (I prefer to play it safe and let the two frame warmup happen before doing anything):<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp;; Set up banks<br />&nbsp; &nbsp;lda #$00<br />&nbsp; &nbsp;sta BANK_SELECT&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;; $8000 swappable, $c000 fixed<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;; Two 2k banks at $1000<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;; Four 1k banks at $0000&nbsp; &nbsp;<br />&nbsp; &nbsp;sta BANK_SWITCH&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;tax&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;; Init CHR RAM<br />ChrBankLoop:&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<br />&nbsp; &nbsp;stx BANK_SELECT&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;; $00, $01, $02, $03, $04, $05<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;lda CHRinitTable,x&nbsp; &nbsp;&nbsp; &nbsp;; Sets up CHR banks<br />&nbsp; &nbsp;sta BANK_SWITCH&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;; $00, $02, $04, $05, $06, $07<br />&nbsp; &nbsp;inx<br />&nbsp; &nbsp;cpx #$06<br />&nbsp; &nbsp;bcc ChrBankLoop<br /></div><br />Then wherever your data goes but still in your hardwired bank:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">CHRinitTable:<br />&nbsp; &nbsp;.db $00, $02, $04, $05, $06, $07<br /></div><br />The table likely has to be different for a different CHR config, but I haven't tested that. So, $00, $01, $02, $03, $05, $07 instead if using the opposide config, etc. After that, everything loads up just as you would want!<br /><br />I hope this helps anyone doing TNROM development or testing, and if anyone with more technical prowess can elaborate on why this is required on an actual TNROM board but not a Powerpak, I'd love to know!<br /><br />edit: the first bank write might be redundant, but I am a stickler for making 100% sure things are going to work the way I want  <img src="./images/smilies/icon_confused.gif" alt=":?" title="Confused" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>infiniteneslives</b> [ Sat Nov 30, 2013 12:33 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Protip for TNROM on hardware using INL-ROM!</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Happy to see you're digging right in with things!<br /><br />Yes, the CHR banks and mode certainly do need initialized before use.  The powerpak, emus, and such often tend to initialize things for you even if they don't mean to.  With actual cartridge hardware running on the NES, you should ALWAYS initialize any registers that are relied upon.  I would assume that using the original MMC3 you'd run into the same issue.  So this is a good tip in general, not just on my boards specifically.  I found similar issues with setting up the PPU, people often don't wait long enough before writing to the PPU with their init code.  Even the init code from the nerdy nights tutorial doesn't wait long enough (where I first noticed the issue myself)  When using the powerpak the PPU has been running for an eternity by the time your code gets ahold of it, and emus generally don't require warmup.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Sat Nov 30, 2013 12:42 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Protip for TNROM on hardware using INL-ROM!</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Either way it'd be 0,2,4,5,6,7.<br /><br />The first two writes are redundant, and counting down from 5 to 0 instead of up from 0 to 5 allows skipping the CPX. <a href="http://forums.nesdev.com/viewtopic.php?p=116636#p116636" class="postlink">Alternate code</a>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>mrmmaclean</b> [ Sat Nov 30, 2013 12:57 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Protip for TNROM on hardware using INL-ROM!</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Thanks for clarifying, tepples! I literally used the exact code I was stepping through from FF3 and it seemed legit (ie. worked for Square). Though I should have been more clear when I said the &quot;first write.&quot; I meant the first PAIR of writes. Just a habit in my thinking since a lot of NES register writes happen in pairs, haha<br /><br />Would you mind explaining that particular number sequence? It seemed to me like the &quot;starting points&quot; to 1k chunks of CHR data, which is why I assumed it would be different depending on the CHR config one chose to use.<br /><br />And yeah, infiniteneslives, it's always a good habit to init everything before getting started. It was foolhardy to think I could get away with leaving something out because it didn't seem &quot;relevant&quot;!
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>mrmmaclean</b> [ Sat Nov 30, 2013 1:02 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Protip for TNROM on hardware using INL-ROM!</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />And tepples, thanks for the DEX pointer. Since I'm starting to get the hang of things, I'm now trying to make my brain automatically optimize code and in your alternate example you mention the A and X registers being ready for setting up mirroring. Simple, but very slick.  <img src="./images/smilies/icon_biggrin.gif" alt=":D" title="Very Happy" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>qbradq</b> [ Sat Nov 30, 2013 1:44 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Protip for TNROM on hardware using INL-ROM!</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Um, if you don't understand what those numbers are, it's no small wounder you did not understand the advise of the forum regulars when we told you to initialize the mapper correctly.<br /><br />Please familiarize yourself with the <a href="http://wiki.nesdev.com/w/index.php/INES_Mapper_004" class="postlink">documentation for mapper 4 (MMC3)</a>. You'll be glad you did.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>mrmmaclean</b> [ Sat Nov 30, 2013 2:49 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Protip for TNROM on hardware using INL-ROM!</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">qbradq wrote:</div><div class="quotecontent">Um, if you don't understand what those numbers are, it's no small wounder you did not understand the advise of the forum regulars when we told you to initialize the mapper correctly.</div><br />qbradq, this is the first time I have mentioned such a thing, so nobody has told &quot;me&quot; anything about it. I have already admitted that it was a foolish oversight and remedied it, and I can assure you I will be much more meticulous in the future.<br /><br />Anyway, I KNEW what the numbers meant (associations of the chunks of CHR RAM on the board to the appropriate PPU registers), but what confused me was how the sequence could be the same either way the CHR was set up. That made me question the sequence and therefore it's purpose. However, upon REREADING the doc (yes, I read it before, believe it or not) I realized that I was looking at the CHR diagram wrong, thinking that the banks were somehow numbered differently based on the config. So now, the sequence makes total sense again.  <img src="./images/smilies/icon_redface.gif" alt=":oops:" title="Embarassed" /><br /><br />edit: I know that noob questions are probably frustrating, and it's easy to assume that the person is not bothering to do their research, but please don't let the noobs ruin what is possibly just a simple misunderstanding from a person who IS actually trying. As evidence, here is a quick little demo of my first person dungeon crawl engine, a la Bard's Tale/Wizardry, that will be a fully functional (and awesome!) game in the relatively near future. This doesn't represent anything near a final product, and I have even already reprogrammed the perspective in prep for some more accurate and detailed art, but it can at least show you that when I ask a question it's because I am legitimately confused about something and not just rolling around like a helpless baby. Up =  Forward, Left/Right = turn 90 degrees. <!-- m --><a class="postlink" href="https://dl.dropboxusercontent.com/u/108128101/FPCrawlTest.nes">https://dl.dropboxusercontent.com/u/108 ... wlTest.nes</a><!-- m -->
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Sat Nov 30, 2013 3:25 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Protip for TNROM on hardware using INL-ROM!</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">mrmmaclean wrote:</div><div class="quotecontent">but what confused me was how the sequence could be the same either way the CHR was set up. That made me question the sequence and therefore it's purpose.<br /></div> Is there any way we could rewrite or rephrase things to make it more immediately clear what's going on?<br /><br />P.S. your proof of concept looks like a really good start!
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>mrmmaclean</b> [ Sat Nov 30, 2013 3:33 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Protip for TNROM on hardware using INL-ROM!</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">lidnariq wrote:</div><div class="quotecontent">Is there any way we could rewrite or rephrase things to make it more immediately clear what's going on?</div><br />To be honest, I think it's just a matter of the page being all monotype like code or code comments. The diagram is clear enough in principal, but that kind of font tends to just look like a wall of text that's easy to skim and miss the finer details. The error is on me, for certain.<br /><br />If anything, perhaps a note above or below the diagram stating that the registers remain the same despite the configuration could help. But, once again, it would not been needed if I was simply more careful.<br /><br />ps: thanks!  <img src="./images/smilies/icon_biggrin.gif" alt=":D" title="Very Happy" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Sat Nov 30, 2013 5:13 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Protip for TNROM on hardware using INL-ROM!</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Do you find the <a href="http://wiki.nesdev.com/w/index.php/MMC3" class="postlink">MMC3</a> article more or less clear than the <a href="http://wiki.nesdev.com/w/index.php/INES_Mapper_004" class="postlink">Mapper 4</a> article?<br /><br />We should really finish cleaning everything up; certain parts of the wiki are in a pretty terrible state of Don't Repeat Yourself.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>mrmmaclean</b> [ Sat Nov 30, 2013 6:26 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Protip for TNROM on hardware using INL-ROM!</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">lidnariq wrote:</div><div class="quotecontent">Do you find the <a href="http://wiki.nesdev.com/w/index.php/MMC3" class="postlink">MMC3</a> article more or less clear than the <a href="http://wiki.nesdev.com/w/index.php/INES_Mapper_004" class="postlink">Mapper 4</a> article?</div><br />I definitely do find the MMC3 one much more clear and, in fact, reference it a lot more. Mind you, a lot of that comes down to the readability of it. I'm quite terrible at memorizing bits and being able to quickly scroll to the appropriate register detail is very important to my feeble mind (this applies to the PPU article, etc, as well). However, in Disch's notes in the iNES 004 article, there's more specifics on how to actually use the registers, such as what order to write to the IRQ regs and, of course, the CHR diagram, for example. The former is more technical and the latter is more practical, but both are required for a full understanding of the mapper and how to code for it.<br /><br />I appreciate the work you guys do on the wiki, it's really great stuff! But yeah, why have two somewhat incomplete articles when one super article will do!
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

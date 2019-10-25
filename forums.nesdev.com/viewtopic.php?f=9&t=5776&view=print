@@ -1,0 +1,492 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - ROM: Nestopia OK, PowerPak not OK?</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">ROM: Nestopia OK, PowerPak not OK?</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=9&amp;t=5776">http://forums.nesdev.com/viewtopic.php?f=9&amp;t=5776</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>neilbaldwin</b> [ Fri Nov 27, 2009 9:26 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>ROM: Nestopia OK, PowerPak not OK?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />My NES tracker is now using MMC1 so that I can have the editor in fixed ROM and the music player in another bank, switching banks in the NMI to call the player refresh.
+<br />
+<br />At the moment I've only got a dummy routine for the music refresh (as there's no music code yet), simply incrementing a ZP variable (so I can check it's getting there) and RTS.
+<br />
+<br />I'm setting the bank with this routine;
+<br />
+<br />setPRGBank	sta $E000
+<br />	lsr a
+<br />	sta $E000
+<br />	lsr a
+<br />	sta $E000
+<br />	lsr a
+<br />	sta $E000
+<br />	lsr a
+<br />	sta $E000
+<br />	rts
+<br />
+<br />So, in the NMI, with the dummy music player in bank 1;
+<br />
+<br />lda #$01
+<br />jsr setPRGBank
+<br />jsr musicRefresh
+<br />lda #$00
+<br />jsr setPRGBank
+<br />
+<br />When running the ROM in Nestopia, it works fine. However, using the same ROM in PowerPak causes a lock-up. If I comment out the bank switch and music refresh call in the NMI, it works.
+<br />
+<br />Anyone?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>koitsu</b> [ Fri Nov 27, 2009 10:01 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />1) Are you initialising the MMC1 in your RESET vector code?  LDA #$80 / STA $FFFF should be sufficient according to <a href="http://www.tripoint.org/kevtris/mappers/mmc1/index.html" class="postlink">kevtris's MMC1 doc</a>.
+<br />
+<br />2a) How are you setting up MMC1?  Specifically, register 0 (writes to $8000-9FFF).  Bits #2 and #3 matter greatly here.
+<br />
+<br />2b) I believe kevtris's MMC1 doc has a mistake when talking about H=1 in register 0; it states when H=1, $C000-FFFF (16KB) is fixed and $8000-FFFF (32KB) is swappable.  Pretty sure he means $C000-FFFF (16KB) is fixed and $8000-BFFF (16KB) is swappable, given that his later description of register 3's "P" bits state that only full 32KB swaps happen when H=0.
+<br />
+<br />3) Where's your NMI routine located at, CPU addressing space-wise?  If it's in the PRG swappable area, you'll need to make sure a copy of your NMI routine exists in every PRG page you'll be swapping in.
+<br />
+<br />4) Same question as #3, but for your musicRefresh routine.
+<br />
+<br />5) Are all of your routines properly .ORG'd?  Meaning: if the code is assembled to assume a base origin of $C000 and you end up swapping that PRG bank into $8000........  ;-)
+<br />
+<br />6) Possibly this is the result of you assuming the wrong PRG bank is whats loaded on start-up (e.g. Nestopia might load a certain PRG bank at boot, while PowerPak might load a different one).  I remember there being a debate/discussion over which PRG bank, at power-on, in the ROM image itself gets loaded into $8000-BFFF and which gets loaded into $C000-FFFF.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>neilbaldwin</b> [ Fri Nov 27, 2009 11:29 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">koitsu wrote:</div><div class="quotecontent">1) Are you initialising the MMC1 in your RESET vector code?  LDA #$80 / STA $FFFF should be sufficient according to <a href="http://www.tripoint.org/kevtris/mappers/mmc1/index.html" class="postlink">kevtris's MMC1 doc</a>.<br /></div><br /><br />ldx #$80<br />stx $8000<br /><br /><div class="quotetitle">koitsu wrote:</div><div class="quotecontent">2a) How are you setting up MMC1?  Specifically, register 0 (writes to $8000-9FFF).  Bits #2 and #3 matter greatly here.<br /></div><br /><br />lda #%01100	;Set bank layout<br />sta $9fff<br />lsr a<br />sta $9fff<br />lsr a<br />sta $9fff<br />lsr a<br />sta $9fff<br />lsr a<br />sta $9fff<br /><br /><div class="quotetitle">koitsu wrote:</div><div class="quotecontent">2b) I believe kevtris's MMC1 doc has a mistake when talking about H=1 in register 0; it states when H=1, $C000-FFFF (16KB) is fixed and $8000-FFFF (32KB) is swappable.  Pretty sure he means $C000-FFFF (16KB) is fixed and $8000-BFFF (16KB) is swappable, given that his later description of register 3's "P" bits state that only full 32KB swaps happen when H=0.<br /></div><br /><br /><div class="quotetitle">koitsu wrote:</div><div class="quotecontent">3) Where's your NMI routine located at, CPU addressing space-wise?  If it's in the PRG swappable area, you'll need to make sure a copy of your NMI routine exists in every PRG page you'll be swapping in.<br /></div><br /><br />It's &gt; $C000 (reset vector is at $C000 and there's little else in the fixed area apart from that and the NMI)<br /><br /><div class="quotetitle">koitsu wrote:</div><div class="quotecontent">4) Same question as #3, but for your musicRefresh routine.<br /></div><br /><br />It's at $8000 in bank 1. Here's my layout;<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">;--------------------------------------------------------------------------------<br />; BANK 00<br />;--------------------------------------------------------------------------------<br /><br />&nbsp; &nbsp;ORG $0000<br />&nbsp; &nbsp;BASE $8000<br />bank00:&nbsp; &nbsp;.include &quot;editor.asm&quot;<br />&nbsp; &nbsp;ALIGN 256<br />menu_text:&nbsp; &nbsp;.incbin &quot;ntraq.nam&quot;<br />palette:&nbsp; &nbsp;.incbin &quot;set2.dat&quot;<br />&nbsp; &nbsp;ORG $BFFA<br />&nbsp; &nbsp;DW vblank, reset, irq<br />&nbsp; &nbsp;<br />;--------------------------------------------------------------------------------<br />; BANK 01<br />;--------------------------------------------------------------------------------<br /><br />&nbsp; &nbsp;BASE $8000<br />bank01&nbsp; &nbsp;.include &quot;ntrqplyr.asm&quot;<br />&nbsp; &nbsp;ORG $BFFA<br />&nbsp; &nbsp;DW vblank, reset, irq<br /><br />;--------------------------------------------------------------------------------<br />; FIXED BANK<br />;--------------------------------------------------------------------------------<br /><br />&nbsp; &nbsp;ORG $C000<br />&nbsp; &nbsp;.include &quot;ntrqmon.asm&quot;<br /><br />;--------------------------------------------------------------------------------<br />; CHR ROM<br />;--------------------------------------------------------------------------------<br />&nbsp; &nbsp;.incbin &quot;set2.chr&quot;<br />&nbsp; &nbsp;.incbin &quot;spr2.chr&quot;<br /></div><br /><br /><br /><div class="quotetitle">koitsu wrote:</div><div class="quotecontent">5) Are all of your routines properly .ORG'd?  Meaning: if the code is assembled to assume a base origin of $C000 and you end up swapping that PRG bank into $8000........  <img src="./images/smilies/icon_wink.gif" alt=";-)" title="Wink" /><br /></div><br /><br />As far as I know. <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" /><br /><br /><div class="quotetitle">koitsu wrote:</div><div class="quotecontent">6) Possibly this is the result of you assuming the wrong PRG bank is whats loaded on start-up (e.g. Nestopia might load a certain PRG bank at boot, while PowerPak might load a different one).  I remember there being a debate/discussion over which PRG bank, at power-on, in the ROM image itself gets loaded into $8000-BFFF and which gets loaded into $C000-FFFF.</div>
+<br />
+<br />So Nestopia could load a different bank than PowerPak at boot up?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>neilbaldwin</b> [ Fri Nov 27, 2009 11:57 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Interestingly, as you might expect I guess,  if I put a "rts" at $8000 in bank 0, first line of the "editor.asm" file, it doesn't crash any more.
+<br />
+<br />I guess that means that despite the bank switching, the JSR to the dummy music refresh is actually just going to the start of the editor.asm file ($8000 in bank 0).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>thefox</b> [ Fri Nov 27, 2009 12:53 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Could be PowerPak doesn't like if number of banks isn't a power of two. If you're using 3 try adding a dummy bank and changing number of banks to 4 in the header.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Fri Nov 27, 2009 12:57 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />You have 3 PRG banks? That's a weird number, because it doesn't add to a power of 2 ROM size. Try putting an extra dummy bank (for a total of 4, and don't forget to change the header) and see if it helps.
+<br />
+<br />EDIT: Damn, thefox beat me to it! =)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>thefox</b> [ Fri Nov 27, 2009 12:59 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tokumaru wrote:</div><div class="quotecontent">EDIT: Damn, thefox beat me to it! =)</div>
+<br />Our messages were freakishly similar too! <img src="./images/smilies/icon_wink.gif" alt=";)" title="Wink" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>koitsu</b> [ Fri Nov 27, 2009 12:59 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Hmm, that's kind of a weird test (re: putting RTS at $8000).  Have you tried getting the assembler to generate a source listing (if this is ASM6, try using the dash-ell flag) and seeing if the assembled address of the JSR is correct?  Could be an assembler bug is what I'm getting at.
+<br />
+<br />If it turns out to be: funny timing.  I tried out ASM6 today and not more than 5 minutes into using it did I find some kind of text parsing bug with regards to the ORG directive.  *dun dun dun*  :)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>koitsu</b> [ Fri Nov 27, 2009 1:01 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tokumaru wrote:</div><div class="quotecontent">You have 3 PRG banks? That's a weird number, because it doesn't add to a power of 2 ROM size. Try putting an extra dummy bank (for a total of 4, and don't forget to change the header) and see if it helps.<br /><br />EDIT: Damn, thefox beat me to it! =)</div>
+<br />
+<br />Wow, I wouldn't have even thought of that.  Yeah, I guess the ROM size has to be ^2, as it would be on a real board anyway.  Doh!
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Fri Nov 27, 2009 1:15 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">thefox wrote:</div><div class="quotecontent">Our messages were freakishly similar too! <img src="./images/smilies/icon_wink.gif" alt=";)" title="Wink" /></div><br />I though so too! We both used the term "dummy bank" and then mentioned changing the header.<br /><br /><div class="quotetitle">koitsu wrote:</div><div class="quotecontent">Could be an assembler bug is what I'm getting at.</div><br />Could be, but if it is it can probably be worked around. I've already used some freakish bank layouts with ASM6 and it has always worked fine.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">I tried out ASM6 today and not more than 5 minutes into using it did I find some kind of text parsing bug with regards to the ORG directive.</div>
+<br />You should report it to loopy. In <a href="http://nesdev.com/bbs/viewtopic.php?t=4955&amp;postdays=0&amp;postorder=asc&amp;start=0" class="postlink">this thread</a> there were a few reported bugs that loopy fixed pretty quickly.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>neilbaldwin</b> [ Fri Nov 27, 2009 2:36 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I don't know what the answer is but you guys are ace! Thanks for all the input, seriously appreciated <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" />
+<br />
+<br />Just picking up on the ASM6 bug (yes, well spotted all): why would it differ between Nestopia and PowrPak? What's Nestopia actually emulating if fundamental functions behave in an unpredictable way? Or PowerPak, depending on which one is at fault.
+<br />
+<br />That sounds overly critical but it's not meant to be, just want to understand what I can trust and what I can't.
+<br />
+<br />I'll try out some of the suggestions and report back. I'd actually thought about the 3 bank thing, I know it's a weird setup but I just expanded the ROM map as needed and as it seemed to work in Nestopia.......
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>koitsu</b> [ Fri Nov 27, 2009 2:54 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tokumaru wrote:</div><div class="quotecontent"><div class="quotetitle">koitsu wrote:</div><div class="quotecontent">I tried out ASM6 today and not more than 5 minutes into using it did I find some kind of text parsing bug with regards to the ORG directive.</div><br />You should report it to loopy. In <a href="http://nesdev.com/bbs/viewtopic.php?t=4955&amp;postdays=0&amp;postorder=asc&amp;start=0" class="postlink">this thread</a> there were a few reported bugs that loopy fixed pretty quickly.</div>
+<br />
+<br />I've already sent him an Email requesting an enhancement for one of the assembler directives.  I do speak C, so I could implement it myself, but loopy knows the code better than I do not to mention the code is very hard to follow due to... how shall I put this... being very difficult to read.  Just view it to see what I mean.  :-)
+<br />
+<br />When I get a response to that I'll let him know of the issue with the ORG directive.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>neilbaldwin</b> [ Fri Nov 27, 2009 3:04 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">koitsu wrote:</div><div class="quotecontent"><div class="quotetitle">tokumaru wrote:</div><div class="quotecontent"><div class="quotetitle">koitsu wrote:</div><div class="quotecontent">I tried out ASM6 today and not more than 5 minutes into using it did I find some kind of text parsing bug with regards to the ORG directive.</div><br />You should report it to loopy. In <a href="http://nesdev.com/bbs/viewtopic.php?t=4955&amp;postdays=0&amp;postorder=asc&amp;start=0" class="postlink">this thread</a> there were a few reported bugs that loopy fixed pretty quickly.</div><br /><br />I've already sent him an Email requesting an enhancement for one of the assembler directives.  I do speak C, so I could implement it myself, but loopy knows the code better than I do not to mention the code is very hard to follow due to... how shall I put this... being very difficult to read.  Just view it to see what I mean.  <img src="./images/smilies/icon_smile.gif" alt=":-)" title="Smile" /><br /><br />When I get a response to that I'll let him know of the issue with the ORG directive.</div>
+<br />
+<br />Heh <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" />
+<br />
+<br />Actually, I have made some (very minor) changes to ASM6 before - I'd put a couple of requests into Loopy but in the meantime I figured out how to bodge them in myself. He did a better job. It is difficult to follow the code but it works <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" />
+<br />
+<br />So you think my issue is definitely an ASM6 bug?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>koitsu</b> [ Fri Nov 27, 2009 3:05 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">neilbaldwin wrote:</div><div class="quotecontent">I don't know what the answer is but you guys are ace! Thanks for all the input, seriously appreciated :)<br /><br />Just picking up on the ASM6 bug (yes, well spotted all): why would it differ between Nestopia and PowrPak? What's Nestopia actually emulating if fundamental functions behave in an unpredictable way? Or PowerPak, depending on which one is at fault.<br /><br />That sounds overly critical but it's not meant to be, just want to understand what I can trust and what I can't.<br /><br />I'll try out some of the suggestions and report back. I'd actually thought about the 3 bank thing, I know it's a weird setup but I just expanded the ROM map as needed and as it seemed to work in Nestopia.......</div>
+<br />
+<br />Regarding possible ASM6 bugs: use the dash-ell flag with ASM6 and review the output.  If the assembler is correctly calculating the 16-bit address of musicRefresh (based on the source file and the ORG directive for that file or section of code), then there's no bug.
+<br />
+<br />My concern was with whether or not ASM6 was calculating the address wrong, since the label (address) you're JSRing to is in a different file.  But today is my first encounter with ASM6, so what the hell do I know about it (I'm serious!).
+<br />
+<br />A PRG bank count that isn't 2^n (n = PRG bank count) could most definitely cause what you're seeing; possibly the PowerPak does something funky in that situation (e.g. loads a PRG bank different than the one you'd expect).  Also remember that PRG bank numbers start at 0, not 1.  Anyway, bunnyboy would have to confirm.
+<br />
+<br />If Nestopia is permitting bank counts that don't match a power of 2, this could be considered either a bug or a feature depending on how you see it.  Ideally you'd expect the emulator to say "PRG bank count must be a value of 2^n", but then again, it's an emulator.  :-)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Fri Nov 27, 2009 3:20 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />If you rule out the ASM6 bug theory, try tracing the code in FCEUXD. It might not be the most accurate emulator, but it is the one with the best debugger. I was able to catch many bugs in my own programs with it. Set a breakpoint near the bankswitching and see if everything works as you expected (it correctly jumps to the music refresh routine). Of course, do try the dummy bank thing as well.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

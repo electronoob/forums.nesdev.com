@@ -1,0 +1,248 @@
+; Tutorial: https://squareknot.com/workshop/3805/project/5933
+; 	TABLE OF CONTENTS
+; 1. The iNES Header 
+; 2. Constants and Variables 
+; 3. Set the Starting Point 
+; 4. The RESET Routine 
+; 5. The NMI Interrupt 
+; 6. The Main Game Loop 
+; 7. Sub-Routines 
+; 8. The Vectors 
+
+; ====================
+;  1. The iNES Header
+; ====================
+
+	; ASM6 iNES Header 
+	
+	.db "NES", $1a 			; iNES identifier 
+	.db $01 				; Number of PRG-ROM blocks the game will have
+	.db $01 				; Nymber of CHR-ROM blocks the game will have
+	.db $00, $01 			; Control bytes 
+	
+	.db $00, $00, $00, $00, $00, $00, $00, $00	; Filler
+							
+							; The game uses NROM (Native ROM?)
+	
+	; NESASM3 iNES Header
+	
+;	.inesprg 1 				; Number of PRG-ROM banks
+;	.ineschr 1 				; Number of CHR-ROM banks 
+;	.inesmap 0 				; Number of mappers
+;	.inesmir 1 				; Use of mirroring
+	
+; ============================
+;  2. Constants and Variables
+; ============================
+
+	.enum $0000 
+	PlayerX .dsb 1 
+	PlayerY .dsb 1
+
+	FrameTimer .dsb 1 		; Declare FrameTimer variable 
+	.ende 
+
+; ================================
+;  3. Set the Code Starting Point  
+; ================================
+
+	.org $C000
+
+; ======================
+;  4. The RESET Routine
+; ======================
+RESET:
+	SEI						; Ignore any interrupts for this routine 
+	LDA #$00				; Load 0 to Accumulator 
+	STA $2000				; Stores 0 at $2000 and disables the NMI interrupt
+	STA $2001 				; Disables rendering 
+	STA $4010
+	STA $4015
+	LDA #$40 				; Load #$40 = 64 
+	STA $4017				; Store #$40 = 64 at $4017 
+	CLD 					; Disables Decimal Mode 
+	LDX #$FF 				; Loads value #$FF = 255
+	TXS						; Initialize the stack 
+	
+	; ---------------------------
+	;  4.1 Wait for First vBlank 
+	; ---------------------------
+	
+	bit $2002 
+vBlankWait1:
+	bit $2002 
+	BPL vBlankWait1
+
+	; -------------------
+	; 4.x Initalize RAM 
+	; -------------------
+	
+	LDA #$00				; Load 0 into the Accumulator 
+	LDX #$00 				; Loads 0 into X 
+
+ClearMemoryLoop:
+	STA $0000,x 			; Store Accumualtor (which currently equals x = 0)
+							; into address $0000 + x 
+	STA $0100,x				; Store Accumulator into address $0100 + x
+	STA $0200,x
+	STA $0300,x
+	STA $0400,x
+	STA $0500,x
+	STA $0600,x
+	STA $0700,x
+	
+	INX 					; Now, the value of X is incremented by one. The Xs
+							; of the previous "STA $0100,x", "STA $0200,x" the
+							; the first time are increased.
+							
+	BNE ClearMemoryLoop 	; This will branch up to the top of ClearMemoryLoop
+							; again if X does not equal 0. It will be 0 again
+							; when 1 is added to #$FF = 255. When this happens,
+							; the loop will no longer occur and all memory loca-
+							; tions from $0000 to $07FF will be loaded with 0.
+
+
+							
+	; ----------------------------
+ 	;  4.x Wait for Second vBlank 
+	; ----------------------------
+	
+vBlankWait2:
+	bit $2002
+	BPL vBlankWait2
+
+	; ----------------------
+	;  4.x Clear the Memory 
+	; ----------------------
+
+	LDA #%10010000			; Loads 10010000 into the Accumulator.
+	STA $2000 				; Stores 10010000 into the Accumulator and turns
+							; back on the NMI interrupt.
+	LDA #%00011110 			; Loads 00011110 into the Accumulator.
+	STA $2001 				; Store 00011110 into Accumulator and it
+							; re-enables rendering.
+
+	LDA #$80 				; Load #$80 = ___
+	STA PlayerX
+	STA PlayerY
+	
+	JMP MainGameLoop 
+	
+; ======================
+;  5. The NMI Interrupt
+; ======================
+
+; The Non-Maskable Interrupt happens at the end of every frame. 
+
+NMI:
+	PHA						; Push the Accumualtor to the stack.
+	TXA						; Load whatever the value of X is into the Accumualtor
+	PHA						; Push the Accumulator with X loaded to the stack with
+							; "the old" Accumulator on the bottom and X on the top. 
+	TYA						; Load whatever the value of Y is into the Accumulator. 
+	PHA 					; Push the Accumulator to the stack with Y on top, X in
+							; the middle, and the Accumulator on the bottom.
+	
+	inc FrameTimer 
+	
+	LDA #$00				; Load #$00 = 0
+	STA $2003				; Store #$00 = 0 as the low byte of the sprite RAM address. 
+	LDA #$02				; Load #$02 = 2 
+	STA $4014 				; Store #$02 = 2 as the high byte of the sprite RAM address.
+							; This means that low-byte #$00 and high-byte #$02 has formed 
+							; $0200. Now, $2000 can be used to load CHR-ROM.
+
+	LDA $2002 
+	LDA #$3F 
+	STA $2006
+	LDA #$00 
+	STA $2006 
+	LDX #$00 
+
+
+LoadPaletteLoop:
+	LDA MyPalettes,x		; Load whatever value from the table that x is equal to.
+	STA $2007				; Store MyPalettes + x to the address that handles palettes 
+	INX 					; Increase x 
+	CPX #$20 				; Compre x to #$20 = 32 because there are 8 banks of 4 colors.
+							; 8(4) = 32 and so it is looped through 32 times.
+	BNE LoadPaletteLoop		; If the comparison between 32 and x is not 0 (meaning that 
+							; 32 - x != 0), that means that there are still more colors to
+							; load. So jump back to the start of LoadPaletteLoop with INX
+							; causing x to increase.
+
+	LDA #%10010000			; Turn on NMI
+	STA $2000 				
+	LDA #%00011110			; Turn on rendering 
+	
+	STA $2001
+							
+							; pull the registers FROM the stack and restore them.
+							; the first thing we pull from the stack is 'on top'.
+							; Imagine reaching into the 'jar' that we just filled.
+							; The first thing you'd grab would be the y value.
+    PLA	    				; Pulls the top stack and puts it in accumulator.
+    TAY 	   				; puts that value into y
+							; now y is restored to what it was before NMI.
+    PLA	    				; pulls second stack value and puts in accumulator
+    TAX 	   				; puts that value into x
+							; now x is restored to what it was before NMI
+    PLA	    				; pulls third stack value and puts in accumulator
+							; not y,x,and a are all restored to what they were
+							; before the NMI no matter what we do in the
+							; DO NMI STUFF section of this code.
+    RTI  					; at the end of the NMI, we want to
+							; 'return from the interrupt'.
+							; The RTI will put us back into the code
+							; in whatever place we were when the frame ended.
+; ========================
+;  6. The Main Game Loop
+; ========================
+
+MainGameLoop:
+
+	LDA FrameTimer
+
+CheckFrameTimer:
+	CMP FrameTimer
+	BEQ CheckFrameTimer
+
+; Currently, sprite data is being held at address $0200.
+; $0200 controls a sprite's Y value.
+; $0201 controls a sprite's pattern table value.
+; $0202 controls a sprite's attribute value.
+; $0203 controls a sprite's X value.
+; $0204 controls another sprite's Y value
+; Et cetera 
+
+	LDA PlayerY 			; Load value of PlayerY which is #$80 = 128
+	STA $0200 				; Store #$80 = 128 to Sprite 1's Y address $0200 
+	LDA PlayerX 			; Load value of PlayerX which is #$80 = 128 
+	STA $0203				; Store #$80 = 128 to Sprite 1's X address $0203
+	
+	inc PlayerX				; Every frame, increase the value of PlayerX.
+	
+	JMP MainGameLoop		; Creates an infinite loop
+
+MyPalettes:
+	.db $0E,$05,$25,$0F, $0E,$05,$25,$0F, $0E,$05,$25,$0F, $0E,$05,$25,$0F	
+							; These are the sprite palettes
+	.db $0E,$05,$25,$0F, $0E,$05,$25,$0F, $0E,$05,$25,$0F, $0E,$05,$25,$0F 
+							; These are the background palettes
+	
+ 
+	
+
+; =================
+;  7. Sub-routines
+; =================
+; ================
+;  9. The Vectors
+; ================
+
+	.org $FFFA				; Sets up the very last address spaces of the code.
+	.dw NMI 				; Sets the NMI point to the NMI label.
+	.dw RESET 				; Sets the RESET point to the RESET label.
+	.dw 00 
+	
+	.incbin "Player.chr"	; Includes binary file of character sprite data

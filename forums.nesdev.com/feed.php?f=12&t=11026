@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=12&amp;t=11026" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2014-03-08T01:45:20-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=12&amp;t=11026</id>
+<entry>
+<author><name><![CDATA[jwdonal]]></name></author>
+<updated>2014-03-08T01:45:20-07:00</updated>
+<published>2014-03-08T01:45:20-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11026&amp;p=126536#p126536</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11026&amp;p=126536#p126536"/>
+<title type="html"><![CDATA[Re: kon_delay in snes_spc-0.9.0]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11026&amp;p=126536#p126536"><![CDATA[
+Excellent! Thanks blargg. I need to study this a bit with this new information to make sure I understand it.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3962">jwdonal</a> — Sat Mar 08, 2014 1:45 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[blargg]]></name></author>
+<updated>2014-03-07T14:15:16-07:00</updated>
+<published>2014-03-07T14:15:16-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11026&amp;p=126510#p126510</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11026&amp;p=126510#p126510"/>
+<title type="html"><![CDATA[Re: kon_delay in snes_spc-0.9.0]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11026&amp;p=126510#p126510"><![CDATA[
+<div class="quotetitle"><b>Quote:</b></div><div class="quotecontent"><br />I'm reading the code as, &quot;If the 5 sample KON delay has passed then use the Source Loop Start Address (LSA) instead of the Source Start Address (SA).<br /></div><br />Yeah. If a KON isn't happening, then the only address it will need is the loop for when it reaches the end.<br /><br />It only reads one of the two sample addresses (SA, LSA) each time through the DSP loop. When kon_delay is non-zero, a KON is in progress and the sample won't be looping, so it reads SA. Then at some point in the KON process it uses this. Some times through the DSP loop it will read this pointer but not do anything with it, so for those it doesn't matter which it reads.<br /><br />References:<br /><br /><div class="quotetitle">apudsp.txt wrote:</div><div class="quotecontent"><br />More specifically, the registers and memory are accessed as follows. Note that<br />most register values are read once per sample output and cached internally for<br />use as needed. Note also that the S-DSP may perform some of the &quot;if necessary&quot;<br />operations unconditionally but only make use of the result &quot;if necessary&quot;. For<br />example, in voice processing step V2 it may load the sample pointer<br />unconditionally, but this has no effect unless there was a loop or KON.<br /><br />...<br /><br /> V2. Load the sample pointer (using previously loaded DIR and VxSRCN) if<br />      necessary.<br /></div><br /><br /><div class="quotetitle">Spc_Dsp.cpp wrote:</div><div class="quotecontent"><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">inline VOICE_CLOCK( V2 )<br />{<br />    // Read sample pointer (ignored if not needed)<br />    byte const* entry = &amp;ram &#91;m.t_dir_addr&#93;;<br />    if ( !v-&gt;kon_delay )                        // *********<br />        entry += 2;<br />    m.t_brr_next_addr = GET_LE16A( entry );     // *********<br />    <br />    m.t_adsr0 = VREG(v-&gt;regs,adsr0);<br />    <br />    // Read pitch, spread over two clocks<br />    m.t_pitch = VREG(v-&gt;regs,pitchl);<br />}<br /><br />VOICE_CLOCK( V3c )<br />{<br />    // Pitch modulation using previous voice's output<br />    if ( m.t_pmon &amp; v-&gt;vbit )<br />        m.t_pitch += ((m.t_output &gt;&gt; 5) * m.t_pitch) &gt;&gt; 10;<br />    <br />    if ( v-&gt;kon_delay )<br />    {<br />        // Get ready to start BRR decoding on next sample<br />        if ( v-&gt;kon_delay == 5 )<br />        {<br />            v-&gt;brr_addr    = m.t_brr_next_addr; // *********<br />            v-&gt;brr_offset  = 1;<br />            v-&gt;buf_pos     = 0;<br />            m.t_brr_header = 0; // header is ignored on this sample<br />            kon_check      = true;<br />        }<br />    ...<br />}<br /><br />VOICE_CLOCK( V4 )<br />{<br />    // Decode BRR<br />    m.t_looped = 0;<br />    if ( v-&gt;interp_pos &gt;= 0x4000 )<br />    {<br />        decode_brr( v );<br />        <br />        if ( (v-&gt;brr_offset += 2) &gt;= brr_block_size )<br />        {<br />            // Start decoding next BRR block<br />            assert( v-&gt;brr_offset == brr_block_size );<br />            v-&gt;brr_addr = (v-&gt;brr_addr + brr_block_size) &amp; 0xFFFF;<br />            if ( m.t_brr_header &amp; 1 )<br />            {<br />                v-&gt;brr_addr = m.t_brr_next_addr;// *********<br />                m.t_looped = v-&gt;vbit;<br />            }<br />            v-&gt;brr_offset = 1;<br />        }<br />    }<br />    ...<br />}<br /></div><br /></div><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=17">blargg</a> — Fri Mar 07, 2014 2:15 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[jwdonal]]></name></author>
+<updated>2014-02-19T00:04:13-07:00</updated>
+<published>2014-02-19T00:04:13-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11026&amp;p=125736#p125736</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11026&amp;p=125736#p125736"/>
+<title type="html"><![CDATA[kon_delay in snes_spc-0.9.0]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11026&amp;p=125736#p125736"><![CDATA[
+What is this bit of code doing in SPC_DSP.cpp?<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">inline VOICE_CLOCK( V2 )<br />{<br />...<br />   if ( !v-&gt;kon_delay )<br />      entry += 2;<br />...<br />}</div><br />I'm reading the code as, &quot;If the 5 sample KON delay has passed then use the Source <strong><span style="text-decoration: underline">Loop</span></strong> Start Address (LSA) instead of the Source Start Address (SA).<br /><br />If that is the correct interpretation, then my question is why is it doing that?  I'm trying to find some reason in apudsp.txt but can't seem to find it...<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3962">jwdonal</a> — Wed Feb 19, 2014 12:04 am</p><hr />
+]]></content>
+</entry>
+</feed>

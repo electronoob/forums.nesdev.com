@@ -1,0 +1,285 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Bagel NES CHR compression.</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Bagel NES CHR compression.</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=22&amp;t=14724">http://forums.nesdev.com/viewtopic.php?f=22&amp;t=14724</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>2</strong> of <strong>2</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Tue Jan 17, 2017 10:46 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Bagel NES CHR compression.</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />So now I'm finally getting around to seeing where I could use Bagel.<br /><br />My next project is tools to manipulate an <a href="https://wiki.nesdev.com/w/index.php/Tile_compression#NES_Stripe_Image_RLE" class="postlink">NES Stripe Image</a> stored starting at $0108. (I chose $0108 because of how the 6502's only autoincrementing read instruction interacts with interrupts.) This would allow me to combine CHR and nametable updates in one vblank without needing a plethora of specific update formats such as the <a href="https://github.com/pinobatch/rhde-nes/blob/master/src/bg.s" class="postlink">seven different <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">bgup</tt> routines</a> in <em>RHDE</em>. An update containing eight tiles would need two packet headers:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">$0100-$0107: scratch space in case the uploader is interrupted, enough for PC, P, A, X, Y<br />$0108-$010A: address and length for first four tiles<br />$010B-$014A: first four tiles<br />$014B-$014D: address and length for second four tiles<br />$014E-$018D: second four tiles<br />$018E: $FF terminator</div><br /><br />I looked at <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">bagel.s</tt> and found this doc comment for <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">bagel_decompress_block</tt>:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">;;<br />; bagel_stream_ptr = the input stream pointer,<br />;&nbsp; &nbsp; &nbsp;points to after stream on exit.<br />; X = output buffer offset, restored on exit.<br />; Returns: flags of decrementing bagel_block_count<br /></div><br /><br />Does that mean I could call it with X=$0B to decompress four tiles and X=$4E to decompress four more?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>JRoatch</b> [ Tue Jan 17, 2017 10:53 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Bagel NES CHR compression.</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Yes. That will work given that the output buffer in bagel's context starts at $0100.<br /><br />Also disregard &quot;[X] restored on exit&quot; part. When bagel_decompress_block returns, X has been incremented by 64. I use this fact to have my own string writing system compute strings lengths by differences in the X register.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>FrankenGraphics</b> [ Tue Jan 17, 2017 12:21 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Bagel NES CHR compression.</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />re: the demo<br /><br />Incidentally (?), blanking and overwriting characters when the letters there are in alphabetical order at that speed has a really nice animation effect on text written in the nametable.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>JRoatch</b> [ Tue Jan 17, 2017 12:38 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Bagel NES CHR compression.</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">WheelInventor wrote:</div><div class="quotecontent">re: the demo<br /><br />Incidentally (?), blanking and overwriting characters when the letters there are in alphabetical order at that speed has a really nice animation effect on text written in the nametable.</div><br />It's kind of a throwback to the demo I posted in <a href="https://forums.nesdev.com/viewtopic.php?f=22&amp;t=10982" class="postlink">first post I made in this fourm.</a><br /><br />Bonus undocumented feature of the demo: While holding B press Left or Right to see it decompress from the wrong parts of the ROM.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>FrankenGraphics</b> [ Tue Jan 17, 2017 1:14 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Bagel NES CHR compression.</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Oh, i see. Well, it has a nice substance to it, when it's either because of (like in this case), or based on a real process, like decompressing and uploading tiles.  <img src="./images/smilies/Mfr_icon_homebrew.png" alt=":beer:" title="Beer" />  <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" />  For comparison, many &quot;text scrambler&quot; effects for appearing/disappearing text i've seen used in animation/sfx seem to just take a seed and dish out some RND product based on that and the current frame. I think random functions often feel a little cheap/superficially imposed; because they often are. Such can be done with AfterEffects scripts, but there's also commercial plugins for the same for those who don't have the time. Sorry for the side note.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Tue Jan 17, 2017 5:35 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Bagel NES CHR compression.</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I have some ideas for improving the encoder's command-line options.<br /><br />In <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">main_encode_blocks</tt> it encodes the file as a set of independent banks, each in turn made up of pages that are swizzled together. Currently, you have hardcoded 64 blocks (4096 bytes) per page and 2 pages per bank, but I have ideas for options to change this. For example, a bank of four 2048-byte pages might be helpful for <em>Super Mario Bros. 3</em>-style CHR rotation in an MMC3 cart with 32K CHR RAM. Or 1024-byte pages might be helpful when loading things that remain constant across all pages of a character's sprite animation, such as a projectile that remains on screen as the player switches to other CHR banks.<br /><br />I'd also like an option to write out a header listing the offset to the start of each bank's compressed data. This is important for things like <em>RHDE</em>, which need random access to 64-byte units (which would be 1 block in Bagel) to decode furniture graphics in the Furnish menu.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">optional arguments:<br />&nbsp; -h, --help&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; show this help message and exit<br />&nbsp; --version&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;show program's version number and exit<br />&nbsp; -d, --decompress&nbsp; &nbsp; &nbsp; decode the input file<br />&nbsp; -b, --bytes=SIZE&nbsp; &nbsp; &nbsp; put SIZE bytes (multiple of 64) per page<br />&nbsp; -I, --interleave=NUM&nbsp; interleave NUM pages together (requires -b)<br />&nbsp; --header&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; write the block count, interleave size, and byte<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; offset to subsequent pages (or interleaved sets)<br />&nbsp; -o FILE, --output FILE<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; output to FILE instead of last positional arg<br /></div><br /><br />I'm willing to add these features myself. Do you have a public version control repository for Bagel? Or should I just attach diffs in replies to this topic?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>JRoatch</b> [ Wed Jan 18, 2017 9:28 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Bagel NES CHR compression.</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />It might be faster for you to improve on the encoder's features.<br /><br /><s>I can try today and we&#39;ll see how far I can get</s> Maybe this next weekend I can try something. I also needed an option to disable inner block referencing, as some streaming setups can't guarantee an intact buffer.<br /><br /><div class="quotetitle">tepples wrote:</div><div class="quotecontent">I'd also like an option to write out a header listing the offset to the start of each bank's compressed data.</div><br />I'm assuming this would be the same format as the address list in pb53.<br /><br /><div class="quotetitle">tepples wrote:</div><div class="quotecontent">I'm willing to add these features myself. Do you have a public version control repository for Bagel? Or should I just attach diffs in replies to this topic?</div><br />I do not have a public repository. Feel free to place it in any of yours. I believe I got the software licencing attached correctly, GPLv3 for the python encoder, and all permissive for the decoder.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>JRoatch</b> [ Fri Feb 24, 2017 4:46 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Bagel NES CHR compression.</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I should post this now even though It's missing decoding, but this is my idea for accommodating your encoding options.<br /><br />The header if used is encoded in 2 bytes:  YYYYYIII nnnnnnnn<br />n = number of blocks per interleave (0 means 256)<br />I = number of interleaves per segment minus 1<br />Y = number of segments (unimplemented)<br /><br />For the case of non interleaved pages, the first byte is then 0.
+
+		
+			<br clear="all" /><br />
+
+			<table class="tablebg" width="100%" cellspacing="1">
+			<tr>
+				<td><b class="genmed">Attachments: </b></td>
+			</tr>
+			
+				<tr>
+					<td>
+		<span class="genmed">[The extension <strong>py</strong> has been deactivated and can no longer be displayed.]</span><br />
+	</td>
+				</tr>
+			
+			</table>
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>2</strong> of <strong>2</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

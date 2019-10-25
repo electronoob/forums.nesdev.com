@@ -1,0 +1,165 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - ca65: cheap local labels weirdness</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">ca65: cheap local labels weirdness</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=16592">http://forums.nesdev.com/viewtopic.php?f=2&amp;t=16592</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Wed Oct 18, 2017 3:07 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>ca65: cheap local labels weirdness</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Yesterday I was trying to do something using cheap local labels, and ran into something really weird. Here's a piece of code using cheap local labels:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">BlockStart:<br /><br />@LocalLabel:<br />&nbsp; &nbsp;.byte $47<br /><br />BlockEnd:<br /><br />&nbsp; &nbsp;lda @LocalLabel</div><br />As expected, an error occurs when trying to <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">lda @LocalLabel</tt>, because the label is no longer visible.<br /><br />However, I was writing the global labels from within macros, where I was doing other tasks, and mysteriously enough, <strong>the local label became visible outside of the block!</strong> After hours of debugging, I found the culprit, a symbol assignment using <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">.set</tt>. Then I reproduced the issue in a more concise way:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">BlockStart:<br />SomeSymbol .set 4<br /><br />@LocalLabel:<br />&nbsp; &nbsp;.byte $47<br /><br />BlockEnd:<br />SomeSymbol .set 5<br /><br />&nbsp; &nbsp;lda @LocalLabel</div><br />In this case, the local label is accessible outside of the &quot;block&quot; where it was defined! Weird as fuck! I can only guess it's because the local label was created under &quot;SomeSymbol&quot;, so when &quot;SomeSymbol&quot; is used again, the assembler thinks it's still the same block.<br /><br />Sounds like a bug to me, because the &quot;BlockEnd&quot; label should be ending the scope where &quot;@LocalLabel&quot; is accessible, and you shouldn't be able to go back to that scope. What do you think? Is this a bug or a feature?<br /><br />Another thing that's bothering me that also involves cheap local labels is that you can't &quot;copy&quot; a cheap local label before it's defined, like you can with other types of labels. For example, this works:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">.scope<br /><br />GlobalCopy := LocalLabel<br /><br />LocalLabel:<br />&nbsp; &nbsp;.byte $47<br /><br />.endscope<br /><br />&nbsp; &nbsp;lda GlobalCopy</div><br />But this doesn't:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">BlockStart:<br /><br />GlobalCopy := @LocalLabel<br /><br />@LocalLabel:<br />&nbsp; &nbsp;.byte $47<br /><br />BlockEnd:<br /><br />&nbsp; &nbsp;lda GlobalCopy</div><br />It only works if you make the copy after the label is defined:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">BlockStart:<br /><br />@LocalLabel:<br />&nbsp; &nbsp;.byte $47<br /><br />GlobalCopy := @LocalLabel<br /><br />BlockEnd:<br /><br />&nbsp; &nbsp;lda GlobalCopy</div><br />I wonder if the <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">GlobalCopy := @LocalLabel</tt> line is also acting as a &quot;cheap local scope&quot; breaker, so that when used at the top it tries to access the scope created by &quot;BlockStart&quot;, which is prematurely ended by the use of &quot;GlobalCopy&quot;, so &quot;@LocalLabel&quot; actually exists in the next scope. I gotta do some tests to verify this.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Wed Oct 18, 2017 5:16 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: ca65: cheap local labels weirdness</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I'm still profoundly weirded out by the first problem, and believe it's indeed a bug, but the second issue appears to be caused by any assignments to symbols that are not cheap locals causing a cheap local scope change. I used to think that only traditional labels (i.e. name followed by colon) did it, but assignments done via <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">=</tt>, <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">:=</tt> and <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">.set</tt> do it too. The documentation did say that &quot;As soon as a standard symbol is encountered, the cheap local symbol goes out of scope.&quot;, but I wasn't sure what they meant by &quot;encountered&quot; in this context... Now I see that standard symbols can be used as arguments, but assignments will cause a scope change.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>dullahan</b> [ Wed Oct 18, 2017 5:48 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: ca65: cheap local labels weirdness</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />This is interesting. I've looked into the ca65 source a bit to figure out what's going on, but don't know for sure yet. The variable assignments (=, := and .set) are unique in that the accompanying symbol is replaced by the symbol's constant expression during assembly as I understand it (<!-- m --><a class="postlink" href="https://github.com/cc65/cc65/blob/709ee6a28b1375222d44590a57e93d732966f8bf/src/ca65/symentry.c#L263">https://github.com/cc65/cc65/blob/709ee ... try.c#L263</a><!-- m -->) and then defined here (<!-- m --><a class="postlink" href="https://github.com/cc65/cc65/blob/709ee6a28b1375222d44590a57e93d732966f8bf/src/ca65/symentry.c#L179">https://github.com/cc65/cc65/blob/709ee ... try.c#L179</a><!-- m -->), but why the variable assignment changes the current scope I don't understand...
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

@@ -1,0 +1,507 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Understanding overflow flag for ADC on the 6502</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Understanding overflow flag for ADC on the 6502</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=3&amp;t=6331">http://forums.nesdev.com/viewtopic.php?f=3&amp;t=6331</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Petruza</b> [ Tue Apr 27, 2010 7:44 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Understanding overflow flag for ADC on the 6502</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />obelisk.demon.co.uk/6502 says 'Overflow Flag  	Set if sign bit is incorrect' which is vague and I really don't see clearly what means that 'sign bit is incorrect'.
+<br />
+<br />The 6502 documentation by _Bnu, in the other hand, is very specific, it says that the overflow flag after an ADC without decimal mode is this:<div class="codetitle"><b>Code:</b></div><div class="codecontent">&#40;!&#40;&#40;AC ^ src&#41; &amp; 0x80&#41; &amp;&amp; &#40;&#40;AC ^ temp&#41; &amp; 0x80&#41;&#41;</div>
+<br />(AC is accumulator, src is a value from memory, temp is AC + src + carry, and 0x80 is bit 7 set )
+<br />
+<br />Ok, I understand bitwise operations, but I don't get the logic behind this expression.
+<br />
+<br />So the ultimate question is, conceptually, when should the overflow flag be set for ADC and when should it be unset? (what is a correct sign?)
+<br />
+<br />I could just paste that expression in my code and it may work perfectly, but I'd like to understand what my code is doing.
+<br />
+<br />PS: the carry flag is set when the addition overflows. So the overflow flag doesn't actually mean overflow, it means something else.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Tue Apr 27, 2010 8:11 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Carry indicates <em>unsigned</em> overflow
+<br />Overflow indicates <em>signed</em> overflow.
+<br />
+<br />When you figure that $81 can be -127 and $FF can be -1..
+<br />
+<br />When adding two unsigned numbers results in &gt; $FF, C is set
+<br />When adding two signed numbers results in &gt; 127 ($7F) or &lt; -128 ($80), V is set
+<br />
+<br />
+<br />In emulation, this can be easily checked by looking at the high bits.  Basically:
+<br />
+<br />Overflow is set if:
+<br /> Positive + Positive = Negative
+<br />   or
+<br /> Negative + Negative = Positive
+<br />
+<br />Overflow is cleared in all other instances.
+<br />
+<br />Here's example code:
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">// A = Accumulator before the addition<br />// v = the value adding to the accumulator<br />// s = the sum of the addition &#40;A+v+C&#41;<br /><br />if&#40; &#40;A ^ s&#41; &amp; &#40;v ^ s&#41; &amp; 0x80 &#41;<br />&nbsp; Set_V&#40;&#41;;<br />else<br />&nbsp; Clear_V&#40;&#41;;<br /></div><br /><br />EDIT:<br /><br /> err... duh, you already posted example code.<br /><br />Anyway as for how the code works...<br /><br />Pos+Pos=Neg and Neg+Neg=Pos<br /><br />Both conditions have the "sum" as the odd one out.  So if the sign of the sum matches either the sign of A or the sign of v, then you don't overflow.<br /><br />So in my example code:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">if&#40; &#40;A ^ s&#41; &amp; &#40;v ^ s&#41; &amp; 0x80 &#41;</div>
+<br />
+<br />All we're really interested in is the high bit... so ignore all the other bits in A,v,s.
+<br />
+<br />A^s will have the high bit set if the signs mismatch
+<br />ditto for v^s
+<br />
+<br />so... (A^s) &amp; (v^s) ... the AND operation check to make sure both of those conditions had the high bit set (ie:  s high bit didn't match A or v).  If the AND results in the high bit set, the we know that we have overflow
+<br />
+<br />The following &amp; 0x80 just extracts the high bit.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Tue Apr 27, 2010 8:16 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />As I understand it, the carry flag can detect overflows and underflows of unsigned numbers, while the V flag is used for signed numbers.
+<br />
+<br />When you add 1 to 127, the result is 128, which is correct if you treat the numbers as unsigned, but in signed numbers 128 is actually -128, so that's an overflow. Same goes for underflows: if you subtract 1 from -128 the result is -129, which doesn't fit in a byte. Crossing between 0 and 255 (-1) should be OK though, if the numbers are signed.
+<br />
+<br />IIRC, there is a simple rule for setting the V flag, but I can't remember what it is (I program games, not emulators!) so I'll let someone else give it to you.
+<br />
+<br />EDIT: Too late! =)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Petruza</b> [ Wed Apr 28, 2010 5:55 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Thanks! great answers!
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Wed Apr 28, 2010 8:57 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />This has been discussed many times before, with lots of useful explanations and code. I highly recommend you seek out these previous discussions.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Petruza</b> [ Wed Apr 28, 2010 11:22 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I actually made some calculations and both algorithms throw different results.
+<br />Which one is right? ( Disch's or _Bnu's )
+<br />
+<br /><img src="http://img36.imageshack.us/img36/7305/screenshot20100428at152.png" alt="Image" />
+<br />
+<br />Reference:
+<br />A: Accumulator
+<br />M: Value from memory
+<br />C: Carry
+<br />ADC: Result of A+M+C
+<br />ADC8: ADC truncated to 8 bits
+<br />V: Overflow flag from Disch's algorithm
+<br />V2: Overflow flag from _Bnu's algorithm
+<br />+: sign bit 7 is set
+<br />-: sign bit 7 is reset
+<br />
+<br />Algorithms used: ( if I coded them wrong, sorry! )
+<br />
+<br />Disch's:
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">$v = &#40;int&#41; &#40;bool&#41; &#40; &#40; $a ^ $adc &#41; &amp; &#40; $m ^ $adc &#41; &amp; 0x80 &#41;;</div><br />_Bnu's:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&#40;int&#41; &#40;bool&#41; &#40; &#40; &#40; $a ^ $m &#41; &amp; 0x80 &#41; &amp;&amp; &#40; &#40; $a ^ $adc &#41; &amp; 0x80 &#41; &#41;;</div>
+<br />
+<br />
+<br />
+<br /><div class="quotetitle">blargg wrote:</div><div class="quotecontent">This has been discussed many times before, with lots of useful explanations and code. I highly recommend you seek out these previous discussions.</div>
+<br />I'm sorry, you're right. But either I suck at forum searching or some posters suck at writing meaningful thread titles. I suspect a little of both ;D
+<br />
+<br />
+<br />Edit: Disch: I see that you already posted the same algorith, so it's most likely the right one. I'll go with that.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ReaperSMS</b> [ Wed Apr 28, 2010 12:03 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Your table calculations are wrong, as you forgot the ! in Bnu's.
+<br />Disch's, in english, is (overflow if the sign of the result does not match the sign of either input), Bnu's is (overflow if the sign of the inputs are the same, and do not match the sign of the result).
+<br />
+<br />for the case of FF+00+0, result is 0, FF. A &amp; 80 = 1, M &amp; 80 = 0, R &amp; 80 = 1. !(A^M) &amp; (A^R) &amp; 80 = !1 &amp; 0 = 0 &amp; 0 = 0
+<br />A^R &amp; M^R &amp; 80 = 0 &amp; 1 = 0
+<br />FF+00+1: A=1, M=0, R=0
+<br />!(A^M) &amp; A^R = !1 &amp; 0 = 0
+<br />A^R &amp; M^R = 1^0 &amp; 0^0 = 1 &amp; 0 = 0
+<br />
+<br />etc.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Petruza</b> [ Wed Apr 28, 2010 12:09 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Oh, I didn't see that bastard `!`
+<br />Thanks!
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Thu Apr 29, 2010 10:11 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Just be glad the NES doesn't have a decimal mode. The flag setting for that differs between the 6502, 65C02, and 65816. It's a nightmare.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Hamburgler</b> [ Thu Apr 29, 2010 10:51 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />To stir the pot more: Which one is faster? :)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>koitsu</b> [ Thu Apr 29, 2010 11:14 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Thing to note: _Bnu did not write that document, he simply corrected all the spelling errors.  So if there's mistakes in the technical aspects, don't hold him responsible.  :-)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Petruza</b> [ Thu Apr 29, 2010 11:38 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">blargg wrote:</div><div class="quotecontent">Just be glad the NES doesn't have a decimal mode. The flag setting for that differs between the 6502, 65C02, and 65816. It's a nightmare.</div><br />Halleluya!<br /><br /><div class="quotetitle">koitsu wrote:</div><div class="quotecontent">Thing to note: _Bnu did not write that document, he simply corrected all the spelling errors.  So if there's mistakes in the technical aspects, don't hold him responsible.  <img src="./images/smilies/icon_smile.gif" alt=":-)" title="Smile" /></div>
+<br />And who wrote that document? there has to be someone I can sue for that!
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Thu Apr 29, 2010 11:46 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Hamburgler wrote:</div><div class="quotecontent">To stir the pot more: Which one is faster? :)</div>
+<br />To counter that stirring, ADC and SBC are not instructions that are used very often.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Petruza</b> [ Thu Apr 29, 2010 11:55 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I wouldn't care too much about the speed of a few bitwise operations, I'll surely have worst bottlenecks in other parts of the emulator.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ehguacho</b> [ Mon May 24, 2010 12:03 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />i guess the clearest way to set or reset the V flag in ADC and SBC instructiones is by testing if the result is major than 0x7f. it works in both instructions.
+<br />
+<br />ADC Immediate:
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">auxbyte = ACC;<br />ACC += &#40;Mem&#91;++PC&#93; + C_FLAG&#41;;<br />if&#40;auxbyte + Mem&#91;PC&#93; + C_FLAG &gt; 127&#41; V_FLAG = 1;<br />else V_FLAG = 0;</div><br /><br />SBC Immediate:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">auxbyte = ACC;<br />ACC -= &#40;Mem&#91;++PC&#93; - C_FLAG&#41;;<br />if&#40;auxbyte - Mem&#91;PC&#93; - C_FLAG &gt; 127&#41; V_FLAG = 1;<br />else V_FLAG = 0;</div>
+<br />
+<br />of course this is not the faster way, but is the easiest way to the understand how V flag works
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

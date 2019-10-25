@@ -1,0 +1,250 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Caching Optimization for CHR Rendering</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Caching Optimization for CHR Rendering</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=3&amp;t=511">http://forums.nesdev.com/viewtopic.php?f=3&amp;t=511</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Mon Aug 22, 2005 10:40 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Caching Optimization for CHR Rendering</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />CHR data is rendered to the screen vastly more often than it is changed, so it makes sense for a NES emulator to store it in a format best suited to rendering. In my experimental NES emulator I've optimized CHR rendering (background and sprites) by caching an optimized representation of CHR data and updating it whenever CHR data changes. The cache has two main aspects: determining when it needs updating, and the format of the cached data.
+<br />
+<br />The cache stores a transformation of the CHR data, so it needs to be updated whenever CHR data changes. This is handled by keeping a flag for each tile and setting it when that tile's data is written to. A global flag is also kept to indicate whether any CHR changes have occurred since the cache was last updated. Then when CHR rendering is about to occur the cache is updated if necessary.
+<br />
+<br />For CHR ROM the cache only needs to be generated once since the data will never change. Bank switching in the CHR area (PPU $0-$1FFF) doesn't matter since the cache is of the actual CHR data in VRAM or VROM, not of what the PPU sees with current mapping.
+<br />
+<br />In my emulator I render graphics to an offscreen graphics buffer with 8 bits per pixel. I use palette entries 32-63 for the 32 NES palette entries, leaving room for the host system at the beginning of the palette. The cached CHR data is just a reordering of the original data to allow shifting and masking to quickly generate the 8-bit-per-pixel format. This keeps the cached data to a minimum size, lessening impact on the host's processor cache. There is also a separate cache with pixels horizontally flipped.
+<br />
+<br />Each cached tile consists of four pairs of lines, and each pair is stored in a 4-byte integer. The 2-bit pixels for the two lines are reordered in the cache to allow for quick extraction:
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">12345678&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; CHR pixels &#40;2 bits per pixel&#41;<br />ABCDEFGH<br /><br />A1E5B2F6C3G7D4H8&nbsp; Cache &#40;4 bytes&#41;<br />-1---2---3---4--&nbsp; Masked pixels<br />---5---6---7---8<br />A---B---C---D---<br />--E---F---G---H-<br /><br />uint32_t* pixels = ...&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;// pixel buffer to draw into<br />uint32_t mask = 0x03030303;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; // mask to extract pixels<br />int attrib = 2;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; // attribute bits &#40;0-3&#41;<br />uint32_t offset = &#40;8 + attrib&#41; * 0x04040404; // distribute to 4 pixels<br /><br />uint32_t pair = *cache++;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; // read pair of lines from cache<br />pixels &#91;0&#93; = &#40;&#40;pair &gt;&gt; 4&#41; &amp; mask&#41; + offset;&nbsp; // extract pixels 1234<br />pixels &#91;1&#93; = &#40;&#40;pair &gt;&gt; 0&#41; &amp; mask&#41; + offset;&nbsp; // extract pixels 5678<br />pixels += pitch;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;// next line<br />pixels &#91;0&#93; = &#40;&#40;pair &gt;&gt; 6&#41; &amp; mask&#41; + offset;&nbsp; // extract pixels ABCD<br />pixels &#91;1&#93; = &#40;&#40;pair &gt;&gt; 2&#41; &amp; mask&#41; + offset;&nbsp; // extract pixels EFGH<br />pixels += pitch;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;// next line<br /></div><br /><br />On a 64-bit CPU, groups of four lines (rather than two) could be stored in each cache word, doubling the performance.<br /><br />To handle masked graphics, the mask can be efficiently calculated from the pixels by subtracting the base pixels (before offset) from 0x80808080 and shifting right by 2. The result will have the lower 5 bits clear for transparent pixels and set for opaque pixels; the upper bits don't matter because those are always zero. For example, (0x80808080 - 0x02030001) &gt;&gt; 2 = 0x1F9F601F.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">uint32_t bg = *pixels;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;// get background pixels<br />uint32_t sp = &#40;line &gt;&gt; 4&#41; &amp; cache_mask;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; // extract sprite pixels<br />uint32_t mask = 0x80808080 - sp;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;// calculate mask<br />*pixels = &#40;&#40;sp + offset&#41; &amp; mask&#41; | &#40;bg &amp; ~mask&#41;; // combine sprite and background<br /></div><br /><br />My emulator only handles PPU changes every 8 scanlines. Relaxing this to each scanline wouldn't be too complex. Handling mid-line changes would probably be simpler to handle without using the cache at all.<br /><br />For completeness, here is a function that converts CHR data to the cached format:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">// Expands each of the 8 bits in n into separate nybbles of result.<br />// In: 12345678&nbsp; Out: 0x15263748<br />uint32_t expand&#40; uint32_t n &#41;<br />&#123;<br />&nbsp; &nbsp; //&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;12345678<br />&nbsp; &nbsp; //&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; 12345678<br />&nbsp; &nbsp; //&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;12345678<br />&nbsp; &nbsp; //&nbsp; &nbsp; 12345678<br />&nbsp; &nbsp; // ---1---5---2---6---3---7---4---8<br />&nbsp; &nbsp; return &#40;&#40;n &lt;&lt; 21&#41; | &#40;n &lt;&lt; 14&#41; | &#40;n &lt;&lt; 7&#41; | n&#41; &amp; 0x11111111;<br />&#125;<br /><br />void convert_tile&#40; const uint8_t* chr, uint32_t* cache &#41;<br />&#123;<br />&nbsp; &nbsp; // convert one chr tile to a cached tile<br />&nbsp; &nbsp; for &#40; int n = 4; n--; &#41;<br />&nbsp; &nbsp; &#123;<br />&nbsp; &nbsp; &nbsp; &nbsp; *cache++ =&nbsp; &#40;expand&#40; chr &#91;0&#93; &#41; &lt;&lt; 0&#41; |<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &#40;expand&#40; chr &#91;8&#93; &#41; &lt;&lt; 1&#41; |<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &#40;expand&#40; chr &#91;1&#93; &#41; &lt;&lt; 2&#41; |<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &#40;expand&#40; chr &#91;9&#93; &#41; &lt;&lt; 3&#41;;<br />&nbsp; &nbsp; &nbsp; &nbsp; chr += 2;<br />&nbsp; &nbsp; &#125;<br />&#125;<br /></div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ReaperSMS</b> [ Mon Aug 22, 2005 12:52 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I did something similar back in the stone age. I found it worked beautifully for most of the CHR-RAM games.
+<br />
+<br />I put off predecoding the CHR-ROM, as I worked in 32bpp.
+<br />
+<br />The crazy idea I was kicking about at the time involved caching entire screen lines, to try and take advantage of the fact that most of the time the BG lines aren't changing that often...
+<br />
+<br />Never really got around to implementing it though.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Nessie</b> [ Mon Aug 22, 2005 1:11 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Perhaps one could convert each tile to a DirectDraw surface and render them even faster... Sprite priority, sprite #0 and the sprite overflow flag would be somewhat tricky to implement though.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Guest</b> [ Mon Aug 22, 2005 3:29 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Well, RockNES uses CHR caching since year ~2000 I guess. ^_^;; Like blargg wrote, CHR-ROM requires full decoding once, CHR-RAM is dynamic. Of course you could map out the ROM, but it would be a pain in the neck. <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" /> For every tile written into VRAM space, it's decoded &amp; stored. I don't know if this is the best/alternate way, but it saves CPU time.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Thu Aug 25, 2005 5:44 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">ReaperSMS wrote:</div><div class="quotecontent">The crazy idea I was kicking about at the time involved caching entire screen lines, to try and take advantage of the fact that most of the time the BG lines aren't changing that often... </div>
+<br />
+<br />Interesting. With this you'd invalidate the cache when the nametable or pattern table was changed.
+<br />
+<br />I've found that drawing tiles is actually faster than a simple pixel copy, due to the higher memory bandwidth used by the latter and modern processors being "faster" than memory. With tiles you get the advantage of cached access for often-used tiles and smaller source data (if tiles are packed). Caching the background might be faster if the graphics card is used to compose the screen.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ReaperSMS</b> [ Mon Aug 29, 2005 10:41 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />It definitely needed some help from the graphics card to run well. The data stays planar all the way to the backend, and the sprite/bg interaction is dealt with 32 pixels at a time in a tight logic op loop.
+<br />
+<br />As it turns out, this just results in most of the time getting spent converting from planar to chunky. I was trying to get the transparency handling as slim as possible, and also try and eliminate a lot of the BG fetch logic for the trivial cases. If I went back to do it all over, I'd probably just use OpenGL to handle things.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

@@ -1,0 +1,312 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Why do the controller registers work this way?</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Why do the controller registers work this way?</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=3&amp;t=10366">http://forums.nesdev.com/viewtopic.php?f=3&amp;t=10366</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ArsonIzer</b> [ Sun Aug 11, 2013 4:16 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Why do the controller registers work this way?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />The NesDev page about the standard controller states this: <br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Input ($4016 write)<br />7  bit  0<br />---- ----<br />xxxx xxxS<br />        |<br />        +- Controller shift register strobe<br />While S (strobe) is high, the shift registers in the controllers are continuously reloaded from the button states, and reading $4016/$4017 will keep returning the current state of the first button (A). Once S goes low, this reloading will stop. Hence a 1/0 write sequence is required to get the button states, after which the buttons can be read back one at a time.<br />(Note that bits 2-0 of $4016/write are stored in internal latches in the 2A03/07.)</div><br /><br />This means that when the first bit of $4016 is is set, it will keep reloading the &quot;A&quot; button state from the controller, right? When the first bit becomes 0 after having written 1, the state of the &quot;A&quot; button can be read by reading the first bit. After reading this first bit, I can read it again to get the next button. The thing is, why do I have to write 1, then 0, and only then can I read the button states? What's the significance of these first 2 writes? I mean if A is 1 in the first place, why doesn't it keep reloading the &quot;A&quot; button state in bit 1 of $16?<br /><br />EDIT: The quote is kind of messed up, but it's supposed to point to the S, not to the 7th bit.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>3gengames</b> [ Sun Aug 11, 2013 4:44 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Why do the controller registers work this way?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Forget everything you know. This is how it works.<br /><br />Writes make some output pin on the controller ports the same as bit 0 in the data. That's why we write $4016 with #$01, it sets it high. This is called the &quot;strobe&quot; and what it does is makes it &quot;latch&quot; the controller data, which basically means it grabs the current data. We write 0 because it can't be read when the latch is set. Lastly, we read $4016. Each read, a different button's value &quot;shows up&quot; at that spot, so it's NOT always one buttons data, it cycles through it, one bit (or button state) at a time. Here is how to read a controller, in a little basic routine. Don't use this for big stuff, it can be done more efficient, this is just an example.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; LDX #$01<br />&nbsp; STX $4016 //Set strobe high, to get the current buttons.<br />&nbsp; DEX //X=0.<br />&nbsp; STX $4016 //Set strobe low to read back.<br />&nbsp; LDX #$07 //Set loop count.<br />&nbsp; .Loop: //Loop point label.<br />&nbsp; LDA $4016 //Get a controller bit.<br />&nbsp; LSR A //Put the bit into the carry flag.<br />&nbsp; ROL ControllerButtons //Put the bit in to a variable for later.<br />&nbsp; DEX //X=X-1.<br />&nbsp; BPL .Loop //Have we read all the controller values?<br />&nbsp; RTS //Yes.<br /></div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ulfalizer</b> [ Sun Aug 11, 2013 5:41 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Why do the controller registers work this way?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />To add to what 3gengames said, writing the &quot;strobe&quot; bit of $4016 really just writes an internal latch (a storage element that stores a single bit) inside the 2A03/2A07 CPU package (remember that it contains audio, DMA, and other circuitry in addition to the 6502 core). The value of that latch is in turn connected to lines on the controller ports, which the controllers use however they want.<br /><br />For the standard controller, the value from the latch controls whether the shift registers inside the controllers are in &quot;reload&quot; mode (bit set) or not (bit clear). While in reload mode, the shift registers mirror the button states as follows (this is what &quot;continuously reloaded&quot; means):<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; Right&nbsp; &nbsp; &nbsp;Left&nbsp; &nbsp; &nbsp;Down&nbsp; &nbsp; &nbsp; Up&nbsp; &nbsp; &nbsp;Start&nbsp; &nbsp;Select&nbsp; &nbsp; &nbsp; &nbsp;B&nbsp; &nbsp; &nbsp; &nbsp;A <br />&nbsp; &nbsp; |&nbsp; &nbsp; &nbsp; &nbsp; |&nbsp; &nbsp; &nbsp; &nbsp; |&nbsp; &nbsp; &nbsp; &nbsp; |&nbsp; &nbsp; &nbsp; &nbsp; |&nbsp; &nbsp; &nbsp; &nbsp; |&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;|&nbsp; &nbsp; &nbsp; &nbsp;|<br />&nbsp; &nbsp; v&nbsp; &nbsp; &nbsp; &nbsp; v&nbsp; &nbsp; &nbsp; &nbsp; v&nbsp; &nbsp; &nbsp; &nbsp; v&nbsp; &nbsp; &nbsp; &nbsp; v&nbsp; &nbsp; &nbsp; &nbsp; v&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;v&nbsp; &nbsp; &nbsp; &nbsp;v<br />&#91; Bit 7 &#93;&#91; Bit 6 &#93;&#91; Bit 5 &#93;&#91; Bit 4 &#93;&#91; Bit 3 &#93;&#91; Bit 2 &#93;&#91; Bit 1 &#93;&#91; Bit 0 &#93; -&gt; Data out</div><br /><br />When not in reload mode, the shift registers simply hold their value.<br /><br />Whenever $4016/$4017 is read, you get back the least significant bit from the corresponding shift register, and then the shift register shifts right (given the way I drew it). If reload mode is active, you can see that you'll keep getting the current state of the A button, since the state of B would immediately get overwritten if it was shifted down to A's place.<br /><br />Edit: So to answer the original question, you could probably have gotten away with a simpler interface if all controllers were like the standard controller, but the interface was designed to be more general than that and latches the values.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Sun Aug 11, 2013 7:59 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Why do the controller registers work this way?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />The shift registers can be interpreted as shifting left (MSB first) or right (LSB first), and different games interpret it differently. However, the Vaus controller report, the Game Boy link cable interface, the Super NES Mouse report, and the Super NES controller interface suggest that it shifts left. Furthermore, testing A and B becomes as easy as BIT/BPL and BIT/BVC; Right and Down aren't quite as useful for that.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ArsonIzer</b> [ Sun Aug 11, 2013 12:29 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Why do the controller registers work this way?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I didn't think it was that simple, but you guys explained it really well. I now understand what I need to understand about the whole $4016 write thing. Thanks a lot!
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Sun Aug 11, 2013 12:55 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Why do the controller registers work this way?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />At first it seems inferior to the simple parallel interfaces of systems like Atari and Master System, but those don't offer endless possibilities of how to write (and optimize [and mis-optimize])) the controller reading code. And the serial interface lends itself to easy expansion, for example the SNES controller and being able to easily wire it to a NES.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Sun Aug 11, 2013 3:03 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Why do the controller registers work this way?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />The Atari protocol was extended to become the SMS protocol, which was extended to become the Genesis protocol, which was extended to become the Genesis 6-button, 4-Way Play, and Team Player protocols. That's because the Genesis controller ports are just 7-bit GPIOs. The NES, on the other hand, has one pin hardwired to clock, one pin hardwired to output shared between both ports, and three pins hardwired to input. Even running a GB/GBC style SPI master is tricky because circuitry in the cable needs to recover select and MOSI from the one output.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Sik</b> [ Tue Aug 13, 2013 12:57 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Why do the controller registers work this way?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Actually the chain ends at the 6-pad, the multitaps are <em>not</em> compatible (well, except maybe EA's to some extent since it behaves as a port multiplexer). But yeah, Sega managed to extend the protocol quite far, and in fact the way the 6-pad protocol works effectively gives it infinite permutations (since it advances by bit toggling).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Tue Aug 13, 2013 3:03 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Why do the controller registers work this way?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />How can we rephrase the page on the wiki to have answered your question in the first place?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>HardWareMan</b> [ Tue Aug 13, 2013 9:12 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Why do the controller registers work this way?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Maybe, you've should just read the <a href="http://pdf.datasheetcatalog.com/datasheet/philips/HEF4021BD.pdf" class="postlink">HEF4021BP datasheet</a>?<br /><img src="http://savepic.su/3007363.jpg" alt="Image" /><br />In joypad all buttons goes to GND (active level is logic 0), inside console an inverting buffer is present. Thus, pressing the button becomes a logic 1.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

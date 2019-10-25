@@ -1,0 +1,484 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Battletoads text decompression (huffman)</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Battletoads text decompression (huffman)</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=8609">http://forums.nesdev.com/viewtopic.php?f=2&amp;t=8609</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Sat Feb 11, 2012 6:06 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Battletoads text decompression (huffman)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I've been playing a lot of Battletoads lately, and I was surprised to realize that every level introduction has several different texts, chosen from at random. I was impressed by how often I was seeing new text.
+<br />
+<br />So, I thought it would be fun to dump the text out of the ROM. At first I tried a straightforward search for known words with various offsets, and I found that some of the text is actually just uncompressed ASCII-ish strings right in the ROM, but not the level introductions. After digging in with a debugger/trace I eventually discovered that most of the text of the game is compressed with a huffman scheme.
+<br />
+<br />I wrote a python script that will dump all the text of the ROM for you, and it's very closely based on the assembly code that actually does the decompression.
+<br />
+<br /><a href="http://rainwarrior.ca/projects/nes/battletoads_text.py" class="postlink">http://rainwarrior.ca/projects/nes/battletoads_text.py</a>
+<br />
+<br />I've disassembled and annotated the heart of the decompressor in the original ROM:
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">; Battletoads text decompression code<br />;<br />; taken from 32k ROM bank 6 at memory $E60F<br />; dissassembled with DISASM6<br />; edited and annotated by Brad Smith 2/11/2012<br />; http://rainwarrior.ca<br /><br />; The code at $E60F represents the main text decompression loop.<br />; It is a subroutine that will read bits from a bitstream<br />; and return a decoded byte in register A.<br /><br />; $1B stores the current byte, each bit read shifts it left<br />; $1C/$1D is a pointer to the next byte of the stream &#40;with a -7 byte offset&#41;<br />; $1E counts how many bits remain in the current loaded byte<br /><br />__E60F:&nbsp; &nbsp; &nbsp;LDX #$00&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; X stores current tree node index<br />__E611:&nbsp; &nbsp; &nbsp;DEC $1E&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; $1E counts bits left in the current byte at $1B<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; BPL __E623&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; if we're out of bits, load a new byte<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; LDY #$07&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; STY $1E&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; reset $1E to tell us there are 8 available bits<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; LDA &#40;$1C&#41;,Y&nbsp; &nbsp; &nbsp; &nbsp; ; load byte from indirect $1C/$1D address + 7<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; STA $1B&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; store byte in $1B<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; INC $1C&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; increment stream byte position &#40;$1C/$1D&#41;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; BNE __E623&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; INC $1D&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ;<br />__E623:&nbsp; &nbsp; &nbsp;ASL $1B&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; shift the high bit out of $1B and...<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; BCS __E631&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; LDA __E63B,X&nbsp; &nbsp; &nbsp; &nbsp;; if bit is 0 load next node from $E63B table<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; TAX&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; BPL __E611&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; loop to next bit if node &lt; 128<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; LDA __E611,X&nbsp; &nbsp; &nbsp; &nbsp;; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; RTS&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; return byte from $E691 + &#40;node - 128&#41;<br />__E631:&nbsp; &nbsp; &nbsp;LDA __E666,X&nbsp; &nbsp; &nbsp; &nbsp;; if bit is 1 load next node from $E666 table<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; TAX&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; BPL __E611&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; loop to next bit if node &lt; 128<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; LDA __E611,X&nbsp; &nbsp; &nbsp; &nbsp;; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; RTS&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; return byte from $E691 + &#40;node - 128&#41;<br /><br />__E63B:&nbsp; &nbsp; &nbsp;... ; 43 byte table, tree node index if bit is 0<br />__E666:&nbsp; &nbsp; &nbsp;... ; 43 byte table, tree node index if bit is 1<br />__E691:&nbsp; &nbsp; &nbsp;... ; 44 byte table, output symbol lookup<br /><br />; note that the $E691 table is looked up from $E611 with an index that has 128 added</div>
+<br />
+<br />The bytes returned from the lookup table at $E691 are more or less just ASCII characters with a few control characters (see the python code for more details). All the compressed text data in the ROM is stored as one contiguous bitstream, which made dumping all of it relatively straightforward once I understood this algorithm.
+<br />
+<br />Overall this compressed about 10k of text down to about 6k (plus ~300 bytes of decompressor code and tables). Since this is an AxROM mapper, the whole 32k bank gets switched at once, so you need to keep your code and data together; this bank seems to be dedicated to all the cutscenes and title screen. I can imagine that saving that extra 4k of space was useful, especially since you need space for your graphics because it's a CHR-RAM mapper.
+<br />
+<br />There are a few interesting optimization hacks in there; there seems to be a bit of need to keep this inner loop efficient. The code actually tends to decompress and discard several strings, usually, before it gets to the one it wants to use. One hack is the indirect index address being used is off by 7. Y is used to reset the $1E bit counter, I think specifically so that it will be set to a known number (7) before using it for the indirect index lookup. Another hack is the table at $E691 is actually addressed as $E611 and the high bit that indicates to use that table it just used as part of the index. Saves an AND, I guess. I had to wonder why it was looking up a symbol from the code itself before I realized X was always &gt;= 128.
+<br />
+<br />Anyhow, I thought you guys might enjoy seeing a real-world huffman coding implemention for the NES.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>koitsu</b> [ Sat Feb 11, 2012 9:36 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I'm surprised they used <a href="http://en.wikipedia.org/wiki/Huffman_coding" class="postlink">Huffman</a>.  Huffman really doesn't provide very many benefits for English (ASCII) character sets.  I forget what the rule of thumb is, but it's something like letters R, S, T, and vowels, are the most commonly-used characters in English words.  Surely there isn't enough text in the game using these letters to justify Huffman compression...?  (This is a real question: I hate Battletoads, so I have no idea)
+<br />
+<br />That said: did this really save them 4KBytes of space?
+<br />
+<br />Here's an alternate theory, which I think is much more likely: did this game come out in Japan?  If so, that would probably explain their choice of Huffman, which compresses Japanese amazingly well (and is used regularly in many text-heavy games in Japan, including SFC/Super Nintendo games where you would think "bigger ROM, who cares" (who cares = the company, mask ROMs were expensive as hell back then)).  For example, <a href="http://vndb.org/v661" class="postlink">Otogirisou</a>'s text when decompressed from Huffman comes out to be approximately 1.4MBytes of Japanese.  The game ROM itself is 2.0MBytes (all graphics, sound, code, text).  The benefits of using Huffman here are astounding.
+<br />
+<br />Also, just noting this here: there are probably multitudes of Battletoad ROMs (including corrupted ones) floating around the Internet, so you would be best to provide the MD5/SHA1/SHA256 hashes of the ROM itself.
+<br />
+<br />The Python code makes assumptions -- and it has to, it's not your fault -- regarding file offsets of where texts are.  These offsets will probably be different depending upon region and dump of the game (there are bad dumps of pretty much everything on the planet).
+<br />
+<br />Cheers!
+<br />
+<br />EDIT: I see the filename in the Python code is hard-coded to "Battletoads (U).nes".  MD5/SHA1/SHA256 would still be good to have.  You'll thank me later when a year from now someone shows up on this forum stating your code doesn't work and it turns out they have a corrupted file.  :-)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Dwedit</b> [ Sat Feb 11, 2012 9:56 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Japanese Battletoads used Hiragana mixed with English for all names and other proper nouns.  It's really weird.  Normally you'd expect Katakana instead.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Sat Feb 11, 2012 10:15 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Yes, there was a Japanese version, but it was developed in Britain. I doubt the decision to use huffman had anything to do with it being theoretically good for Japanese text. They had one 32k bank dedicated to cutscenes, and they managed to squeeze an extra 4k out of it, so... why not? There's very little fill space left over in this page of the ROM. Possibly they wrote so much random variant text to fill up the space!
+<br />
+<br />The ROM filename is specified in the python file. ("Battletoads (U).nes") If you're trying it out and you don't seem to have the right ROM you could just e-mail me I guess. I don't really care if it's not robust across different ROM versions, it's a one-use program anyway. I could just send you <a href="http://rainwarrior.ca/projects/nes/Battletoads%20%28U%29%20script.txt" class="postlink">the output</a> even. I posted it because it's interesting how it works; and it could trivially be adapted for the other ROM versions.
+<br />
+<br />The specfic huffman table was obviously generated from the set of text they had. I believe the symbol table is stored in order of frequency, and it looks like:
+<br />space, E, T, O, A, S, R, N, H, '\n', I, U, D, L, Y, G, '!', ''', C, M, B, ',', W, P, F, '\n', end, K, '-', '.', V, '\n' + 2 spaces, '\n' + 1, '\n' + 3, '\n' + 5, '\n' + 4, '\n' + 6, '\n' + 7, '?', Z, Q, J, X, '\n' + 8, '?' (don't ask me why there's two)
+<br />
+<br />I haven't bothered to actually reconstruct the decoding tree, but you can do it if you're interested.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>byuu</b> [ Sun Feb 12, 2012 2:51 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">koitsu wrote:</div><div class="quotecontent">I'm surprised they used <a href="http://en.wikipedia.org/wiki/Huffman_coding" class="postlink">Huffman</a>.  Huffman really doesn't provide very many benefits for English (ASCII) character sets.</div>
+<br />
+<br />Pretty much the main reason to use it is because you can start decompressing right in the middle of a block of text. You try that with LZ and you'll need lots of RAM to hold your window, and more time to process all of the text up to that point.
+<br />
+<br />Would be interesting to compare it to a 6-bit (upper+lower) or 5-bit (upper only) bit-pack, see how much space they actually saved. Rough guess from past experiences, I'd say 10-20% more.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Sun Feb 12, 2012 6:57 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I think huffman works well on any text data, no matter the language (as long as the tree is adapted to the language of course), as in all languages some letters (or symbols, as not all languages uses letters) comes more frequently than others.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Sun Feb 12, 2012 2:06 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />So I got bored and made a graph of the Huffman tree:
+<br /><a href="http://rainwarrior.ca/projects/nes/battletoads_huffman.png" class="postlink">http://rainwarrior.ca/projects/nes/battletoads_huffman.png</a>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Sun Feb 12, 2012 6:20 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Huffman coding is optimal where the probability of a symbol doesn't depend on the symbols surrounding it. English, on the other hand, is very context-sensitive. Once I considered Huffman with the optimization of finding the most common character following each given character and then swapping the code for that character with the code for a space. It saved a little but not very much.
+<br />
+<br /><a href="http://en.wikipedia.org/wiki/Byte_pair_encoding" class="postlink">Digram coding</a> (aka BPE or DTE) is a context-sensitive technique used in many Super NES RPGs. <a href="http://pineight.com/mw/?title=Huffword" class="postlink">Huffword</a> is another context-sensitive technique that works well on really long texts, reducing a novel by 60% or more. But the amount of text in an NES game's cut scenes might not be enough to take full advantage of this context; Huffword found too many <a href="http://en.wikipedia.org/wiki/Hapax_legomenon" class="postlink">hapax legomena</a> (words occurring once that would need to be encoded with character-based Huffman coding) when I ran it on the script of Thwaite.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Sun Feb 12, 2012 7:43 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />byuu, if all of your symbols had equal probability (worst case for huffman) the resulting huffman tree would be the same as fixed-bit-length (though storing the tree itself will put you over by the size of the tree). Best case for huffman I guess would be all the same symbol, which could be represented by a single bit, giving you 8:1 compression. Obviously you won't get near that, in generall, but it's a lower bound on the possible compressed size. For Battletoads it works out to maybe 4.7 bits per byte (you'd need 6 for a fixed-bit encoding, or about 5.5 if you built a tree that matches the number of symbols, but at that point you should just go with huffman).
+<br />
+<br />tepples mentioned its primary weakness; it starts with the premise of only looking at individual bytes and trying to compress them. You can try to do better with longer strings, words, or other things that seem appropriate to your data; the spaces after a newline in Battletoads are RLEd as a minor adaptation (it's not entirely successful; the tree produced a bitcode for \n+2 that is longer than \n with 2 individual spaces, for instance).
+<br />
+<br />Digram coding sounds interesting; very elegant! I'd never heard of it. Though I suspect it could be very slow, since it's liable to have many passes (even worse if you need to do it in place). Might be acceptable for shorter texts. What Super NES RPGs used it? (I guess being invented in 1994 it would have been limited to later ones...)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Sun Feb 12, 2012 7:54 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">rainwarrior wrote:</div><div class="quotecontent">though storing the tree itself will put you over by the size of the tree</div><br />And even that can be minimized. Instead of storing each element of the tree, store only the number of symbols with each bit length. Such a "canonical Huffman" code has a very compact representation, as I described in <a href="http://pineight.com/mw/?title=Huffword" class="postlink">my article about Huffword</a>.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Digram coding [...] could be very slow, since it's liable to have many passes</div><br />Which is probably tolerable for three reasons: <ul><li>PCs are real fast nowadays, and they can afford to make numerous passes over a text. </li><li>If you're doing the compression on a PC, you can build the digram tree on one core and compile the rest of the program on another core. </li><li>The statistics for an entire corpus aren't likely to change much over the course of one day. You could rebuild the digram tree only once a day and then just reuse the same tree, even if it has become slightly suboptimal, when reencoding your corpus. </li></ul><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">What Super NES RPGs used it?</div><br />Romhacking.net would be able to answer that one best. (They know it by the name DTE rather than the academic name "digram coding".)<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">(I guess being invented in 1994 it would have been limited to later ones...)</div>
+<br />The 1994 date has to be taken in the context of <a href="http://en.wikipedia.org/wiki/Wikipedia:Verifiability" class="postlink">Wikipedia's verifiability policy</a>. Wikipedia considers only <a href="http://en.wikipedia.org/wiki/Wikipedia:Identifying_reliable_sources" class="postlink">"reliable" sources</a> available to the public (whether free or paid). So even if games used it before then, unless it was explained in a published article, it doesn't count.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Sun Feb 12, 2012 8:18 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Well, 1994 is the earliest cited example; why would I assume there's something earlier unless someone tells me there is?
+<br />
+<br />I tried a quick search of Romhacking.NET but all I'm finding is that people are commonly hacking an implementation of DTE into old ROMs to make themselves more room to translate into English, which is a pretty cool application of it. I'd love to know if/when it first appeared in an original game though.
+<br />
+<br />I was wondering if decompression was slow, not the compression part, but I hadn't realized it could decompress as a tree; I was thinking it would scan the string and rebuild it with each substitution one at a time, but realizing you could apply them recursively, I guess the decompression time wouldn't be that bad at all. (This is a pretty neat method. Thanks for mentioning it!)
+<br />
+<br />Also, the size of the huffman table isn't necessarily an issue; I was just mentioning it because it is there. For text of any size worth compressing, it's probably negligible. In this case it was 84 bytes, not a big deal. Looking at that article, I guess this case it could be gotten down to 22 bytes (44 4-bit bitcode length values), and I'm not sure this wouldn't add another 62 to the decompressor. If you had lots of tables though it could be worthwhile.
+<br />
+<br />Another thing I'm wondering about byte-pair encoding is that you need extra symbols for your substitutions. For text stored as bytes it's probably great, since you've got tons of unused symbols at the ready, but for general purpose... the algorithm can probably be adapted to get around this problem, but it might get a bit more complicated?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Sun Feb 12, 2012 10:17 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">rainwarrior wrote:</div><div class="quotecontent">Looking at that [section about canonical Huffman codes in the Huffword] article, I guess this case it could be gotten down to 22 bytes (44 4-bit bitcode length values)</div><br />Actually it's one byte for each bit length, not for each distinct symbol. For example, if codes are up to 13 bits long as in the Battletoads tree, the description would be 13 bytes, followed by the 43 or so bytes for the actual values sorted by increasing bit length (i.e. decreasing frequency).<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">and I'm not sure this wouldn't add another 62 to the decompressor.</div><br />Which means the only way for me to settle it would be to write a demo of CH decompression.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">If you had lots of tables though it could be worthwhile.</div><br />Or if you had a huge table, like the table used for Huffword.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Another thing I'm wondering about byte-pair encoding is that you need extra symbols for your substitutions. For text stored as bytes it's probably great, since you've got tons of unused symbols at the ready, but for general purpose...</div>
+<br />What are you trying to compress that can be modeled by byte pairs but doesn't have any built-in <a href="http://en.wikipedia.org/wiki/Fragmentation_%28computing%29#Internal_fragmentation" class="postlink">internal fragmentation</a> for digram coding to exploit? CHR data?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Sun Feb 12, 2012 11:54 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I said "general purpose". I'm not trying to compress anything, I'm just wondering what kind of data (if any) this algorithm can't apply to. If your data doesn't have unused symbols, is there a viable variant of the algorithm? (Or would it become complex enough that there are better compression methods for the same level of complexity?)
+<br />
+<br />I can see how it can work nicely for text. A common word would eventually be compressed down to a single character, each pass of the algorithm packing in another letter, but also other words with shared substrings would get to reuse some of the same symbols. Pretty nifty. Hmm, this seems a lot like LZ78, actually.
+<br />
+<br />What does internal fragmentation have to do with it? I don't follow why you mentioned it. Free symbols seem to be the primary requirement (for a simple implementation, at least). A lot of data has repeated multi-byte strings in it, though, which is why I'm wondering if the free symbol requirement can be relaxed.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Mon Feb 13, 2012 4:55 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">rainwarrior wrote:</div><div class="quotecontent">What does internal fragmentation have to do with it?</div>
+<br />I think internal fragmentation means the same as free symbols/codes in this case. Recently I read about a DTE variation that doesn't require any free codes, but I didn't really get how it works yet.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Mon Feb 13, 2012 8:52 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Here's the DTE variant I was talking about&#058; <a href="http://en.wikibooks.org/wiki/Data_Compression/Dictionary_compression#SCZ_byte_pair_encoding" class="postlink">http://en.wikibooks.org/wiki/Data_Compression/Dictionary_compression#SCZ_byte_pair_encoding</a>
+<br />
+<br />Apparently it takes a rarely used byte and uses it as an escape code, which is used to indicate single bytes. If the most rarely used bytes are all preceded by the escape code, their codes become available for representing the most common pairs. What happens is that the least common bytes are expanded to 2 bytes, but the most common pairs are compressed to 1 byte. Also, as pairs are encoded, more characters might not appear by themselves anymore, also freeing their codes for representing compressed pairs. 
+<br />
+<br />That's what I got so far, but I'm sure there's more to it.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

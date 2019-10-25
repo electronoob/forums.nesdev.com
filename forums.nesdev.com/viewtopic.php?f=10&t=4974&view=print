@@ -1,0 +1,248 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - MMC3 PRG banks on reset</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">MMC3 PRG banks on reset</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=10&amp;t=4974">http://forums.nesdev.com/viewtopic.php?f=10&amp;t=4974</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Celius</b> [ Fri Mar 20, 2009 7:44 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>MMC3 PRG banks on reset</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />So I know that the MMC3 works with 8k banks and that there are two different bankswitching modes. I know that $E000-$FFFF will always be the last 8k of ROM, and either $C000-$DFFF or $8000-$9FFF will be the second to last depending on the PRG mode.
+<br />
+<br />I'm wondering about the state of the banks on reset. Is it unpredictable/random? I want to put my reset code in $C000-$FFFF, and I think always keep it on mode 0. In order to be safe, will I have to make the reset address somewhere in $E000-$FFFF and then turn on mode 0, at which point I will jump somewhere in $C000-$DFFF? Or is the PRG mode by default 0 on reset, in which case I could make the reset address $C000-$DFFF safely?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Fri Mar 20, 2009 8:10 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: MMC3 PRG banks on reset</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Celius wrote:</div><div class="quotecontent">I'm wondering about the state of the banks on reset. Is it unpredictable/random? I want to put my reset code in $C000-$FFFF, and I think always keep it on mode 0. In order to be safe, will I have to make the reset address somewhere in $E000-$FFFF and then turn on mode 0, at which point I will jump somewhere in $C000-$DFFF?</div>
+<br />That'd be the safest way. I'd toss something like this next to the vectors (untested):
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">PPUCTRL = $2000<br />PPUMASK = $2001<br />MMC3CTRL = $8000<br />MMC3BANK = $8001<br />MMC3IRQOFF = $E000<br />P2 = $4017<br />.segment &quot;ROM_FFE0&quot;<br />reset:<br />&nbsp; sei<br />&nbsp; ldx #0<br />&nbsp; stx PPUCTRL&nbsp; ; disable nmi<br />&nbsp; stx PPUMASK&nbsp; ; disable rendering &#40;and mmc3 irq&#41;<br />&nbsp; stx MMC3IRQOFF&nbsp; ; ack/disable mmc3 irq<br />&nbsp; stx MMC3CTRL&nbsp; ; set normal banking mode<br />&nbsp; dex<br /><br />&nbsp; txs<br />&nbsp; lda #$40<br />&nbsp; sta P2&nbsp; ; ack/disable apu frame irq<br />&nbsp; jmp main<br />&nbsp; .pad &#40;reset+$1A&#41;-*<br />&nbsp; .addr nmi, reset, irq<br /></div>
+<br />But then I don't know why you're using $C000-$DFFF as a fixed bank. If you use $8000-$9FFF as a fixed bank, you can bankswitch DPCM samples.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Celius</b> [ Fri Mar 20, 2009 8:43 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Okay, I guess I'll have to implement that then. It's okay though; my current projects aren't at all in their final stages.
+<br />
+<br />I guess I never thought about the advantages of using $8000-$9FFF as the fixed bank. But thank you for mentioning that, I will definitely reconsider why I use $C000-$DFFF as fixed. I guess I wanted to be able to treat it as one big 16k bank, but then again, I can have:
+<br />
+<br />$9FFD: JMP $E000
+<br />
+<br />which would only cost 3 cycles. It would just not have to be in the middle of any timed code.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Sat Mar 21, 2009 2:49 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">But then I don't know why you're using $C000-$DFFF as a fixed bank. If you use $8000-$9FFF as a fixed bank, you can bankswitch DPCM samples.</div>
+<br />You may not want to waste a whole 8kb bank area of memory to be constantly dedicated to samples, leaving only $a000-$bfff as "normal" bankswitched mem.
+<br />Also, there is many you may want to use vitrual 16kb banks, having the last 16kb always at $c000-$ffff and banskwitch two consecutive banks at $8000-$bfff, having the more standard U*ROM configuration.
+<br />
+<br />With WLA-DX, if you want the Reset code to be in $e000-$ffff, you'd have to do something like that :
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">.org $e000<br />.section RESET SEMIFREE<br />sei<br />cld<br />.....<br />MainLoop<br />&nbsp;jsr WaitVBl<br />&nbsp;jsr Gameplay<br />&nbsp; lda GameOver<br />&nbsp; bne +<br />&nbsp;jmp MainLoop<br />&nbsp;+ jmp GameOver<br />.ends</div>
+<br />
+<br />Just a quick example, normally, the semifree section guarantees it's in the $e000-$ffff range while normal free sections will be $c000-$ffff freely. Hopefully that should work.
+<br />
+<br />Also, if you can do test on real MMC3 cards and proof experimentally that $c000-$dfff are always the second last bank at power on, then you are legit to use that to your advantage. It would have to be tested on all revisions of MMC3 to be safe tough. Also this may or may not break compatibility with emulators and powerpak.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Sat Mar 21, 2009 5:39 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Or someone could write a program to search a folder full of commercial iNES ROMs for the reset vectors of anything mapper 4. If <em>no</em> commercial games use something, it's likely that Nintendo had a good reason to ban it in the lot check guidelines.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>beneficii</b> [ Sat Mar 21, 2009 11:31 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Isn't it undefined at startup whether the first fixed bank is located at $c000-$dfff or $8000-$9fff?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

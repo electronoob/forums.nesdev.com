@@ -1,0 +1,417 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Parameters in sub routines</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Parameters in sub routines</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=10521">http://forums.nesdev.com/viewtopic.php?f=2&amp;t=10521</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>DRW</b> [ Sun Sep 22, 2013 3:57 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Parameters in sub routines</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I tried to google <em>6502 &quot;subroutine parameters&quot;</em>, but nothing useful came up. So, I'm just asking the question here:<br /><br />Is there a way in 6502 Assembly to use parameters for subroutines?<br /><br />Something like this:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">MySubRoutine:<br />&nbsp; ; Parameter name: loopCounter<br />&nbsp; LDX #$00<br />Loop:<br />&nbsp; ; Do something here.<br />&nbsp; INX<br />&nbsp; CPX loopCounter<br />&nbsp; BNE Loop<br />&nbsp; RTS</div><br />And then you call the sub routine like one of these:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; JSR MySubRoutine #$10<br />&nbsp; ; Calls MySubRoutine and sets loopCounter to 16.<br /><br />&nbsp; JSR MySubRoutine $0500<br />&nbsp; ; Calls MySubRoutine and sets loopCounter to the value at address $0500.</div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>thefox</b> [ Sun Sep 22, 2013 4:25 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Parameters in sub routines</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />There's no standardized way to do this. Personally I came up with my own macro based solution, and I know others have done similar stuff.<br /><br />My solution, called <em>xparam</em>, works like this:<br /><br />1) In a header file, let's say foo.h, include xparam.h and declare the function(s):<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">.include &quot;xparam.h&quot;<br /><br />xdecl myFunction<br />&nbsp; ; Parameters:<br />&nbsp; foo .word<br />&nbsp; bar .byte<br />&nbsp; xlocals ; Local variables<br />&nbsp; &nbsp; xyzzy .byte<br />&nbsp; endxlocals<br />endxdecl<br /></div><br /><br />2) In the implementation file, say foo.s, define the function:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">.include &quot;foo.h&quot;<br /><br />xproc myFunction<br />&nbsp; ; Fetch an argument.<br />&nbsp; lda param bar<br />&nbsp; ; Store it in a local variable.<br />&nbsp; sta local xyzzy<br />&nbsp; rts<br />endxproc<br /></div><br /><br />3) Call the function from somewhere else, say main.s:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">.include &quot;foo.h&quot;<br /><br />.code<br /><br />somethingElse: .byte $69<br /><br />.proc reset<br />&nbsp; xinvoke myFunction, foo: #12345, bar: somethingElse<br />&nbsp; jmp *<br />.endproc<br /></div><br /><br />In my implementation, all parameters and local variables are stored in the zero page. It's the programmer's duty to make sure the parameter/local areas of two different functions don't overlap.<br /><br />And just to be clear, to use this stuff you need the xparam.h support header which hasn't been released (at least not yet).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Quietust</b> [ Sun Sep 22, 2013 6:21 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Parameters in sub routines</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Alternatively, 8-bit values could simply be pushed onto the stack, loaded in the subroutine using TSX : LDA $010#,X ($0103,X for the last thing you pushed, $0104,X for the second-last, and so on), then popped once you're done (caller cleanup, of course).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Movax12</b> [ Sun Sep 22, 2013 7:17 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Parameters in sub routines</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />That looks cool thefox. I'm not sure how you are doing that, I'm going to have to think about it. Looks like you are abusing some of the macro facilities a bit.<br />I am not completely happy with my macro parameter system, but it is similar to thefox's, and zeropage is the way to go. I have a constant amount of zeropage reserved for parameters and local variables. Using the stack is slow, and if you send a pointer, you can access it directly with zeropage. I find the 6502 hardware stack useful for saving and loading address only (jsr/rts).<br /><br />For nested functions, I do have runtime verification that local variables/parameters are not overwritten via Lua with NintendulatorDX.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>DRW</b> [ Sun Sep 22, 2013 7:24 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Parameters in sub routines</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Since there's no built-in solution, I guess the one with the stack is the right one for me.<br /><br />So, please tell me if the following code snippets would be correct:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">FillSpecificMemoryWithValue:<br />; Parameters (put them to the stack in this order):<br />; 1. Length<br />; 2. Value<br />&nbsp; TSX ; Loads the parameter &quot;value&quot; into X.<br />&nbsp; TXA ; Copies X (i.e. parameter &quot;value&quot;) into A.<br />&nbsp; TSX ; Loads the parameter &quot;length&quot; into X.<br />Loop:<br />&nbsp; STA $1000, X ; Stores &quot;value&quot; at address $1000 + X.<br />&nbsp; DEX<br />&nbsp; BNE Loop ; If X isn't 0 yet, repeat, otherwise, leave function.<br />&nbsp; RTS</div><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; LDX #$10 ; The parameter &quot;length&quot;.<br />&nbsp; TXS<br />&nbsp; LDX #$FF ; The parameter &quot;value&quot;.<br />&nbsp; TXS<br />&nbsp; JSR FillSpecificMemoryWithValue</div><br />I still haven't really understood the stack, though: Where is it located? I thought that all variables are put into RAM. You write <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">STA $0500</tt> and the variable is put into that specific location. If some other function overwrites it, bad luck, you should have declared placeholder names with <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">.res</tt>. But for some reason, you can push variables to a region called the stack and when you retreive it, it's automatically deleted from the stack again. Where does this happen in memory? And can I just directly write to that location, screwing up the stack?<br /><br />And what do I have to do if there are more than three parameters that I can't just put into A, X and Y all at once? Wouldn't this again require some global variables to temporarily store those values?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>thefox</b> [ Sun Sep 22, 2013 7:46 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Parameters in sub routines</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">DRW wrote:</div><div class="quotecontent">So, please tell me if the following code snippets would be correct:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; TSX ; Loads the parameter &quot;value&quot; into X.</div></div><br />This is wrong. TSX simply transfers the <em>stack pointer</em> to register X. You need to use LDA $0103,X etc to actually access the stack (like Quietust said).<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">I still haven't really understood the stack, though: Where is it located?</div><br />It's located at $100-$1FF in RAM. The stack pointer is 8 bits, OR it with $100 to get the address in RAM.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Sun Sep 22, 2013 8:04 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Parameters in sub routines</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I generally either put the parameters in the registers A/X/Y or where that's not appropriate, I use a ZP variable. These places are also good for return values. This makes a function call something like:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp; LDX #3<br />&nbsp; &nbsp; LDY #7<br />&nbsp; &nbsp; JSR multiply_xy<br />&nbsp; &nbsp; ; at this line A contains 21</div><br /><br />Yes, you can use the stack as mentioned, but I find having to move the stack pointer into X to retrieve them makes it a little inconvenient/inefficient. You don't really need to use the stack unless you have a recursive/re-entrant subroutine.<br /><br />Most of my functions take a single parameter in A and put the return value in A.<br /><br /><br />If I misunderstood the question and you're looking for a simplified syntax, which seems to be what the other replies in this thread are about, once you've written your function it is easy to write an accompanying macro to set up the appropriate registers in a one-line statement:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">.macro MULTIPLY_XY a, b<br />&nbsp; &nbsp; LDX a<br />&nbsp; &nbsp; LDY b<br />&nbsp; &nbsp; JSR multiply_xy<br />.endmacro<br /><br />; called like this:<br />&nbsp; &nbsp; MULTIPLY_XY #3, #7</div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>sonder</b> [ Sun Sep 22, 2013 9:21 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Parameters in sub routines</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />In the latest version of my 6502 Forth (which is subroutine-threaded, and I wasn't going to talk about it until my game was done but, hey...) I have a standardized parameter passing system.  The X reg is an 8-bit pointer into a data stack on the zeropage, with A containing the top item.  I use two macros, &quot;dup&quot; and &quot;drop&quot; to manipulate the data stack for passing parameters, consuming them, and returning them.<br /><br />The beauty of this arrangement is it can be used completely divorced from the rest of the Forth language.<br /><br />The stack grows downward, allowing you to put pointers on it intuitively (push high first, low second - additionally, 8-bit add/sub with no carry is straightforward).  0,x normally contains the 2nd item on the stack.  Here are the macros:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">macro drop<br />&nbsp; &nbsp;lda 0,x<br />&nbsp; &nbsp;inx<br />endm<br /><br />macro dup <br />&nbsp; &nbsp;dex<br />&nbsp; &nbsp;sta 0,x<br />endm<br /></div><br /><br />To push something on the stack, you should first &quot;dup&quot; to effectively push A onto the stack freeing it to be LDA'd with something else.  When a routine is done with a value, it should &quot;drop&quot; it.  Or you can not &quot;drop&quot; it, changing the value of A to return something.  Or push more values to return multiple values if desired.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>never-obsolete</b> [ Sun Sep 22, 2013 9:33 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Parameters in sub routines</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I use the A, X, and Y registers first, but also have zero page variables that simulate MIPS registers:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp;.org $0000<br />a0:&nbsp; &nbsp;.db 0&nbsp; &nbsp;; argument registers<br />a1:&nbsp; &nbsp;.db 0&nbsp; &nbsp;;<br />a2:&nbsp; &nbsp;.db 0&nbsp; &nbsp;;<br />a3:&nbsp; &nbsp;.db 0&nbsp; &nbsp;;<br />a4:&nbsp; &nbsp;.db 0&nbsp; &nbsp;;<br />a5:&nbsp; &nbsp;.db 0&nbsp; &nbsp;;<br />t0:&nbsp; &nbsp;.db 0&nbsp; &nbsp;; temporary registers<br />t1:&nbsp; &nbsp;.db 0&nbsp; &nbsp;;<br />t2:&nbsp; &nbsp;.db 0&nbsp; &nbsp;;<br />t3:&nbsp; &nbsp;.db 0&nbsp; &nbsp;;<br />t4:&nbsp; &nbsp;.db 0&nbsp; &nbsp;;<br />t5:&nbsp; &nbsp;.db 0&nbsp; &nbsp;;<br />t6:&nbsp; &nbsp;.db 0&nbsp; &nbsp;;<br />t7:&nbsp; &nbsp;.db 0&nbsp; &nbsp;;<br />t8:&nbsp; &nbsp;.db 0&nbsp; &nbsp;;<br />t9:&nbsp; &nbsp;.db 0&nbsp; &nbsp;;<br />s0:&nbsp; &nbsp;.db 0&nbsp; &nbsp;; save registers<br />s1:&nbsp; &nbsp;.db 0&nbsp; &nbsp;;<br />s2:&nbsp; &nbsp;.db 0&nbsp; &nbsp;;<br />s3:&nbsp; &nbsp;.db 0&nbsp; &nbsp;;<br />s4:&nbsp; &nbsp;.db 0&nbsp; &nbsp;;<br />s5:&nbsp; &nbsp;.db 0&nbsp; &nbsp;;<br />v0:&nbsp; &nbsp;.db 0&nbsp; &nbsp;; return value registers<br />v1:&nbsp; &nbsp;.db 0&nbsp; &nbsp;;&nbsp; (or more arguments)<br />i0:&nbsp; &nbsp;.db 0&nbsp; &nbsp;; temporary registers<br />i1:&nbsp; &nbsp;.db 0&nbsp; &nbsp;;&nbsp; (for interrupts)<br /></div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>sonder</b> [ Sun Sep 22, 2013 9:40 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Parameters in sub routines</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">DRW wrote:</div><div class="quotecontent">Since there's no built-in solution, I guess the one with the stack is the right one for me.<br /><br />So, please tell me if the following code snippets would be correct:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">FillSpecificMemoryWithValue:<br />; Parameters (put them to the stack in this order):<br />; 1. Length<br />; 2. Value<br />&nbsp; TSX ; Loads the parameter &quot;value&quot; into X.<br />&nbsp; TXA ; Copies X (i.e. parameter &quot;value&quot;) into A.<br />&nbsp; TSX ; Loads the parameter &quot;length&quot; into X.<br />Loop:<br />&nbsp; STA $1000, X ; Stores &quot;value&quot; at address $1000 + X.<br />&nbsp; DEX<br />&nbsp; BNE Loop ; If X isn't 0 yet, repeat, otherwise, leave function.<br />&nbsp; RTS</div><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; LDX #$10 ; The parameter &quot;length&quot;.<br />&nbsp; TXS<br />&nbsp; LDX #$FF ; The parameter &quot;value&quot;.<br />&nbsp; TXS<br />&nbsp; JSR FillSpecificMemoryWithValue</div><br />I still haven't really understood the stack, though: Where is it located? I thought that all variables are put into RAM. You write <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">STA $0500</tt> and the variable is put into that specific location. If some other function overwrites it, bad luck, you should have declared placeholder names with <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">.res</tt>. But for some reason, you can push variables to a region called the stack and when you retreive it, it's automatically deleted from the stack again. Where does this happen in memory? And can I just directly write to that location, screwing up the stack?<br /><br />And what do I have to do if there are more than three parameters that I can't just put into A, X and Y all at once? Wouldn't this again require some global variables to temporarily store those values?</div><br /><br />I only use the 6502 stack for subroutines and temporarily saving values.  It's located at $100-$1ff.  But because it grows downward, and usually never ever gets close to filling up, you can safely store as many variables there as you feel comfortable.   Check out the technique I posted above, let me know if you have any questions and I'll be happy to explain <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Sun Sep 22, 2013 9:42 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Parameters in sub routines</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Stacks (hardware or software) are cool and all, but most of the time not necessary in NES/6502 games. I often just use a ZP section for parameters... say, 16 bytes under the label &quot;Scratchpad&quot;. Then, before each subroutine I have the following:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">.enum Scratchpad<br />&nbsp; &nbsp;LocalVariable1 .dsb 1<br />&nbsp; &nbsp;LocalVariable2 .dsb 2<br />&nbsp; &nbsp;LocalVariable3 .dsb 1<br />.ende</div><br />And I just use these local variables for passing parameters. If a subroutine is called from another subroutine, I have to do something like this:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">.enum Scratchpad<br />&nbsp; &nbsp;Subroutine1.LocalVariable1 .dsb 1<br />&nbsp; &nbsp;Subroutine1.LocalVariable2 .dsb 2<br />&nbsp; &nbsp;Subroutine1.LocalVariable3 .dsb 1<br />&nbsp; &nbsp;Subroutine1.LocalEnd<br />.ende<br />Subroutine1:<br /><br />(...)<br /><br />.enum Subroutine1.LocalEnd<br />&nbsp; &nbsp;Subroutine2.LocalVariable1 .dsb 1<br />&nbsp; &nbsp;Subroutine2.LocalVariable2 .dsb 1<br />.ende<br />Subroutine2:</div><br />Now, if a subroutine is called from different subroutines, I'll either define it's locals after the last variable of the subroutine that uses the most scratchpad bytes or I'll say &quot;fuck it&quot; and use the stack if there's no other way.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Movax12</b> [ Sun Sep 22, 2013 11:06 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Parameters in sub routines</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tokumaru wrote:</div><div class="quotecontent">Now, if a subroutine is called from different subroutines, I'll either define it's locals after the last variable of the subroutine that uses the most scratchpad bytes </div><br />Yeah that's an interesting problem I didn't want to think/worry about too much.<br /><br />Code is my subs looks like:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">func myFunction<br /><br />&nbsp; &nbsp; params 3&nbsp; &nbsp; &nbsp; &nbsp; ; start at offset 3, bytes 0..2 are in use<br />&nbsp; &nbsp; &nbsp; &nbsp; foo .byte<br />&nbsp; &nbsp; &nbsp; &nbsp; bar .byte<br />&nbsp; &nbsp; endparams<br /><br />&nbsp; &nbsp; locals<br />&nbsp; &nbsp; &nbsp; &nbsp; baz .byte<br />&nbsp; &nbsp; endlocals<br /><br />&nbsp; &nbsp; ; code<br />&nbsp; &nbsp; lda param::foo<br />&nbsp; &nbsp; sta local::baz<br /><br />&nbsp; &nbsp; ; declare baz safe to overwrite:<br />&nbsp; &nbsp; release local::baz<br />&nbsp; &nbsp; call someOtherFunction<br /><br />&nbsp; &nbsp; ; mark it as in use again<br />&nbsp; &nbsp; reserve local::baz<br />&nbsp; &nbsp; ; do some stuff<br /><br />&nbsp; &nbsp; ; exit with baz in A, and release all local/param memory used<br />&nbsp; &nbsp; return local::baz<br /><br />endfunc<br /></div><br /><br />Any overwritten locations display an error at runtime.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>DRW</b> [ Sun Sep 22, 2013 11:37 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Parameters in sub routines</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">thefox wrote:</div><div class="quotecontent">This is wrong. TSX simply transfers the <em>stack pointer</em> to register X. You need to use LDA $0103,X etc to actually access the stack (like Quietust said).</div><br />Alright, now I understand. Even better. This means I can access these variables at will.<br />So, next try:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">FillSpecificMemoryWithValue:<br />; Parameters (put them to the stack in this order):<br />; 1. Length<br />; 2. Value<br /><br />&nbsp; TSX&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; Loads the current stack pointer.<br />&nbsp; LDA $0103, X ; Loads &quot;value&quot; into A.<br />&nbsp; LDX $0104, X ; Loads &quot;length&quot; into X.<br /><br />Loop:<br />&nbsp; STA $1000, X ; Stores &quot;value&quot; at address $1000 + X.<br />&nbsp; DEX<br />&nbsp; BNE Loop&nbsp; &nbsp; &nbsp;; If X isn't 0 yet, repeat, otherwise, leave function.<br /><br />&nbsp; PLA&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; Removes &quot;value&quot; from stack.<br />&nbsp; PLA&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; Removes &quot;length&quot; from stack.<br /><br />&nbsp; RTS</div><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; LDA #$10 ; The parameter &quot;length&quot;.<br />&nbsp; PSA&nbsp; &nbsp; &nbsp; ; &quot;Length&quot; is put into the stack.<br />&nbsp; LDA #$FF ; The parameter &quot;value&quot;.<br />&nbsp; PSA&nbsp; &nbsp; &nbsp; ; &quot;Value&quot; is put into the stack.<br />&nbsp; JSR FillSpecificMemoryWithValue</div><br />Correct now?<br /><br />If the stack starts at $0100, why do I have to get the most recent stack value with $010<span style="text-decoration: underline">3</span> + X? I assume that the first value in the stack might be the stack pointer itself, so that the actual stack variables start at $0101. But why $0103?<br /><br /><div class="quotetitle">rainwarrior wrote:</div><div class="quotecontent">Yes, you can use the stack as mentioned, but I find having to move the stack pointer into X to retrieve them makes it a little inconvenient/inefficient. You don't really need to use the stack unless you have a recursive/re-entrant subroutine.</div><br />Yeah, I guess in a real game I will have to see for each function individually which version I'll take. But in the moment, I'll try the stack just to get it to know.<br /><br /><div class="quotetitle">rainwarrior wrote:</div><div class="quotecontent">If I misunderstood the question and you're looking for a simplified syntax</div><br />No, you understood it correctly. I was just looking for the technique itself, not for syntax tricks.<br /><br />But thank you all for the example anyway.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Sun Sep 22, 2013 11:45 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Parameters in sub routines</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">never-obsolete wrote:</div><div class="quotecontent">zero page variables that simulate MIPS registers</div><br />I do something similar: $0000-$0007 for arguments and temporaries and $0008-$000F for caller-saved registers.<br /><br />As for $0103: The top two values are the return address.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>thefox</b> [ Sun Sep 22, 2013 12:04 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Parameters in sub routines</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">DRW wrote:</div><div class="quotecontent">[code]<br />  LDX $0104, X ; Loads &quot;length&quot; into X.</div><br />This addressing mode doesn't exist, see <!-- m --><a class="postlink" href="http://www.obelisk.demon.co.uk/6502/reference.html#LDX">http://www.obelisk.demon.co.uk/6502/reference.html#LDX</a><!-- m --><br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">If the stack starts at $0100, why do I have to get the most recent stack value with $010<span style="text-decoration: underline">3</span> + X? I assume that the first value in the stack might be the stack pointer itself, so that the actual stack variables start at $0101. But why $0103?</div><br />Stack pointer is not at $100, it's a register inside the CPU itself. As for why $103, consider this example:<br /><br />Let's say stack pointer starts out as $FF, i.e. SP = $FF, i.e. it points to $1FF. Now let's say the caller pushes two values on the stack, so the bytes are placed at $1FF and $1FE and SP = $FD after. When you call a function, two more bytes (the return value) get pushed on the stack, so SP becomes $FB. And how do we get from the stack pointer value, $FB, to the parameter at $1FE? By adding $1FE - $FB = $103.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

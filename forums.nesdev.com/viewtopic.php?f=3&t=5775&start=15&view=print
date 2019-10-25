@@ -1,0 +1,421 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Question regarding loopy's paltest</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Question regarding loopy's paltest</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=3&amp;t=5775">http://forums.nesdev.com/viewtopic.php?f=3&amp;t=5775</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>2</strong> of <strong>2</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Fri Nov 27, 2009 7:20 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Sorry for writing the previous post in a rush I din't mean to be instulting or anything I just wrote it in a rush for some reason, I'll take more time to explain what went wrong as an apologize.
+<br />
+<br />$2002 polling isn't completely wrong, in the sense that a loop that wait for $2002.7 bit to be set WILL exit when a VBlank has started, but it won't always the <em>next</em> VBlank. So it will frequently miss VBlanks. For this small intro it's probably not a big deal, but the proper way is to rely on NMI.
+<br />
+<br />Square apparently likes to have a NMI routine that does nothing but return, and the game engine calls a routine that enable NMIs (via $2000.7) and does a endless jmp here. When a NMI happens, the programm discards the pushed adress / status register, and returns to the main game engine. (note that this is probably form the FDS bios, as Square's first games were FDS, and then they kept this system for their other games).
+<br />
+<br />So all you have to do for a "proper" NMI wait is call the routine I mention above, which is simpler than polling $2002 and more reliable, which in the case of FF2 is located at $fead. So just a jsr $fead will be like polling $2002 but more reliable.
+<br />
+<br />
+<br />About the name table problem, by writing to $2005 during NMI, you can only change the lower 8-bits of both horizontal and vertical scrolling. The 9th bit of both are the lowest 2 bits of $2000. Because the scrolling registers are also used to adress the PPU, when you write to $2006 in order to do VRAM updates, it overwrites the scroll completely, including the 9th bits.
+<br />
+<br />For that reason, a "complete" scroll initialisation in NMI should write twice to $2005 and to $2000.
+<br />
+<br />So the reason the into looks wrong is because it does $2006 writes, and then reset the lower bits of scroll via $2005, but don't write the proper nametable bits to $2000, so the wrong nametabl is "randomly" shown.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>koitsu</b> [ Fri Nov 27, 2009 9:26 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Firstly, thanks for apologising -- sorry if I sounded pissed off (I wasn't that upset, just generally displeased and disappointed), but given the history I've had with the community, I guess my reaction was understandable (not the same thing as justified.  :-) )
+<br />
+<br />Equally as important, thanks for taking the time to explain to me the mistakes.  I really <strong>really</strong> appreciate it!  Getting an answer to something that's bugged me for 5-10 years is rad -- again, thanks!  :-)
+<br />
+<br />I spent a couple hours tonight looking through Parasyte's IPS patch.  He changed all the JSR references from a Square routine I called _ZEROBG, which did nothing other than:
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">_ZEROBG:<br />&nbsp; &nbsp; &nbsp; &nbsp; LDA #$00<br />&nbsp; &nbsp; &nbsp; &nbsp; STA $2005<br />&nbsp; &nbsp; &nbsp; &nbsp; STA $2005<br />&nbsp; &nbsp; &nbsp; &nbsp; RTS<br /></div><br /><br />...to his own routine, which was:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">L_F810:<br />&nbsp; &nbsp; &nbsp; &nbsp; LDA #%10001000<br />&nbsp; &nbsp; &nbsp; &nbsp; STA $2000<br />&nbsp; &nbsp; &nbsp; &nbsp; LDA #$00<br />&nbsp; &nbsp; &nbsp; &nbsp; STA $2005<br />&nbsp; &nbsp; &nbsp; &nbsp; STA $2005<br />&nbsp; &nbsp; &nbsp; &nbsp; RTS<br /></div>
+<br />
+<br />The $2000 modify sets NT=$2800, and enables NMI at start of VBLANK (I believe the game sets this itself much earlier when the ROM starts too).
+<br />
+<br />Sure enough, the intro appears to work in Nintendulator (the emulator which previously exhibited said graphical glitches which resembled that of what an actual NES showed).
+<br />
+<br />I took a look at the nesdev Wiki to not only remind myself of what the bits in $2000 did, but to see if there was something I was misunderstanding.  Sure enough, just as you stated...  :-)
+<br />
+<br />My routine was intended to set the X/Y offset of the screen to 0,0.  I thought setting PPUSCROLL ($2005) was enough -- nope, PPUCTRL ($2000) is also involved.  I had no idea.
+<br />
+<br />Your explanation of the problem (writing to $2006, then resetting $2005 to $00/00, but not adjusting $2000) makes perfect sense.  I can correlate it all with the Wiki too, which at this point is a godsend.
+<br />
+<br />I never took the time to look at the NMI routine -- I simply made the assumption Square would be using it.  That is absolutely my fault.  So let's talk a bit about that...
+<br />
+<br />When the ROM loads, the NMI vector is set to $0100.  By default NMI on VBLANK isn't enabled, and the code the RESET vector points to disables it too right off the bat (via $2000.7).  I'll have to go through the rest of the code (it's been 10 years!) and work out what goes where, since there's some mapper #1 (SNROM) PRG switching and so on.  It's not that I don't believe you, re: $FEAD, but I'd rather work it out for myself too.  :-)
+<br />
+<br />For a final time -- thank you so much for the explanation.  I think I'll spend some time this weekend re-implementing the entire intro (including use of NMI) and go from there.  If I have any questions I'll likely start a new post.  Cheers!
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Fri Nov 27, 2009 12:49 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">koitsu wrote:</div><div class="quotecontent">(which I still don't understand, re: loopy's scrolling skinny)</div>
+<br />Just a reminder (for NES programmers, not emulator authors): You don't have to understand loopy's document in order to use scrolling normally. Under normal conditions, all you need is a write to $2000 (to select the Name Table) and 2 writes to $2005 (to define how much into that NT the scroll is). The behavior described in loopy's document is only useful if you plan on setting the scroll after rendering has already started (i.e. outside of VBlank).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Banshaku</b> [ Fri Nov 27, 2009 5:43 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Putting back in the PPU_CTRL ($2000) it's current state before setting the scroll... Brings back memory of headache as to why the screen was jumping around and I didn't know why while working on my current project <img src="./images/smilies/icon_wink.gif" alt=";)" title="Wink" />
+<br />
+<br />Good to hear that you will finally get rid of that "itch".  As a programmer, there's is nothing worst than something that doesn't work and you don't know why. 
+<br />
+<br />I decided to give a quick look at the code I wrote. I do almost the same thing in the nmi except one thing: after updating PPU_CTRL, I reset the latch by doing lda PPU_STATUS ($2000) then scroll.  Is it necessary?  By what I read in this thread, it seems not.  This code is old and didn't touch it for a while so maybe I should remove that statement.
+<br />
+<br />edit:
+<br />
+<br />Tested, this extra step of resetting was not necessary. Good! I hate when I do something that I'm not sure why. But that was how many months ago.. I didn't remember about that code at all <img src="./images/smilies/icon_wink.gif" alt=";)" title="Wink" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Fri Nov 27, 2009 6:24 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Banshaku wrote:</div><div class="quotecontent">after updating PPU_CTRL, I reset the latch by doing lda PPU_STATUS ($2000) then scroll.  Is it necessary?</div>
+<br />I believe you meant $2002... I don't think it's necessary. Your code should be well structured enough to only write to $2005 and $2006 in pairs, so resetting the latch isn't really necessary. Acknowledging the NMI (another function of reading $2002) doesn't seem necessary either.
+<br />
+<br />In my Sonic game I am reading $2002 though. I need to extend the vertical blank by a few scanlines in order to have more time for video updates and to cover up scrolling glitches at the top of the screen. Since I want the top scanlines to be blanked in PAL consoles too, before enabling rendering I read $2002. If it's still in VBlank this means it's a PAL console (this is a pretty easy way to detect a PAL or NTSC console), so I wait some more (a lot more!) until the border is the same size as it would be on NTSC. Yeah, it sucks that all that time is wasted, but at least the frame is properly rendered in both types of consoles.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Banshaku</b> [ Fri Nov 27, 2009 6:40 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Ok, good to know. Yep, I meant $2002, one typo I forgot to correct <img src="./images/smilies/icon_wink.gif" alt=";)" title="Wink" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>jwdonal</b> [ Fri Nov 27, 2009 7:25 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>thanks!!</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Wow, this thread has generated a lot of great discussion.  Very cool.
+<br />
+<br />I'd like to thank all of you for the information you've provided.  Specifically, I would like to thank Tokumaru and Disch.
+<br />
+<br /><div class="quotetitle">Disch wrote:</div><div class="quotecontent">When rendering is on, $3F00 is always the "fill" color (if sprite and BG pixels are transparent, then $3F00 is used)<br /><br />When rendering is OFF, then $3F00 is the fill color <em>unless</em> the PPU address is pointed to somewhere in pallet memory.  In which case, whatever the PPU address is pointing to is the fill color.</div>
+<br />
+<br />This explanation really helped me out and I did in fact have this wrong in my emulator.  I fixed the problem and the results are much better (although not perfect)!  I think the remaining bugs have to do with either my emphasis bit implementation and/or my scroll registers.  I will repost here when I figure it out! Pz!
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>jwdonal</b> [ Fri Nov 27, 2009 9:19 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>another question</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />If I may, I had another question regarding the monochrome bit in PPU register $2001.  In <a href="http://nesdev.com/bbs/viewtopic.php?t=3554" class="postlink">this</a> post Disch stated that if the monochrome bit is set then any reads from the bg/sprite palette RAM ($3F00-$3FFF and mirrors) will return the monochrome index value (i.e. the $30-masked value) rather than the actual stored value.  For the system palette lookup which only has a 6-bit interface the mask is obviously $30, but what about for reads via $2007 which has an 8-bit interface?  Would the mask then be $F0 or would it still be $30 (essentially masking off the upper 2 bits as well)?
+<br />
+<br />Does anyone know what a real NES does in this case?  I know this is getting insanely picky but I want my hardware emulator to be as true as possible to the original design.
+<br />
+<br />In fact, this just made me wonder - does a real NES even store the upper 2 bits when writing to $3F00-$3FFF (and associated mirrors)??  I wonder if those bits just always read back as 0 (or 1)...hmmm... I'm guessing someone has already answered that question in another post....somewhere.
+<br />
+<br />Pz!
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Sat Nov 28, 2009 3:13 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Good to hear that you will finally get rid of that "itch". As a programmer, there's is nothing worst than something that doesn't work and you don't know why.</div><br />Yes there is something worse : When after a lot of headaches and debugging you eventually find out the cause of your problems, fix it, and that the result is the same. It happened to me a few times.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent"><br /><br />Just a reminder (for NES programmers, not emulator authors): You don't have to understand loopy's document in order to use scrolling normally. Under normal conditions, all you need is a write to $2000 (to select the Name Table) and 2 writes to $2005 (to define how much into that NT the scroll is). The behavior described in loopy's document is only useful if you plan on setting the scroll after rendering has already started (i.e. outside of VBlank).</div><br />Even if you do that you don't need to understand loopy's stuff as I never understood it and I still was able to do some raster effects.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent"><br />If I may, I had another question regarding the monochrome bit in PPU register $2001. In this post Disch stated that if the monochrome bit is set then any reads from the bg/sprite palette RAM ($3F00-$3FFF and mirrors) will return the monochrome index value (i.e. the $30-masked value) rather than the actual stored value. For the system palette lookup which only has a 6-bit interface the mask is obviously $30, but what about for reads via $2007 which has an 8-bit interface? Would the mask then be $F0 or would it still be $30 (essentially masking off the upper 2 bits as well)?</div>
+<br />Palette reads are anded with $30. I'm pretty sure the upper 2 bits are never stored anyway, but not 100% sure. Someone will have to confirm that.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Sat Nov 28, 2009 8:54 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />The most logical assumption in my mind is that the upper 2 bits are open bus.
+<br />
+<br />But I can't confirm that either.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>jwdonal</b> [ Tue Dec 01, 2009 10:37 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>clarification</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Disch wrote:</div><div class="quotecontent">When rendering is on, $3F00 is always the "fill" color (if sprite and BG pixels are transparent, then $3F00 is used)<br /><br />When rendering is OFF, then $3F00 is the fill color <em>unless</em> the PPU address is pointed to somewhere in pallet memory.  In which case, whatever the PPU address is pointing to is the fill color.</div>
+<br />
+<br />One more quick clarification.  If rendering if OFF, and the PPU address is pointed to $3F1C (or $3F18, $3F14, $3F10, $3F0C, $3F08, $3F04), then should I use the index value stored at $3F00 as would normally be done when rendering is ON?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Tue Dec 01, 2009 10:54 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: clarification</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">jwdonal wrote:</div><div class="quotecontent">If rendering if OFF, and the PPU address is pointed to $3F1C (or $3F18, $3F14, $3F10, $3F0C, $3F08, $3F04), then should I use the index value stored at $3F00 as would normally be done when rendering is ON?</div>
+<br />Good thing you brought this up. I remember that *some* of these addresses are not mirrors. $3f04, $3f08 and $3f0c can hold unique values, and the only way to display them is by pointing at them while rendering is off. $3f10, $3f14, $3f18 and $3f1c however are mirrors of $3f0*. This is what I remember from <a href="http://nesdev.com/bbs/viewtopic.php?t=2884" class="postlink">this thread</a>.
+<br />
+<br />This means that the NES holds 28 color values, but only 25 are used during rendering. The remaining 3 colors can only be displayed with the VRAM address trick.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>2</strong> of <strong>2</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

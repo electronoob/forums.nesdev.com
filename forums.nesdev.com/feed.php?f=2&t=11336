@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=2&amp;t=11336" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2014-07-09T14:34:46-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=2&amp;t=11336</id>
+<entry>
+<author><name><![CDATA[Omegamatrix]]></name></author>
+<updated>2014-07-09T14:34:46-07:00</updated>
+<published>2014-07-09T14:34:46-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11336&amp;p=130909#p130909</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11336&amp;p=130909#p130909"/>
+<title type="html"><![CDATA[Re: Unsigned Integer Division Routines]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11336&amp;p=130909#p130909"><![CDATA[
+chitselb are you using 16 bit? I do have a 16 bit divide by 10 routine that you could tweak to get a div 40 and mod 40. That being said if you can just use multiply 40 then you probably way better off.<br /><br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;<br />;    UNSIGNED DIVIDE BY 10 (16 BIT)<br />;    By Omegamatrix<br />;    126 cycles (max), 79 bytes<br />;<br />;    Start with 16 bit value in counterHigh, counterLow<br />;    End with 16 bit result in highTen, lowTen<br />;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;<br /><br />TensRemaining:<br />    .byte 0,25,51,76,102,128,153,179,204,230<br />ModRemaing:<br />    .byte 0,6,2,8,4,0,6,2,8,4<br /><br />.startDivideBy10:<br />    ldy    #-2                   ;2  @2   skips a branch the first time through<br />    lda    counterHigh           ;3  @5<br />.do8bitDiv:<br />    sta    temp                  ;3  @8<br />    lsr                          ;2  @10<br />    adc    #13                   ;2  @12<br />    adc    temp                  ;3  @15<br />    ror                          ;2  @17<br />    lsr                          ;2  @19<br />    lsr                          ;2  @21<br />    adc    temp                  ;3  @24<br />    ror                          ;2  @26<br />    adc    temp                  ;3  @29<br />    ror                          ;2  @31<br />    lsr                          ;2  @33<br />    and    #$7C                  ;2  @35   AND'ing here...<br />    sta    temp                  ;3  @38   and saving result as highTen (times 4)<br />    lsr                          ;2  @40<br />    lsr                          ;2  @42<br />    iny                          ;2  @44<br />    bpl    .finishLowTen         ;2³ @46/47...120<br /><br />    sta    highTen               ;3  @49<br />    adc    temp                  ;3  @52   highTen (times 5)<br />    asl                          ;2  @54   highTen (times 10)<br />    sbc    counterHigh           ;3  @57<br />    eor    #$FF                  ;2  @59<br />    tay                          ;2  @61   mod 10 result!<br /><br />    lda    TensRemaining,Y       ;4  @65   Fill the low byte with the tens it should<br />    sta    lowTen                ;3  @68   have at this point from the high byte divide.<br />    lda    counterLow            ;3  @71<br />    adc    ModRemaing,Y          ;4  @75<br />    bcc    .do8bitDiv            ;2³ @77/78<br /><br />.overflowFound:<br />    cmp    #4                    ;2  @79   We have overflowed, but we can apply a shortcut.<br />    lda    #25                   ;2  @81   Divide by 10 will be at least 25, and the<br />                                 ;         carry is set when higher for the next addition.<br />.finishLowTen:<br />    adc    lowTen                ;3  @123<br />    sta    lowTen                ;3  @126  routine ends at either 87 or 126 cycles</div><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6558">Omegamatrix</a> — Wed Jul 09, 2014 2:34 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[lidnariq]]></name></author>
+<updated>2014-07-09T14:01:16-07:00</updated>
+<published>2014-07-09T14:01:16-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11336&amp;p=130907#p130907</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11336&amp;p=130907#p130907"/>
+<title type="html"><![CDATA[Re: Unsigned Integer Division Routines]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11336&amp;p=130907#p130907"><![CDATA[
+Worked for me:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">#!/usr/bin/perl<br />use POSIX 'ceil';<br />for ($x = 0; $x &lt; 40; $x++) {<br />   for ($y = 0; $y &lt; 40; $y++) {<br />      for ($z = 0; $z &lt; 40; $z++) {<br />         my $sum = $x*1600 + $y*40 + $z;<br />         $sum = ceil($sum * 1.024);<br /><br />         $sum *= 40; $a = $sum &gt;&gt; 16; $sum &amp;= 0xFFFF;<br />         $sum *= 40; $b = $sum &gt;&gt; 16; $sum &amp;= 0xFFFF;<br />         $c = ($sum * 40) &gt;&gt; 16;<br />         if ($x != $a or $y != $b or $z != $c) {<br />            printf &quot;%2d=%2d %2d=%2d %2d=%2d\n&quot;,$x,$a,$y,$b,$z,$c;<br />         }<br />      }<br />   }<br />}</div><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3512">lidnariq</a> — Wed Jul 09, 2014 2:01 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[chitselb]]></name></author>
+<updated>2014-07-09T07:12:46-07:00</updated>
+<published>2014-07-09T07:12:46-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11336&amp;p=130877#p130877</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11336&amp;p=130877#p130877"/>
+<title type="html"><![CDATA[Re: Unsigned Integer Division Routines]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11336&amp;p=130877#p130877"><![CDATA[
+<div class="quotetitle">tepples wrote:</div><div class="quotecontent"><br />Try rounding the multiplication by 1.024 up using ceil().<br /></div><br /><br />I played around with it in a spreadsheet and there are inaccuracies.  It would probaby work if more bits were available for the fractions, but in Rad50 they just aren't there.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6562">chitselb</a> — Wed Jul 09, 2014 7:12 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2014-07-08T19:52:52-07:00</updated>
+<published>2014-07-08T19:52:52-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11336&amp;p=130861#p130861</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11336&amp;p=130861#p130861"/>
+<title type="html"><![CDATA[Re: Unsigned Integer Division Routines]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11336&amp;p=130861#p130861"><![CDATA[
+Try rounding the multiplication by 1.024 up using ceil().<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Tue Jul 08, 2014 7:52 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[chitselb]]></name></author>
+<updated>2014-07-08T19:30:13-07:00</updated>
+<published>2014-07-08T19:30:13-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11336&amp;p=130860#p130860</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11336&amp;p=130860#p130860"/>
+<title type="html"><![CDATA[Re: Unsigned Integer Division Routines]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11336&amp;p=130860#p130860"><![CDATA[
+<div class="quotetitle">tepples wrote:</div><div class="quotecontent"><br />I found another fudge if you're allowed to change the encoder. Have the encoder multiply each 16-bit word by 65536/64000 = 128/125 = 1.024, so that the decoder works by <em>multiplying</em> by 40 (shift, shift, add, shift, shift) instead of dividing by 40. The principle is that of arithmetic coding.<br /></div><br /><br />The encoder will run on a non-6502 computer, so a faster decoder would be wonderful.  I stared at this for a bit and couldn't figure out how it works.  Given &quot;DOG&quot; which encodes to 4, 15, 7, or 4*1600+15*40+7 = 7007, I multiply that *1.024 and wind up with 7175.168.  I don't have the luxury of storing the fractional portion, so iteratively multiplying 7175*40 and dividing by 65536 results in 4, 15, 6.8359375<br /><br />I see where you're going with it, but how does  it translate into an algorithm that yields decodable output?<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6562">chitselb</a> — Tue Jul 08, 2014 7:30 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2014-07-04T09:55:22-07:00</updated>
+<published>2014-07-04T09:55:22-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11336&amp;p=130637#p130637</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11336&amp;p=130637#p130637"/>
+<title type="html"><![CDATA[Re: Unsigned Integer Division Routines]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11336&amp;p=130637#p130637"><![CDATA[
+I found another fudge if you're allowed to change the encoder. Have the encoder multiply each 16-bit word by 65536/64000 = 128/125 = 1.024, so that the decoder works by <em>multiplying</em> by 40 (shift, shift, add, shift, shift) instead of dividing by 40. The principle is that of arithmetic coding.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Fri Jul 04, 2014 9:55 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Omegamatrix]]></name></author>
+<updated>2014-07-03T07:23:33-07:00</updated>
+<published>2014-07-03T07:23:33-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11336&amp;p=130599#p130599</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11336&amp;p=130599#p130599"/>
+<title type="html"><![CDATA[Re: Unsigned Integer Division Routines]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11336&amp;p=130599#p130599"><![CDATA[
+I glanced at Massalin's paper and that looks like an interesting solution they found for BCD. I will have to read it more later when I have time.<br /><br /><br />I thought more about the computation today. It would be nice to also include ORA and AND, both zeropage and immediate. It's all the immediates that explode the number of states. ADC, SBC, and EOR immediate take 256 states. ORA and AND only need 255 states as you can skip ORA #0 and AND #$FF.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">;opcode     states<br />; rol         1<br />; lsr         1<br />; asl         1<br />; ror         1<br />; clc         1<br />; sec         1<br />; adc temp    1<br />; sbc temp    1<br />; eor temp    1<br />; and temp    1<br />; ora temp    1<br />; adc #imm   256<br />; sbc #imm   256<br />; eor #imm   256<br />; and #imm   255<br />; ora #imm   255</div><br /><br />That totals 1289 states. To do 12 instructions would be 1289^12 = 2.1 x 10^37 routines... so pretty heavy. If we skipped all of the immediates then we have a small pool of 11 different states. 11^12 = 2.85 x 10^11 routines, which is doable. I'd much rather run through all the routines and resolve all possible fudge factors at once, but that is some serious computation power needed.<br /><br /><br />For a good initial test value, 255, 238, and 239 are all very good to use. I did a quick excel sheet for calculating the number of unique results for each input (0-255) when dividing by 3 to 31 (skipping divide by 2, 4, 8, and 16). The rightmost column displays the number of unique values for that input.<br /><br />TestValue.jpg<br /><br />238 and 239 give the same results for division. More importantly 238 and 255 give unique results for division 3 to 19. This makes it easy to test for initial correctness of the routine with just two checks.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6558">Omegamatrix</a> — Thu Jul 03, 2014 7:23 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[doynax]]></name></author>
+<updated>2014-07-02T03:17:47-07:00</updated>
+<published>2014-07-02T03:17:47-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11336&amp;p=130527#p130527</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11336&amp;p=130527#p130527"/>
+<title type="html"><![CDATA[Re: Unsigned Integer Division Routines]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11336&amp;p=130527#p130527"><![CDATA[
+<div class="quotetitle">Omegamatrix wrote:</div><div class="quotecontent"><br />The idea came up before on AtariAge about letting a super computer mull over every usable opcode. Who knows what weird combination of opcodes would bring a faster, shorter solution? Nothing came of that idea though... I suppose though that just a small pool of opcodes might be workable on a home computer. Say just using STA, ASL, LSR, ROR, ROL, CLC, SEC, ADC zeropage, ADC immediate, SBC zeropage, sbc immediate, EOR zeropage, EOR immediate. I would propose constraining the routine to 36 bytes or less, and 36 cycles or less because most of the routines I wrote are already shorter than that. I would also constrain it to no more then two temp registers, and preferably just one. If the program could crunch all that then I would try adding in ROL, ROR, ASL, and LSR (all zeropage) next.<br /></div><br />Such devices have been used with some degree of success in the past. Mostly to find short bit-hacks abusing the architecture in some novel way or another. <a href="http://web.stanford.edu/class/cs343/resources/superoptimizer.pdf" class="postlink">Massalin's original paper</a> is a good read, and there is a <a href="http://freecode.com/projects/picsuperoprimizer" class="postlink">PIC16 implementation</a> for instance.<br /><br />There are other other strategies of course but the brute-force method of just generating all permutations from a limited set is workable. They key is to keep the number of opcodes low (counting each immediate and temporary as a distinct instruction) and while for a general-purpose optimize this may not be feasible I'd be more interested in a guided search automate the sort of thing you've been doing by hand here. For instance in the case of division you might first search for roughly the right answer then add in the fudge-factor separately.<br />Note that virtually all generated sequences are completely wrong, so validating them is easy with a couple of well-picked counterexamples. A full-blown theorem prover is only necessary for confirming the final result, if at all.<br /><br />Realistically with, say, 25 opcodes, a bit of pruning and a fast search function you might be able to reach around 12 instructions on a small cluster running overnight.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=56">doynax</a> — Wed Jul 02, 2014 3:17 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Omegamatrix]]></name></author>
+<updated>2014-07-01T21:28:22-07:00</updated>
+<published>2014-07-01T21:28:22-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11336&amp;p=130517#p130517</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11336&amp;p=130517#p130517"/>
+<title type="html"><![CDATA[Re: Unsigned Integer Division Routines]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11336&amp;p=130517#p130517"><![CDATA[
+<div class="quotetitle">doynax wrote:</div><div class="quotecontent"><br />Clever. I think I'll keep these routines handy for future needs.<br /><br />I don't suppose you've considered rigging up a super-optimizer and letting it loose on the problem? It seems like a relatively limited number of permutations to search through, though I suppose the immediate fudge factor might cause trouble.<br /><br />I know I've occasionally wished that someone would take the time to write a good one for the 6502. Ideally with a flexible scheme for evaluating the results, a flexible opcode/immediate search space and specifying other constraints.<br /><br />It just seems like 6502 optimization in practice as often as not boils down to a puzzle of the form: shuffle bit X into register Y at precisely cycle Z while preserving carry. What remains is then a brain-dead task of working through the possible permutations until you find the best one.<br /></div><br />Thanks! It's always nice to hear people might make use of these routines. I wrote them because to me they are like solving little puzzles.<br /><br />The idea came up before on AtariAge about letting a super computer mull over every usable opcode. Who knows what weird combination of opcodes would bring a faster, shorter solution? Nothing came of that idea though... I suppose though that just a small pool of opcodes might be workable on a home computer. Say just using STA, ASL, LSR, ROR, ROL, CLC, SEC, ADC zeropage, ADC immediate, SBC zeropage, sbc immediate, EOR zeropage, EOR immediate. I would propose constraining the routine to 36 bytes or less, and 36 cycles or less because most of the routines I wrote are already shorter than that. I would also constrain it to no more then two temp registers, and preferably just one. If the program could crunch all that then I would try adding in ROL, ROR, ASL, and LSR (all zeropage) next.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6558">Omegamatrix</a> — Tue Jul 01, 2014 9:28 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[chitselb]]></name></author>
+<updated>2014-07-01T21:11:47-07:00</updated>
+<published>2014-07-01T21:11:47-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11336&amp;p=130516#p130516</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11336&amp;p=130516#p130516"/>
+<title type="html"><![CDATA[Re: Unsigned Integer Division Routines]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11336&amp;p=130516#p130516"><![CDATA[
+Here's what I came up with.  Probably not optimal, and at 179 bytes, way more code than I want.  It's a Forth word in <!-- m --><a class="postlink" href="http://pettil.tumblr.com">http://pettil.tumblr.com</a><!-- m --> if you're wondering what is all that weird stuff on the fringe of the code<br /><br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">;--------------------------------------------------------------<br />#if 0<br />name=40/MOD<br />stack=( u -- u%40 u/40 )<br />tags=math<br />Perform a divide by 40 and a modulo 40, for<br />&#91;&#91;Radix50|http://en.wikipedia.org/wiki/DEC_Radix-50&#93;&#93;<br />#endif<br />slmod40<br />    stx storex<br />    lda #0<br />    ldx #7<br />slmod40a<br />    sta n,x<br />    dex<br />    bpl slmod40a                ; zero n+0..n+7<br />    ldx #2<br />slmod40b<br />    clc<br />    lda n                       ; addend = n*3<br />    adc tos<br />    sta n<br />    lda n+1<br />    adc tos+1<br />    sta n+1<br />    bcc slmod40c<br />    inc n+2<br />slmod40c<br />    dex<br />    bpl slmod40b<br />    lda #4<br />    sta n+8<br />slmod40d<br />    clc<br />    lda n+0<br />    adc n+4<br />    sta n+4<br />    lda n+1<br />    adc n+5<br />    sta n+5<br />    lda n+2<br />    adc n+6<br />    sta n+6<br />    lda n+3<br />    adc n+7<br />    sta n+7                     ; sum += addend<br /><br />    ldy #4<br />slmod40e<br />    asl n<br />    rol n+1<br />    rol n+2<br />    rol n+3                     ; addend &lt;&lt; 4<br />    dey<br />    bne slmod40e<br />    dec n+8                     ; repeat 4x (3+48+768+12288 = 13107)<br />    bne slmod40d<br /><br />    clc<br />    lda n+4<br />    adc #&lt;13100<br />    sta n+4<br />    lda n+5<br />    adc #&gt;13100<br />    sta n+5<br />    bcc slmod40f<br />    inc n+6<br />    bne slmod40f<br />    inc n+7                     ; sum += 13100 (fudge factor)<br />slmod40f<br />    lda n+7                     ; (n+6) is now u/5<br />    lsr<br />    ror n+6<br />    lsr<br />    ror n+6<br />    lsr<br />    ror n+6<br />    sta n+7                     ; (n+6) = u/40<br /><br />    lda n+6<br />    sta n+0<br />    lda n+7<br />    sta n+1<br />    sty n+2<br />    sty n+3<br />    asl n<br />    rol n+1<br />    asl n<br />    rol n+1                     ; n = u/40*4<br />    ;clc<br />    lda n<br />    adc n+6<br />    sta n<br />    lda n+1<br />    adc n+7<br />    sta n+1                     ; n = u/40*5<br />    asl n<br />    rol n+1<br />    asl n<br />    rol n+1<br />    asl n<br />    rol n+1                     ; n = u/40*5*8<br />    sec<br />    lda tos<br />    sbc n<br />    sta tos<br />    lda tos+1<br />    sbc n+1<br />    sta tos+1                   ; tos =  u % 40<br />    lda n+6<br />    ldy n+7                     ; push   u / 40<br />    ldx storex<br />    jmp pushya<br /></div><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6562">chitselb</a> — Tue Jul 01, 2014 9:11 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[doynax]]></name></author>
+<updated>2014-07-01T16:39:27-07:00</updated>
+<published>2014-07-01T16:39:27-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11336&amp;p=130507#p130507</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11336&amp;p=130507#p130507"/>
+<title type="html"><![CDATA[Re: Unsigned Integer Division Routines]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11336&amp;p=130507#p130507"><![CDATA[
+<div class="quotetitle">Omegamatrix wrote:</div><div class="quotecontent"><br />I had a simple idea for finding the divisions. I used a brute attack approach running every possible combination in an excel sheet. I only tested for 1/x and ignored truncation... I just looked for division combinations that were the most accurate under perfect circumstances. Those were the routines I focused on testing<br /><br />From there I built a bunch of tools. I made another excel sheet to test division for all input values (0-255), some C programs to do the same thing as both excel sheets, a rom for the 2600 to test for verification and help solve correction factors for some routines. Whenever you see ADC #xx in one of the routines you are looking at a correction factor I had to introduce. Sometimes I found I could also use just CLC or SEC at certain points in the routine to do the correction.<br /></div>Clever. I think I'll keep these routines handy for future needs.<br /><br />I don't suppose you've considered rigging up a super-optimizer and letting it loose on the problem? It seems like a relatively limited number of permutations to search through, though I suppose the immediate fudge factor might cause trouble.<br /><br />I know I've occasionally wished that someone would take the time to write a good one for the 6502. Ideally with a flexible scheme for evaluating the results, a flexible opcode/immediate search space and specifying other constraints.<br /><br />It just seems like 6502 optimization in practice as often as not boils down to a puzzle of the form: shuffle bit X into register Y at precisely cycle Z while preserving carry. What remains is then a brain-dead task of working through the possible permutations until you find the best one.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=56">doynax</a> — Tue Jul 01, 2014 4:39 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2014-07-01T08:05:48-07:00</updated>
+<published>2014-07-01T08:05:48-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11336&amp;p=130493#p130493</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11336&amp;p=130493#p130493"/>
+<title type="html"><![CDATA[Re: Unsigned Integer Division Routines]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11336&amp;p=130493#p130493"><![CDATA[
+In practice, I wonder whether base 32 might be quicker to decode and nearly as effective at compression. See <a href="http://en.wikipedia.org/wiki/Baudot_code" class="postlink">ITA2</a> and <a href="http://inform-fiction.org/zmachine/standards/z1point0/sect03.html" class="postlink">Z-character</a>.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Tue Jul 01, 2014 8:05 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[chitselb]]></name></author>
+<updated>2014-07-01T04:42:08-07:00</updated>
+<published>2014-07-01T04:42:08-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11336&amp;p=130489#p130489</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11336&amp;p=130489#p130489"/>
+<title type="html"><![CDATA[Re: Unsigned Integer Division Routines]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11336&amp;p=130489#p130489"><![CDATA[
+I played around with it in a spreadsheet, and I noticed this.  It's 32-bit math, but it doesn't have to be an obscene amount of 6502 code<br /><br />(x*13107+13100)/65536 = x/5<br /><br />and 13107 = 3 + 48 + 192 + 12288 (triple it;  add and shift 4; add and shift 4; add and shift 4; add (and shift 4))<br /><br />Here it is in C<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">#include &lt;stdio.h&gt;<br />int main(void)<br />{<br />   int z=0;<br />   int i;<br />   for (i=0; i&lt;64000; i++) {<br />      int t=0;<br />      int a=i*3;<br />      int j;<br />      for (j=0; j&lt;4; j++) {<br />         t += a;<br />         a *= 16;<br />      }<br />      t += 13100;  /* a fudge factor */<br />      int x=(t/65536)&gt;&gt;3;<br />      int y=(i/40);<br />      z += abs(x-y);<br />      printf(&quot;%6d  %6d  %6d  %6d\n&quot;,i,x,y,z);<br />   }<br />}</div><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6562">chitselb</a> — Tue Jul 01, 2014 4:42 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[chitselb]]></name></author>
+<updated>2014-07-01T02:08:04-07:00</updated>
+<published>2014-07-01T02:08:04-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11336&amp;p=130487#p130487</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11336&amp;p=130487#p130487"/>
+<title type="html"><![CDATA[Re: Unsigned Integer Division Routines]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11336&amp;p=130487#p130487"><![CDATA[
+The idea behind Rad50 <!-- m --><a class="postlink" href="http://en.wikipedia.org/wiki/RADIX-50">http://en.wikipedia.org/wiki/RADIX-50</a><!-- m --> is that 40x40x40 = 64000, so if you limit your character set to 40 characters (26 letters + 10 digits + 4 whatevers) you can squeeze three bytes of text into a two byte unsigned, every time.  33% compression.<br /><br />In these routines, the divisor is 8-bit.  Scaling up to 16-bit e.g. LSR becomes &quot;LSR x+1; ROR x&quot; introduces inaccuracies once the divisor is greater than 256.  28741 /10 = 2862<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6562">chitselb</a> — Tue Jul 01, 2014 2:08 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Omegamatrix]]></name></author>
+<updated>2014-06-15T15:54:35-07:00</updated>
+<published>2014-06-15T15:54:35-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11336&amp;p=129892#p129892</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11336&amp;p=129892#p129892"/>
+<title type="html"><![CDATA[Re: Unsigned Integer Division Routines]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11336&amp;p=129892#p129892"><![CDATA[
+I've updated the divide by 22 with a quicker routine. Same amount of bytes as before.<br /><br />Old:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">;Divide by 22<br />;1/22 = 1/11 * 1/2<br />;21 bytes, 37 cycles<br />  sta  temp<br />  lsr<br />  lsr<br />  adc  temp<br />  ror<br />  adc  temp<br />  ror<br />  adc  temp<br />  ror<br />  lsr<br />  adc  temp<br />  ror<br />  lsr<br />  lsr<br />  lsr<br />  lsr</div><br /><br />New:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">;Divide by 22<br />;21 bytes, 34 cycles<br />   lsr<br />   cmp  #33<br />   adc  #0<br />   sta  temp<br />   lsr<br />   adc  temp<br />   ror<br />   adc  temp<br />   ror<br />   lsr<br />   adc  temp<br />   ror<br />   lsr<br />   lsr<br />   lsr</div><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6558">Omegamatrix</a> — Sun Jun 15, 2014 3:54 pm</p><hr />
+]]></content>
+</entry>
+</feed>

@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=22&amp;t=11255" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2014-05-24T03:14:41-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=22&amp;t=11255</id>
+<entry>
+<author><name><![CDATA[miau]]></name></author>
+<updated>2014-05-24T03:14:41-07:00</updated>
+<published>2014-05-24T03:14:41-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11255&amp;p=129108#p129108</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11255&amp;p=129108#p129108"/>
+<title type="html"><![CDATA[Re: NESpix - Tileset/Pixel Art Editor]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11255&amp;p=129108#p129108"><![CDATA[
+Well, that gives me things to think about.<br /><br />Having multiple lists and using actual stack addresses is neat, I think I will adapt that for other projects.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=1377">miau</a> — Sat May 24, 2014 3:14 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Movax12]]></name></author>
+<updated>2014-05-22T09:06:45-07:00</updated>
+<published>2014-05-22T09:06:45-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11255&amp;p=129044#p129044</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11255&amp;p=129044#p129044"/>
+<title type="html"><![CDATA[Re: NESpix - Tileset/Pixel Art Editor]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11255&amp;p=129044#p129044"><![CDATA[
+There are some similarities to how I do it, and you have given me some things to think about. <br />For me, I have a list of addresses to be accessed in NMI. To try to speed things up I store these addresses at $0100 and switch the stack pointer to point to these addresses when running these commands. Every RTS executes the next routine in the list (fast!). This makes it fairly quick to access anything that wants to run in vblank. The last address in the stack always must point to <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">returnFromChain</tt>.<br /><br />The parameter <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">whichVectorList</tt> exists because I have three lists of routines to execute. (High priority PPU update routines, call always routines (even in missed frame), and routines that can be called at the end of NMI that don't need vblank time.)<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">privatefunc startChain, {whichVectorList a}<br />    <br />    ; save normal stack:<br />    tsx<br />    stx realStack<br />    ; transfer and save new temp stack:<br />    _ x := whichVectorList<br />    stx currentNMIstack<br />    txs<br />    rts ; load the CPU program counter with the first hooked vector.<br />endfunc<br /><br />privatefunc returnFromChain<br />    ldx realStack<br />    txs<br />    return currentNMIstack<br />endfunc<br /></div><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4680">Movax12</a> — Thu May 22, 2014 9:06 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[miau]]></name></author>
+<updated>2014-05-22T03:18:36-07:00</updated>
+<published>2014-05-22T03:18:36-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11255&amp;p=129037#p129037</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11255&amp;p=129037#p129037"/>
+<title type="html"><![CDATA[Re: NESpix - Tileset/Pixel Art Editor]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11255&amp;p=129037#p129037"><![CDATA[
+<div class="quotetitle">Movax12 wrote:</div><div class="quotecontent"><br />miau, I took a look at your source for any inspiration. I was wondering if you would be willing to explain your NMI routine's cmd priority/task queue system. What does it allow you to do? And/or, if you would be willing to explain the source with a bit more detail I would appreciate it. I have something I think is similar and would like to compare.<br /></div><br />Some parts of the vblank code are from when I originally started NES development so it's a bit awkward, but here is how it should work:<br /><br />- have a stack with addresses of functions to jsr to during vblank (&quot;vblank commands&quot;)<br />- push a command with Vblank.cmd.exec<br />- the stack pointer does not advance automatically, the same function gets called once everytime the ppu enters vblank until it calls Vblank.cmd.end<br />- Vblank.cmd.replace changes the address at the top of the stack, making the supplied address the next command to be executed and discarding the current one<br /><br />...except that's not quite how it works?! There's a high priority version of Vblank.cmd.exec and I don't recall why it is even needed with the stack-based approach. At this point, I'd rather rewrite the whole thing properly than spend any more time looking at it, heh.<br />Also, I probably should have used a queue instead of a stack, that would have been more logical and intuitive. Then again, queues can be a bit fiddly to implement and a priority system could be costly cpu-wise.<br /><br />In any case, here's a usage example for the current Vblank.cmd interface:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">.proc letsDoSomethingOverMultipleVblanks ;can be called outside of vblank/NMI<br />    Vblank.cmd.exec firstVblank<br />    rts<br />firstVblank:<br />    ;do stuff<br />    Vblank.cmd.replace secondVblank<br />    rts<br />secondVblank:<br />    ;do other stuff<br />    Vblank.cmd.replace thirdVblank<br />    rts<br />thirdVblank:<br />    ;do other stuff<br />    jsr Vblank.cmd.end<br />    rts<br />.endproc<br /></div><br />And another one:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">.proc letsGonnaDoSomethingOverMultipleVblanksAgain ;can be called outside of vblank/NMI<br />    .bss<br />    counter: .res 1<br />    .code<br />    lda #32<br />    sta counter<br />    Vblank.cmd.exec vblank<br />    rts<br />vblank:<br />    ;do stuff once per vblank for 32 vblanks<br />    ;...like redrawing one row of the nametable per vblank<br />    dec counter<br />    bne @doNotEndYet<br />        jsr Vblank.cmd.end<br />    @doNotEndYet:<br />    rts<br />.endproc<br /></div><br /><br />How are you handling Vblank/NMI tasks?<br />If there's anything else you'd like to know, please point me to it.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=1377">miau</a> — Thu May 22, 2014 3:18 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Movax12]]></name></author>
+<updated>2014-05-21T17:50:29-07:00</updated>
+<published>2014-05-21T17:50:29-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11255&amp;p=129023#p129023</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11255&amp;p=129023#p129023"/>
+<title type="html"><![CDATA[Re: NESpix - Tileset/Pixel Art Editor]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11255&amp;p=129023#p129023"><![CDATA[
+miau, I took a look at your source for any inspiration. I was wondering if you would be willing to explain your NMI routine's cmd priority/task queue system. What does it allow you to do? And/or, if you would be willing to explain the source with a bit more detail I would appreciate it. I have something I think is similar and would like to compare.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4680">Movax12</a> — Wed May 21, 2014 5:50 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[miau]]></name></author>
+<updated>2014-05-21T06:04:08-07:00</updated>
+<published>2014-05-21T06:04:08-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11255&amp;p=129003#p129003</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11255&amp;p=129003#p129003"/>
+<title type="html"><![CDATA[Re: NESpix - Tileset/Pixel Art Editor]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11255&amp;p=129003#p129003"><![CDATA[
+<div class="quotetitle">infiniteneslives wrote:</div><div class="quotecontent"><br />miau, would you be willing to share your source code?  I'm sure I could modify the save routine to support flash writes instead of regular sram writes that are being done now.<br /></div><br />I added a source code link to the first post. Be aware it needs <a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=11211" class="postlink">lazy65</a> to compile. Actually, the only reason NESpix even came into existence is because I needed a small project to thoroughly test the tool.<br /><br />You'll find saving in src/Editor/SaveSlots.z and loading in src/Title.z<br /><br /><div class="quotetitle">thefox wrote:</div><div class="quotecontent"><br />the graphics editor(s) could be used to edit graphics in some small game that is included in the cartridge.<br /></div><br />Great idea, that would be awesome to see!<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=1377">miau</a> — Wed May 21, 2014 6:04 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2014-05-20T15:58:41-07:00</updated>
+<published>2014-05-20T15:58:41-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11255&amp;p=128990#p128990</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11255&amp;p=128990#p128990"/>
+<title type="html"><![CDATA[Re: NESpix - Tileset/Pixel Art Editor]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11255&amp;p=128990#p128990"><![CDATA[
+At least for my editor, SRAM would be needed because that's where the working copy of the picture is stored and modified. And the problem with just saving and restoring $6000-$7FFF is one of allocating slots to each game. It would be better as a separate project with adequate development and testing time.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Tue May 20, 2014 3:58 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[thefox]]></name></author>
+<updated>2014-05-20T12:45:13-07:00</updated>
+<published>2014-05-20T12:45:13-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11255&amp;p=128985#p128985</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11255&amp;p=128985#p128985"/>
+<title type="html"><![CDATA[Re: NESpix - Tileset/Pixel Art Editor]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11255&amp;p=128985#p128985"><![CDATA[
+<div class="quotetitle">infiniteneslives wrote:</div><div class="quotecontent"><br />Curious what you guys think about it's inclusion with Action53 volume2.<br /></div><br />I think it's a good idea. Including stuff like this and the serial bootloader could coax people into getting their feet wet with NES development. Which, with your suggestion about using Flash, immediately brings forth another idea: the graphics editor(s) could be used to edit graphics in some small game that is included in the cartridge.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=80">thefox</a> — Tue May 20, 2014 12:45 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[infiniteneslives]]></name></author>
+<updated>2014-05-20T12:28:46-07:00</updated>
+<published>2014-05-20T12:28:46-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11255&amp;p=128983#p128983</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11255&amp;p=128983#p128983"/>
+<title type="html"><![CDATA[Re: NESpix - Tileset/Pixel Art Editor]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11255&amp;p=128983#p128983"><![CDATA[
+I'd echo what 43110 said about the two tools.  Tepples' editor is powerful and feature packed, and has a good manual to explain how to use it all.  But frankly many of those features I don't personally want to always run with a NES tool.  I'm sure if I devoted an hour or two to play around with Tepples' editor I would get the hang of it and have more appreciation for the features.  But as it is right now it's hard to gain the motivation to learn it and test it out.  That's where NESpix shines, the beauty and simplicity of the screen shots yanked at my nesdev heartstrings and I couldn't help but spend 5min of my lunch hour to go try it out.<br /><br />The annoyance I find in drawing on the NES is mainly with pattern table creation.  I don't care how accurate coloring/filters claim to be, you can't come close to the NES on a CRT.  While I'm drawing pixels on a zoomed scale, I want to immediately see those pixels rendered on the normal scale.  Even better, I want to see the tile I'm editing  next to multiple other tiles at the same time, and being able to edit 4 tiles at a time is a beauty.  I currently use NESST for all my NES drawing needs.  The biggest annoyance I have with it is during PT editing, but it's great for NT/AT generation after the PT's have been created.<br /><br />To top it off the user friendliness is spectacular.  I think I could fairly easily teach my 6yr old daughter who's a wiz with the mario paint tile editor, to draw on the NES using this tool.  All other NES drawing tools I'm aware of would be too complex.<br /><br />So while NESpix is limited, it does the one thing I want to do on the NES with near perfection.<br /><br />I'm thinking it would be awesome to be able to include NESpix and Tepples' editor on the next action53 release.  The best way to overcome the lack of WRAM on the action53 cart would be to modify our  mapper to support mapping the 'user flash' we talked about for the serial bootloader cable to the $6000-7FFF slot.  The pattern table data could then be dumped with the serial bootloader and/or a cartridge dumper which supports our multi-mapper.  Curious what you guys think about it's inclusion with Action53 volume2.<br /><br />miau, would you be willing to share your source code?  I'm sure I could modify the save routine to support flash writes instead of regular sram writes that are being done now.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4832">infiniteneslives</a> — Tue May 20, 2014 12:28 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[43110]]></name></author>
+<updated>2014-05-19T20:05:20-07:00</updated>
+<published>2014-05-19T20:05:20-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11255&amp;p=128954#p128954</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11255&amp;p=128954#p128954"/>
+<title type="html"><![CDATA[Re: NESpix - Tileset/Pixel Art Editor]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11255&amp;p=128954#p128954"><![CDATA[
+Generally I consider the your(tepples) Graphics editor to be the full screen power user tool with conversion scripts and tile reduction features, and has with plenty of advantages over NESpix, but here's where NESpix is better:<br /><ul><li><em>Editing pixels and map at metatile(16px^2) level</em></li><li>Everything in one screen</li><li>Palette editing doesn't have a range restriction (I understand why, but sometimes I want $2d and $3d)</li><li>UI elements that's easier on the eyes</li><li>Nice title screen</li></ul><br />You might be able to easily add a switch for a 16*16 pixel mode, but getting multiple things on the same screen might be hard to do conceptually, technically, and without reducing the current set of features.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6385">43110</a> — Mon May 19, 2014 8:05 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2014-05-19T15:19:42-07:00</updated>
+<published>2014-05-19T15:19:42-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11255&amp;p=128944#p128944</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11255&amp;p=128944#p128944"/>
+<title type="html"><![CDATA[Re: NESpix - Tileset/Pixel Art Editor]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11255&amp;p=128944#p128944"><![CDATA[
+Is there something I should have improved about <a href="http://forums.nesdev.com/viewtopic.php?p=100523#p100523" class="postlink">my own project</a>?<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Mon May 19, 2014 3:19 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[infiniteneslives]]></name></author>
+<updated>2014-05-19T15:09:10-07:00</updated>
+<published>2014-05-19T15:09:10-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11255&amp;p=128943#p128943</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11255&amp;p=128943#p128943"/>
+<title type="html"><![CDATA[Re: NESpix - Tileset/Pixel Art Editor]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11255&amp;p=128943#p128943"><![CDATA[
+This looks great miau, nice work!<br /><br />Additionally I think I may have finally found the motivation I needed to add WRAM dump/load support to my kazzo firmware.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4832">infiniteneslives</a> — Mon May 19, 2014 3:09 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[thefox]]></name></author>
+<updated>2014-05-19T07:53:29-07:00</updated>
+<published>2014-05-19T07:53:29-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11255&amp;p=128931#p128931</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11255&amp;p=128931#p128931"/>
+<title type="html"><![CDATA[Re: NESpix - Tileset/Pixel Art Editor]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11255&amp;p=128931#p128931"><![CDATA[
+<div class="quotetitle">ui wrote:</div><div class="quotecontent"><br /><div class="quotetitle">thefox wrote:</div><div class="quotecontent">Cool, the UI is well designed. I got some graphics corruption in the title screen after creating a simple picture.<br /></div><br />THx you i know im well designed! <img src="http://forums.nesdev.com/images/smilies/icon_smile.gif" alt=":)" title="Smile" /></div><br />I saw this one coming. <img src="http://forums.nesdev.com/images/smilies/icon_smile.gif" alt=":)" title="Smile" /><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=80">thefox</a> — Mon May 19, 2014 7:53 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[miau]]></name></author>
+<updated>2014-05-19T07:31:16-07:00</updated>
+<published>2014-05-19T07:31:16-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11255&amp;p=128930#p128930</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11255&amp;p=128930#p128930"/>
+<title type="html"><![CDATA[Re: NESpix - Tileset/Pixel Art Editor]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11255&amp;p=128930#p128930"><![CDATA[
+<div class="quotetitle">ui wrote:</div><div class="quotecontent"><br />Miau, this sux, dont ever touch NES again or i will quillzzz you...<br /></div><br />Aww, cyberbully, you! &lt;3<br />Now make a nice tileset and post a screenshot.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=1377">miau</a> — Mon May 19, 2014 7:31 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[ui]]></name></author>
+<updated>2014-05-19T07:17:33-07:00</updated>
+<published>2014-05-19T07:17:33-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11255&amp;p=128929#p128929</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11255&amp;p=128929#p128929"/>
+<title type="html"><![CDATA[Re: NESpix - Tileset/Pixel Art Editor]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11255&amp;p=128929#p128929"><![CDATA[
+<div class="quotetitle">thefox wrote:</div><div class="quotecontent"><br />Cool, the UI is well designed. I got some graphics corruption in the title screen after creating a simple picture.<br /></div><br /><br />THx you i know im well designed! <img src="http://forums.nesdev.com/images/smilies/icon_smile.gif" alt=":)" title="Smile" /><br /><br />Miau, this sux, dont ever touch NES again or i will quillzzz you...<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4996">ui</a> — Mon May 19, 2014 7:17 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[juef]]></name></author>
+<updated>2014-05-19T04:58:25-07:00</updated>
+<published>2014-05-19T04:58:25-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11255&amp;p=128926#p128926</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11255&amp;p=128926#p128926"/>
+<title type="html"><![CDATA[Re: NESpix - Tileset/Pixel Art Editor]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11255&amp;p=128926#p128926"><![CDATA[
+This is truly beautiful! Thank you.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4465">juef</a> — Mon May 19, 2014 4:58 am</p><hr />
+]]></content>
+</entry>
+</feed>

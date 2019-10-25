@@ -1,0 +1,485 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Reverse Engineering the CIC</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Reverse Engineering the CIC</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=9&amp;t=1219">http://forums.nesdev.com/viewtopic.php?f=9&amp;t=1219</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>14</strong> of <strong>27</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Fri Dec 01, 2006 2:14 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />The big problem I had when attemping to convert it to PIC assembly is that the size of all registers aren't all specified. I assume A and X are 4-bit. But what about Y, and C ? C would be carry, but it seems it's not, else Y wouldn't take the value of C, wich make no sense.
+<br />Also, how much RAM does the CIC have ? 16-bytes (indexed via Y ?) Does the Y acts as a pointer that is the only chance to write and to read the RAM of the MCU ?
+<br />
+<br />Another problem that comes is that you'd always have to manually truc the accumulator register of a 8-bit to 4-bit, test carry, etc... and that is annoying to do and takes quite some time. I think the best way would be to multiply everything by $10, so that the carry set positionned automatically when shifting from $f0 to $00. But then, direct increment opcodes are a pain to do, because you have to manually add $10. I think we have to trick with swaps, and get the actual index in lower nybble when mostly increments are done, and in upper nybble when mostly additions are done.
+<br />
+<br />Finally, all PIC10Fxxx devies can run at 4MHz, but ONLY on an internal oscillator configuration. And that means the only way to syncronize the 4MHz PIC with the other CIC would be to force the PIC to be the master clock, wich I think isn't possible. So even if both MCUs would run at the exact same speed (4MHz), they wouldn't be syncronized to eachother. I don't know if that is a big issue or not. Even if it isn't after a while both devices could end up being dephased (due to oscillator imprecision) and finally the NES would reset after hours of gameplay (pretty system to limit play-time hehehe). Maybe some tricks with Timer0 could fix this, but that would most certainly require external logic, wich is bad.
+<br />So I think at least a PIC12Fxxx or another MCU should be used. I'm not totally sure, though.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>thefox</b> [ Fri Dec 01, 2006 4:34 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Bregalad wrote:</div><div class="quotecontent">The big problem I had when attemping to convert it to PIC assembly is that the size of all registers aren't all specified. I assume A and X are 4-bit. But what about Y, and C ? C would be carry, but it seems it's not, else Y wouldn't take the value of C, wich make no sense.<br />Also, how much RAM does the CIC have ? 16-bytes (indexed via Y ?) Does the Y acts as a pointer that is the only chance to write and to read the RAM of the MCU ?</div>
+<br />A and X are 4-bit, yes. Y is also 4-bit. C is 1-bit carry flag. There are no places in the disassembly where Y would take value of C. Instead it's "(Y) = C" which means "save C to address pointed to by Y".
+<br />
+<br />CIC has 32 nibbles of RAM. You can index 16 nibbles with Y, but to access the other 16 you have to set "YH" (the MSB of the 5-bit address) to 1.
+<br />
+<br />Besides using Y, there's no other way to read/write from/to RAM. You can override Y with 0, though, to access the first byte without modifying Y.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>dvdmth</b> [ Fri Dec 01, 2006 8:00 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />A = 4-bit accumulator
+<br />X = 4-bit input register
+<br />Y = 4-bit address register
+<br />YH = upper bit of RAM address (think of it as a bank bit - if set, ALL memory accesses, including address 0 overrde, go to $10-1F)
+<br />C = 1-bit carry flag
+<br />(Y) = 4-bit RAM data at address (YH&lt;&lt;4) + Y
+<br />(0) = 4-bit RAM data at address (YH&lt;&lt;4) + 0
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Sat Dec 02, 2006 3:51 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Okay, I've started to translate the code in PIC assembly (timing aside). It's very annoying because those stupids instructions doesn't make any sense, and you don't have any clue to the meaning of them not technically, but in the software viewpoint. I'm pretty sure by translating the algorithm in a understanding form it could be much better to just rewrite a programm doing the same function, but not all the same instructions !! It would also be much more possible to get syncronous with the PIC, because the same arithmetical functions are much faster on a 8-bit CPU than on a 4-bit CPU, so it would complete the operation faster and will be able to by synchronised with the CIC. But if we just complete the list of instruction we have, that will take much more time because a lot of clamping to 4-bits and various tests have to be done.
+<br />
+<br />Also (Y) = C still does make no sense to me. (Y) is a RAM file, wich is 4-bits from what I understand. C is 1-bit. A 4-bit variable just cannot take the value of a 1-bit variable. This is a nonsense. In my current programm, I just assumed that (Y) = 0001 if C=1 and (Y) = 0000 if C=0, but that's most certainly wrong.
+<br />
+<br />A second thing that doesn't make sense if those "Update C" things. How can C be updated by a XNROR function ? Only an add or substract (maybe increment/decrement) could affect C, logically.
+<br />
+<br />Also, I assume the CIC has actually 32 nybbles of RAM, not 32 bytes. Is YH affected by RESET signal ? It seems to never be initialised.
+<br />
+<br />Anyway here is my assembly file (only the begining of the programm is implemented) : 
+<br /><a href="http://jonathan.microclub.ch/CIC_Clone.asm" class="postlink">http://jonathan.microclub.ch/CIC_Clone.asm</a>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>thefox</b> [ Sat Dec 02, 2006 5:41 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Bregalad wrote:</div><div class="quotecontent">Okay, I've started to translate the code in PIC assembly (timing aside). It's very annoying because those stupids instructions doesn't make any sense, and you don't have any clue to the meaning of them not technically, but in the software viewpoint. I'm pretty sure by translating the algorithm in a understanding form it could be much better to just rewrite a programm doing the same function, but not all the same instructions !! It would also be much more possible to get syncronous with the PIC, because the same arithmetical functions are much faster on a 8-bit CPU than on a 4-bit CPU, so it would complete the operation faster and will be able to by synchronised with the CIC. But if we just complete the list of instruction we have, that will take much more time because a lot of clamping to 4-bits and various tests have to be done.</div><br />Yeah. I already began translating the algorithm to C. This way I can easily verify that the algorithm works (by using test input), and also I get the benefit of being able to use Visual Studio's debugging toolset.<br /><br />It's already pretty tidy <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" /> I kinda wonder why they used loops and other crazy constructs to initialize the RAM in the beginning, when they'd probably have got away with less instructions if they used plain "load value", "store value" kind of thing.<br /><div class="quotetitle">Bregalad wrote:</div><div class="quotecontent">Also (Y) = C still does make no sense to me. (Y) is a RAM file, wich is 4-bits from what I understand. C is 1-bit. A 4-bit variable just cannot take the value of a 1-bit variable. This is a nonsense. In my current programm, I just assumed that (Y) = 0001 if C=1 and (Y) = 0000 if C=0, but that's most certainly wrong.</div><br />In fact that is correct. It all comes down to the fact that CIC only has two operations, ADD and XNOR, which can take up to 3 parameters (including the carry flag). (Y) = C is basically something like (Y) = 0 + C, where dvdmth decided to omit the 0 (a 4-bit immediate).<br /><div class="quotetitle">Bregalad wrote:</div><div class="quotecontent">Also, I assume the CIC has actually 32 nybbles of RAM, not 32 bytes. Is YH affected by RESET signal ? It seems to never be initialised.</div>
+<br />Yeah, nibbles it is, I accidentally said bytes earlier. And I think YH must be 0 when the program starts, otherwise it wouldn't make any sense as far as I've looked in to the code.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>dvdmth</b> [ Sat Dec 02, 2006 9:00 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">thefox wrote:</div><div class="quotecontent">It's already pretty tidy :) I kinda wonder why they used loops and other crazy constructs to initialize the RAM in the beginning, when they'd probably have got away with less instructions if they used plain "load value", "store value" kind of thing.</div><br />Misdirection.  Often when dealing with content protection/authentication systems, the code will be written in an archaic manner to try to mislead those trying to crack it.  If they used simple "(Y) = immediate" instructions, they could've initialized RAM more efficiently, but that would've made it easier to RE the chip from the ROM data.<br /><div class="quotetitle">thefox wrote:</div><div class="quotecontent">In fact that is correct. It all comes down to the fact that CIC only has two operations, ADD and XNOR, which can take up to 3 parameters (including the carry flag). (Y) = C is basically something like (Y) = 0 + C, where dvdmth decided to omit the 0 (a 4-bit immediate).</div>
+<br />The opcode is $101.  Decode it yourself (using the instruction set summary at the beginning of the file with the disassembly) and you'll see how the instruction works.  To summarize here, the ALU output goes to (Y) (bits 7-8 = 10), the first input is zero (bits 6 and 9 are clear), the second input is zero (bits 5 and 10 are clear), and the carry-in is set to the carry flag (bits 0-1 are 01 and bits 10-11 are clear).  The resulting operation is "(Y) = 0 + 0 + C," or "(Y) = C."
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>thefox</b> [ Sat Dec 02, 2006 9:18 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">dvdmth wrote:</div><div class="quotecontent"><div class="quotetitle">thefox wrote:</div><div class="quotecontent">It's already pretty tidy <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" /> I kinda wonder why they used loops and other crazy constructs to initialize the RAM in the beginning, when they'd probably have got away with less instructions if they used plain "load value", "store value" kind of thing.</div><br />Misdirection.  Often when dealing with content protection/authentication systems, the code will be written in an archaic manner to try to mislead those trying to crack it.  If they used simple "(Y) = immediate" instructions, they could've initialized RAM more efficiently, but that would've made it easier to RE the chip from the ROM data.</div><br />Yeah, I thought the same. Still seems a bit strange though, because if they bothered to do that, why did they, for example, have a "test"-mode in the chip? Maybe their code is some kind of direct conversion of Nintendo's code.<br /><br /><div class="quotetitle">dvdmth wrote:</div><div class="quotecontent"><div class="quotetitle">thefox wrote:</div><div class="quotecontent">In fact that is correct. It all comes down to the fact that CIC only has two operations, ADD and XNOR, which can take up to 3 parameters (including the carry flag).</div><br />The opcode is $101.  Decode it yourself (using the instruction set summary at the beginning of the file with the disassembly) and you'll see how the instruction works.  To summarize here, the ALU output goes to (Y) (bits 7-8 = 10), the first input is zero (bits 6 and 9 are clear), the second input is zero (bits 5 and 10 are clear), and the carry-in is set to the carry flag (bits 0-1 are 01 and bits 10-11 are clear).  The resulting operation is "(Y) = 0 + 0 + C," or "(Y) = C."</div>
+<br />Thanks for the clarification, but that's irrelevant regarding the original question.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Sat Dec 02, 2006 10:00 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">thefox wrote:</div><div class="quotecontent"><div class="quotetitle">dvdmth wrote:</div><div class="quotecontent"><div class="quotetitle">thefox wrote:</div><div class="quotecontent">I kinda wonder why they used loops and other crazy constructs to initialize the RAM in the beginning</div><br />Misdirection.</div><br />Yeah, I thought the same. Still seems a bit strange though, because if they bothered to do that, why did they, for example, have a "test"-mode in the chip? Maybe their code is some kind of direct conversion of Nintendo's code.</div>
+<br />Could be. Perhaps the "odd" stuff is the stuff that varies per region.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>thefox</b> [ Sat Dec 02, 2006 11:26 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Here is the CIC-algorithm translated to C (with a small stub to enable input from file):
+<br />
+<br /><!-- m --><a class="postlink" href="http://thefox.aspekt.fi/Tengen.c">http://thefox.aspekt.fi/Tengen.c</a><!-- m -->
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Sat Dec 02, 2006 2:23 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />One last thing, how does the X (Ram input register) behave ? Is it just a register, or has it some function assigned to it like the Y register (seems it have but the things isn't very well explained).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>neviksti</b> [ Sat Dec 02, 2006 3:52 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />WOW!  I am gone for awhile and come back to find I've missed most of the fun <img src="./images/smilies/icon_sad.gif" alt=":(" title="Sad" />
+<br />
+<br />Great work everyone! It is so amazing to see the instruction set figured out from all this.  It is everything I hoped for. (I'm really glad those pictures finally paid off <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" /> ).
+<br />
+<br />
+<br />Anyway, I don't have much time for anything lately, but am still very interested in all this.  So, PLEASE, give some feedback on the following:
+<br />
+<br />== <span style="text-decoration: underline"><strong>What should be the next step regarding reverse engineering the remaining CICs?</strong></span> ==
+<br />
+<br />1) Should I take the time to make ~ 100 pictures of a NES CIC (like I did for the Tengen one), and since we already have the ROM file for that (from previous work), then figure out the instruction set by a combination of looking at the circuitry and "translation"? (Heck, some translation can be investigated now even.)  Please note that removing "just" the metal and oxide layer is difficult, and I cannot garauntee that I can reproduce what I did with the Tengen chip (but I believe I probably can).
+<br />
+<br />2) Read out the ROM of several different region CICs. Then just use comparison, knowledge of the code, and "translation" to figure it out.  Please note that this is a destructive process and the circuit can't be looked at later (except the diffusion layer), but the circuits all appear to be the same anyway.
+<br />
+<br />3) A better option that I am overlooking.
+<br />
+<br />
+<br />Of course in the long run we can try both.  This is merely a question of the <em>next</em> step as I still want to help, but have very little free time.
+<br />
+<br />Thanks.
+<br />
+<br />
+<br />EDIT: Oh, and don't forget: Once the CIC instruction set is known, we get the SNES CIC's for free as well.  Some have even suggested the N64 security chips use a similar core, but I haven't checked.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>dvdmth</b> [ Sat Dec 02, 2006 4:26 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">neviksti wrote:</div><div class="quotecontent">1) Should I take the time to make ~ 100 pictures of a NES CIC (like I did for the Tengen one), and since we already have the ROM file for that (from previous work), then figure out the instruction set by a combination of looking at the circuitry and "translation"? (Heck, some translation can be investigated now even.)  Please note that removing "just" the metal and oxide layer is difficult, and I cannot garauntee that I can reproduce what I did with the Tengen chip (but I believe I probably can).<br /><br />2) Read out the ROM of several different region CICs. Then just use comparison, knowledge of the code, and "translation" to figure it out.  Please note that this is a destructive process and the circuit can't be looked at later (except the diffusion layer), but the circuits all appear to be the same anyway.</div>
+<br />If Nintendo's code is anything like Tengen's, it may be better to figure out the hardware first, so I'd go for option 1 (although I wasn't the one who traced the circuit, nor would I ever want to do something like that).  Of course, we'd want the RAM data for the other CIC variations eventually if we ever hope to make CIC clones for them.
+<br />
+<br />I updated my disassembly to take out a couple redundancies and clarify how the carry flag is updated in certain situations.  I'll send the update to the same address I sent the first copy.
+<br />
+<br />I decided to rename the X register from "RAM input register" to simply "data register," to clarify that it is completely separate from RAM (its only connection to RAM is that it's the register that receives the result of a RAM load - if the address register (Y) changes after a RAM load, X remains unchanged, something that must be taken into account to understand the code).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Memblers</b> [ Sat Dec 02, 2006 5:03 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Bregalad wrote:</div><div class="quotecontent">Anyway here is my assembly file (only the begining of the programm is implemented) : <br /><a href="http://jonathan.microclub.ch/CIC_Clone.asm" class="postlink">http://jonathan.microclub.ch/CIC_Clone.asm</a></div>
+<br />
+<br />Nice work, I was gonna do the same thing, but it seems you've started it already.  Maybe I could start translating a later point, if you get burned out before finishing (I doubt it, it's not too big really, heheh).  Just let me know so we don't duplicate too much work needlessly.
+<br />
+<br />It's jumping the gun a bit to do this by itself though, the idea kevtris and I both had was that we should start out by keeping the timing and code separate.  So to start with and make sure we've got a valid base to start with, we could wire one of the PIC's I/O pins to a lockout chip's clock.  Run one emulated instruction, clock the CIC, run another, clock, and so on.  So I guess just add a macro at the start or end of every translated instruction, should be no problem.
+<br />
+<br />If that works, then we can start the interesting part of gradually optimizing it so we can do our damnedest to get the timing of the data I/O to line up perfectly.  Hopefully we can get it to fit in the 12F509, I think we can, otherwise I'll have to start considering the ATTiny11, which has an attractive price but I'm not too thrilled about building/buying yet another chip programmer and learning another design process when there's so much other stuff to put my time into..
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>bunnyboy</b> [ Sat Dec 02, 2006 6:44 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />My vote would be option 2, read the rom from the other regions.  Assuming only the seed is being changed it should be very easy to pick out the bits that are different and form the seed.  
+<br />
+<br />I really think all the algorithm stuff will be figured out entirely from the Tengen chip (and soon!).  Having the Nintendo CIC gate layout wont be any help.  The Nintendo chip also most likely doesnt have all the awesome internal access from the pins.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>drk421</b> [ Sat Dec 02, 2006 7:45 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Members, I've done a lot with the AVR series, and I much prefer the instruction set to that of the PICs. The software is much easier and I would be happy to loan you my STK500 to work on the Tiny11. Going from the 6502's instruction set to the AVR was much easier for me, than the PICs.
+<br />
+<br />AVRs are super easy.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>14</strong> of <strong>27</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

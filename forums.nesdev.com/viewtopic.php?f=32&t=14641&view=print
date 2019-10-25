@@ -1,0 +1,197 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Progress Thread -- Pleiades (Working Title)</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Progress Thread -- Pleiades (Working Title)</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=32&amp;t=14641">http://forums.nesdev.com/viewtopic.php?f=32&amp;t=14641</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>russellsprouts</b> [ Sun Aug 07, 2016 3:56 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Progress Thread -- Pleiades (Working Title)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Understandably, my Super Smash Bros. for NES doesn't qualify for the competition, so I decided to work on a space-themed game that can also go on the competition cartridge. I'm thinking something like Elite -- you can travel between the systems in the Pleiades cluster, trading, exploring, and fighting.<br /><br />So far, I have this tech demo -- a 3D star rendering. Press Up, Down, Left, Right, A, and B to rotate the points on an axis. The grey section of the screen is the amount of time I have used up in rendering all 18 points. The bright stars are the 9 main stars in the Pleiades cluster, along with the relatively minor HIP 17572, which serves as a stop-over between the two &quot;lobes&quot; of the group. These stars are close by, so we have accurate measurements of their distance from the Sun and their locations in the sky. I used this to find their positions in 3D coordinates. I also render a fainter cube in the middle for testing.<br /><br />My technique is based on <a href="http://codebase64.org/doku.php?id=base:3d_rotation" class="postlink">this article</a>, which derives a way calculate a 3D rotation matrix without any multiplication. In short, a 3D rotation is a combination of rotations in all 3 axes. Each rotation can be represented as a simple matrix, with sines, cosines, zeros, and ones. To calculate the new coordinates of a point, simply multiply their coordinates by each matrix. To save time, we can multiply the 3 axis rotation matrices together first. The article cleverly uses trig identities to eliminate all multiplication from this calculation. Sine and cosine are stored in a table for quick lookup. See the article for details on the derivation.<br /><br />Once I have the 9 element matrix M, rotating a point P to P' with it would look like this:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp; &#91; A B C &#93;<br />M = &#91; D E F &#93;<br />&nbsp; &nbsp; &#91; G H I &#93;<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &#91; Ax + By + Cz &#93;<br />P' = MP = &#91; Dx + Ey + Fz &#93;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &#91; Gx + Hy + Iz &#93;</div><br /><br />You might expect that I would need 9 multiplications to calculate each point. I was able to make it work with only a few additions instead. To do this, I precompute shifts for all 9 matrix elements. Essentially, I have a table with A*1, A*2, A*4, A*8, A*16, A*32, and A*64, and the same for B, C, D, E, F, G, H, and I.<br /><br />To calculate Ax without a full multiplication, I constrain the coordinates as well, saving them using two powers. If x is 14, then I save it as something like 4 and -1. That means that x is equal to 2^4 - 2^1. Some numbers are not representable this way. 13, for example, is not, but we can approximate it with 2^3+2^2=12, or 2^4-2^1=14. I wrote a program to find the best approximation for all of the stars' coordinates. There is very little error.<br /><br />Right now, I am using an orthographic projection. I might switch to using a perspective projection -- this means that closer objects actually look closer. The key calculation is to calculate a scaling factor fov/(fov+z). Fov is a constant, so I can use a table of precomputed fov factors to eliminate the division. Both x and y are multiplied by this factor. This will require performing 2 actual multiplications per point.<br /><br />Using my current technique, I could probably render 64 points if I drop the frame rate to 30. That could be used to render background stars in a celestial sphere. I also want to be able to render a few points at arbitrary locations, to show the location of the player's ship, for example. These will need to perform all 9 multiplications. Luckily, there are <a href="http://codebase64.org/doku.php?id=base:fast_8bit_multiplication_16bit_product" class="postlink">algorithms</a> for quickly calculating the 8x8-&gt;16 bit multiplication using a table of squares.
+
+		
+			<br clear="all" /><br />
+
+			<table class="tablebg" width="100%" cellspacing="1">
+			<tr>
+				<td><b class="genmed">Attachments: </b></td>
+			</tr>
+			
+				<tr>
+					<td>
+			<span class="genmed">
+				<img src="./styles/subsilver2/imageset/icon_topic_attach.gif" width="14" height="18" alt="" title="" /> 
+				<a href="./download/file.php?id=6427">pleiades.nes</a> [40.02 KiB]
+			</span><br />
+			<span class="gensmall">Downloaded 140 times</span>
+		
+
+		<br />
+	</td>
+				</tr>
+			
+				<tr>
+					<td>
+			<img src="./download/file.php?id=6426" alt="stars.png" /><br />
+			<span class="gensmall">stars.png [ 1.46 KiB | Viewed 2115 times ]</span>
+		
+
+		<br />
+	</td>
+				</tr>
+			
+			</table>
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>russellsprouts</b> [ Mon Aug 08, 2016 3:12 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Progress Thread -- Pleiades (Working Title)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Turns out, using this <a href="http://codebase64.org/doku.php?id=base:seriously_fast_multiplication" class="postlink">seriously fast multiplication routine</a>, I can actually perform all the multiplications per point without sacrificing speed. This lets me have all the point coordinates in RAM and move them arbitrarily. It also lets me rotate about any point instead of just the origin.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Myask</b> [ Mon Aug 08, 2016 5:26 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Progress Thread -- Pleiades (Working Title)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Well, you still can do something with the BG. Maybe a hazy dim band, angled appropriately to represent when you're looking into the galactic plane(Milky Way)?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

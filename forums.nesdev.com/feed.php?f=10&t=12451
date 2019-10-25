@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=10&amp;t=12451" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2015-03-04T14:36:13-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=10&amp;t=12451</id>
+<entry>
+<author><name><![CDATA[tokumaru]]></name></author>
+<updated>2015-03-04T14:36:13-07:00</updated>
+<published>2015-03-04T14:36:13-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=12451&amp;p=142410#p142410</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=12451&amp;p=142410#p142410"/>
+<title type="html"><![CDATA[Re: LDA doesn't work in NMI routine?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=12451&amp;p=142410#p142410"><![CDATA[
+<div class="quotetitle">PacifistGames wrote:</div><div class="quotecontent"><br />Oh, duh, that's my problem!<br />For some reason I thought the NMI could only occur after CLI was executed, when in actuality it was occurring after I set the bit in $2000.  Solved my problem by switching the order of my writes to $2000 and $2001 so that the write to $2000 occurs last.<br /></div><br />Actually, your problem is that the NMI is firing immediately when you enable them. This happens if you enable NMIs while the NMI flag is set. Since it was firing before you enabled rendering, A was modified in the NMI and you never got to really enable rendering.<br /><br />This could (and should!) be avoided by clearing the NMI flag before you enable NMIs. To do this, read $2002 in a loop until the NMI flag is set, and only then you enable NMIs.<br /><br />Note that while inverting the order of the $2000/$2001 writes may have solved your current problem, you still have to back up and restore the registers in your interrupt handlers, unless you're absolutely sure the registers were not in use, but this is something advanced programmers would do in very specific cases.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=95">tokumaru</a> — Wed Mar 04, 2015 2:36 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[PacifistGames]]></name></author>
+<updated>2015-03-04T11:41:13-07:00</updated>
+<published>2015-03-04T11:41:13-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=12451&amp;p=142405#p142405</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=12451&amp;p=142405#p142405"/>
+<title type="html"><![CDATA[Re: LDA doesn't work in NMI routine?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=12451&amp;p=142405#p142405"><![CDATA[
+Oh, duh, that's my problem!<br />For some reason I thought the NMI could only occur after CLI was executed, when in actuality it was occurring after I set the bit in $2000.  Solved my problem by switching the order of my writes to $2000 and $2001 so that the write to $2000 occurs last.<br /><br />Thanks a lot!  You guys are awesome!<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6915">PacifistGames</a> — Wed Mar 04, 2015 11:41 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[rainwarrior]]></name></author>
+<updated>2015-03-04T11:29:47-07:00</updated>
+<published>2015-03-04T11:29:47-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=12451&amp;p=142403#p142403</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=12451&amp;p=142403#p142403"/>
+<title type="html"><![CDATA[Re: LDA doesn't work in NMI routine?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=12451&amp;p=142403#p142403"><![CDATA[
+SEI/CLI has no effect on NMI. NMI is the &quot;non maskable interrupt&quot; which means specifically that you can't mask it with SEI.<br /><br />The only thing that controls whether NMI fires is the bit in $2000.<br /><br />Also, if you find that simply describing the problem to us isn't helping, consider posting a ROM.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=5165">rainwarrior</a> — Wed Mar 04, 2015 11:29 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[PacifistGames]]></name></author>
+<updated>2015-03-04T11:20:01-07:00</updated>
+<published>2015-03-04T11:20:01-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=12451&amp;p=142402#p142402</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=12451&amp;p=142402#p142402"/>
+<title type="html"><![CDATA[Re: LDA doesn't work in NMI routine?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=12451&amp;p=142402#p142402"><![CDATA[
+Thank you for your kind and timely advice!<br />Your advice led me down the right track, however, I'm not sure if my problem is so simple.  The only other code in my program is the reset code, which should be fully executed before any interrupts are triggered.<br /><br />Here's how my program is set up:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">Reset:<br />  SEI ; Disable interrupts<br />  CLD ; Clear decimal mode<br /><br />  ; Disable all graphics<br />  LDA #$00<br />  STA $2000<br />  STA $2001<br /><br />  ; Clear RAM ($0000 to $0800)<br />  ; Reset stack pointer<br />  ; Wait for two vblanks to pass<br />  ; Load the palette<br />  ; Load the name and attribute tables<br />  ; Prepare all other variables<br /><br />  ; Enable graphics<br />  LDA #%10001000<br />  STA $2000<br />  LDA #%00011110<br />  ; Could an NMI be occuring here?<br />  STA $2001<br /><br />  CLI ; Enable interrupts<br /><br />  ; Begin infinite loop - program now controlled by NMI<br />  InfLoop:<br />    JMP InfLoop<br /><br />  ; NMI code posted earlier goes here<br /></div><br /><br />I did some debugging, and it appears that whatever value I load into A during the NMI, gets stored into $2001.<br />I can't really understand how this is possible when my code is as linear as it is.<br />Is it possible for an NMI interrupt to occur before interrupts are enabled?<br />Maybe the way I'm disabling interrupts isn't proper?<br />Any additional insight would be greatly appreciated.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6915">PacifistGames</a> — Wed Mar 04, 2015 11:20 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tokumaru]]></name></author>
+<updated>2015-03-04T07:00:36-07:00</updated>
+<published>2015-03-04T07:00:36-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=12451&amp;p=142398#p142398</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=12451&amp;p=142398#p142398"/>
+<title type="html"><![CDATA[Re: LDA doesn't work in NMI routine?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=12451&amp;p=142398#p142398"><![CDATA[
+I agree with Memblers. Keep in mind that interrupts (IRQ, NMI), by definition, interrupt whatever code the CPU is running so it can handle them. When the IRQ handler is done, it returns control to the code that was interrupted so it can resume.<br /><br />Now, imagine that you're using the accumulator in some sort of calculation, and then an NMI fires. The calculation will be interrupted, while a partial result is in A. The NMI will overwrite that result and when it's done the calculation will be resumed. The problem is that this calculation can never finish successfully if the accumulator is getting trashed halfway through it.<br /><br />The general rule is to save and restore whatever registers you need to manipulate inside your interrupt handlers, so as not to interfere with the main program.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=95">tokumaru</a> — Wed Mar 04, 2015 7:00 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Memblers]]></name></author>
+<updated>2015-03-04T01:00:17-07:00</updated>
+<published>2015-03-04T01:00:17-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=12451&amp;p=142391#p142391</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=12451&amp;p=142391#p142391"/>
+<title type="html"><![CDATA[Re: LDA doesn't work in NMI routine?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=12451&amp;p=142391#p142391"><![CDATA[
+My guess is that the A register is being used elsewhere, and that's being affected by the interrupt.<br /><a href="http://wiki.nesdev.com/w/index.php/The_frame_and_NMIs#Being_Interrupt-Aware" class="postlink">http://wiki.nesdev.com/w/index.php/The_frame_and_NMIs#Being_Interrupt-Aware</a><br /><br />You almost always want to preserve the state of the registers, with code like this in your NMI:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">NMI:<br /> pha<br /> tya<br /> pha<br /> txa<br /> pha<br /><br /> ; NMI code here<br /><br /> pla<br /> tax<br /> pla<br /> tay<br /> pla<br /> rti<br /></div><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=10">Memblers</a> — Wed Mar 04, 2015 1:00 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[PacifistGames]]></name></author>
+<updated>2015-03-04T00:18:40-07:00</updated>
+<published>2015-03-04T00:18:40-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=12451&amp;p=142390#p142390</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=12451&amp;p=142390#p142390"/>
+<title type="html"><![CDATA[LDA doesn't work in NMI routine?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=12451&amp;p=142390#p142390"><![CDATA[
+I'm having a completely perplexing issue that I was hoping someone on this board could help me with.<br /><br />I've been working through the NES 101 tutorial, but have been using loopy's ASM6 assembler rather than NESASM.<br />Everything went fine until I tried to write the scrolling code.<br /><br />Here's my NMI code:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">NMI:<br />  LDX scroll<br />  BEQ IRQ<br />  DEX<br />  STX scroll<br />  ;LDA #$00<br />  STY $2005<br />  STX $2005<br />IRQ:<br />RTI</div><br /><br />I would like to use A instead of Y to store the horizontal scroll value in $2005, but if I simply uncomment the LDA that is currently commented out, the rom shows a blank screen when loaded.  I can't imagine why a simple LDA instruction would cause my program to display a blank screen.  It seems that using an LDA of any kind anywhere in my NMI routine causes this problem.  I can use them just fine outside of NMI, but placing one inside of the NMI routine causes the program to display a blank screen.<br /><br />Can anyone shed some light on this bizarre issue?<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6915">PacifistGames</a> — Wed Mar 04, 2015 12:18 am</p><hr />
+]]></content>
+</entry>
+</feed>

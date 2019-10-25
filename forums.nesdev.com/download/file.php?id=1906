@@ -1,0 +1,799 @@
+;   Dump the internal NES RAM to CHR RAM on boot.
+;   Copyright (C) 2014  Johnathan Roatch
+;
+;   Copying and distribution of this file, with or without
+;   modification, are permitted in any medium without royalty
+;   provided the copyright notice and this notice are preserved
+;   in all source code copies.
+;
+;   This file is offered as-is, without any warranty.
+
+;----------------------------------------------------------------
+; README
+;----------------------------------------------------------------
+; Unlike the trick used in 1.0 and 1.1,
+; this version simply dumps the ram contents into CHR RAM:
+; $1000-$17ff is for the cpu,
+; $1800-$1fff is both nametables,
+; $0fe0-$0fff is the palette,
+;   and $0fdc is for the stack pointer.
+;
+; The app part could be called "view boot memory" or something.
+;
+; this source assembles with asm6 and thus uses some specific
+; features such as how it does anonymous labels and byte
+; statements. It souldn't be too hard to seperate the Program
+; boot secion into it's own file and to add loop labels for a
+; ca65 project setup.
+
+; 2014-08-22: Version 1.2
+;   - CHR RAM is required.
+;   - Program separated into a boot backend and a GUI frontend.
+;   - [Boot] no longer activated by key combo.
+;   - [Boot] captures CPU RAM, Nametables,
+;            and palette into CHR RAM.
+;   - [GUI] can switch between diffrent memory domains.
+;   - [GUI] added exit button for multicarts.
+;   - [GUI] New font
+;   - 204 bytes boot code, 859 bytes gui code and data.
+; 2014-08-14: Version 1.1
+;   - $01 and stack pointer are now preserved in idle frames.
+;   - added sounds.
+;   - moved stack pointer print out to top right.
+;   - 502 bytes code + 128 bytes chr data.
+; 2014-08-11: Version 1.0
+;   - Initial release.
+;   - 485 bytes code + 128 bytes chr data.
+
+; features for next version(s):
+; A53 = Special frontend app features for mapper 28,
+;       and may require coordination with the action 53 menu.
+; - Convert into a ca65 project.
+; - [GUI] Overhaul gui, with a menu and smooth data scrolling.
+; - [GUI] Full compressed ascii font.
+; - [GUI] Detect SRAM and have a menu entry to view it.
+; - [A53] View and scroll around in captured nametables
+;         with last loaded chr ram.
+; - [A53] Switchable mirroring in nametable view.
+; - [A53] Display name of the last activity played
+;         (or "power on" otherwise).
+; - [GUI] integrate full_palette.nes as a menu option.
+
+;----------------------------------------------------------------
+; nes.h
+;----------------------------------------------------------------
+PPU_CTRL        = $2000
+  NT_2000       = %00000000
+  NT_2400       = %00000001
+  NT_2800       = %00000010
+  NT_2C00       = %00000011
+  VRAM_DOWN     = %00000100
+  OBJ_0000      = %00000000
+  OBJ_1000      = %00001000
+  OBJ_8X16      = %00100000
+  BG_0000       = %00000000
+  BG_1000       = %00010000
+  VBLANK_NMI    = %10000000
+
+PPU_MASK        = $2001
+  LIGHTGRAY     = %00000001
+  BG_OFF        = %00000000
+  BG_CLIP       = %00001000
+  BG_ON         = %00001010
+  OBJ_OFF       = %00000000
+  OBJ_CLIP      = %00010000
+  OBJ_ON        = %00010100
+  TINT_R        = %00100000
+  TINT_G        = %01000000
+  TINT_B        = %10000000
+
+PPU_STATUS      = $2002
+OAM_ADDR        = $2003
+OAM_DATA        = $2004
+PPU_SCROLL      = $2005
+PPU_ADDR        = $2006
+PPU_DATA        = $2007
+
+APU_PL1_VOL     = $4000
+APU_PL1_SWEEP   = $4001
+APU_PL1_LO      = $4002
+APU_PL1_HI      = $4003
+APU_PL2_VOL     = $4004
+APU_PL2_SWEEP   = $4005
+APU_PL2_LO      = $4006
+APU_PL2_HI      = $4007
+APU_TRI_LINEAR  = $4008
+APU_TRI_LO      = $400a
+APU_TRI_HI      = $400b
+APU_NOISE_VOL   = $400c
+APU_NOISE_LO    = $400e
+APU_NOISE_HI    = $400f
+APU_DMC_FREQ    = $4010
+APU_DMC_RAW     = $4011
+APU_DMC_START   = $4012
+APU_DMC_LEN     = $4013
+OAM_DMA         = $4014
+APU_SND_CHN     = $4015
+JOY_STROBE      = $4016
+APU_FRAMECNT    = $4017
+
+JOY1            = $4016
+JOY2            = $4017
+  KEY_NONE      = %00000000
+  KEY_A         = %10000000
+  KEY_B         = %01000000
+  KEY_SELECT    = %00100000
+  KEY_START     = %00010000
+  KEY_UP        = %00001000
+  KEY_DOWN      = %00000100
+  KEY_LEFT      = %00000010
+  KEY_RIGHT     = %00000001
+
+;----------------------------------------------------------------
+; iNES header
+;----------------------------------------------------------------
+  .db "NES",$1a     ; magic signature
+  .db 1             ; number of PRG ROM in 16384 byte pages
+  .db 0             ; number of CHR ROM in 8192 byte pages
+  .db $00, $00      ; Mapper 0
+  .db $00           ; No submapper
+  .db $00           ; PRG ROM not 4 MiB or larger
+  .db $00           ; No PRG RAM
+  .db $00           ; no NES 2.0 feature
+  .db $00           ; NTSC; use $01 for PAL
+  .db $00           ; No special PPU
+  .dsb 2, $00       ; padding
+
+.fillvalue $ff
+
+;----------------------------------------------------------------
+; Program boot.
+;----------------------------------------------------------------
+.org $c000
+
+RST:
+ram_ptr     = $00   ; must be $00
+ram_ptr_lo  = ram_ptr + 0
+ram_ptr_hi  = ram_ptr + 1
+  sei
+  ldx #$00
+  stx PPU_CTRL      ; Disable NMI
+  stx PPU_MASK      ; Disable rendering
+  bit PPU_STATUS
+  cld
+
+  ; we are *not* setting stack now, so that it can be
+  ;   saved into CHR RAM after the ppu warmup.
+
+  ; If there is more then 8KiB of CHR RAM, I recommend
+  ; that here you switch to the last CHR RAM bank to upload
+  ; the contents of CPU and nametables to.
+
+-:
+  bit PPU_STATUS
+  bpl -
+  ; We can't clear memory here because it needs to be saved
+  ; after the PPU turns on. There's a possibility to detect
+  ; the TV system here but the register juggling would
+  ; take up more ROM space then the simple NMI counter and
+  ; a subroutine.
+-:
+  bit PPU_STATUS
+  bpl -
+
+  ; Check a 3 byte magic string to avoid saving over the
+  ; boot image. The menu system could clear this when ever it
+  ; boots into any activity other then the viewer app.
+check_magic_string:
+  lda #$0f
+  sta PPU_ADDR
+  lda #$dd
+  sta PPU_ADDR
+  lda PPU_DATA  ; dummy read
+  ldx #-3
+-:
+  lda PPU_DATA
+  cmp ppu_addr_hi_list+5-$100+3, x
+  bne +
+  inx
+  bne -
+  jmp skip_saving_anything
++:
+
+  ; copy PPU $3fe0-$3fff to PPU $0fe0-$0fff
+  ; while we are still in vblank. On some models,
+  ; the palette may return nothing when read.
+  ldx #$e0
+-:
+  ldy #$3f
+  sty PPU_ADDR
+  stx PPU_ADDR
+  ; no need to do dummy reads for palette
+  lda PPU_DATA
+  ldy #$0f
+  sty PPU_ADDR
+  stx PPU_ADDR
+  sta PPU_DATA
+  inx
+  bne -
+
+  ; copy CPU $0000-$07ff to PPU $1000-$17ff
+  ; PPU_ADDR should already be $1000 from after copying palette
+  ;!; lda #$10
+  ;!; sta PPU_ADDR
+  ;!; lda #$00
+  ;!; sta PPU_ADDR
+
+  lda ram_ptr_lo
+  sta PPU_DATA
+  lda ram_ptr_hi
+  sta PPU_DATA
+
+  lda #$00
+  sta ram_ptr_lo
+  sta ram_ptr_hi
+
+  ldy #$02
+  ldx #$08
+-:
+  lda (ram_ptr), y
+  sta PPU_DATA
+  iny
+  bne -
+  inc ram_ptr_hi
+  dex
+  bne -
+
+  ; Copy 256 bytes at a time:
+  ; PPU $2000-$23ff to PPU $1800-$1bff
+  ; PPU $2c00-$2fff to PPU $1c00-$1fff
+
+  ;!; ldy #$00
+--:
+  ;!; ldx #$00
+  tya
+  lsr   ; b0 of Y is a read or write block cycle.
+  lda ppu_addr_hi_list, y
+  sta PPU_ADDR
+  stx PPU_ADDR
+  bcs +
+  lda PPU_DATA  ; dummy read
+-:
+  bcs +
+  lda PPU_DATA
+  sta $00, x
+  bcc ++
+ppu_addr_hi_list:
+  .db $20,$18,$21,$19,$22,$1a,$23,$1b,$2c,$1c,$2d,$1d,$2e,$1e,$2f,$1f
++:
+  lda $00, x
+  sta PPU_DATA
+++:
+  inx
+  bne -
+  iny
+  cpy #16
+  bne --
+
+  ; stack pointer then magic string at PPU $0fdc-$0fdf
+  lda #$0f
+  sta PPU_ADDR
+  lda #$dc
+  sta PPU_ADDR
+save_stack:
+  tsx
+  stx PPU_DATA
+  ; signal now that saving is complete
+save_magic_string:
+  ldx #-3
+-:
+  lda ppu_addr_hi_list+5-$100+3, x
+  sta PPU_DATA
+  inx
+  bne -
+
+skip_saving_anything:
+
+  ; End of memory capturing.
+  ;
+  ; Everything else about boot follows.
+  ; clear memory, set stack, clear vblank flag, start NMI,
+  ; init menu system, etc.
+
+clear_zp:
+  lda #$00
+  txa   ;!; ldx #$00
+-:
+  sta $00, x
+  inx
+  bne -
+set_stack:
+  dex   ;!; ldx #$ff
+  txs
+
+  ; for setups of more then 8KiB of CHR RAM, and if you have
+  ; switched to another CHR RAM bank at the start. Switch away
+  ; to the first normal CHR RAM bank until the App is executed.
+  ; Otherwise don't touch PPU $0fdf-$1fff
+  ;
+  ; for bonus points, have the menu system use a diffrent
+  ; CHR bank then all the other apps. So that the a future
+  ; version of the viewing app can display unaltered CHR RAM.
+  ;
+  ; Since this file is not a menu selection thing. 
+  ; It will just jump directly to the frontend app.
+  jmp coreboot_app
+
+
+;----------------------------------------------------------------
+; Program App.
+;----------------------------------------------------------------
+.org $cc00
+
+.enum $00
+  top_line_display:     .dsb 24
+  ; move nmis to a diffrent ram slot if you need 
+  ; to merge the nmi vector with another activity.
+  nmis:                 .dsb 1
+  page_number:          .dsb 1
+  memory_domain:        .dsb 1
+  exit_flag:            .dsb 1
+  cur_pads:             .dsb 1
+  prev_pads:            .dsb 1
+  new_keys:             .dsb 1
+  refresh_screen_flag:  .dsb 1
+.ende
+
+.enum $0080
+  hex_buffer:           .dsb 128
+.ende
+
+
+coredump_chr:
+  .db $38,$6c,$6c,$6c,$6c,$6c,$38,$00   ; 0
+  .db $18,$38,$18,$18,$18,$18,$18,$00   ; 1
+  .db $38,$6c,$0c,$38,$60,$6c,$7c,$00   ; 2
+  .db $38,$6c,$0c,$38,$0c,$6c,$38,$00   ; 3
+  .db $6c,$6c,$6c,$7c,$0c,$0c,$0c,$00   ; 4
+  .db $7c,$6c,$60,$78,$0c,$6c,$38,$00   ; 5
+  .db $38,$6c,$60,$78,$6c,$6c,$38,$00   ; 6
+  .db $7c,$6c,$6c,$0c,$0c,$0c,$0c,$00   ; 7
+  .db $38,$6c,$6c,$38,$6c,$6c,$38,$00   ; 8
+  .db $38,$6c,$6c,$3c,$0c,$6c,$38,$00   ; 9
+  .db $3c,$66,$66,$7e,$66,$66,$66,$00   ; A
+  .db $7c,$66,$66,$7c,$66,$66,$7c,$00   ; B
+  .db $3c,$66,$60,$60,$60,$66,$3c,$00   ; C
+  .db $78,$6c,$66,$66,$66,$6c,$78,$00   ; D
+  .db $7e,$60,$60,$7e,$60,$60,$7e,$00   ; E
+  .db $7e,$60,$60,$78,$60,$60,$60,$00   ; F
+  .db $00,$00,$00,$00,$00,$00,$00,$00   ; [space]
+  .db $20,$30,$38,$3c,$38,$30,$20,$00   ; >
+  .db $08,$18,$38,$78,$38,$18,$08,$00   ; <
+  .db $00,$00,$3c,$60,$38,$0c,$78,$00   ; s
+  .db $66,$66,$66,$66,$66,$66,$3c,$00   ; U
+  .db $66,$76,$7e,$7e,$6e,$66,$66,$00   ; N
+  .db $60,$60,$60,$60,$60,$60,$7e,$00   ; L
+  .db $00,$18,$00,$18,$18,$18,$18,$00   ; i
+  .db $7e,$18,$18,$18,$18,$18,$18,$00   ; T
+  .db $00,$00,$3c,$66,$7c,$60,$3c,$00   ; e
+  .db $00,$00,$36,$1c,$08,$1c,$36,$00   ; x
+  .db $7c,$66,$66,$7c,$60,$60,$60,$00   ; P
+  .db $00,$00,$3c,$66,$66,$66,$3c,$00   ; o
+  .db $00,$00,$3c,$36,$30,$30,$30,$00   ; r
+  .db $00,$18,$3c,$18,$18,$18,$0c,$00   ; t
+  .db $00,$00,$00,$00,$00,$30,$30,$00   ; .
+
+coreboot_app:
+  sei
+  ldx #$00
+  stx PPU_CTRL      ; Disable NMI
+  stx PPU_MASK      ; Disable rendering
+  bit PPU_STATUS    ; Acknowledge stray vblank NMI across reset
+  lda #$40
+  sta APU_FRAMECNT
+  lda #$01
+  sta APU_SND_CHN
+
+  ; if applicable switch to the last CHR RAM bank
+  ; either here or before jumping to this activity.
+
+  ; Also there's really no need to disable NMI or 
+  ; to even do these polling loops.
+  ldy #VBLANK_NMI
+
+-:
+  bit PPU_STATUS
+  bpl -
+
+  txa
+-:
+  sta $00, x
+  inx
+  bne -
+  dex   ;!; ldx #$ff
+  txs
+  ; we don't want to have actions on the first frame.
+  stx cur_pads
+
+-:
+  bit PPU_STATUS
+  bpl -
+
+  sty PPU_CTRL      ; Enable NMI
+
+set_palette:
+  ldy #6
+  jsr set_ppu_addr ; PPU_ADDR = $3f00
+  ldx #4
+  lda #$01
+-:
+  sta PPU_DATA
+  lda #$20
+  dex
+  bne -
+clear_nametable:
+  ldy #4
+  jsr set_ppu_addr ; PPU_ADDR = $2c00
+  ldy #-64
+  ldx #4
+  lda #$10
+--:
+-:
+  sta PPU_DATA
+  dey
+  bne -
+  dex
+  bne --
+  ldy #64
+        ;!; ldx #$00
+-:
+  stx PPU_DATA
+  dey
+  bne -
+
+upload_chr_ram:
+  ldy #5
+  jsr set_ppu_addr ; PPU_ADDR = $0000
+  ldx #$00
+--:
+  txa
+  and #%00000111
+  bne +
+  ldy #-8
+-:
+  sta PPU_DATA
+  iny
+  bne -
++:
+  lda coredump_chr, x
+  sta PPU_DATA
+  inx
+  bne --
+
+print_exit_msg:
+  ldy #7
+  jsr set_ppu_addr ; PPU_ADDR = $2f48
+
+  ldx #0
+-:
+  lda exit_msg, x
+  sta PPU_DATA
+  inx
+  cpx #16
+  bne -
+
+print_stack_ptr:
+  ldy #3
+  jsr set_ppu_addr ; PPU_ADDR = $0fdc
+  lda PPU_DATA  ; dummy read
+  ldx PPU_DATA
+-:
+  txa
+  lsr
+  lsr
+  lsr
+  lsr
+  sta top_line_display+22
+  txa
+  and #$0f
+  sta top_line_display+23
+
+  inc refresh_screen_flag
+
+main_loop:
+wait_for_vblank:
+  lda nmis
+-:
+  cmp nmis
+  beq -
+
+  lda #BG_ON|OBJ_OFF
+  sta PPU_MASK
+
+  jsr check_exit_flag
+
+read_pads:
+  lda #$01
+  sta prev_pads
+  sta JOY_STROBE
+  lsr
+  sta JOY_STROBE
+-:
+  lda JOY2        ; mix both pads togetter.
+  ora JOY1
+  and #%00000011  ; ignore D2-D7
+  cmp #1          ; CLC if A=0, SEC if A>=1
+  rol cur_pads
+  rol prev_pads
+  bcc -
+
+  ldx #0
+  lda prev_pads
+  eor #$ff
+  bne +
+  ldx #1*4
++:
+  and cur_pads
+  sta new_keys
+  ;!;lda new_keys
+  asl           ; KEY_A
+  asl           ; KEY_B
+  bcc +
+  ldx #4*4
+  inc exit_flag
++:
+  asl           ; KEY_SELECT
+  asl           ; KEY_START
+  asl           ; KEY_UP
+  bcc +
+  ldx #2*4
+  dec page_number
+  inc refresh_screen_flag
++:
+  asl           ; KEY_DOWN
+  bcc +
+  ldx #2*4
+  inc page_number
+  inc refresh_screen_flag
++:
+  asl           ; KEY_LEFT
+  bcc +
+  ldx #3*4
+  dec memory_domain
+  inc refresh_screen_flag
++:
+  asl           ; KEY_RIGHT
+  bcc +
+  ldx #3*4
+  inc memory_domain
+  inc refresh_screen_flag
++:
+    ;!; stx sfx_number
+
+play_sfx:
+  txa  ;!; ldx sfx_number
+  beq +
+  ldy #-4
+-:
+  lda sfx_data-4, x 
+  sta APU_PL1_VOL-$100+4, y
+  inx
+  iny
+  bne -
++:
+
+  lda refresh_screen_flag
+  beq main_loop
+refresh_screen:
+  lda #BG_OFF|OBJ_OFF
+  sta PPU_MASK
+    ;!; lda #$00
+  sta refresh_screen_flag
+
+wrap_page_vars:
+  lda memory_domain ; // module 3 is a pain, should only work
+  sbc #3            ; // from -1 to 3
+  bcc ++            ; if memory_domain >= 3 or < 0 then
+                    ;    if memory_domain == 3 then
+                    ;       a = 0  // from the sbc compare
+  beq +             ;    else if memory_domain != 3 then
+  lda #2            ;       a = 2
++:                  ;    endif
+  sta memory_domain ;    memory_domain = a
+++:                 ; endif
+
+  lda page_number
+  and #%00001111
+  sta page_number
+
+  ldx #0
+-:
+  lda intro_msg, x
+  sta top_line_display, x
+  inx
+  cpx #24-2
+  bne -
+
+  ldy memory_domain
+  ldx selector_pos_l, y
+  lda #$11  ; >
+  sta top_line_display, x
+  ldx selector_pos_r, y
+  lda #$12  ; <
+  sta top_line_display, x
+
+decode_memory_domain_and_page_number:
+  lda page_number
+  ldx #$80
+  cpy #2
+  bne +
+  lda #$00
+  ldx #$e0
++:
+  lsr
+  sta top_line_display+1
+  ora ppu_addr_table_hi, y
+  sta PPU_ADDR
+  lda #$00
+  bcc +
+  lda #$08
+  sta top_line_display+2
+  lda #$80
++:
+  ora ppu_addr_table_lo, y
+  sta PPU_ADDR
+
+  lda PPU_DATA  ; dummy read
+read_half_page_from_chr_ram:
+    ;!; ldx #$80 or #$e0
+-:
+  lda PPU_DATA
+  sta hex_buffer-$80, x
+  inx
+  bne -
+
+write_top_line_display:
+  ldy #8
+  jsr set_ppu_addr ; PPU_ADDR = $2c84
+  ldx #0
+-:
+  lda top_line_display, x
+  sta PPU_DATA
+  inx
+  cpx #24
+  bne -
+
+  ldy memory_domain
+  ldx #$80
+  cpy #2
+  bne +
+  ldx #$e0
++:
+
+print_byte_loop:
+insert_blanks:
+  ldy #$01
+  txa
+  and #%00000011
+  bne +
+  iny   ;!; ldy #2
+  txa
+  and #%00000111
+  bne +
+  ldy #$08
+  txa
+  and #%00011111
+  bne +
+  ldy #$28
++:
+-:
+  lda PPU_DATA
+  dey
+  bne -
+
+  lda hex_buffer-$80, x
+  lsr
+  lsr
+  lsr
+  lsr
+  sta PPU_DATA
+  lda hex_buffer-$80, x
+  and #$0f
+  sta PPU_DATA
+  
+  inx
+  bne print_byte_loop
+
+  lda #$10
+    ;!; ldx #00
+  ldy memory_domain
+  cpy #2
+  bne +
+-:
+  sta PPU_DATA
+  inx
+  bne -
+  dey
+  bne -
++:
+
+  lda #VBLANK_NMI|NT_2C00
+  sta PPU_CTRL
+  lda #$00
+  sta PPU_SCROLL
+  sta PPU_SCROLL
+
+  jmp main_loop
+
+
+check_exit_flag:
+  lda exit_flag
+  beq rts_nearby_1
+wait_a_moment_then_reset:
+  lda #-20
+  sta nmis
+-:
+  lda nmis
+  bne -
+  jmp ($fffc)
+
+
+;;
+; sets the ppu address from a prepared list
+; @param Y, index to set by
+; Trashes A
+set_ppu_addr:
+  lda ppu_addr_table_hi, y
+  sta PPU_ADDR
+  lda ppu_addr_table_lo, y
+  sta PPU_ADDR
+rts_nearby_1:
+  rts
+
+
+selector_pos_l:
+  .db 5, 10, 14
+selector_pos_r:
+  .db 9, 13, 18
+
+ppu_addr_table_lo:
+  .dl $1000, $1800, $0fe0, $0fdc, $2c00, $0000, $3f00, $2f48
+  .dl $2c84, $2cc4
+
+ppu_addr_table_hi:
+  .dh $1000, $1800, $0fe0, $0fdc, $2c00, $0000, $3f00, $2f48
+  .dh $2c84, $2cc4
+
+intro_msg:
+  ; "0000  CPU  NT  PAL  01"
+  .db $00,$00,$00,$00,$10,$10,$0c,$1b,$14,$10,$10
+  .db $15,$18,$10,$10,$1b,$0a,$16,$10,$10,$00,$01
+
+exit_msg:
+  ; "Press B to exit."
+  .db $1b,$1d,$19,$13,$13,$10,$0b,$10
+  .db $1e,$1c,$10,$19,$1a,$17,$1e,$1f
+
+sfx_data:
+  .db %10101010, %10101010, %10101010, %10101010
+  .db %10000000, %10001011, %10001011, %10000000
+  .db %10000000, %10000001, %01000000, %00100000
+  .db %11001111, %11110001, %10010101, %00010000
+
+;;
+; classical cal vblank wait loop in main setup.
+NMI:
+  inc nmis
+    ;!; rti
+IRQ:
+  rti
+
+;----------------------------------------------------------------
+; interrupt vectors
+;----------------------------------------------------------------
+.org $fffa
+
+vectors:
+  .dw NMI
+  .dw RST   ; or to coreboot_app
+  .dw IRQ

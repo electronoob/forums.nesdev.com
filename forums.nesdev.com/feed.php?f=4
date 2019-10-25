@@ -1,0 +1,207 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=4" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2019-01-24T15:06:45-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=4</id>
+<entry>
+<author><name><![CDATA[lidnariq]]></name></author>
+<updated>2019-01-24T15:06:45-07:00</updated>
+<published>2019-01-24T15:06:45-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=12716&amp;p=232794#p232794</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=12716&amp;p=232794#p232794"/>
+<title type="html"><![CDATA[Membler Industries • Re: Membler Industries in 2015]]></title>
+
+<category term="Membler Industries" scheme="http://forums.nesdev.com/viewforum.php?f=4" label="Membler Industries"/>
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=12716&amp;p=232794#p232794"><![CDATA[
+<div class="quotetitle">Memblers wrote:</div><div class="quotecontent"><br />I did a full chip erase, went into ID mode, then dumped the first 256 bytes ($8000-$80FF) and it looks like this:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">BF B7 01 FF 01 FF FF FE FF FF 25 FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF 0F 06 01 FF (the rest is all FF)<br /></div><br /></div><div class="quotetitle">lidnariq wrote:</div><div class="quotecontent"><br />First 64 bytes of the ID memory on this random one I have are:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">BF B7 01 FF 01 FF FF FE FF FF 25 FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF 0E 0C 04 FF FF FF</div><br /></div><br />I just wanted to briefly follow up on this. At my request Markfrizb looked at a couple very recent (date stamp 1844) SST39SF040s and the date stamp is not present. The first 32 bytes are unchanged relative to above.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3512">lidnariq</a> — Thu Jan 24, 2019 3:06 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[pubby]]></name></author>
+<updated>2018-09-26T00:40:29-07:00</updated>
+<published>2018-09-26T00:40:29-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=12716&amp;p=226400#p226400</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=12716&amp;p=226400#p226400"/>
+<title type="html"><![CDATA[Membler Industries • Re: Membler Industries in 2015]]></title>
+
+<category term="Membler Industries" scheme="http://forums.nesdev.com/viewforum.php?f=4" label="Membler Industries"/>
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=12716&amp;p=226400#p226400"><![CDATA[
+Kool. Good job figuring it out!<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=7486">pubby</a> — Wed Sep 26, 2018 12:40 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Memblers]]></name></author>
+<updated>2018-09-24T23:10:00-07:00</updated>
+<published>2018-09-24T23:10:00-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=12716&amp;p=226364#p226364</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=12716&amp;p=226364#p226364"/>
+<title type="html"><![CDATA[Membler Industries • Re: Membler Industries in 2015]]></title>
+
+<category term="Membler Industries" scheme="http://forums.nesdev.com/viewforum.php?f=4" label="Membler Industries"/>
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=12716&amp;p=226364#p226364"><![CDATA[
+<div class="quotetitle"><b>Quote:</b></div><div class="quotecontent"><br />errata note: When one of the two the pattern table pages is selected, the wrong tile may be fetched by the PPU at the exact moment that the CPU writes to the mapper register. To avoid this, you must not write to the mapper during rendering. The other pattern table page is not affected.<br /></div><br /><br />I created this rumor, and I can finally put it to bed.  The work-around is dead simple - don't use absolute indexed addressing mode to write to the register.  E.g., do STA $5000 instead of STA $5000,X.  That was easy.<br /><br />Why this happens, is because the 6502 accesses memory on every cycle.  LDA ABS,X takes 4 cycles, 5 if a page boundary is crossed.  But STA ABS,X always takes 5 cycles.  By the time it hits cycle 4, it's already read the opcode and is working on fixing up the high byte of the address (for page boundary cross) but it's still going to access memory.  You wouldn't want it to do a write, because the address hasn't been fixed up yet.  So it does a read, and discards it.  The mapper register is sensitive to reads, so the register value becomes the open-bus value (the high byte of the address) for one CPU cycle.<br /><br />That explains why there have been zero complaints about it.  It was my testing method that failed.  I've hacked a few UNROM games and simply changed the mapper address, but not the opcode, so the glitch manifests.  It seemed weird that I didn't see it happening in my own programs.  Mystery solved.<br /><br />So now instead of a bug, we have a strange new feature.  It could be used like the PPU 'monochrome bit' to benchmark your CPU usage.  Or you could write to it in an idle loop to create a glitchy screen noise effect.  It can affect the attribute table as well, which can get pretty colorful.  Just do a STA $5000,X if you want to try it.<br /><br />GTROM - $9.25 each, if you're looking for a cheap simple mapper.  $35+shipping for a devkit.<br /><br />Here's what the mapper write looks like (74HC377).<br />1(yellow) is register clock (inverted M2)<br />2(cyan) is register enable !(PRGCE &amp; A12 &amp; A14)<br />3(magenta) is data output (supposed to be low)<br /><br />first image is normal write - STA $5000<br />gtrom_reg_normal.png<br />second image is glitched write - STA $5000,X<br />gtrom_reg_indexed.png<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=10">Memblers</a> — Mon Sep 24, 2018 11:10 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[lidnariq]]></name></author>
+<updated>2018-03-17T13:03:45-07:00</updated>
+<published>2018-03-17T13:03:45-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=12716&amp;p=215426#p215426</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=12716&amp;p=215426#p215426"/>
+<title type="html"><![CDATA[Membler Industries • Re: Membler Industries in 2015]]></title>
+
+<category term="Membler Industries" scheme="http://forums.nesdev.com/viewforum.php?f=4" label="Membler Industries"/>
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=12716&amp;p=215426#p215426"><![CDATA[
+Eh, just a GreenPak with enough I/O.<br /><br />Because I enjoy greenpak golf, I was able to stuff something like GTROM into one SLG46537, with the following function map:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">mask: $F000<br /> $5000: &#91;.... DDDD&#93; - selects 32K PRG bank<br /> $6000: &#91;.... ...C&#93; - selects 8K CHR RAM bank<br /> $7000: &#91;.... ...N&#93; - selects 4K NT RAM bank<br /></div><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3512">lidnariq</a> — Sat Mar 17, 2018 1:03 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[FrankenGraphics]]></name></author>
+<updated>2018-03-17T06:26:50-07:00</updated>
+<published>2018-03-17T06:26:50-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=12716&amp;p=215414#p215414</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=12716&amp;p=215414#p215414"/>
+<title type="html"><![CDATA[Membler Industries • Re: Membler Industries in 2015]]></title>
+
+<category term="Membler Industries" scheme="http://forums.nesdev.com/viewforum.php?f=4" label="Membler Industries"/>
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=12716&amp;p=215414#p215414"><![CDATA[
+I see, so it would require quite the redesign involving at least a greenpak and it'd need to be price-comparable to the currently used off the shelf logic devices; which would narrow the range of possibilities further. <br /><br />I think the most useful division would be the 2 ppu page selects from the cpu page select since they're quite central. separating the 2 ppu page selects from each other or the blinkenlights from the rest seems like &quot;only if there's logic left to use&quot; options.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=7508">FrankenGraphics</a> — Sat Mar 17, 2018 6:26 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[infiniteneslives]]></name></author>
+<updated>2018-03-16T19:00:13-07:00</updated>
+<published>2018-03-16T19:00:13-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=12716&amp;p=215398#p215398</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=12716&amp;p=215398#p215398"/>
+<title type="html"><![CDATA[Membler Industries • Re: Membler Industries in 2015]]></title>
+
+<category term="Membler Industries" scheme="http://forums.nesdev.com/viewforum.php?f=4" label="Membler Industries"/>
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=12716&amp;p=215398#p215398"><![CDATA[
+Ahh I see, possible them being as new as they are the tools aren't fully updated with the silicon's abilities.  Sounds like may be worth asking support directly.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4832">infiniteneslives</a> — Fri Mar 16, 2018 7:00 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[lidnariq]]></name></author>
+<updated>2018-03-16T18:55:00-07:00</updated>
+<published>2018-03-16T18:55:00-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=12716&amp;p=215397#p215397</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=12716&amp;p=215397#p215397"/>
+<title type="html"><![CDATA[Membler Industries • Re: Membler Industries in 2015]]></title>
+
+<category term="Membler Industries" scheme="http://forums.nesdev.com/viewforum.php?f=4" label="Membler Industries"/>
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=12716&amp;p=215397#p215397"><![CDATA[
+Yeah, but even allowing them to be exclusively inputs, I didn't see a way to disable I²C so that the general fusemap could use them in logic, nor did I see SCL and SDA show up in the matrix (pages 30-31) for use.<br /><br />Too bad they only mention the '824 and '826 as coming in packages with legs.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3512">lidnariq</a> — Fri Mar 16, 2018 6:55 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[infiniteneslives]]></name></author>
+<updated>2018-03-16T18:34:27-07:00</updated>
+<published>2018-03-16T18:34:27-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=12716&amp;p=215396#p215396</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=12716&amp;p=215396#p215396"/>
+<title type="html"><![CDATA[Membler Industries • Re: Membler Industries in 2015]]></title>
+
+<category term="Membler Industries" scheme="http://forums.nesdev.com/viewforum.php?f=4" label="Membler Industries"/>
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=12716&amp;p=215396#p215396"><![CDATA[
+<div class="quotetitle">lidnariq wrote:</div><div class="quotecontent"><br />I'm a little confused by their claim that the '824 there supports 17 I/O—unlike some of the older ones, I don't see a way to turn off the I²C logic unit, so that's two pins permanently lost.<br /></div><br /><br />From the datasheet, &quot;The SLG46824 has a total of 13 GPIO, 2 GPO and 2 GPI Pins which can function as either a user defined Input or Output, as well as serving as a special function (such as outputting the voltage reference). ...  GPI: SCL and SDA serve as General Purpose Input Pins.&quot;<br /><br />Looks like they're general purpose IN only, and including them in the i/o count because of that.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4832">infiniteneslives</a> — Fri Mar 16, 2018 6:34 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[lidnariq]]></name></author>
+<updated>2018-03-16T18:26:19-07:00</updated>
+<published>2018-03-16T18:26:19-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=12716&amp;p=215395#p215395</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=12716&amp;p=215395#p215395"/>
+<title type="html"><![CDATA[Membler Industries • Re: Membler Industries in 2015]]></title>
+
+<category term="Membler Industries" scheme="http://forums.nesdev.com/viewforum.php?f=4" label="Membler Industries"/>
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=12716&amp;p=215395#p215395"><![CDATA[
+They stopped offering volumes less than 100 a couple years ago. Looks like the SL46824 is <em>brand new</em> too.<br /><br />I'm a little confused by their claim that the '824 there supports 17 I/O—unlike some of the older ones, I don't see a way to turn off the I²C logic unit, so that's two pins permanently lost.<br /><br />But I bet 15 I/O is still enough—for something that's the same features as GTROM but with three registers would require ... in: /rs a14 a13 a12 m2 d0 d1 d2 d3 ppua13 ; out: a15 a16 a17 a18  chra14 — that's exactly 15.<br /><br />... oops, that doesn't include one input and output to invert R/W into W/R for self-flashing. Hm.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3512">lidnariq</a> — Fri Mar 16, 2018 6:26 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[infiniteneslives]]></name></author>
+<updated>2018-03-16T17:35:49-07:00</updated>
+<published>2018-03-16T17:35:49-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=12716&amp;p=215390#p215390</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=12716&amp;p=215390#p215390"/>
+<title type="html"><![CDATA[Membler Industries • Re: Membler Industries in 2015]]></title>
+
+<category term="Membler Industries" scheme="http://forums.nesdev.com/viewforum.php?f=4" label="Membler Industries"/>
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=12716&amp;p=215390#p215390"><![CDATA[
+<div class="quotetitle">lidnariq wrote:</div><div class="quotecontent"><br />Seems like a good size for a Greenpak.<br /></div><br /><br />Are prices of those guys posted anywhere?  Looks like the <a href="https://www.dialog-semiconductor.com/products/slg46824" class="postlink">slg46824</a> would be the best part to target as it's I2C in system programmable and also comes in more friendly TSSOP-20 packaging with high i/o and flipflop count in comparison to other versions (17 i/o &amp; FF's).  Other parts appear to have pretty good pricing available for purchase on their site $0.30-0.50ea if you can handle the 100-3k min qty.  No indications of the slg46824's pricing though, shot off a sales inquiry to see what they have to say..<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4832">infiniteneslives</a> — Fri Mar 16, 2018 5:35 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[lidnariq]]></name></author>
+<updated>2018-03-16T15:49:49-07:00</updated>
+<published>2018-03-16T15:49:49-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=12716&amp;p=215386#p215386</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=12716&amp;p=215386#p215386"/>
+<title type="html"><![CDATA[Membler Industries • Re: Membler Industries in 2015]]></title>
+
+<category term="Membler Industries" scheme="http://forums.nesdev.com/viewforum.php?f=4" label="Membler Industries"/>
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=12716&amp;p=215386#p215386"><![CDATA[
+Seems like a good size for a Greenpak.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3512">lidnariq</a> — Fri Mar 16, 2018 3:49 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[infiniteneslives]]></name></author>
+<updated>2018-03-16T15:37:31-07:00</updated>
+<published>2018-03-16T15:37:31-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=12716&amp;p=215384#p215384</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=12716&amp;p=215384#p215384"/>
+<title type="html"><![CDATA[Membler Industries • Re: Membler Industries in 2015]]></title>
+
+<category term="Membler Industries" scheme="http://forums.nesdev.com/viewforum.php?f=4" label="Membler Industries"/>
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=12716&amp;p=215384#p215384"><![CDATA[
+<div class="quotetitle">FrankenGraphics wrote:</div><div class="quotecontent"><br />Would it be theoretically possible to remap the registers individually in a future revision, or is it too inconvenient hardware-side? <br /><br />My impression so far has been that while it looks practical to have it all in one and the same register, it is actually a bit inconvenient code-wise since you need to load merge states with changes before writing.<br /></div><br /><br />Separating things out into different registers will likely at least double the mapper logic required, so I'm guessing it wouldn't align with the Membler's goal with the mapper.  The amount of discrete logic chips will start to compare to a small CPLD which could provide a much richer feature set.  In reality once you start separating things into separate registers you're getting into the MMC1 scale mapper level.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4832">infiniteneslives</a> — Fri Mar 16, 2018 3:37 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[FrankenGraphics]]></name></author>
+<updated>2018-03-16T08:06:48-07:00</updated>
+<published>2018-03-16T08:06:48-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=12716&amp;p=215359#p215359</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=12716&amp;p=215359#p215359"/>
+<title type="html"><![CDATA[Membler Industries • Re: Membler Industries in 2015]]></title>
+
+<category term="Membler Industries" scheme="http://forums.nesdev.com/viewforum.php?f=4" label="Membler Industries"/>
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=12716&amp;p=215359#p215359"><![CDATA[
+Would it be theoretically possible to remap the registers individually in a future revision, or is it too inconvenient hardware-side? <br /><br />My impression so far has been that while it looks practical to have it all in one and the same register, it is actually a bit inconvenient code-wise since you need to load merge states with changes before writing.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=7508">FrankenGraphics</a> — Fri Mar 16, 2018 8:06 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[zzo38]]></name></author>
+<updated>2018-01-27T12:00:42-07:00</updated>
+<published>2018-01-27T12:00:42-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=12716&amp;p=212435#p212435</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=12716&amp;p=212435#p212435"/>
+<title type="html"><![CDATA[Membler Industries • Re: Membler Industries in 2015]]></title>
+
+<category term="Membler Industries" scheme="http://forums.nesdev.com/viewforum.php?f=4" label="Membler Industries"/>
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=12716&amp;p=212435#p212435"><![CDATA[
+<div class="quotetitle">rainwarrior wrote:</div><div class="quotecontent"><br /><div class="quotetitle">zzo38 wrote:</div><div class="quotecontent">I can note something I would have preferred to have: That the register is mapped at $1000-$1FFF and $3000-$3FFF in addition to $5000-$5FFF and $7000-$7FFF (although the $3xxx mapping will rarely if ever be used, it is still there simply due to how the logic is working), and it is written regardless of whether you read from or write to those addresses (if you read, it writes the value read).<br /></div><br />RAM and PPU registers are mirrored there.<br /><a href="https://wiki.nesdev.com/w/index.php/CPU_memory_map" class="postlink">https://wiki.nesdev.com/w/index.php/CPU_memory_map</a></div>I know that. (Those addresses would access both the RAM/PPU and the cartridge simultaneously, which can be useful, but regardless of that, it means one less bit of logic (two, if you also ignore R/W).)<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4734">zzo38</a> — Sat Jan 27, 2018 12:00 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[rainwarrior]]></name></author>
+<updated>2018-01-27T03:06:53-07:00</updated>
+<published>2018-01-27T03:06:53-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=12716&amp;p=212415#p212415</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=12716&amp;p=212415#p212415"/>
+<title type="html"><![CDATA[Membler Industries • Re: Membler Industries in 2015]]></title>
+
+<category term="Membler Industries" scheme="http://forums.nesdev.com/viewforum.php?f=4" label="Membler Industries"/>
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=12716&amp;p=212415#p212415"><![CDATA[
+<div class="quotetitle">zzo38 wrote:</div><div class="quotecontent"><br />I can note something I would have preferred to have: That the register is mapped at $1000-$1FFF and $3000-$3FFF in addition to $5000-$5FFF and $7000-$7FFF (although the $3xxx mapping will rarely if ever be used, it is still there simply due to how the logic is working), and it is written regardless of whether you read from or write to those addresses (if you read, it writes the value read).<br /></div><br />RAM and PPU registers are mirrored there.<br /><a href="https://wiki.nesdev.com/w/index.php/CPU_memory_map" class="postlink">https://wiki.nesdev.com/w/index.php/CPU_memory_map</a><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=5165">rainwarrior</a> — Sat Jan 27, 2018 3:06 am</p><hr />
+]]></content>
+</entry>
+</feed>

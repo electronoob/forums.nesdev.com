@@ -1,0 +1,375 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Making a mapper that detects BG vs Sprite tiles</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Making a mapper that detects BG vs Sprite tiles</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=10668">http://forums.nesdev.com/viewtopic.php?f=2&amp;t=10668</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Dwedit</b> [ Sun Nov 10, 2013 8:32 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Making a mapper that detects BG vs Sprite tiles</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I was once again thinking about a hypothetical mapper that would tell whether BG tiles or Sprite tiles were being displayed, and automatically do bankswitching so sprites get two whole pattern tables.<br /><br />Let me know if I have this right.  It seems like the way to detect such a transition is to look for two consecutive reads to the nametable, and that enters &quot;Sprite Mode&quot;, and then when you have a read of the attribute table, return to &quot;Background Mode&quot;.  According to the Nintendulator source code, the Garbage AT fetch is the same address as the Garbage NT fetch, so if they are both reads to the nametable instead of the attribute table, you know you're rendering sprites.  Likewise, if anything gets fetched from the attribute table, you know you're rendering background tiles.  I'll assume nobody's doing any negative scrolling.<br /><br />The end of a scanline also has two consecutive nametable fetches, and that might trigger a bankswitch to Sprite Mode, but then there's an attribute table fetch right after that, so you'd switch back to Background Mode.<br /><br />Is this the simplest way to detect BG vs Sprite tiles?<br /><br />edit: Looks like you don't even need two consecutive reads, just switch to &quot;sprite mode&quot; on any nametable read, and &quot;bg mode&quot; on any attribute table read.<br /><br />Or in address line notation:<br />A13 &amp; A9 &amp; A8 &amp; A7 &amp; A6  (reading attribute table)<br />A13 &amp; !(A9 &amp; A8 &amp; A7 &amp; A6)  (reading nametable)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Sun Nov 10, 2013 9:46 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Making a mapper that detects BG vs Sprite tiles</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />The last thing you suggest is consistent with what I noticed when I was playing with Visual2C02.<br /><br />You'll probably want to latch on PPU /RD falling; otherwise I vaguely suspect some kind of timing problem will creep in.<br /><br />The MMC5 clearly did this some other way; otherwise it wouldn't have the flaw where it would stick to whichever of $5120-$5127 or $5128-$512B you wrote to last when in 8x8 sprites mode.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ulfalizer</b> [ Sun Nov 10, 2013 10:28 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Making a mapper that detects BG vs Sprite tiles</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />An interesting note is that the MMC5 can determine the absolute screen position of fetched BG tiles, as that's how the split position is specified in vertical split mode. The coarse x and y scroll can be set to whatever, and the split still ends up in the same location.<br /><br />That alone would make me suspect that it's simply counting nametable or tile fetches to determine when BG and sprite tiles are being fetched, but it seems odd that 8x8 vs 8x16 sprites would make any difference in that case. It would also need some way to synchronize to the frame.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ulfalizer</b> [ Sun Nov 10, 2013 11:12 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Making a mapper that detects BG vs Sprite tiles</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Poked around a bit in Visual 2C02, and it looks like attribute fetches are indeed only done for BG tiles. The &quot;fetch attribute byte&quot; signal is <strong>+hpos_eq_0-255_or_320-335_and_hpos_mod_8_eq_2_or_3_and_rendering</strong>, i.e. &quot;fetching background tile and in the attribute byte position&quot;. Need to fix this is in my emu too, as I had assumed one of the dummy NT fetches for sprites would be an AT fetch. <img src="./images/smilies/icon_confused.gif" alt=":?" title="Confused" /><br /><br />The &quot;fetch nametable byte&quot; signal is &quot;NOT fetching attribute byte AND NOT fetching the high or low tile byte&quot;, so for sprites it should be two consecutive NT fetches like you said.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Drag</b> [ Mon Nov 11, 2013 10:20 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Making a mapper that detects BG vs Sprite tiles</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I'm wondering if it'd be easiest to count how many times PPU A13 cycles. It seems like it'd be very reliable because it's a guarantee that A13 will cycle on and off for each tile that needs to be fetched, including sprites, and it will always cycle the same amount of times for each scanline. As a bonus, this can also drive a scanline counter, because you'd need to be able to detect new scanlines anyway, whether it be through counting how many tiles were fetched, or using the multiple-read marker that MMC5 uses.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Mon Nov 11, 2013 10:33 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Making a mapper that detects BG vs Sprite tiles</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Purely for determining whether it's fetching BG or sprite tiles? No, your final suggestion in your first post is definitely minimal in terms of everything but pin count. It'd be something like &quot;Latch AND(A9,A8,A7,A6) when A13 is high on a falling transition of /RD&quot;.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Drag</b> [ Mon Nov 11, 2013 10:44 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Making a mapper that detects BG vs Sprite tiles</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Well, the other thing is, I don't know if we can trust the two garbage fetches that occur with the sprite tile fetches. Technically, the behavior of them is undefined. If the garbage fetches are indeed because the nametable fetching circuitry is being reused for fetching the sprite tiles, then I would assume that the first and second fetches are <em>not</em> going to be the same, because it makes sense to me that the second fetch is always going to be an &quot;attribute&quot; fetch, and going to be computed from the current X and Y, and it's always going to fall in the range of an attribute table.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Mon Nov 11, 2013 10:53 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Making a mapper that detects BG vs Sprite tiles</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Certainly for the real NES PPU, the second fetch is always from the not-attribute-part of the nametables, and not from the attribute tables.<br /><br />I guess if you're aiming for maximal clone compatibility, I'm not certain just how much you can rely on. Evidently there's enough consistency such that MMC3 PPU A12 interrupt sources work, but who knows if A13 even goes high during clone sprite fetches?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>infiniteneslives</b> [ Mon Nov 11, 2013 11:22 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Making a mapper that detects BG vs Sprite tiles</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Dwedit wrote:</div><div class="quotecontent">: Looks like you don't even need two consecutive reads, just switch to &quot;sprite mode&quot; on any nametable read, and &quot;bg mode&quot; on any attribute table read.<br /><br />Or in address line notation:<br />A13 &amp; A9 &amp; A8 &amp; A7 &amp; A6 (reading attribute table)<br />A13 &amp; !(A9 &amp; A8 &amp; A7 &amp; A6) (reading nametable)</div>That's a pretty elegant solution.  I've always considered counting CHR A13.<br /><br />There is a low pin count method of sensing the 2NT fetches-idle cycle-tile #3 fetch.  You can latch CHR A13 with CHR /RD and then use that to reset a CHR A13 counter.<br /><br />I'd say 4 pins are more costly than a 4-5bit counter, but both seem reasonable options.<br /><br /><div class="quotetitle">lidnariq wrote:</div><div class="quotecontent">You'll probably want to latch on PPU /RD falling; otherwise I vaguely suspect some kind of timing problem will creep in.</div><br />I saw issues when implementing MMC2 that agree with your suspicions.  I found CHR A12 wasn't always valid on rising edges of CHR /RD.  So latching on falling edges and then switching on rising edges resolved the issue.<br /><br /><div class="quotetitle">lidnariq wrote:</div><div class="quotecontent">your final suggestion in your first post is definitely minimal in terms of everything but pin count. It'd be something like &quot;Latch AND(A9,A8,A7,A6) when A13 is high on a falling transition of /RD&quot;.</div>You can always opt to use discrete logic for help with something like that if pins are at a premium.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Drag</b> [ Tue Nov 12, 2013 2:25 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Making a mapper that detects BG vs Sprite tiles</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">lidnariq wrote:</div><div class="quotecontent">Certainly for the real NES PPU, the second fetch is always from the not-attribute-part of the nametables, and not from the attribute tables.</div><br />Did someone actually discover and/or document this behavior? It just looked liked Nintendulator's source code was being used as reference for a behavior I've yet to see documented anywhere, which sets off red flags in my head, regardless that this is Nintendulator. <img src="./images/smilies/icon_razz.gif" alt=":P" title="Razz" /><br /><br />If it's legitimate, then I'll shush, but I wanted to chime in before a previously unknown (to me at least) behavior was relied on too much and later proved untrue or inconsistent.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Tue Nov 12, 2013 8:17 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Making a mapper that detects BG vs Sprite tiles</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Drag wrote:</div><div class="quotecontent"><div class="quotetitle">lidnariq wrote:</div><div class="quotecontent">Certainly for the real NES PPU, the second fetch is always from the not-attribute-part of the nametables, and not from the attribute tables.</div><br />Did someone actually discover and/or document this behavior</div><br />According to ulfalizer's post above, which cites Visual 2C02, the signal to fetch attributes is active only during 0-255 and 320-335.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Drag</b> [ Tue Nov 12, 2013 11:31 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Making a mapper that detects BG vs Sprite tiles</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Wow, I'm a moron who can't read. Thanks for pointing that out to me. :S<br /><br />So in that case, checking for two identical PPU fetches would be viable in differentiating between BG and sprite fetches. In addition, if you detect <em>three</em> identical PPU fetches, you could use it to increment a scanline counter.<br /><br />Sorry about my shenanigans, I wasn't seeing this information on the wiki.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ulfalizer</b> [ Tue Nov 12, 2013 7:23 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Making a mapper that detects BG vs Sprite tiles</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tepples wrote:</div><div class="quotecontent"><div class="quotetitle">Drag wrote:</div><div class="quotecontent"><div class="quotetitle">lidnariq wrote:</div><div class="quotecontent">Certainly for the real NES PPU, the second fetch is always from the not-attribute-part of the nametables, and not from the attribute tables.</div><br />Did someone actually discover and/or document this behavior</div><br />According to ulfalizer's post above, which cites Visual 2C02, the signal to fetch attributes is active only during 0-255 and 320-335.</div><br /><br />Btw - the '+' at the beginning at the name signifies a one-dot delay, so it's really active during dots 1-256 and 321-336 like you'd expect. Internally the PPU thinks of the frame as starting from 0.<br /><br />Edit: Or a half-dot delay rather, but it works out like that anyway I think. Timing stuff in circuits is tricky to follow.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

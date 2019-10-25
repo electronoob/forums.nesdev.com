@@ -1,0 +1,417 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - DMA operation in APU</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">DMA operation in APU</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=3&amp;t=6100">http://forums.nesdev.com/viewtopic.php?f=3&amp;t=6100</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>4</strong> of <strong>5</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ulfalizer</b> [ Wed Aug 28, 2013 10:55 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: DMA operation in APU</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">blargg wrote:</div><div class="quotecontent">Full sources + rom: <a href="http://blargg.8bitalley.com/nes-tests/sprdma_and_dmc_dma.zip" class="postlink">sprdma_and_dmc_dma.zip</a></div><br /><br />Thanks!
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ulfalizer</b> [ Sat Aug 31, 2013 10:40 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: DMA operation in APU</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Still a bit confused as to what this test is doing and expects to happen at different points.<br /><br />For example, the <strong>test_</strong> routine which gets called 10 times to test different sample loading locations starts like<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">test_:<br />&nbsp; &nbsp;jsr print_a<br />&nbsp; &nbsp;pha<br />&nbsp; &nbsp;eor #$FF<br />&nbsp; &nbsp;pha<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;setb $4012,&lt;((dmc_sample-$C000)/$40)<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;jsr pre_test<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;jsr time_code_begin<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;; Start DMC<br />&nbsp; &nbsp;setb $4015,$10 ; fill sample buffer<br />&nbsp; &nbsp;setb $4015,dma*$10<br />&nbsp; &nbsp;...</div><br /><br /><strong>time_code_begin</strong> is just an alias for <strong>begin_dmc_timer</strong>, and <strong>dma</strong> is 1, meaning #$10 gets written to $4015 twice.<br /><br />Does this code expect the first write to $4015 to immediately start a new sample? When I get there the last byte of the sample used for synchronization in <strong>begin_dmc_timer</strong> is still playing, meaning the first write to $4015 queues up another sample and the second write to $4015 has no effect at all.<br /><br />Similary, there's a call to <strong>time_code_end</strong> (alias for <strong>end_dmc_timer</strong>) at the end of <strong>test_</strong>. <strong>end_dmc_timer</strong> starts with<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">.align 64<br />end_dmc_timer:<br />&nbsp; &nbsp;; Restart<br />&nbsp; &nbsp;lda #$1F<br />&nbsp; &nbsp;sta SNDCHN<br />&nbsp; &nbsp;nop<br />&nbsp; &nbsp;sta SNDCHN<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;; Rough sync<br />&nbsp; &nbsp;ldy #-$45<br />@coarse:<br />&nbsp; &nbsp;nop<br />&nbsp; &nbsp;lda #$10<br />&nbsp; &nbsp;bne :+<br />:&nbsp; &nbsp;dey<br />&nbsp; &nbsp;bit SNDCHN<br />&nbsp; &nbsp;bne @coarse<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;; DO NOT write to memory. It affects timing.<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;; Fine sync<br />&nbsp; &nbsp;ldx #-$2<br />@sync:<br />&nbsp; &nbsp;....</div><br /><br />When this routine gets called the sample has already finished playing with some margin. Is this expected? What's the significance of -$45 as a constant?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Sat Aug 31, 2013 11:55 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: DMA operation in APU</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I believe this repeatedly does sprite DMA and has a DMC DMA read occur at various relative times, then shows how long the sprite DMA took, in cycles.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ulfalizer</b> [ Sat Aug 31, 2013 12:02 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: DMA operation in APU</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Yup, got that much. Trying to understand how the test code itself works and what assumptions it makes though since the output is so off despite passing all the APU tests.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Sat Aug 31, 2013 3:45 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: DMA operation in APU</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I added more comments in sync_dmc.s and dmc_timer.s: <a href="http://blargg.8bitalley.com/nes-tests/sprdma_and_dmc_dma2.zip" class="postlink">sprdma_and_dmc_dma2.zip</a>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ulfalizer</b> [ Mon Sep 02, 2013 2:19 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: DMA operation in APU</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">blargg wrote:</div><div class="quotecontent">I added more comments in sync_dmc.s and dmc_timer.s: <a href="http://blargg.8bitalley.com/nes-tests/sprdma_and_dmc_dma2.zip" class="postlink">sprdma_and_dmc_dma2.zip</a></div><br /><br />Thanks.<br /><br />Was occupied for a while, but I'll start looking into it now.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ulfalizer</b> [ Tue Sep 03, 2013 9:06 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: DMA operation in APU</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />There is something I don't get in <strong>end_dmc_timer</strong>, which might also be a clue to what's wrong with my code/understanding. The coarse sync part looks as follows:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">; Returns in XA number of cycles elapsed since call to<br />; time_code_begin, MOD dmc_timer_modulo. Unreliable if<br />; result is dmc_timer_max or greater.<br />.align 64<br />end_dmc_timer:<br />&nbsp; &nbsp;; The arbitrary starting X and Y values for the<br />&nbsp; &nbsp;; loops merely set an adjustment added to the<br />&nbsp; &nbsp;; final count.<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;; Restart sample, which will immediately<br />&nbsp; &nbsp;; finish since nothing's playing, then<br />&nbsp; &nbsp;; start again which will ensure the flag<br />&nbsp; &nbsp;; stays set until the second one begins.<br />&nbsp; &nbsp;; This means that bit 4 of SNDCHN will be set<br />&nbsp; &nbsp;; a fixed amount of time after begin_dmc_timer<br />&nbsp; &nbsp;; completed.<br />&nbsp; &nbsp;lda #$1F<br />&nbsp; &nbsp;sta SNDCHN<br />&nbsp; &nbsp;nop<br />&nbsp; &nbsp;sta SNDCHN<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;; Coarse sync<br />&nbsp; &nbsp;; Get within a few cycles of when DMC sample finishes.<br />&nbsp; &nbsp;; Keep a count since each iter is 16 cycles.<br />&nbsp; &nbsp;ldy #-$45<br />@coarse:<br />&nbsp; &nbsp;; 16 cycles/iter<br />&nbsp; &nbsp;nop<br />&nbsp; &nbsp;lda #$10<br />&nbsp; &nbsp;bne :+<br />:&nbsp; &nbsp; &nbsp; &nbsp;dey<br />&nbsp; &nbsp;bit SNDCHN<br />&nbsp; &nbsp;bne @coarse<br />&nbsp; &nbsp;...</div><br /><br /><strong>ldy #-$45</strong> is the same as <strong>ldy #187</strong>, and y will be decremented every 16 cycles until one sample byte has played.<br /><br />Since the period is set to 428, it should take roughly between 428*7 and 428*8 cycles to play one sample byte, depending on the current alignment with the DMC timer. However, (428*7)/16 = 187.25 and (428*8)/16 = 214, meaning y will either end up very small or underflow. For y &lt;&lt; 4 | x to have the expected value of ~528 y would have to be about 32 though, which seems impossible.<br /><br />Any ideas? Is this some off-by-one error? <img src="./images/smilies/icon_neutral.gif" alt=":|" title="Neutral" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Wed Sep 04, 2013 12:30 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: DMA operation in APU</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />OK, I've given in and done a careful timing analysis so we can see exactly how this works (and thankfully it all squares away):<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">begin_dmc_timer:<br />&nbsp; &nbsp; php<br />&nbsp; &nbsp; jsr sync_dmc<br />&nbsp; &nbsp; <br />sync_dmc:<br />&nbsp; &nbsp; &nbsp; &nbsp; ...<br />&nbsp; &nbsp; &nbsp; &nbsp; bit SNDCHN&nbsp; &nbsp; &nbsp; ;&nbsp; &nbsp;reads just as bit 4 is cleared<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ;&nbsp; &nbsp;new bit cycle begins at current high rate<br />&nbsp; &nbsp; &nbsp; &nbsp; bne @sync&nbsp; &nbsp; &nbsp; &nbsp;; 3<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; -1<br />&nbsp; &nbsp; &nbsp; &nbsp; pla&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; 4<br />&nbsp; &nbsp; &nbsp; &nbsp; rts&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; 6<br /><br />&nbsp; &nbsp; pha&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; 3<br />&nbsp; &nbsp; lda #$00&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; 2<br />&nbsp; &nbsp; sta $4010&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; 4 switch to lowest rate for remaining 7 bits<br />&nbsp; &nbsp; pla&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; 4<br />&nbsp; &nbsp; <br />&nbsp; &nbsp; nop&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; 2<br />&nbsp; &nbsp; plp&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; 4<br />&nbsp; &nbsp; rts&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; 6<br /><br />&nbsp; &nbsp; ... code<br />&nbsp; &nbsp; <br />&nbsp; &nbsp; jsr end_dmc_timer&nbsp; &nbsp;; 6<br />&nbsp; &nbsp; <br />end_dmc_timer:<br />&nbsp; &nbsp; lda #$1F&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; 2<br />&nbsp; &nbsp; sta SNDCHN&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; 4 starts immediately, thus causes DMA read now<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; 4 DMC DMA read<br />&nbsp; &nbsp; nop&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; 2<br />&nbsp; &nbsp; sta SNDCHN&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; 4<br />&nbsp; &nbsp; <br />&nbsp; &nbsp; ldy #-$45&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; 2<br />@coarse:<br />&nbsp; &nbsp; ; 16 cycles/iter<br />&nbsp; &nbsp; nop&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; 2<br />&nbsp; &nbsp; lda #$10&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; 2<br />&nbsp; &nbsp; bne :+&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; 3<br />:&nbsp; &nbsp;dey&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; 2<br />&nbsp; &nbsp; bit SNDCHN&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; 4 reads 74+timed code cycles after earlier BIT SNDCHN<br />&nbsp; &nbsp; bne @coarse&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; 3</div><br />The DMC timer's rate doesn't change until the next bit, so the first bit is 54 cycles, and the remaining 7 bits are 428 cycles. So SNDCHN bit 4 will be cleared 54+428*7=3050 cycles later. Thus if the loop finds it clear the first time through, it's been at minimum 3050 cycles since the earlier BIT SNDCHN, or 2976 cycles of user code between calls. 2976/16 = 186, so Y should be 186 if the coarse loop never iterates. -$45 is 187, and the DEY always executes at least once, so this gives the correct Y.<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; -1<br />&nbsp; &nbsp; ldx #-$2&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; 2<br />@sync:<br />&nbsp; &nbsp; lda #$1F&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; 2<br />&nbsp; &nbsp; sta SNDCHN&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; 4<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; 4 DMC DMA<br />&nbsp; &nbsp; <br />&nbsp; &nbsp; lda #179&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; 3402 delay<br />:&nbsp; &nbsp;nop<br />&nbsp; &nbsp; nop<br />&nbsp; &nbsp; nop<br />&nbsp; &nbsp; nop<br />&nbsp; &nbsp; nop<br />&nbsp; &nbsp; nop<br />&nbsp; &nbsp; sec<br />&nbsp; &nbsp; sbc #1<br />&nbsp; &nbsp; bne :-<br />&nbsp; &nbsp; <br />&nbsp; &nbsp; inx&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; 2<br />&nbsp; &nbsp; lda #$10&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; 2<br />&nbsp; &nbsp; bit SNDCHN&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; 4 reads 3424 cycles after BIT SNDCHN in coarse loop<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ;&nbsp; &nbsp;then every 3423 cycles<br />&nbsp; &nbsp; beq @sync&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; 3</div><br />The fine sync loop reads at the same relative time to the DMC sample ending as the coarse loop, thus it always reads after the sample ended on the first iteration and loops back at least once. If the user code took 2976 cycles, it will find the sample not ended on the second iteration and exit the loop, leaving X at 0 as desired.<br /><br />If the user code took one cycle more, the two loops would have read one cycle later, and the fine sync loop would have run one time more, leaving X one greater at 1.<br /><br />I think I used negative initial values for X and Y because I tuned this empirically; I started out with 0 for X and Y, timed some zero-cycle user code, then took the resulting value, broke it into the high 8 bits and low 4 bits, negated these, and put them in Y and X, so that I'd get 0. I never did the above careful timing analysis, because in my experience it's time-consuming and can easily overlook something critical, while empirical testing and tuning is efficient and reliable since it involves writing edge-case tests to be find the stable range. It was fun to verify this by careful analysis though, so thanks for the opportunity.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ulfalizer</b> [ Wed Sep 04, 2013 3:48 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: DMA operation in APU</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />But wouldn't the coarse loop in <strong>end_dmc_timer</strong> <em>always</em> iterate between (428*7)/16 = 187.25 and (428*8)/16 = 214 times, regardless of timing? <strong>end_dmc_timer</strong> starts a new sample, and that should set the number of remaining bits to 8, meaning it'll have to go through 8 DMC clocks before loading the final sample byte and clearing SNDCHN bit 4.<br /><br />Iterating between 187 and 214 times makes y way out of range compared to the expected value, so I must be missing something.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Wed Sep 04, 2013 3:52 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: DMA operation in APU</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">end_dmc_timer starts a new sample, and that should set the number of remaining bits to 8, meaning it'll have to go through 8 DMC clocks before loading the final sample byte and clearing SNDCHN bit 4.</div><br />I think we've found the problem <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" /><br /><br /><div class="quotetitle">APU DMC wrote:</div><div class="quotecontent">When an output cycle ends, a new cycle is started as follows:<br />* The bits-remaining counter is loaded with 8.<br />* If the sample buffer is empty, then the silence flag is set; otherwise, the silence flag is cleared and the sample buffer is emptied into the shift register. <br /><br />When the timer outputs a clock, the following actions occur in order:<br />[...]<br />* The bits-remaining counter is decremented. If it becomes zero, a new cycle is started. <br /><br /><em>Nothing can interrupt a cycle; every cycle runs to completion before a new cycle is started.</em></div><br />If there's no sample byte loaded in time, it'll output <em>eight</em> silence bits, even if you get a sample byte loaded just after the first silence bit begins.<br /><br />Just to further verify, when I change end_dmc_timer to load Y and X with zero before the loops and uncomment the jsr print_y/jsr print_x lines, and run this,<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">jsr time_code_begin<br />jsr time_code_end</div><br />I get 45 02. So for zero user cycles, $45 needs to be subtracted from Y at that point, and $02 from X. So it's equivalent to just load Y with -$45 and X with -$02 before the loops.<br /><br />(And can I get an amen! I've finally begun porting my console development programming setup to my Linux box, and was able to do this testing just now without having to power up my old Mac. Very convenient now.)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ulfalizer</b> [ Wed Sep 04, 2013 4:24 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: DMA operation in APU</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Ahh, that explains it. Hadn't realized silence on the DPCM channel worked like that. <img src="./images/smilies/icon_mrgreen.gif" alt=":mrgreen:" title="Mr. Green" /><br /><br />So the bits remaining count is updated each DMC clock regardless of whether a sample is playing or not, and the DPCM can only transition from silent to playing at the boundary after a &quot;silent sample byte&quot;?<br /><br />Thanks! <img src="./images/smilies/Mfr_icon_homebrew.png" alt=":beer:" title="Beer" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Wed Sep 04, 2013 4:49 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: DMA operation in APU</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">So the bits remaining count is updated each DMC clock regardless of whether a sample is playing or not, and the DPCM can only transition from silent to playing at the boundary after a &quot;silent sample byte&quot;?</div><br />Right.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ulfalizer</b> [ Wed Sep 04, 2013 4:59 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: DMA operation in APU</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />A test for that would be nice if you ever update the apu_test tests. I pass all of them without implementing it.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ulfalizer</b> [ Sat Sep 07, 2013 12:36 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: DMA operation in APU</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Started digging into the circuitry a bit, and it looks like the 2A03 handles <strong>rdy</strong> for OAM DMA and PCM reads in a pretty clever way. Rather than just pulling <strong>rdy</strong> low for a fixed safe &quot;minimum&quot; time, it first pulls it low and then waits for a CPU read. Once it sees a read, it knows <strong>rdy</strong> must have kicked in, and moves on to doing the transfer.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ulfalizer</b> [ Wed Sep 11, 2013 6:02 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: DMA operation in APU</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />In case it's helpful to future people pulling their hair out over this one:<br /><br />To pass, it's important that the first $4014 write lands on an even cycle (and so only adds a single dummy cycle). Since the test synchronizes to the DMC, getting this right depends on the DMC clocks happening on even cycles too, which in turn depends on the power-on value of the DMC timer (the one counting down and getting reloaded with the period when it reaches 0). On the real thing, I think the power-on value is 428 (or the equivalent at least - it uses a linear feedback shift register), though only the even/oddness should matter for this test.<br /><br />If you get 528,527,528,527,... instead of 527,528,527,528,..., that's likely the problem.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>4</strong> of <strong>5</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

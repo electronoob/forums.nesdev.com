@@ -1,0 +1,367 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Separating game logic from NMI</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Separating game logic from NMI</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=10&amp;t=6235">http://forums.nesdev.com/viewtopic.php?f=10&amp;t=6235</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Orsi</b> [ Tue Mar 30, 2010 8:19 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Separating game logic from NMI</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />So I tried to take previous advice and separate my game logic from the NMI by having the NMI increase a counter and the main loop only processing logic once every 64 NMIs. Unfortunately, it isn't working as planned <img src="./images/smilies/icon_razz.gif" alt=":P" title="Razz" />. It seems the game cycle runs more often than it should. Here's the main loop and NMI:
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">GameLoop:<br />&nbsp; &nbsp;LDA $01<br />&nbsp; &nbsp;CMP #$00<br />&nbsp; &nbsp;BNE DoNothing<br />&nbsp; &nbsp;JSR DoInput<br />DoNothing: JMP GameLoop<br />...<br />NMI:<br />&nbsp; &nbsp;LDX $01<br />&nbsp; &nbsp;INX<br />&nbsp; &nbsp;STX $01<br />&nbsp; &nbsp;CPX #$40<br />&nbsp; &nbsp;BNE CounterJump<br />&nbsp; &nbsp;LDX #$00<br />&nbsp; &nbsp;STX $01<br />&nbsp; &nbsp;CounterJump:<br /><br />&nbsp; &nbsp;LDA #$00&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;;Reload all the sprites<br />&nbsp; &nbsp;STA $2003<br />&nbsp; &nbsp;LDA #$02<br />&nbsp; &nbsp;STA $4014<br />&nbsp; &nbsp;RTI</div>
+<br />
+<br />My guesses are the main loop still runs multiple times in between the NMIs that count to 0 and to 1. Another thing I believe is going on is the accumulator is probably getting changed in the middle of the main loop when an NMI is called, causing some trickery. In that case, does anyone have any suggestions on what is the appropriate use of each cpu register?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Orsi</b> [ Tue Mar 30, 2010 8:34 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Ok, so I figured I need to set a flag in the NMI that says "Hey, I'm at 0, run logic once" and then in the main loop process the logic and turn off the flag at the end of it. It seems to work, but there is a new problem now. The flag which is supposes to tell the main loop to run through the input once seems to change its value to whatever button is being pressed which I know shouldn't be happening. Here's my revision:
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">GameLoop:<br />&nbsp; &nbsp;LDA $02<br />&nbsp; &nbsp;AND #$01<br />&nbsp; &nbsp;BEQ DoNothing<br />&nbsp; &nbsp;&nbsp; &nbsp;JSR DoInput<br />&nbsp; &nbsp;&nbsp; &nbsp;LDA $00<br />&nbsp; &nbsp;&nbsp; &nbsp;STA $02<br />DoNothing: JMP GameLoop<br />...<br />NMI:&nbsp; &nbsp;<br />&nbsp; &nbsp;LDY $01&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;;Address $01 is the counter <br />&nbsp; &nbsp;INY<br />&nbsp; &nbsp;STY $01<br />&nbsp; &nbsp;CPY #$40<br />&nbsp; &nbsp;BNE CounterJump<br />&nbsp; &nbsp;LDA #$00<br />&nbsp; &nbsp;STA $01<br />&nbsp; &nbsp;LDA #$01<br />&nbsp; &nbsp;STA $02&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;;Address $02 is the flag for main loop<br />&nbsp; &nbsp;CounterJump:<br /><br />&nbsp; &nbsp;LDA #$00&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;;Reload all the sprites<br />&nbsp; &nbsp;STA $2003<br />&nbsp; &nbsp;LDA #$02<br />&nbsp; &nbsp;STA $4014<br />&nbsp; &nbsp;RTI<br /></div>
+<br />I assume this is because the NMI is interrupting the input routine and changing the values of the cpu registers. I'm trying to run the logic approx. once per second, just for learning purposes. I know it should be run once per frame in a real game.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>3gengames</b> [ Tue Mar 30, 2010 8:35 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Not exactly sure but I'd maybe do something like:
+<br />
+<br />
+<br /> <div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp;Main Loop<br />&nbsp;-Code-<br />&nbsp;LDA LoopFlag<br />Loop:<br />&nbsp;CMP LoopFlag<br />&nbsp;BNE Loop<br /><br /><br />NMI:<br /><br />&nbsp;PHA<br />&nbsp;INC LoopFlag<br />&nbsp;-Stuff-<br />&nbsp;-Sprite update-<br />&nbsp;PLA<br />&nbsp;RTI<br /><br /></div>
+<br />
+<br />
+<br />Not sure but I think thats a bare bones of their idea. ^_^
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Tue Mar 30, 2010 10:16 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Separating game logic from NMI</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I think you are overcomplicating things...
+<br />
+<br /><div class="quotetitle">Orsi wrote:</div><div class="quotecontent">So I tried to take previous advice and separate my game logic from the NMI by having the NMI increase a counter and the main loop only processing logic once every 64 NMIs.</div><br />There are 60 NMIs in a second, if you wait for 64 of them between logic updates your game will run at less than 1 frame per second. I don't get why you'd want that.<br /><br />Before I begin, there are a few newbie "mistakes" (they are not not necessarily bugs, but should be avoided) I'd like to point out:<br /><br />1. Don't reference variables by address. It makes the source harder to read (it's hard to remember what each address was supposed to hold) and is hell to rearrange if you even need/want to. Always name your variables.<br /><br />2. There is no need for CMP #$00 after you've just loaded a value. If the value is 0, the Zero flag will be set just from loading it.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Another thing I believe is going on is the accumulator is probably getting changed in the middle of the main loop when an NMI is called, causing some trickery.</div><br />This is very likely to be your problem, as you change A to $02 for the sprite DMA every NMI. The quick fix for this particular code could be using X instead of A for the DMA like you did with the logic above it.<br /><br /><div class="quotetitle">Orsi wrote:</div><div class="quotecontent">Ok, so I figured I need to set a flag in the NMI that says "Hey, I'm at 0, run logic once" and then in the main loop process the logic and turn off the flag at the end of it.</div>
+<br />Now you are reeeaaally overcomplicating it. Two flags for such a simple purpose?
+<br />
+<br />If you really do want to wait 64 frames between logic updates (for whatever weird reason that is, because the common ratio is 1 logic update per NMI), the first code should work, just don't trash A in the NMI.
+<br />
+<br />EDIT:
+<br />
+<br />However, the program would look more well coded if the 64-frame delay was handled outside of the NMI, since the delay is in fact related to logic updates rather than graphical updates (which should be the main focus of the NMI). Something like this:
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">GameLoop:<br />&nbsp; &nbsp;;-GAME LOGIC-<br /><br />&nbsp; &nbsp;lda #64<br />&nbsp; &nbsp;sta Counter<br />Wait:<br />&nbsp; &nbsp;lda Counter<br />&nbsp; &nbsp;bne Wait<br />&nbsp; &nbsp;jmp GameLoop<br /><br />&#40;...&#41;<br /><br />NMI:<br />&nbsp; &nbsp;dec Counter<br /><br />&nbsp; &nbsp;;-VRAM UPDATES-<br /><br />&nbsp; &nbsp;rti</div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Orsi</b> [ Tue Mar 30, 2010 11:21 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Ya, I've been wondering why I thought running it once per second was a good idea in the first place <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" />. I became sidetracked once my input was being mirrored in the flag I had going. Learning the hard way through trial and error is the best way for me, so I tend to do things backwards sometimes just to see why haha.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Tue Mar 30, 2010 3:51 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I can think of plenty of cases where some parts would run once per second and other parts once per frame.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Tue Mar 30, 2010 4:00 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tepples wrote:</div><div class="quotecontent">I can think of plenty of cases where some parts would run once per second and other parts once per frame.</div>
+<br />Yeah, and a good way to go about that is to still run the main loop once per frame, but inside it use different counters for the different tasks that happen at different rates.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Orsi</b> [ Tue Mar 30, 2010 6:45 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Oh my goodness, I may be an expert yet <img src="./images/smilies/icon_biggrin.gif" alt=":D" title="Very Happy" />. I finally got everything working according to plan. Run input once every nmi/frame, let the nmi keep track of a counter to 60 to represent ~1 second, start using variables to clean up the code a bit, and no more spilling memory over into the wrong addresses. Here's the revised code:
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">GameLoop:<br />&nbsp; &nbsp;LDA frameFlag&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;;see if a frame has happened<br />&nbsp; &nbsp;BEQ DoNothing&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;;and process input once<br />&nbsp; &nbsp;&nbsp; &nbsp;JSR DoInput&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<br />&nbsp; &nbsp;&nbsp; &nbsp;LDA #$00&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;;reset frameFlag to 0 so input doesn't<br />&nbsp; &nbsp;&nbsp; &nbsp;STA frameFlag&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;;process a billion times inbetween frame<br />DoNothing: JMP GameLoop<br />.<br />.<br />.<br />NMI:&nbsp; &nbsp;<br />&nbsp; &nbsp;PHA&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;;push accumulator to stack<br /><br />&nbsp; &nbsp;LDX nmiCounter&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;;load the nmi counter &#40;~60 per sec&#41; <br />&nbsp; &nbsp;INX&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;;increase it by one<br />&nbsp; &nbsp;STX nmiCounter&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;;compare to 60 frames<br />&nbsp; &nbsp;CPX #60&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;;...<br />&nbsp; &nbsp;BNE CounterJump&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;;...&nbsp; &nbsp;<br />&nbsp; &nbsp;LDA #$00&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp; &nbsp; ;...<br />&nbsp; &nbsp;STA nmiCounter&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;;and reset counter if at 60th frame<br />&nbsp; &nbsp;CounterJump:<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;LDA #$01<br />&nbsp; &nbsp;STA frameFlag&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;;set frameFlage to run input once per nmi<br /><br />&nbsp; &nbsp;LDA #$00&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;;reload all the sprites<br />&nbsp; &nbsp;STA $2003<br />&nbsp; &nbsp;LDA #$02<br />&nbsp; &nbsp;STA $4014<br /><br />&nbsp; &nbsp;PLA&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;;pull accumulator from stack <br />&nbsp; &nbsp;RTI<br /></div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Tue Mar 30, 2010 7:09 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Still too complicated for such a simple task IMO.
+<br />
+<br />The fact that you are running your game loop several times per second, but are in fact skipping over everything that classifies it as a game loop (i.e. the game logic) is really weird.
+<br />
+<br />If you don't want to do any logic for 60 frames, why not simply not run the game loop for that amount of time. It's less confusing. If I understand your code correctly, this will do the exact same thing but in a more compact and less confusing way:
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">GameLoop:<br />&nbsp; &nbsp;JSR DoInput<br /><br />&nbsp; &nbsp;lda #60<br />&nbsp; &nbsp;sta nmiCounter<br />Wait:<br />&nbsp; &nbsp;lda nmiCounter<br />&nbsp; &nbsp;bne Wait ;if the counter isn't 0, keep waiting<br /><br />&nbsp; &nbsp;jmp GameLoop<br /><br />&#40;...&#41;<br /><br />NMI:<br />&nbsp; &nbsp;dec nmiCounter ;update the counter<br /><br />&nbsp; &nbsp;ldx #$00 ;use X to not trash A<br />&nbsp; &nbsp;stx $2003<br />&nbsp; &nbsp;ldx #$02<br />&nbsp; &nbsp;stx $4014<br /><br />&nbsp; &nbsp;rti</div><br /><br />Note that a lot of times it's easier to count down than up, because when the counter reaches 0, the Zero flag is automatically set, so there is no need for a CMP to detect if the end of the count was reached.<br /><br />Also note that code like you presented or the one I just showed will pause all game activities until the counter expires, so everything will run at the same rate. However, a game often benefits from different things running at different rates, so it's usually better to let the NMI just indicate that a frame has gone by and let each element of the game loop decide how many times per second they'll update. For example:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp;lda #4 ;input is handled every 4 frames<br />&nbsp; &nbsp;sta inputDelay<br /><br />&nbsp; &nbsp;lda #8 ;enemies are moved every 8 frames<br />&nbsp; &nbsp;sta enemyDelay<br /><br />&nbsp; &nbsp;lda #60 ;the timer updates every 60 frames<br />&nbsp; &nbsp;sta timerDelay<br /><br />GameLoop:<br /><br />&nbsp; &nbsp;dec inputDelay<br />&nbsp; &nbsp;bne SkipInput<br />&nbsp; &nbsp;jsr DoInput ;handle input<br />&nbsp; &nbsp;lda #4<br />&nbsp; &nbsp;sta inputDelay<br />SkipInput:<br /><br />&nbsp; &nbsp;dec enemyDelay<br />&nbsp; &nbsp;bne SkipEnemy<br />&nbsp; &nbsp;jsr MoveEnemy<br />&nbsp; &nbsp;lda #8<br />&nbsp; &nbsp;sta enemyDelay<br />Skipenemy:<br /><br />&nbsp; &nbsp;dec timerDelay<br />&nbsp; &nbsp;bne SkipTimer<br />&nbsp; &nbsp;jsr Updatetimer<br />&nbsp; &nbsp;lda #60<br />&nbsp; &nbsp;sta timerDelay<br />SkipTimer:<br /><br />&nbsp; &nbsp;lda nmiCounter<br />Wait:<br />&nbsp; &nbsp;cmp nmiCounter<br />&nbsp; &nbsp;beq Wait<br /><br />&nbsp; &nbsp;jmp GameLoop<br /><br />&#40;...&#41;<br /><br />NMI:<br />&nbsp; &nbsp;inc nmiCounter ;update the counter<br /><br />&nbsp; &nbsp;ldx #$00 ;use X to not trash A<br />&nbsp; &nbsp;stx $2003<br />&nbsp; &nbsp;ldx #$02<br />&nbsp; &nbsp;stx $4014<br /><br />&nbsp; &nbsp;rti</div>
+<br />Here you have a game with several sub-systems, each running at its own pace.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Orsi</b> [ Tue Mar 30, 2010 7:20 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Ah yes, that is simpler. But now I understand a little more than I did before about how things work, and so it's not completely wrong in my mind. I am just excited that it worked in the way I was planning. I'll finish the demo thing I'm doing, and will definitely start using your example for the next one.
+<br />
+<br />Everything always turns out roundabout and complicated until you get familiar with the system. It's like when you first visit a big city. Everything is foreign to you, you take the wrong trains or buses, all directions seem so complicated, until eventually it all makes sense and you can't even remember how complicated the city seemed to you in the beginning <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" />.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Tue Mar 30, 2010 7:29 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Yeah, pretty much! =)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

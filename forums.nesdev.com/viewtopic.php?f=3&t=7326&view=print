@@ -1,0 +1,311 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - NES Emulator debugging extension request</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">NES Emulator debugging extension request</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=3&amp;t=7326">http://forums.nesdev.com/viewtopic.php?f=3&amp;t=7326</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>clueless</b> [ Sun Dec 26, 2010 10:26 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>NES Emulator debugging extension request</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />(I moved my own post from a different thread in the forum to here, as I had inadvertently hijacked a thread).
+<br />
+<br />I would LOVE a traditional code profiler built into a NES emulator.  One that creates a histogram of PC values so I can find hot-spots in my "common library code" that gets called from various routines each frame.
+<br />
+<br />I would also LOVE if an emulator would make it easy to count CPU cycles taken between two given PC values (or use fake instructions, like hypervisor escapes).  Maybe this will make it clearer:
+<br />
+<br />Lets say that I have a routine that takes a varying amount of CPU time when called (internal branches based on changing game state).  I want to know, for each frame, how many cycles it took.  I would want the output as a CSV (ascii text) file with two values: frame and cpu cycle count.
+<br />
+<br />The emulator would keep an internal counter (# of "counted" cycles in a frame).  When the PPU frame ends this value (and the frame number) are appended to the CSV file.
+<br />
+<br />The counter counts CPU cycles ONLY when the emulator is in a magic "mode".  This mode is entered when the CPU executes to fictitious 6502 instruction $02, and exited when the CPU executes $12 (these are normally invalid CPU opcodes that kill the CPU).  For the purposes of CPU / PPU timing, "executing" these magic opcodes would consume 2 CPU cycles each.
+<br />
+<br />Or use the "decimal" flag as the magic flag.  "D" can be set and cleared easily enough (SED, CLD) and has zero effect n the rest of the NES.
+<br />
+<br />Ex: Consider this code (completely made up)
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">wait_4_nmi_done:<br />&nbsp; sed&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; Turn on magic CPU timing mode.<br />spin: asl nmi_spinlock<br />&nbsp; bcc spin<br />&nbsp; cld&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; Turn off magic CPU timing mode.<br />;; do other crap, but don't accumulate the CPU cycles.<br />&nbsp; sed<br />;; do more crap, want the CPU cycles counted.<br />&nbsp; cld<br />&nbsp; rts<br /></div><br /><br />Inside the NMI handler it does this:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">nmi_handler:<br />&nbsp; inc nmi_ticks<br />&nbsp; sec<br />&nbsp; ror nmi_spinlock<br />&nbsp; rti<br /></div>
+<br />
+<br />I want to analyze the average amount of CPU cycles that I waste in my main thread while waiting for the NMI to complete.  I know the trick of setting the PPU to gray-scale mode for one scan-line (Thanks to Tepples for a post in 2008).  That line gives a nice visual indication, but makes objective analysis difficult.
+<br />
+<br />The above is a highly contrived example.  Although it does represent a microcosm of one thing that I want to analyze, I also want to analyze CPU cycle usage in a wide variety of my functions (especially my usage of fixed point 16x16 signed multiplication and cos() lookups).
+<br />
+<br />The above makes it easy to count cycles when different builds of the ROM move the sed/cld around to different PC values, but make it difficult to have more than one "counter" per frame.  Using fake opcodes (heck, make them 2-byte opcodes, with the second byte a "counter" index, allowing for 256 counters).  Or just make the emulator take two PC values.  The counter is toggled on/off when the PC equals either of these values.  No instruction behavior hacking required for that.
+<br />
+<br />Does this request make sense?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>cpow</b> [ Sun Dec 26, 2010 10:43 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: NES Emulator debugging extension request</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">clueless wrote:</div><div class="quotecontent">I would LOVE a traditional code profiler built into a NES emulator.  One that creates a histogram of PC values so I can find hot-spots in my "common library code" that gets called from various routines each frame.<br /></div><br />I intended for the Code/Data Logger visualizer to be useful for this in some ways.  It's very much like ICU64's memory viewer.  More frequently accessed memory is darker red/green/yellow/purple/cyan (depending on access type execute/read/write/APU-DMA/sprite-DMA.  All I need is someone to help with the OpenGL text overlay and it'll be much more useful.  You can zoom/pan also.<br /><br /><div class="quotetitle">clueless wrote:</div><div class="quotecontent">I would also LOVE if an emulator would make it easy to count CPU cycles taken between two given PC values (or use fake instructions, like hypervisor escapes).  Maybe this will make it clearer:<br /></div><br />One method for doing this I described in another post.  <!-- m --><a class="postlink" href="http://nesdev.com/bbs/viewtopic.php?t=6637&amp;postdays=0&amp;postorder=asc&amp;start=0">http://nesdev.com/bbs/viewtopi ... sc&amp;start=0</a><!-- m --> (look for SMB snapshot).  More specifically to your point, the "Permanent Marker" feature of the assembler would meet the "move with my changing code" situation.<br /><br />It doesn't output to CSV [yet] but all the info you'd need is in the data used to create the visualization.  <img src="./images/smilies/icon_cool.gif" alt="8)" title="Cool" /><br /><br /><div class="quotetitle">clueless wrote:</div><div class="quotecontent">Or just make the emulator take two PC values.  The counter is toggled on/off when the PC equals either of these values.  No instruction behavior hacking required for that.<br /></div>
+<br />
+<br />This was brought up later in that same discussion...having marking capability be just another thing you can do as a result of hitting a breakpoint.  Idea not yet implemented. <img src="./images/smilies/icon_redface.gif" alt=":oops:" title="Embarassed" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Sun Dec 26, 2010 11:08 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: NES Emulator debugging extension request</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">clueless wrote:</div><div class="quotecontent">The counter counts CPU cycles ONLY when the emulator is in a magic "mode".  This mode is entered when the CPU executes to fictitious 6502 instruction $02, and exited when the CPU executes $12 (these are normally invalid CPU opcodes that kill the CPU).  For the purposes of CPU / PPU timing, "executing" these magic opcodes would consume 2 CPU cycles each.<br /><br />Or use the "decimal" flag as the magic flag.  "D" can be set and cleared easily enough (SED, CLD) and has zero effect n the rest of the NES.</div><br />I'd prefer the decimal flag approach over the HLT approach even if only because the decimal flag approach won't screw anything up if it inadvertently ends up in production code.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Using fake opcodes (heck, make them 2-byte opcodes, with the second byte a "counter" index, allowing for 256 counters).</div>
+<br />For this, one might repurpose one of <a href="http://wiki.nesdev.com/w/index.php/Programming_with_unofficial_opcodes#Watermarking_instructions" class="postlink">five SKB instructions</a>.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>clueless</b> [ Mon Dec 27, 2010 6:31 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: NES Emulator debugging extension request</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">NESICIDE wrote:</div><div class="quotecontent"><div class="quotetitle">clueless wrote:</div><div class="quotecontent">I would LOVE a traditional code profiler built into a NES emulator.  One that creates a histogram of PC values so I can find hot-spots in my "common library code" that gets called from various routines each frame.<br /></div><br />I intended for the Code/Data Logger visualizer to be useful for this in some ways.  It's very much like ICU64's memory viewer.  More frequently accessed memory is darker red/green/yellow/purple/cyan (depending on access type execute/read/write/APU-DMA/sprite-DMA.  All I need is someone to help with the OpenGL text overlay and it'll be much more useful.  You can zoom/pan also.</div><br />I've done that before in an OpenGL project.  I'll find my code and try to post it.<br /><br /><div class="quotetitle">NESICIDE wrote:</div><div class="quotecontent"><div class="quotetitle">clueless wrote:</div><div class="quotecontent">I would also LOVE if an emulator would make it easy to count CPU cycles taken between two given PC values (or use fake instructions, like hypervisor escapes).  Maybe this will make it clearer:<br /></div><br />One method for doing this I described in another post.  <!-- m --><a class="postlink" href="http://nesdev.com/bbs/viewtopic.php?t=6637&amp;postdays=0&amp;postorder=asc&amp;start=0">http://nesdev.com/bbs/viewtopi ... sc&amp;start=0</a><!-- m --> (look for SMB snapshot).  More specifically to your point, the "Permanent Marker" feature of the assembler would meet the "move with my changing code" situation.<br /></div><br />That's great, but I use ca65.  I adopted ca65 many years ago while doing Apple IIe cross-platform development (hosted on Linux).  I've not tried your assembler.  My code is too tied to ca65's features to make it easy to port to another assembler's syntax (I say that without doing any actual research, so YMMV).<br /><br /><div class="quotetitle">NESICIDE wrote:</div><div class="quotecontent">It doesn't output to CSV [yet] but all the info you'd need is in the data used to create the visualization.  <img src="./images/smilies/icon_cool.gif" alt="8)" title="Cool" /><br /><br /><div class="quotetitle">clueless wrote:</div><div class="quotecontent">Or just make the emulator take two PC values.  The counter is toggled on/off when the PC equals either of these values.  No instruction behavior hacking required for that.<br /></div><br /><br />This was brought up later in that same discussion...having marking capability be just another thing you can do as a result of hitting a breakpoint.  Idea not yet implemented. <img src="./images/smilies/icon_redface.gif" alt=":oops:" title="Embarassed" /></div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>clueless</b> [ Mon Dec 27, 2010 6:48 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: NES Emulator debugging extension request</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">clueless wrote:</div><div class="quotecontent">I've done that before in an OpenGL project.  I'll find my code and try to post it.</div>
+<br />
+<br />Nesicide, I've opened up public read-only access on a Subversion code repository to an opengl project that I was working on years ago (unfinished, as usual).  The game implements a 2-d text overlay using opengl on top of a 3-d world model.  The relevent code is in the function "UpdateFPSDisplay", in "./src/gui/sdl_core.cpp".  It uses two wrapper functions called "SDL_GL_Enter2DMode()" and "SDL_GL_Leave2DMode()" (also in same source file).
+<br />
+<br /><a href="https://www.ecoligames.com/svn/hhd3d/src/gui/sdl_core.cpp" class="postlink">https://www.ecoligames.com/svn/hhd3d/src/gui/sdl_core.cpp</a>
+<br />
+<br />The game was called "Hungry Hungry Dragon" (inspired by hungry-hungry-hippo).  It was going to be a flight-sim where you controlled a dragon and competed with other dragons.  Your goal was to swoop down and gobble up humans and fight off other dragons.  The networking stack works (udp, tolerates packet loss).  The game "worlds" are stored in an sqlite database, which is replicated on-demand to each node during the game.  I thought that it was a neat idea at the time.
+<br />
+<br />Anyway, I got distracted with something else and never finished the game.  I suck at creating 3-d models (the only drawn objects are spheres).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>thefox</b> [ Mon Dec 27, 2010 7:03 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Yeah I've brought up this same topic in the past, would be great if some emulator implemented it. I might add something similar to Nintendulator some time in the future. Here's little something I've been using every now and then, it sorts the accessed PC values based on Nintendulator's file logs for some basic profiling, but it's far from perfect: <!-- m --><a class="postlink" href="http://nesdev.com/bbs/viewtopic.php?p=54047#54047">http://nesdev.com/bbs/viewtopi ... 4047#54047</a><!-- m -->
+<br />
+<br />Another quote from past:
+<br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">I wish one of the vast library of NES emulators would support profiling similar to AMD's CodeAnalyst and Intel's VTune on x86. On the same note it could also keep track of RAM usage, access frequencies and stuff like that (and display the results visually). Would be optimal if it could also handle assembler generated symbols. </div>
+<br />
+<br />A special build of VirtuaNES also supports cycle counting with help of some special registers ($401E and $401F IIRC), search the forums to find it.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Dwedit</b> [ Mon Dec 27, 2010 5:19 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I once added profiling to VisualBoyAdvance, just to see what PocketNES and Goomba were doing that was most CPU intensive.  Needless to say, it's whatever code is performing spin-wait polling.  (Reading that memory mapped register, then the backward branch)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Tue Dec 28, 2010 8:15 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Dwedit wrote:</div><div class="quotecontent">I once added profiling to VisualBoyAdvance, just to see what PocketNES and Goomba were doing that was most CPU intensive.  Needless to say, it's whatever code is performing spin-wait polling.</div>
+<br />So I guess emulators have a reason to <a href="http://c2.com/cgi/wiki?OptimizingTheIdleLoop" class="postlink">optimize the idle loop</a>, so that it can get back to vsync() faster.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

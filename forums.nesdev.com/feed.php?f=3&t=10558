@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=3&amp;t=10558" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2014-01-14T15:51:14-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=3&amp;t=10558</id>
+<entry>
+<author><name><![CDATA[janzdott]]></name></author>
+<updated>2014-01-14T15:51:14-07:00</updated>
+<published>2014-01-14T15:51:14-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10558&amp;p=123855#p123855</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10558&amp;p=123855#p123855"/>
+<title type="html"><![CDATA[Re: First steps in writing an emulator]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10558&amp;p=123855#p123855"><![CDATA[
+I just rewrote my CPU from the ground up, to make sure there were no bugs.  It's also 100% cycle-accurate now, including the instructions that add 1 cycle when crossing page boundaries.  Every read/write triggers 3 PPU cycles.  It's hardcoded to 3 right now, but I'll add the option for switching to PAL later.<br /><br />I was able to squeeze a little more performance out of it, but it's the PPU that's the bottleneck.  It ran at insane framerates before I added sprite rendering.  It runs slightly faster than Nintendulator when Nintendulator's sound is off and framerates aren't capped.  I still have a lot of room for optimization in the PPU.<br /><br />Scrolling works in Bomberman and Balloon Fight, but there's a glitch in Excitebike.  I think that's due to a bug with my sprite 0 hit, but I'm not sure yet.  I haven't tried any other scrolling games yet.  SMB1 still crashes due to some error making it try to write to CHR ROM.  I'm positive it's a PPU bug.  Now that everything is cycle-accurate, I should be able to make some logs and compare it to Nintendulator's.  The dot and scanline counters between our logs look spot on now.<br /><br />And tepples, I don't know what happened on EFnet the other day.  The site completely stopped responding for me.  Tried refreshing it every now and then for over an hour and it still wouldn't work.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6198">janzdott</a> — Tue Jan 14, 2014 3:51 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[janzdott]]></name></author>
+<updated>2014-01-10T23:38:21-07:00</updated>
+<published>2014-01-10T23:38:21-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10558&amp;p=123624#p123624</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10558&amp;p=123624#p123624"/>
+<title type="html"><![CDATA[Re: First steps in writing an emulator]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10558&amp;p=123624#p123624"><![CDATA[
+I do only set v on the pre-render line when rendering is on.  I have all of my rendering code (except for the vBlank flag set/reset and the NMI interrupt) inside an if statement that checks if rendering is enabled.  Rendering is enabled if bits 3 or 4 are set in PPUMASK.  It still increments the dot and scanline, and geneterates NMIs normally if rendering is off.  Is there something about rendering being on/off that I'm missing?<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6198">janzdott</a> — Fri Jan 10, 2014 11:38 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2014-01-10T22:25:39-07:00</updated>
+<published>2014-01-10T22:25:39-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10558&amp;p=123619#p123619</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10558&amp;p=123619#p123619"/>
+<title type="html"><![CDATA[Re: First steps in writing an emulator]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10558&amp;p=123619#p123619"><![CDATA[
+&quot;Second V register&quot; is the solution adopted by the ColecoVision, MSX, and Master System, not the NES. The correct solution for the NES is just to skip setting <em>v = t</em> on the prerender line if rendering is turned off.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Fri Jan 10, 2014 10:25 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[janzdott]]></name></author>
+<updated>2014-01-10T21:57:44-07:00</updated>
+<published>2014-01-10T21:57:44-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10558&amp;p=123617#p123617</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10558&amp;p=123617#p123617"/>
+<title type="html"><![CDATA[Re: First steps in writing an emulator]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10558&amp;p=123617#p123617"><![CDATA[
+Here's what the problem is.  I was unable to solve it correctly, but I fixed it temporarily with a hack.<br /><br />When leaving the title screen and entering the first level, the games must replace the nametable data.  They don't finish writing the nametable data before the end of vBlank.  Once rendering starts, the value of the v register changes.  At the end of the frame, when vBlank starts again, the games try to continue writing nametable data.  Since v changed during rendering, the nametable data is written to incorrect addresses.  This is happening with every game I try, now that I'm emulating v, t, x and w.<br /><br />I tried slowing my PPU down by a factor of 3, and the CPU still wrote nametable data past vBlank.  It would be okay if it set the address again when it resumes, but it doesn't.<br /><br />I have no idea how to fix this.  What I did was add a second v register, which is used only by the $2006 and $2007 registers.  That way, the address written to by $2007 doesn't change after rendering a frame.  That fixed the problem temporarily.  If anyone has any ideas why this is happening, I would be glad to hear them.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6198">janzdott</a> — Fri Jan 10, 2014 9:57 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2014-01-10T16:00:04-07:00</updated>
+<published>2014-01-10T16:00:04-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10558&amp;p=123604#p123604</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10558&amp;p=123604#p123604"/>
+<title type="html"><![CDATA[Re: First steps in writing an emulator]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10558&amp;p=123604#p123604"><![CDATA[
+The PPU doesn't set v equal to t when rendering is turned off in $2001. When loading a level, a game will keep rendering off until an entire screen has been constructed, then set the scroll and turn on rendering before the pre-render line.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Fri Jan 10, 2014 4:00 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[janzdott]]></name></author>
+<updated>2014-01-10T15:53:01-07:00</updated>
+<published>2014-01-10T15:53:01-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10558&amp;p=123603#p123603</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10558&amp;p=123603#p123603"/>
+<title type="html"><![CDATA[Re: First steps in writing an emulator]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10558&amp;p=123603#p123603"><![CDATA[
+I have a problem that I can't figure out, and it's driving me absolutely crazy.   <img src="http://forums.nesdev.com/images/smilies/icon_mad.gif" alt=":x" title="Mad" />   If anyone could help me, I would very very much appreciate it.<br /><br />I started emulating the v, t, x and w registers for the PPU.  I'm not yet using them during rendering at all.  I'm only using them when reading or writing $2000, and writing $2005 and $2006.  My writes to the PPU registers set the values of v, t, x and w correctly.  I am positive of this.<br /><br />Since the second write to $2005 (PPU scroll) doesn't set v equal to t, PPU scroll must be written to before rendering, and the PPU must set v equal to t before rendering.  This happens at dot 304 of the pre-render scanline.  So far, this is the only time I'm changing the value of v during rendering.  When entering the first level of a game, new nametable data needs to be written.  The problem is, the PPU changes the value of v on the pre-render scanline, then the games AREN'T writing a new address to $2006 after rendering, before they start writing data to $2007.  It's like they are expecting v to not change.  So parts of the title screen are not being overwritten.  If I don't set the v equal to t on the pre-render scanline, the problem goes away.  This happens with every game I try.<br /><br />I have verified 100% that they are NOT writing a new address to $2006 before they start writing to $2007.  I have also verified that they aren't writing to $2007 outside of vBlank.  They write to PPU scroll, which changes the value of t.  Then on the pre-render scanline, the PPU sets v equal to t.  After that frame is rendered, and vBlank starts, the games start writing to $2007, without writing to $2006 first.  So the address being written to isn't correct.<br /><br />So my question:  At the start of vBlank, does the PPU restore the value of v to what it was before it was changed on the pre-render scanline?  That's the only way I can make sense of this...  I haven't seen that mentioned anywhere in the wiki.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6198">janzdott</a> — Fri Jan 10, 2014 3:53 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[janzdott]]></name></author>
+<updated>2014-01-09T23:07:35-07:00</updated>
+<published>2014-01-09T23:07:35-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10558&amp;p=123589#p123589</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10558&amp;p=123589#p123589"/>
+<title type="html"><![CDATA[Re: First steps in writing an emulator]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10558&amp;p=123589#p123589"><![CDATA[
+Ah, that makes sense.  I'll add a check to make sprites with an x position of 0xFF clear.<br /><br />And yeah, it's doing the nametable and attribute fetching correctly, where it wraps around to the next scanline.  I just didn't do the same with the pattern fetches.  That's why it draws the correct tiles on the left, they're just 1 pixel down from where they should be.  I haven't fixed that yet because of laziness on my part.  I was too excited to get working on sprites  <img src="http://forums.nesdev.com/images/smilies/icon_biggrin.gif" alt=":D" title="Very Happy" /> <br /><br />I just fixed both those problems, so graphics should be 100% correct now.  I'm going to add scrolling next.  I'm not understanding it very well at the moment.  I'm still learning about all this stuff as I go.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6198">janzdott</a> — Thu Jan 09, 2014 11:07 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[beannaich]]></name></author>
+<updated>2014-01-09T18:36:48-07:00</updated>
+<published>2014-01-09T18:36:48-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10558&amp;p=123568#p123568</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10558&amp;p=123568#p123568"/>
+<title type="html"><![CDATA[Re: First steps in writing an emulator]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10558&amp;p=123568#p123568"><![CDATA[
+<div class="quotetitle">janzdott wrote:</div><div class="quotecontent"><br />What I don't understand is, why does my sprite rendering cause artifacts on the rightmost column of pixels?  I'm rendering my sprites at the exact correct coordinates.  I checked this with Nintendulator.  When both emulators are maximized, they line up perfectly.<br /></div><br /><br />IIRC sprites with X=$FF have the bit planes masked to $00 on load (dots 262, 264, 270, 272, 278, 280, 286, 288, 294, 296, 302, 304, 310, 312, 318, 320), that would cause those sprites to be rendered transparently. Either do that or refuse to output sprite pixels on that dot, and don't allow sprite zero collisions for that dot either.<br /><br />As far as the first two tiles goes, are you sure that the tile pre-fetch (321-337) are being handled properly? Both fetches increment the 'x' bits of the counter, and both happen after the 'y' bits have been reset to the latched values.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4320">beannaich</a> — Thu Jan 09, 2014 6:36 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[janzdott]]></name></author>
+<updated>2014-01-09T11:03:08-07:00</updated>
+<published>2014-01-09T11:03:08-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10558&amp;p=123555#p123555</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10558&amp;p=123555#p123555"/>
+<title type="html"><![CDATA[Re: First steps in writing an emulator]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10558&amp;p=123555#p123555"><![CDATA[
+Alright, that's what I thought.  Getting the timing right for that is gonna suck.<br /><br />And the big day's finally here guys!  I added controls and I can now play games on my emulator  <img src="http://forums.nesdev.com/images/smilies/icon_biggrin.gif" alt=":D" title="Very Happy" /><br />I was too lazy to fix the leftmost 2 tiles.  It's just a matter of adding an if statement to check the dot an increment the scanline.  What I don't understand is, why does my sprite rendering cause artifacts on the rightmost column of pixels?  I'm rendering my sprites at the exact correct coordinates.  I checked this with Nintendulator.  When both emulators are maximized, they line up perfectly.  Here's a screen.<br /><br /><img src="http://i.imgur.com/7vVkuBP.png" alt="Image" /><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6198">janzdott</a> — Thu Jan 09, 2014 11:03 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2014-01-09T10:10:10-07:00</updated>
+<published>2014-01-09T10:10:10-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10558&amp;p=123554#p123554</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10558&amp;p=123554#p123554"/>
+<title type="html"><![CDATA[Re: First steps in writing an emulator]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10558&amp;p=123554#p123554"><![CDATA[
+I was confused by your use of &quot;half way through the scanline&quot;. Split screen scrolling in NES games works by changing the scroll value mid-screen, usually in the 64-dot (21-cycle) period between one scanline and the next. Doing so mid-screen allows scrolling each horizontal strip separately. A game would have to change the scroll value mid-scanline in order to have vertical strips, and MMC5 is the only mapper I know of on NES that's capable of that.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Thu Jan 09, 2014 10:10 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[janzdott]]></name></author>
+<updated>2014-01-09T09:54:09-07:00</updated>
+<published>2014-01-09T09:54:09-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10558&amp;p=123551#p123551</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10558&amp;p=123551#p123551"/>
+<title type="html"><![CDATA[Re: First steps in writing an emulator]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10558&amp;p=123551#p123551"><![CDATA[
+So that's not how splitscreen works?  I don't know anything about scrolling yet.  Once I do controls, I'll do scrolling.  Is Excitebike a good one to start with?  My rom gets to the demo screen and doesn't show sprites, but I'm guessing that's because I haven't added scrolling yet.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6198">janzdott</a> — Thu Jan 09, 2014 9:54 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2014-01-09T08:53:56-07:00</updated>
+<published>2014-01-09T08:53:56-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10558&amp;p=123550#p123550</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10558&amp;p=123550#p123550"/>
+<title type="html"><![CDATA[Re: First steps in writing an emulator]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10558&amp;p=123550#p123550"><![CDATA[
+Scroll changes between one scanline and the next are common. Scroll changes halfway through a <em>scanline</em> require much more precise synchronization to the raster, and I'm not aware of any commercial NES game with tight enough timing to do that stably. Some games, such as <em>Super Mario Bros. 3</em> and <em>Mega Man 3</em>, slightly mistime a scroll change, causing a single glitched scanline with OK scanlines below it.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Thu Jan 09, 2014 8:53 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[janzdott]]></name></author>
+<updated>2014-01-09T08:37:11-07:00</updated>
+<published>2014-01-09T08:37:11-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10558&amp;p=123548#p123548</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10558&amp;p=123548#p123548"/>
+<title type="html"><![CDATA[Re: First steps in writing an emulator]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10558&amp;p=123548#p123548"><![CDATA[
+I've done my PPU timing exactly how the diagram shows, which is important for things like splitscreen right?  Does the game just count cycles from vBlank and change the scroll half way through the scanline?<br /><br />And good news, I got sprites working last night!  Was much easier than I thought it would be.  I haven't done flipping of sprites yet, but that should only take a couple minutes.  Then on to controls  <img src="http://forums.nesdev.com/images/smilies/icon_biggrin.gif" alt=":D" title="Very Happy" /><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6198">janzdott</a> — Thu Jan 09, 2014 8:37 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Dwedit]]></name></author>
+<updated>2014-01-09T07:48:15-07:00</updated>
+<published>2014-01-09T07:48:15-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10558&amp;p=123547#p123547</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10558&amp;p=123547#p123547"/>
+<title type="html"><![CDATA[Re: First steps in writing an emulator]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10558&amp;p=123547#p123547"><![CDATA[
+Devil World is slightly harder to emulate, since it's the first game to use split screen vertical scrolling.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=53">Dwedit</a> — Thu Jan 09, 2014 7:48 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[janzdott]]></name></author>
+<updated>2014-01-08T23:20:48-07:00</updated>
+<published>2014-01-08T23:20:48-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10558&amp;p=123537#p123537</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10558&amp;p=123537#p123537"/>
+<title type="html"><![CDATA[Re: First steps in writing an emulator]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10558&amp;p=123537#p123537"><![CDATA[
+&quot;Super Mario Bros. is probably the hardest game to emulate among the most popular NROM games, which are generally the first targets against which an emulator author tests his or her work. It relies on JMP indirect, correct palette mirroring (otherwise the sky will be black; see PPU palettes), sprite 0 detection (otherwise the game will freeze on the title screen), the 1-byte delay when reading from CHR ROM through $2007 (see The PPUDATA read buffer), and proper behavior of the nametable selection bits of $2000 and $2006.[1] In addition, there are several bad dumps floating around, some of which were ripped from pirate multicarts whose cheat menus leave several key parameters in RAM.&quot;<br /><br />Thank you, Joe!  Describes my situation exactly.  I'll forget about SMB until I get Donkey Kong completely working.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6198">janzdott</a> — Wed Jan 08, 2014 11:20 pm</p><hr />
+]]></content>
+</entry>
+</feed>

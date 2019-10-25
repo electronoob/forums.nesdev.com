@@ -1,0 +1,123 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - A fast 16 bit divide by 240 (~80 cycles)</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">A fast 16 bit divide by 240 (~80 cycles)</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=16933">http://forums.nesdev.com/viewtopic.php?f=2&amp;t=16933</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>slembcke</b> [ Fri Jan 12, 2018 6:17 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>A fast 16 bit divide by 240 (~80 cycles)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Related thread with a much faster 12 bit divide:<br /><!-- l --><a class="postlink-local" href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=16911">viewtopic.php?f=2&amp;t=16911</a><!-- l --><br /><br />So it was nagging at me that there must be a way to get a full 16 bit divide** by 240 using the trick I did in the last thread. (The idea is basically the same as this: <a href="http://blog.jgc.org/2012/03/how-to-divide-by-9-really-really-fast.html" class="postlink">http://blog.jgc.org/2012/03/how-to-divide-by-9-really-really-fast.html</a>) I finally came up with something, and it seems to work correctly! (though has only been mildly tested) It's not nearly as fast as the 12 bit version, maybe not even fast enough to be practical when you can just keep separate world space and tile wrapped scroll counters. Either way, it's still <em>many</em> times faster than a generic 16/8 bit division routine.<br /><br />** Since it's intended to be used for setting scroll registers, I don't bother calculating the upper 4 bits of the quotient. The assumption is that you'll be discarding everything but the LSB anyway.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">; 16 bit unsigned divide by 240.<br />; Returns the lower nibble of the quotient in x, and the remainder in a.<br />; Conceptually similar to http://blog.jgc.org/2012/03/how-to-divide-by-9-really-really-fast.html, but in base 16.<br />.proc div240_quick16<br />&nbsp; &nbsp;; Dividend is split into nibbles, (A, B, C, D)<br />&nbsp; &nbsp;; Because 240/16 = 15, we can simplify the problem to dividing ABC by 15.<br />&nbsp; &nbsp;; Then at the end, we push D in as the low bits of the remainder.<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;A_B = sreg + 1<br />&nbsp; &nbsp;C_D = sreg + 0<br />&nbsp; &nbsp;tmp = A_B ; A_B is read only once, reuse it for scratch.<br />&nbsp; &nbsp;; x stores the quotient<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;.code<br />&nbsp; &nbsp;ldx A_B<br />&nbsp; &nbsp;txa<br />&nbsp; &nbsp;lsr<br />&nbsp; &nbsp;lsr<br />&nbsp; &nbsp;lsr<br />&nbsp; &nbsp;lsr ; acc = A<br />&nbsp; &nbsp;sta tmp<br />&nbsp; &nbsp;txa<br />&nbsp; &nbsp;and #$F ; acc = B<br />&nbsp; &nbsp;clc<br />&nbsp; &nbsp;adc tmp<br />&nbsp; &nbsp;sta tmp ; A + B<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;; A + B is also the lower few bits of the quotient<br />&nbsp; &nbsp;; (minus some carry bits from the remainder that happen later)<br />&nbsp; &nbsp;tax<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;lda C_D<br />&nbsp; &nbsp;lsr<br />&nbsp; &nbsp;lsr<br />&nbsp; &nbsp;lsr<br />&nbsp; &nbsp;lsr ; acc = C<br />&nbsp; &nbsp;clc<br />&nbsp; &nbsp;adc tmp ; acc = A + B + C<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;; Divide acc by 15, carry the quotient into x.<br />&nbsp; &nbsp;; acc is in the range &#91;0, 45&#93;, so divide using an unrolled loop.<br />&nbsp; &nbsp;; Repeating twice is good enough for dividends up to 0xEFFF.<br />&nbsp; &nbsp;; Could save a few cycles here by rearranging comparisons I guess.<br />&nbsp; &nbsp;.repeat 2<br />&nbsp; &nbsp;&nbsp; &nbsp;cmp #15<br />&nbsp; &nbsp;&nbsp; &nbsp;bcc :+<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;sbc #15<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;inx<br />&nbsp; &nbsp;&nbsp; &nbsp;:<br />&nbsp; &nbsp;.endrepeat<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;; acc now has the upper nibble of the remainder and needs to be combined with D.<br />&nbsp; &nbsp;; Could save 2 cycles with a 4 bit look up table I guess.<br />&nbsp; &nbsp;asl<br />&nbsp; &nbsp;asl<br />&nbsp; &nbsp;asl<br />&nbsp; &nbsp;asl<br />&nbsp; &nbsp;sta tmp<br />&nbsp; &nbsp;lda C_D<br />&nbsp; &nbsp;and #$F<br />&nbsp; &nbsp;ora tmp<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;rts<br />.endproc</div><br /><br />edit: Some cleanup and comments. Hopefully easier to understand now.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

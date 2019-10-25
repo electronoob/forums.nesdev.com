@@ -1,0 +1,165 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Backtracking</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Backtracking</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=17614">http://forums.nesdev.com/viewtopic.php?f=2&amp;t=17614</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>2</strong> of <strong>2</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Nate5700</b> [ Wed Aug 01, 2018 9:46 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Backtracking</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Well, definitely not as dense as World 4-2.<br /><br />I'm thinking maybe up to two chests, plus some breakable blocks, like 7 or 8 max, plus coins (well, ears of corn for the collectible, actually). So maybe 24 objects per screen max? That would be three bytes of status bits, per screen. Not really sure how big I'll go as far as screens per level, maybe as many as 6 to 10. So 32 bytes might be enough. That doesn't include enemies, but I'm kicking around the idea of having the enemies respawn if you backtrack.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Kasumi</b> [ Wed Aug 01, 2018 1:54 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Backtracking</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Here's how... <em>I think</em>... Indivisible works. For keeping dead enemies dead. (It's probably slightly different in practice.)<br /><br />I build the levels in some tool (like tiled) and place enemies, then export it. Then, a program I wrote builds the level data for the game.<br /><br />A counter starts at zero. Every time an enemy is encountered, it puts the value of the counter in the game's data with the type and position of the enemy, then increases the counter.<br /><br />Now every enemy has a unique number (a destroy number). When the enemy is created (scrolled to), that number is stored in the enemy's RAM (just like its position is). <br /><br />The object loop starts. The enemy divides its destroy number by eight (three lsr instructions). That gives it which byte in the &quot;alive state&quot; RAM to check. It does a modulus eight (and #7), which gives it which bit within that byte corresponds to it.<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">lda destroyNumber,x;X is the enemy's index<br />lsr a<br />lsr a<br />lsr a;Divide it by 8<br />sta temp<br /><br />lda destroyNumber,x<br />and #7;Anding by&nbsp; (power of 2-1) is like modulus by the power of 2 number.<br />tay<br />lda bytetable,y;This gives us which bit corresponds to our destroy number from within the alive state RAM<br />sta temp2<br /><br />ldy temp;This lets us load the byte our bit is in in the alive state RAM<br />lda alivestate,y<br />and temp2;This will be non zero if we are alive, and zero if we are not alive.<br />beq destroyobject;If we're not alive, don't run or initialize the object. The player will never see it.<br />eor alivestate,y;This effectively &quot;kills&quot; us, by flipping the bit that says we're alive<br />sta alivestate,y;And storing it<br />;This prevents the same object from being created twice while one is still on screen.<br />;If the player kills the enemy/opens the chest/whatever, you destroy the object, but don't set the bit to one again.<br />;If the object simply scrolls of screen, set the bit again before you destroy it.<br />jmp endobjectinitialization<br />bytetable:<br />.db %10000000, %01000000, %00100000, %00010000, %00001000, %00000100, %00000010, %00000001<br /></div><br />(That code may not be 100% right... I'll check it a bit later, and fix if so.) Edit: It's probably cool now. <br /><br />With 256 destructible objects, you need only need 32 bytes as has been stated before. Even for things that you might want only as part of the background, you can still create invisible objects for them that update the screen conditionally.<br /><br />You might also find this post interesting: <!-- l --><a class="postlink-local" href="https://forums.nesdev.com/viewtopic.php?f=2&amp;t=17355&amp;p=218452&amp;hilit=script#p218452">viewtopic.php?f=2&amp;t=17355&amp;p=218452&amp;hilit=script#p218452</a><!-- l --><br /><br />Edit: That post covers a way you might store the bits on a screen to screen basis. But basically, it's that on screen load, you copy that screen's alive state RAM to a temporary 32 bytes from a larger block of it, then copy any changes back on level unload. (Each screen knows where it's alive state RAM starts within the larger buffer, because the offset is stored as part of the screen data.) So you have &quot;only&quot; 256 bits per screen/level, but your buffer can basically be as large as your total RAM.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>FrankenGraphics</b> [ Wed Aug 01, 2018 2:47 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Backtracking</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Slightly inspired by metroid* (even though it applies this to a whole world), you could separate object data (always in ROM) from ”has been manipulated bits” (naturally in ram). The list details everything else we need to know.<br /><br />4 bytes per object. TypeID, WhichScreen, Ypos, Xpos. Which objectID is implied by its place in the array. Lets say we use a page of ROM per stage, so 64 items per what you define as a stage could either be the whole level or a section.<br /><br /><br /><br />or if you’re fine with lowered position granularity (which makes sense if all these objects are represented on the BG layer), you can bake X and Y into a single byte, and if you only have max 16 types and max 16 screens per stage, you can bitpack those as well. So, either 85 or 128 mauipulable background objects in that case. The one with the 85 is a bit of a problem since you can’t easily index into the right position as quick as possible with a simple power of two. <br /><br />Then you have the list of toggle bits for your object. They’re bitpacked, so you need 8, 11, or 16 bytes of RAM to be overwritten next level. Assuming you only need one toggle state per object.<br /><br />Maybe you can imply which are on which screen of the stage by their order in the array. Con: locks you to an evenly distributed number of manipulable objects per screens’ worth of data, rather than placing all of them freely. Pro: actually ought to make the code more straightforward. (If we’re looking up an object on screen n, use index (n*object size*objectsperscreen)+whichobject And you’d get even more objects or additional data (special properties?) per object; your choice.<br /><br />Lastly, you could lower the X and Y granularity not to bitpack them both, but to imply which screen in a nybble, and which coarse position in the other (another bitpacking scheme). <br /><br /><br /><br />That’s all the techniques i can think of on top of my head.<br /><br />*note that metroid is only using this for obtainable items; not breakable blocks... which are overwritten by the scroll seam. The amnesia It works in metroid because it an alien planet that is kind of living. They even regenerate blocks with a timer which provides  a rationale for blocks being reset when you backtrack.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>2</strong> of <strong>2</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

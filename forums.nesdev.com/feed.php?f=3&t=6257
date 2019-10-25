@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=3&amp;t=6257" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2010-04-25T13:17:11-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=3&amp;t=6257</id>
+<entry>
+<author><name><![CDATA[Denine]]></name></author>
+<updated>2010-04-25T13:17:11-07:00</updated>
+<published>2010-04-25T13:17:11-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6257&amp;p=60372#p60372</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6257&amp;p=60372#p60372"/>
+<title type="html"><![CDATA[Nintendulator,Nestopia?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6257&amp;p=60372#p60372"><![CDATA[
+Ok,SO Game is working Perfectly on (almost )every emulator.<br />(game is not working on nesticle and UberNes)<br />On real hardware everything is working...almost.<br />To make Name tables smaller I used RLE compression.<br />Decompresing in game is working without problems.I left 1 map uncompressed.<br />Then I took a quick look how it's working with real hardware.<br />And...ehh-every name table that was supposed to be decompressed is filled with random PPU number.So screen sometimes is filled with 0x00 or 0x06 PPU pieces instead of normal name tables.<br />Of course uncompressed name table that I left is working fine...<br />Anyone have an Idea what's going on?<br /><br />Important note:<br />Yes,I don't have to use compression,but I'm curious,why it's not working...maybe soething with Vblank?<br />Just in case...<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">CZYSC_PPU:            Turns PPU OFF<br /><br />  lda #%00000000<br />  sta $2000       ;Wyczyść PPU<br />  sta $2001<br /><br />A0<br />  lda $2002<br />  bpl A0<br /><br />  rts<br /><br />PPU_ON:         ;Turns PPU ON<br />A1<br />  lda $2002<br />  bpl A1<br /><br />  LDA #$00<br /><br />  STA $2005<br />  STA $2005<br /><br />  lda #%10001000   ;enable NMI,Sprites from VRAM1<br />  sta $2000<br />  lda #%00011010   ;Turn PPU ON,show 8 left pixels of BG and show sprites.<br />  sta $2001 <br /><br />  rts<br /></div><br />Yeah,I'm using jsr to turn PPU OFF and ON,between which I'm running RLE decompressing script.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4239">Denine</a> — Sun Apr 25, 2010 1:17 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Bregalad]]></name></author>
+<updated>2010-04-18T12:59:49-07:00</updated>
+<published>2010-04-18T12:59:49-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6257&amp;p=60168#p60168</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6257&amp;p=60168#p60168"/>
+<title type="html"><![CDATA[Nintendulator,Nestopia?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6257&amp;p=60168#p60168"><![CDATA[
+You should write nothing to $2004 and write the sprite page (here #$06) to $4014 once instead. Reason for this is that it will be WAY to slow to update sprites like you're doing.<br /><br />If you're worried about the later sprites being unused you don't want to display, you should put their Y coordinate (first byte) to 240 ($f0), so that they're unused. Not updating them is not going to hide them.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=38">Bregalad</a> — Sun Apr 18, 2010 12:59 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Denine]]></name></author>
+<updated>2010-04-18T12:55:58-07:00</updated>
+<published>2010-04-18T12:55:58-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6257&amp;p=60167#p60167</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6257&amp;p=60167#p60167"/>
+<title type="html"><![CDATA[Nintendulator,Nestopia?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6257&amp;p=60167#p60167"><![CDATA[
+So,if I assume correctly...in step 3 (NOT inside NMI) I prepare sprites to be written.<br />In step 5 (inside NMI) I gather that data and write it into OAM.<br />Hmm...not sure about it though...<br />I have sprites data in $600-$6FF in RAM.<br />OK,my NMI:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">vector_nmi:<br /><br />        PHA<br />        TXA<br />        PHA<br />        TYA<br />        PHA                     ;backup registers<br /><br />        lda #$00              ;Set 00 for sprites-bytes counter&#40;if there's 1 <br />        sta $7F2               ;sprite then counter is 0x04&#41;<br /><br />        ldx #$00              ;Start loading sprites data from 600<br /><br />        jsr Rys.Sprity       ;Drawing sprites function<br />        jsr ft_music_play  ;play music<br /><br />        PLA                     ;restore registers<br />        TAY<br />        PLA<br />        TAX<br />        PLA<br /><br />        RTI          <br /></div><br />And Sprites drawing function:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">Rys.Sprity:<br />        lda $600,x       ; load Y value<br />   sta $2004 <br /><br />        lda $601,x<br />        sta $2004        ; store tile number<br /><br />   lda $602,x       ; Atrybuty<br />   sta $2004  <br /><br />   lda $603,x       ; load X value<br />   sta $2004 <br />        <br />        inx<br />        inx<br />        inx<br />        inx<br /><br />        cpx $7F2     ;check number of sprites<br />        bne Rys.Sprity_Petla<br />        <br />        rts<br /></div><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4239">Denine</a> — Sun Apr 18, 2010 12:55 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2010-04-17T16:05:06-07:00</updated>
+<published>2010-04-17T16:05:06-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6257&amp;p=60144#p60144</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6257&amp;p=60144#p60144"/>
+<title type="html"><![CDATA[Nintendulator,Nestopia?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6257&amp;p=60144#p60144"><![CDATA[
+while not done:<br /><ol style="list-style-type: decimal"><li>Read controllers. </li><li>Run game rules. </li><li>Based on the new positions of game tokens, prepare buffers to be copied to OAM and VRAM. </li><li>Wait for vertical blank. </li><li>Copy buffers to OAM and VRAM. </li><li>Set the scroll position. </li><li>Run sound code. </li></ol><br />Pretty much every NES game loop looks like this, except that many games do steps 5-7 in the NMI handler. Dwedit is talking about the difference between steps 3 and 5.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Sat Apr 17, 2010 4:05 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Dwedit]]></name></author>
+<updated>2010-04-17T14:17:33-07:00</updated>
+<published>2010-04-17T14:17:33-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6257&amp;p=60132#p60132</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6257&amp;p=60132#p60132"/>
+<title type="html"><![CDATA[Nintendulator,Nestopia?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6257&amp;p=60132#p60132"><![CDATA[
+The code to MAKE the data for the sprite table does not need to run during vblank.  The code to COPY the data (write to 4014) does.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=53">Dwedit</a> — Sat Apr 17, 2010 2:17 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Disch]]></name></author>
+<updated>2010-04-17T13:37:44-07:00</updated>
+<published>2010-04-17T13:37:44-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6257&amp;p=60131#p60131</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6257&amp;p=60131#p60131"/>
+<title type="html"><![CDATA[Nintendulator,Nestopia?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6257&amp;p=60131#p60131"><![CDATA[
+writes to $4014 (and $2004, but there's little point in using $2004 directly) must be done in VBlank or when the PPU is off.<br /><br />You can't update onscreen sprites during rendering.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=33">Disch</a> — Sat Apr 17, 2010 1:37 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Denine]]></name></author>
+<updated>2010-04-17T12:56:50-07:00</updated>
+<published>2010-04-17T12:56:50-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6257&amp;p=60129#p60129</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6257&amp;p=60129#p60129"/>
+<title type="html"><![CDATA[Nintendulator,Nestopia?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6257&amp;p=60129#p60129"><![CDATA[
+Thanks,it worked!I noticed one thing-I don't have to read PPUSTAT before turning PPU OFF,If I do then there's 2 black screen frames.<br />I would have some more questions,My friend has played My game on real hardware,but it seems that sprites isn't displayed correctly.(They are blinking...)But any emulator can produce that effect.I mean,game is working fine evenon Nestopia and Nintendulator.<br />Maybe I'm wrong...but maybe i should place sprite updates into NMI?At the other hand,it doesn't work and it'll waste lot of Vblank... <img src="http://forums.nesdev.com/images/smilies/icon_confused.gif" alt=":?" title="Confused" /><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4239">Denine</a> — Sat Apr 17, 2010 12:56 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Dwedit]]></name></author>
+<updated>2010-04-17T12:23:55-07:00</updated>
+<published>2010-04-17T12:23:55-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6257&amp;p=60128#p60128</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6257&amp;p=60128#p60128"/>
+<title type="html"><![CDATA[Nintendulator,Nestopia?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6257&amp;p=60128#p60128"><![CDATA[
+Whenever you disable NMI, then re-enable it, read from PPUSTAT so you don't end up calling your NMI code halfway through vblank.  But I don't that that's whats going on here.<br /><br />Whenever you turn the screen back on, wait for VBLANK first.  I put the screen turning-on code inside NMI personally, but you don't have to do that.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=53">Dwedit</a> — Sat Apr 17, 2010 12:23 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Denine]]></name></author>
+<updated>2010-04-17T11:13:57-07:00</updated>
+<published>2010-04-17T11:13:57-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6257&amp;p=60127#p60127</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6257&amp;p=60127#p60127"/>
+<title type="html"><![CDATA[Nintendulator,Nestopia?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6257&amp;p=60127#p60127"><![CDATA[
+HI,So I'm back <img src="http://forums.nesdev.com/images/smilies/icon_smile.gif" alt=":)" title="Smile" /> <br />I cleared my code,and learned some things.<br />But there's some things I don't understand:<br />Title Screen:<br /><img src="http://img353.imageshack.us/img353/5148/test1.png" alt="Image" /><br />OK...after pressing A,turn PPU OFF:<br /><img src="http://img580.imageshack.us/img580/1599/test2p.png" alt="Image" /><br />Fine,Load palette,Name table..wait what?:<br /><img src="http://img709.imageshack.us/img709/5970/test3m.png" alt="Image" /><br />Turn PPU ON...<br /><img src="http://img208.imageshack.us/img208/7944/test4h.png" alt="Image" /><br />After that everything is normally,but always when I'll try to use this "trick" problem is always repeating...<br />I was reading about 2 name table PPU update possibilities...One is to use method mentioned earlier,second is about "buffering" what have to be draw,but i don't really understand it,unfortunelly.<br />Here's some code in case you need it:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">           lda #%00000000<br />           sta $2000       ;Clean PPU<br />           sta $2001<br /><br />**Here's Palette loading code**<br />**Here's Name Table loading code**<br /><br />  LDA #$00<br /><br />  STA $2005<br />  STA $2005<br /><br />  lda #%10001000   ;enable NMI,Sprites from VRAM1<br />  sta $2000<br />  lda #%00011000   ;Turn PPU ON and show sprites.<br />  sta $2001<br /></div><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4239">Denine</a> — Sat Apr 17, 2010 11:13 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Dwedit]]></name></author>
+<updated>2010-04-09T09:56:28-07:00</updated>
+<published>2010-04-09T09:56:28-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6257&amp;p=59861#p59861</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6257&amp;p=59861#p59861"/>
+<title type="html"><![CDATA[Nintendulator,Nestopia?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6257&amp;p=59861#p59861"><![CDATA[
+If you put CHR ROM in Mapper 2 or Mapper 7, it would just act like nonbankable NROM CHR that is read only.  Of course, also with bankable PRG, and one screen mirroring (on mapper 7).<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=53">Dwedit</a> — Fri Apr 09, 2010 9:56 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2010-04-09T08:59:51-07:00</updated>
+<published>2010-04-09T08:59:51-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6257&amp;p=59857#p59857</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6257&amp;p=59857#p59857"/>
+<title type="html"><![CDATA[Nintendulator,Nestopia?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6257&amp;p=59857#p59857"><![CDATA[
+When figuring out how your emulator should behave under some configuration, figure out how you would build that configuration on a circuit board and ask yourself how that board would react. CHR ROM in mappers that ordinarily use RAM <span style="font-size: 84%; line-height: normal"><strong>SHOULD</strong></span> be handled the same way as if I had desoldered the RAM chip and rewired a socket to take a mask ROM or an EPROM. It would ignore pattern table writes, and the ROM would be switchable the same way that the RAM is. For example, UNROM (#2) and AOROM (#7) would have a fixed 8 KiB bank just like NROM, and CPROM (#13) would have a fixed 4 KiB bank and a switchable 4 KiB bank.<br /><br /><br />(<a href="http://tools.ietf.org/html/rfc2119" class="postlink">What's a <span style="font-size: 84%; line-height: normal"><strong>SHOULD</strong></span></a>?)<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Fri Apr 09, 2010 8:59 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Zepper]]></name></author>
+<updated>2010-04-09T08:24:21-07:00</updated>
+<published>2010-04-09T08:24:21-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6257&amp;p=59850#p59850</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6257&amp;p=59850#p59850"/>
+<title type="html"><![CDATA[Nintendulator,Nestopia?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6257&amp;p=59850#p59850"><![CDATA[
+- Can we put CHR ROM in mapper 2, for example? Or even in mapper 7? What about the value written, how would it be handled? I'm curious.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=39">Zepper</a> — Fri Apr 09, 2010 8:24 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Dwedit]]></name></author>
+<updated>2010-04-08T21:34:02-07:00</updated>
+<published>2010-04-08T21:34:02-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6257&amp;p=59835#p59835</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6257&amp;p=59835#p59835"/>
+<title type="html"><![CDATA[Nintendulator,Nestopia?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6257&amp;p=59835#p59835"><![CDATA[
+For PocketNES, it was a big deal to work in bankable CHR-RAM or mappers with mixed CHR RAM and CHR ROM, mainly because of the way it uses the GBA hardware.  But other emulators with software renderers should have a much easier time.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=53">Dwedit</a> — Thu Apr 08, 2010 9:34 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tokumaru]]></name></author>
+<updated>2010-04-08T20:36:07-07:00</updated>
+<published>2010-04-08T20:36:07-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6257&amp;p=59834#p59834</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6257&amp;p=59834#p59834"/>
+<title type="html"><![CDATA[Nintendulator,Nestopia?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6257&amp;p=59834#p59834"><![CDATA[
+Zepper, maybe you have used an architecture for your emulator that is not very dynamic. You say this would require a major code rewrite... Maybe fixing this single ROM is not worth the trouble, but making your emulator more dynamic and able to handle such changes more easily in the future might be. Don't you think?<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=95">tokumaru</a> — Thu Apr 08, 2010 8:36 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Zepper]]></name></author>
+<updated>2010-04-08T18:28:44-07:00</updated>
+<published>2010-04-08T18:28:44-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6257&amp;p=59833#p59833</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6257&amp;p=59833#p59833"/>
+<title type="html"><![CDATA[Nintendulator,Nestopia?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6257&amp;p=59833#p59833"><![CDATA[
+<img src="http://godknowswhat.files.wordpress.com/2009/05/objection2.jpg" alt="Image" /><br /><img src="http://forums.nesdev.com/images/smilies/icon_smile.gif" alt=":)" title="Smile" /><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=39">Zepper</a> — Thu Apr 08, 2010 6:28 pm</p><hr />
+]]></content>
+</entry>
+</feed>

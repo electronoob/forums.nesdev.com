@@ -1,0 +1,230 @@
+//HW Test for LIJI, darkmoe, also byuu
+//Shonumi, June 12th, 2016
+//Tests for whether SX can be changed during a scanline
+//
+//This test waits until VBlank, then additionally waits for OAM STAT IRQs. Every OAM STAT, the
+
+//Default VBlank INT @ 0x1000
+!0040
+JP 0x1000		$C3 $00 $10
+
+//Default STAT INT @ 0x1500
+!0048
+JP 0x1500		$C3 $00 $15
+
+//Entry Point
+!0100
+
+NOP			$00
+JP 0x150		$C3 $50 $01
+
+//Nintendo Logo
+!0104
+
+$CE $ED $66 $66 $CC $0D $00 $0B $03 $73 $00 $83 $00 $0C $00 $0D
+$00 $08 $11 $1F $88 $89 $00 $0E $DC $CC $6E $E6 $DD $DD $D9 $99
+$BB $BB $67 $63 $6E $0E $EC $CC $DD $DC $99 $9F $BB $B9 $33 $3E
+
+//Title
+!0134
+
+POKEMON 20TH		$50 $4F $4B $45 $4D $4F $4E $20 $32 $30 $54 $48
+
+//Cart Type
+!0147
+
+ROM ONLY		$00
+
+//ROM Size
+!0148
+
+32KB			$00
+
+//RAM Size
+!0149			
+
+0KB			$00
+
+//Header Checksum
+!014D
+			$B0
+
+
+================================
+= VBLANK INT                   =
+================================
+
+!1000
+
+//Reset D
+LD D, 0x0		$16 $00
+RETI			$D9
+
+================================
+= OAM STAT INT                 =
+================================
+
+!1500
+
+//Shift SX by A during scanline rendering (we should be in Mode 2 atm)
+LDH C, A		$E2
+LD B, 0x3		$06 $03
+
+//Grab STAT mode bits
+//Once we hit Mode 0 (HBLANK), change SX again optionally
+LD A, (HL)		$7E
+AND B			$A0
+CP 0x0			$FE $00
+JR NZ -6		$20 $FA
+
+//We'll use D to alternate between 0 and 1 by incrementing it and masking it
+LD B, 0x1		$06 $01
+INC D			$14
+LD A, D			$7A
+AND B			$A0
+
+RETI			$D9
+
+================
+= Main Program =
+================
+
+!0150
+
+//Disable IRQs
+DI			$F3
+
+//Manually wait for VBlank
+CALL 0x2010		$CD $10 $20
+
+//Turn off LCD
+LD A, 0x0		$3E $00
+LD C, 0x40		$0E $40
+LDH C, A		$E2
+
+//Turn on OAM-STAT IRQs via STAT
+LD A, 0x20		$3E $20
+LD C, 0x41		$0E $41
+LDH C, A		$E2
+
+//Enable VBLANK & STAT IRQs
+LD A, 0x3		$3E $03
+LD C, 0xFF		$0E $FF
+LDH C, A		$E2
+
+//Setup the color palette
+LD A, 0xE4		$3E $E4
+LD C, 0x47		$0E $47
+LDH C, A		$E2
+
+//Zero out VRAM
+LD HL, 0x8000		$21 $00 $80
+LD BC, 0xA000		$01 $00 $A0
+
+LD A, 0x0		$3E $00
+LD (HL), A		$77
+INC HL			$23
+LD A, H			$7C
+CP B			$B8
+JR NZ -8		$20 $F8
+
+//Load 1.bmp from 0x4000 - 0x4010 : 0x8000
+//Transfer Size - 0x20
+LD HL, 0x4000		$21 $00 $40
+LD BC, 0x8000		$01 $00 $80
+LD DE, 0x0020		$11 $20 $00
+CALL 0x2000		$CD $00 $20
+
+//Load 1.map from 0x7000 - 0x7200 : 0x9800
+//Transfer Size - 0x200
+LD HL, 0x7000		$21 $00 $70
+LD BC, 0x9800		$01 $00 $98
+LD DE, 0x0200		$11 $00 $02
+CALL 0x2000		$CD $00 $20
+
+//Setup LCDC - NO BG!
+LD A, 0x90		$3E $90
+LD C, 0x40		$0E $40
+LDH C, A		$E2
+
+//Manually wait for VBlank
+CALL 0x2010		$CD $10 $20
+
+//Clear IF for pending IRQs
+XOR A			$AF
+LD C, 0x0F		$0E $0F
+LDH C, A		$E2
+
+//Enable and wait for IRQs
+EI			$FB
+
+//Setup LCDC again
+LD A, 0x91		$3E $91
+LD C, 0x40		$0E $40
+LDH C, A		$E2
+
+//Set up some registers before interrupts happen
+LD HL, 0xFF41		$21 $41 $FF
+LD D, 0x0		$16 $00
+LD C, 0x43		$0E $43
+XOR A			$AF			
+
+//Stall or something
+NOP			$00
+NOP			$00
+NOP			$00
+JR -5			$18 $FB
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+====================
+= Global Functions =
+====================
+
+===================
+= 16_BIT_TRANSFER =
+===================
+
+!2000
+
+LD A, (HL)		$7E
+LD BC, A		$02
+INC HL			$23
+INC BC			$03
+DEC DE			$1B
+LD A, D			$7A
+OR A, E			$B3
+JR NZ -9		$20 $F7
+RET			$C9
+
+===========
+= VB_WAIT =
+===========
+
+!2010
+
+LD C, 0x44		$0E $44
+LDH A, C		$F2
+CP 0x90			$FE $90
+JR NZ -7		$20 $F9
+RET			$C9 

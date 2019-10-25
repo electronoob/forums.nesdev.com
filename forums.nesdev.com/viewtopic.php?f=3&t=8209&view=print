@@ -1,0 +1,471 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - NTSC color palette emulation, with the square wave modulator</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">NTSC color palette emulation, with the square wave modulator</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=3&amp;t=8209">http://forums.nesdev.com/viewtopic.php?f=3&amp;t=8209</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>10</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bisqwit</b> [ Fri Oct 14, 2011 1:24 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>NTSC color palette emulation, with the square wave modulator</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Reading the NTSC encoder page at <!-- m --><a class="postlink" href="http://wiki.nesdev.com/w/index.php/NTSC_video">http://wiki.nesdev.com/w/index.php/NTSC_video</a><!-- m --> , I decided to create my own palette synthesizer based on the description. I first looked upon Blargg's nes_ntsc, but it seems to use a sinewave rather than the described squarewave for the color synthesis.
+<br />
+<br />Here is my code, in C++11:
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp; unsigned MakeRGBcolor&#40;unsigned pixel&#41;<br />&nbsp; &nbsp; &#123;<br />&nbsp; &nbsp; &nbsp; &nbsp; // The input value is a NES color index &#40;with de-emphasis bits&#41;.<br />&nbsp; &nbsp; &nbsp; &nbsp; // We need RGB values. Convert the index into RGB.<br />&nbsp; &nbsp; &nbsp; &nbsp; // For most part, this process is described at:<br />&nbsp; &nbsp; &nbsp; &nbsp; //&nbsp; &nbsp; http://wiki.nesdev.com/w/index.php/NTSC_video<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; // Decode the color index<br />&nbsp; &nbsp; &nbsp; &nbsp; int color = &#40;pixel &amp; 0x0F&#41;, level = color&lt;0xE ? &#40;pixel&gt;&gt;4&#41; &amp; 3 : 1;<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; // Voltage levels, relative to synch voltage<br />&nbsp; &nbsp; &nbsp; &nbsp; static const float black=.518f, white=1.962f, attenuation=.746f,<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; levels&#91;8&#93; = &#123;.350f, .518f, .962f,1.550f,&nbsp; // Signal low<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; 1.094f,1.506f,1.962f,1.962f&#125;; // Signal high<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; float lo_and_hi&#91;2&#93; = &#123; levels&#91;level + 4 * &#40;color == 0x0&#41;&#93;,<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;levels&#91;level + 4 * &#40;color &lt;&nbsp; 0xD&#41;&#93; &#125;;<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; // Calculate the luma and chroma by emulating the relevant circuits:<br />&nbsp; &nbsp; &nbsp; &nbsp; float y=0.f, i=0.f, q=0.f, gamma=1.8f;<br />&nbsp; &nbsp; &nbsp; &nbsp; auto wave = &#91;&#93;&#40;int p, int color&#41; &#123; return &#40;color+p+8&#41;%12 &lt; 6; &#125;;<br />&nbsp; &nbsp; &nbsp; &nbsp; for&#40;int p=0; p&lt;12; ++p&#41; // 12 clock cycles per pixel.<br />&nbsp; &nbsp; &nbsp; &nbsp; &#123;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; // NES NTSC modulator &#40;square wave between two voltage levels&#41;:<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; float spot = lo_and_hi&#91;wave&#40;p,color&#41;&#93;;<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; // De-emphasis bits attenuate a part of the signal:<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if&#40;&#40;&#40;pixel &amp; 0x40&#41; &amp;&amp; wave&#40;p,12&#41;&#41; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; || &#40;&#40;pixel &amp; 0x80&#41; &amp;&amp; wave&#40;p, 4&#41;&#41; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; || &#40;&#40;pixel &amp;0x100&#41; &amp;&amp; wave&#40;p, 8&#41;&#41;&#41; spot *= attenuation; <br /><br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; // Normalize:<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; float v = &#40;spot - black&#41; / &#40;white-black&#41; / 12.f;<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; // Ideal TV NTSC demodulator: <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; y += v;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; i += v * std::cos&#40;3.141592653 * p / 6&#41;;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; q += v * std::sin&#40;3.141592653 * p / 6&#41;; // Or cos&#40;... p-3 ... &#41;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; // Note: Integrating cos&#40;&#41; and sin&#40;&#41; for p-0.5 .. p+0.5 range gives<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; //&nbsp; &nbsp; &nbsp; &nbsp;the exactly same result, scaled by a factor of 2*cos&#40;pi/12&#41;.<br />&nbsp; &nbsp; &nbsp; &nbsp; &#125;<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; // Convert YIQ into RGB according to FCC-sanctioned conversion matrix.<br />&nbsp; &nbsp; &nbsp; &nbsp; auto gammafix = &#91;=&#93;&#40;float f&#41; &#123; return f &lt; 0.f ? 0.f : std::pow&#40;f, 2.2f / gamma&#41;; &#125;;<br />&nbsp; &nbsp; &nbsp; &nbsp; auto clamp = &#91;&#93;&#40;int v&#41; &#123; return v&lt;0 ? 0 : v&gt;255 ? 255 : v; &#125;;<br />&nbsp; &nbsp; &nbsp; &nbsp; unsigned rgb = 0x10000*clamp&#40;255 * gammafix&#40;y +&nbsp; 0.946882f*i +&nbsp; 0.623557f*q&#41;&#41;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;+ 0x00100*clamp&#40;255 * gammafix&#40;y + -0.274788f*i + -0.635691f*q&#41;&#41;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;+ 0x00001*clamp&#40;255 * gammafix&#40;y + -1.108545f*i +&nbsp; 1.709007f*q&#41;&#41;;<br />&nbsp; &nbsp; &nbsp; &nbsp; return rgb;<br />&nbsp; &nbsp; &#125;</div>
+<br />
+<br />Outcome:
+<br /><img src="http://bisqwit.iki.fi/kala/snap/nesemu_ntsccolor_sa.png" alt="Image" />
+<br />To quote someone, I'd say it "is looking pretty good"... <em>OLD TEXT: Though I am not sure whether the effect of combining multiple de-emphasis bits is correct. But at least the code for doing so is neater than in nes_ntsc :)</em>
+<br />
+<br />EDIT: Not to accuse nes_ntsc of anything. I did not compare the results, and it may very well do the very same thing through precalculated mathematics; I just thought it'd be good idea to actually replicate the process in detail. Also, this function is not meant to be called for each pixel. Ideally, you would precache the colors or calculate&amp;cache them as needed.
+<br />
+<br />EDIT: Replaced the YIQ conversion matrix with the FCC one, added guard for NaNs and removed the extended-range hack. This addresses problems 
+<br /> pointed out in beannaich's post(s), below.
+<br />EDIT: Replaced the attenuation code with single-attenuator and updated the screenshot. This addresses the problem with whether the combination of de-emphasis bits works properly or not.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>beannaich</b> [ Fri Oct 14, 2011 6:12 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />One of the biggest problems I can see with this already is that color $20 is slightly off, $20 is $FDFDFD. Colors $xE and $xF are also incorrect, they should be flat black, but they are $050505.
+<br />
+<br />Also, I see you're using the color decoder matrix found on the YIQ page of wikipedia. If you'd like to use the actual FCC decoder, then here it is:
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">R&nbsp; &nbsp;1.000000&nbsp; 0.946882&nbsp; 0.623557&nbsp; &nbsp;Y<br />G = 1.000000 -0.274788 -0.635691 x I<br />B&nbsp; &nbsp;1.000000 -1.108545&nbsp; 1.709007&nbsp; &nbsp;Q</div>
+<br />
+<br />The above matrix was created by simplifying and inverting the RGB to YIQ matrix described <a href="http://ecfr.gpoaccess.gov/cgi/t/text/text-idx?c=ecfr&amp;sid=6814fb4dc96c56fbf31cc21ac65bc7be&amp;rgn=div8&amp;view=text&amp;node=47:4.0.1.1.2.5.1.39&amp;idno=47" class="postlink">here</a> (Number 20).
+<br />
+<br />So far it looks pretty good though, aside from the slight errors previously noted.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bisqwit</b> [ Fri Oct 14, 2011 6:15 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">beannaich wrote:</div><div class="quotecontent">One of the biggest problems I can see with this already is that color $20 is slightly off, $20 is $FDFDFD. Colors $xE and $xF are also incorrect, they should be flat black, but they are $050505.</div><br />I actually did write that I intentionally extended the range very slightly (for debugging or other quirk purposes). The "black" and "white" variables control that. To get the function you describe as correct they should be set .518f and 1.962f respectively. And probably the last "signal high" value sehould be set to 1.962f rather than the 1.970f I set it to. Here is a screenshot of the outcome if those changes are implemented.<br /><img src="http://bisqwit.iki.fi/kala/snap/nesemu_ntsccolor0.png" alt="Image" /> <img src="http://bisqwit.iki.fi/kala/snap/nesemu_ntsccolor0fcc.png" alt="Image" /><br />Left: The "popular" matrix; Right: FCC sanctioned matrix.<br /><br /><div class="quotetitle">beannaich wrote:</div><div class="quotecontent">Also, I see you're using the color decoder matrix found on the YIQ page of wikipedia. If you'd like to use the actual FCC decoder, then here it is:</div>
+<br />Thanks. I actually used the matrix from nes_ntsc, which happens to be the same as on Wikipedia (quoted "popular" matrix).
+<br />I do not know which matrix it would make more sense to use, but the differences seem to be in the same realm as rounding errors....
+<br />
+<br />EDIT: The clamp rule seems to be rather heavily invoked. I wonder if this is a problem.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>beannaich</b> [ Fri Oct 14, 2011 6:43 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Bisqwit wrote:</div><div class="quotecontent">To get the function you describe as correct they should be set .518f and 1.962f respectively.</div><br />This does fix the issues, the palette does look great with games I have a good memory of from my childhood (I should note that I haven't seen an actual NES on a tube television for about 13 years).<br /><br /><div class="quotetitle">Bisqwit wrote:</div><div class="quotecontent">I do not know which matrix it would make more sense to use, but the differences seem to be in the same realm as rounding errors....</div><br />I should have noted that the two matrices are very similar, but there are some subtle differences. Most significantly are (2,1) and (2,2). And while the difference in output may be negligible, I still think it's proper to get the most accurate values.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">The clamp rule seems to be rather heavily invoked. I wonder if this is a problem.</div>
+<br />From what I can tell, you need to add in a check for NaN into your clamp function. This is sometimes generated when the value passed to pow(double) is negative. But clamping is necessary, and expected.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>byuu</b> [ Fri Oct 14, 2011 8:31 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Really amazing work! I've been looking for just such a function for quite a while now.
+<br />
+<br />Is anyone here able to confirm the behavior when multiple color emphasis bits are set? With that change, it'd be nice to have a definitive palette generator. Throw in a GUI to tweak some of the constants for user tastes, nes_ntsc for color bleeding and artifacts, and we'd be all set.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bisqwit</b> [ Fri Oct 14, 2011 11:55 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">beannaich wrote:</div><div class="quotecontent"><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">The clamp rule seems to be rather heavily invoked. I wonder if this is a problem.</div><br />From what I can tell, you need to add in a check for NaN into your clamp function. This is sometimes generated when the value passed to pow(double) is negative. But clamping is necessary, and expected.</div>
+<br />Thanks. I updated the code in the opening post with this change and with the other changes discussed earlier.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>beannaich</b> [ Fri Oct 14, 2011 12:03 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I second what byuu said earlier, this palette is absolutely amazing! Really good job man. Next you should add hue/tint/saturation control, as byuu mentioned. So I can finally make a tv tuner dialog for my emulator <img src="./images/smilies/icon_wink.gif" alt=";)" title="Wink" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bisqwit</b> [ Fri Oct 14, 2011 12:12 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Here is a version with saturation and hue controls (as function parameters). I don't know what the tint control could possibly be that differs from hue. If you want to adjust the de-emphasis bits, they are the bits 6,7,8 of the "pixel" parameter.
+<br />To adjust the hue by N°, pass N * 12 / 360  (e.g. 3 for 90°, -1.5 for −45°) as the hue_tweak parameter.
+<br />Pass 0.0 as saturation to get grayscale rendering; 2.0 for super-poppy colors.
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp; unsigned MakeRGBcolor&#40;unsigned pixel,<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; float saturation = 1.0, float hue_tweak = 0.0f,<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; float contrast = 1.0f, float brightness = 1.0f,<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; float gamma = 1.8f&#41;<br />&nbsp; &nbsp; &#123;<br />&nbsp; &nbsp; &nbsp; &nbsp; // The input value is a NES color index &#40;with de-emphasis bits&#41;.<br />&nbsp; &nbsp; &nbsp; &nbsp; // We need RGB values. Convert the index into RGB.<br />&nbsp; &nbsp; &nbsp; &nbsp; // For most part, this process is described at:<br />&nbsp; &nbsp; &nbsp; &nbsp; //&nbsp; &nbsp; http://wiki.nesdev.com/w/index.php/NTSC_video<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; // Decode the color index<br />&nbsp; &nbsp; &nbsp; &nbsp; int color = &#40;pixel &amp; 0x0F&#41;, level = color&lt;0xE ? &#40;pixel&gt;&gt;4&#41; &amp; 3 : 1;<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; // Voltage levels, relative to synch voltage<br />&nbsp; &nbsp; &nbsp; &nbsp; static const float black=.518f, white=1.962f, attenuation=.746f,<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; levels&#91;8&#93; = &#123;.350f, .518f, .962f,1.550f,&nbsp; // Signal low<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; 1.094f,1.506f,1.962f,1.962f&#125;; // Signal high<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; float lo_and_hi&#91;2&#93; = &#123; levels&#91;level + 4 * &#40;color == 0x0&#41;&#93;,<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;levels&#91;level + 4 * &#40;color &lt;&nbsp; 0xD&#41;&#93; &#125;;<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; // Calculate the luma and chroma by emulating the relevant circuits:<br />&nbsp; &nbsp; &nbsp; &nbsp; float y=0.f, i=0.f, q=0.f;<br />&nbsp; &nbsp; &nbsp; &nbsp; auto wave = &#91;&#93;&#40;int p, int color&#41; &#123; return &#40;color+p+8&#41;%12 &lt; 6; &#125;;<br />&nbsp; &nbsp; &nbsp; &nbsp; for&#40;int p=0; p&lt;12; ++p&#41; // 12 clock cycles per pixel.<br />&nbsp; &nbsp; &nbsp; &nbsp; &#123;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; // NES NTSC modulator &#40;square wave between two voltage levels&#41;:<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; float spot = lo_and_hi&#91;wave&#40;p,color&#41;&#93;;<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; // De-emphasis bits attenuate a part of the signal:<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if&#40;&#40;&#40;pixel &amp; 0x40&#41; &amp;&amp; wave&#40;p,12&#41;&#41;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; || &#40;&#40;pixel &amp; 0x80&#41; &amp;&amp; wave&#40;p, 4&#41;&#41;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; || &#40;&#40;pixel &amp;0x100&#41; &amp;&amp; wave&#40;p, 8&#41;&#41;&#41; spot *= attenuation;<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; // Normalize:<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; float v = &#40;spot - black&#41; / &#40;white-black&#41;; <br /><br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; // Ideal TV NTSC demodulator:<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; // Apply contrast/brightness<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; v = &#40;v - .5f&#41; * contrast + .5f; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; v *= brightness / 12.f;<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; y += v;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; i += v * std::cos&#40; &#40;3.141592653f/6.f&#41; * &#40;p+hue_tweak&#41; &#41;;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; q += v * std::sin&#40; &#40;3.141592653f/6.f&#41; * &#40;p+hue_tweak&#41; &#41;;<br />&nbsp; &nbsp; &nbsp; &nbsp; &#125;&nbsp; &nbsp;<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; i *= saturation;<br />&nbsp; &nbsp; &nbsp; &nbsp; q *= saturation;<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; // Convert YIQ into RGB according to FCC-sanctioned conversion matrix.<br />&nbsp; &nbsp; &nbsp; &nbsp; auto gammafix = &#91;=&#93;&#40;float f&#41; &#123; return f &lt; 0.f ? 0.f : std::pow&#40;f, 2.2f / gamma&#41;; &#125;;<br />&nbsp; &nbsp; &nbsp; &nbsp; auto clamp = &#91;&#93;&#40;int v&#41; &#123; return v&lt;0 ? 0 : v&gt;255 ? 255 : v; &#125;;<br />&nbsp; &nbsp; &nbsp; &nbsp; unsigned rgb = 0x10000*clamp&#40;255 * gammafix&#40;y +&nbsp; 0.946882f*i +&nbsp; 0.623557f*q&#41;&#41;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;+ 0x00100*clamp&#40;255 * gammafix&#40;y + -0.274788f*i + -0.635691f*q&#41;&#41;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;+ 0x00001*clamp&#40;255 * gammafix&#40;y + -1.108545f*i +&nbsp; 1.709007f*q&#41;&#41;;<br />&nbsp; &nbsp; &nbsp; &nbsp; return rgb;<br />&nbsp; &nbsp; &#125;</div>
+<br />
+<br />EDIT: The attenuation explanation in the "NTSC video" article is ambiguous. In case there is simply just <em>one</em> attenuator that is selectively enabled at times, rather than three, one for each bit, the code to attenuate would be as follows [EDIT: Now included on the code above].
+<br />
+<br />It would look like this (left: individual cascading attenuators for each bit; right: one attenuator):
+<br />
+<br /><img src="http://bisqwit.iki.fi/kala/snap/nesemu1_ntsccolor_c1.png" alt="Image" /> <img src="http://bisqwit.iki.fi/kala/snap/nesemu1_ntsccolor_c2.png" alt="Image" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>beannaich</b> [ Fri Oct 14, 2011 1:46 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Bisqwit wrote:</div><div class="quotecontent">I don't know what the tint control could possibly be that differs from hue.</div><br />Oops, I meant brightness.<br /><br />Also, I don't think the article on NTSC video is ambiguous at all:<br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">When signal attenuation is enabled by one or more of the channels and the current pixel is a color other than $xE/$xF (black), the signal is attenuated as follows</div>
+<br />I believe that means that any of the three modulation channels can enable the attenuator, but the signal is only attenuated once.
+<br />
+<br />This just keeps getting better and better!
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bisqwit</b> [ Fri Oct 14, 2011 2:50 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Ok. Made the single-attenuator code default, and added brightness and contrast controls.
+<br />
+<br />The single-attenuator code is mathematically unequivocal even in the presence of multiple de-emphasis bits.
+<br />Now can someone confirm whether the outcome from this de-emphasis code actually agrees with observations on real hardware? I don't have a dev cart, or even an NTSC system to begin with.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>thefox</b> [ Fri Oct 14, 2011 8:35 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Bisqwit wrote:</div><div class="quotecontent">Ok. Made the single-attenuator code default, and added brightness and contrast controls.<br /><br />The single-attenuator code is mathematically unequivocal even in the presence of multiple de-emphasis bits.<br />Now can someone confirm whether the outcome from this de-emphasis code actually agrees with observations on real hardware? I don't have a dev cart, or even an NTSC system to begin with.</div>
+<br />See <a href="http://nesdev.com/bbs/viewtopic.php?p=10658#10658" class="postlink">this post</a> for a picture of blargg's palette demo. The colors are in different order but otherwise it's looking pretty much the same as yours.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bisqwit</b> [ Sat Oct 15, 2011 3:26 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I changed the color order to same as Blargg's and added the sawtooth scanline effect (the graphics is generated by native code, not NES code). Oddly, the color-de-emphasis bits are issued in a different order.
+<br />I don't know why Blargg used that particular order. Are mine possibly wrong?
+<br />His seem to be: none, blue, blue+red, red, red+green, green, green+blue, all; which is not binary; it's gray code.
+<br />Mine is: none, red, green, red+green, blue, blue+red, blue+green, all.
+<br />I added a saturation level of 1.15 to get better match.
+<br />
+<br />Left: My generator with direct-to-PNG rendering
+<br />Right: Blargg's generator on actual NES
+<br /><img src="http://bisqwit.iki.fi/kala/snap/nesemu1_ntsccolor_c3.png" alt="Image" /><img src="http://www.slack.net/~ant/nes-hacks/full_nes_palette2.jpg" alt="Image" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>beannaich</b> [ Sat Oct 15, 2011 4:00 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><a href="http://i1132.photobucket.com/albums/m580/beannaich/Capture-1.png" class="postlink">looks fine to me</a>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Zepper</b> [ Sat Oct 15, 2011 3:09 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Could someone post a .PAL file of this, please? Must be 192 bytes, no color emphasis entries.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>beannaich</b> [ Sat Oct 15, 2011 3:13 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />ask and ye shall <a href="http://www.mediafire.com/?ogo7853xd93y8de" class="postlink">receive</a>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>10</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

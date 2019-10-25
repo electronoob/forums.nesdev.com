@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=2&amp;t=12278" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2015-02-17T11:11:24-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=2&amp;t=12278</id>
+<entry>
+<author><name><![CDATA[dustmop]]></name></author>
+<updated>2015-02-17T11:11:24-07:00</updated>
+<published>2015-02-17T11:11:24-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=12278&amp;p=141394#p141394</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=12278&amp;p=141394#p141394"/>
+<title type="html"><![CDATA[Re: Using gimpscript to automate my CHR graphics asset pipel]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=12278&amp;p=141394#p141394"><![CDATA[
+This is really slick! My workflow has been similar to what you describe (Gimp, Makefiles) but with a different png -&gt; chr tool. Having to do the xcf -&gt; png export has always been a pain, and led to my gimp files needing to live in a different folder structure outside of my main repo. I'm looking forward to integrating your export script and having everything live in one place!<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6219">dustmop</a> — Tue Feb 17, 2015 11:11 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[thenendo]]></name></author>
+<updated>2015-01-19T10:59:37-07:00</updated>
+<published>2015-01-19T10:59:37-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=12278&amp;p=139624#p139624</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=12278&amp;p=139624#p139624"/>
+<title type="html"><![CDATA[Using gimpscript to automate my CHR graphics asset pipeline]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=12278&amp;p=139624#p139624"><![CDATA[
+Just thought I'd share a development technique I recently worked out, in case it's useful to others.<br /><br />You probably already know about tepple's Python Image Library-based png/gif/etc -&gt; CHR converter from his <a href="http://pineight.com/nes/#template" class="postlink">NROM template</a>. This is great, because it means you can generate your pattern tables / CHR ROM banks using any modern image editing program that can produce 4-color indexed images in modern formats.<br /><br />Personally I use the GIMP for my pixel-pushing -- I make extensive use of visual grids, layers (collapsed before exporting), cubic interpolated rotations, etc. GIMP's native file format is called XCF, and it's what will save all of the GIMP-specific &quot;metadata&quot; about your image in addition to the pixels themselves, like layout grids, layers, undo history, and more.<br /><br />So, in terms of my project's git repository, the XCF files are like the &quot;source&quot; files, and the resulting PNGs are like intermediate binary files produced from the source files, and the CHR files are the final binary output. Only the XCF source files are checked in and versioned, since the PNGs and CHRs are derived.<br /><br />Up to now, this required a manual step of exporting the XCF image to PNG from within GIMP. But ideally the whole source -&gt; binary pipeline should be automated by my Makefile, and dependency-aware.<br /><br />So I wrote this little bash script that uses GIMP's LISPy scripting language to automatically export an XCF file to PNG from the shell:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">#!/bin/bash<br /><br />set -o nounset<br /><br />GIMP=&quot;$(which gimp)&quot;<br />if &#91; ! -x &quot;$GIMP&quot; &#93;; then<br />    echo &quot;$0: \`gimp' not found on PATH.&quot;<br />    exit 1<br />fi<br /><br />INFILE=&quot;$1&quot;<br />OUTFILE=&quot;$2&quot;<br /><br />if &#91; ! -r &quot;$INFILE&quot; &#93;; then<br />    echo &quot;$0: Input file not found or not readable: $INFILE&quot; &gt;&amp;2<br />    exit 1<br />fi<br /><br />GIMP_LISP=&quot;<br />(let* ((image (car (gimp-file-load RUN-NONINTERACTIVE \&quot;$INFILE\&quot; \&quot;$INFILE\&quot;)))<br />      (drawable (car (gimp-image-get-active-layer image))))<br /> (file-png-save RUN-NONINTERACTIVE image drawable \&quot;$OUTFILE\&quot; \&quot;$OUTFILE\&quot; 0 9 0 0 0 1 1)<br /> (gimp-image-delete image))<br /><br />(gimp-quit 0)&quot;<br /><br /># Go<br />&quot;$GIMP&quot; -i -b &quot;$GIMP_LISP&quot;<br /></div><br /><br />So now my Makefile looks like this:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent"># bin/bmp2nes is tepple's converter<br />chr/sprites.chr: chr/sprites.png bin/bmp2nes<br />        bin/bmp2nes -i chr/sprites.png -o chr/sprites.chr<br /><br /># bin/xcf2png is the above script<br />chr/sprites.png: chr/sprites.xcf bin/xcf2png<br />        bin/xcf2png chr/sprites.xcf chr/sprites.png<br /><br /># My main object file depends on the sprites.chr file because it .incbins it<br />main.o: main.s chr/sprites.chr<br />        # ... run ca65, etc.<br /></div><br /><br />So now I can happily do all of my sprite editing in the GIMP with infinite undo and fancy tools, and just ctrl-s when I'm done. The next time I run make, it detects that the PNG needs to get regenerated, the CHR rom binary gets regenerated, any assembly modules that depend on it get reassembled, and the .nes file gets re-linked together, all automatically. Boom!<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6717">thenendo</a> — Mon Jan 19, 2015 10:59 am</p><hr />
+]]></content>
+</entry>
+</feed>

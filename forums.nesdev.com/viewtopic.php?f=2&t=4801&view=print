@@ -1,0 +1,423 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Loading 16x16 Metatiles</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Loading 16x16 Metatiles</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=4801">http://forums.nesdev.com/viewtopic.php?f=2&amp;t=4801</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Roth</b> [ Thu Jan 29, 2009 5:35 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Loading 16x16 Metatiles</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />For the past couple of days I've been trying to come up with a way to load 16x16 metatiles into the PPU. The only way I could imagine is to have a buffer that you load into prior to pulling it all to the screen. As it is right now, I am working on getting the top 256 tiles in the PPU. I've tried a few things, and so far this is getting me the best results, but it's still not displaying properly.
+<br />
+<br />What I am doing is grabbing the level number, which is in multiples of two, and getting the address from a table:
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp;jsr PPU_off<br />&nbsp; &nbsp;ldy game_level<br /><br />&nbsp; &nbsp;lda level_data_start,y<br />&nbsp; &nbsp;sta address_temp_lo<br />&nbsp; &nbsp;lda level_data_start+1,y<br />&nbsp; &nbsp;sta address_temp_hi<br /><br />; The table of word sized labels<br />level_data_start:<br />&nbsp; &nbsp;.addr board_1_1, board_1_2, board_1_3, board_1_4<br /></div><br /><br />After that, I am using a pointer to get the kind of block in the address (in this case, board_1_1).<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp;<br />&nbsp; &nbsp;ldy #$00<br />:&nbsp; &nbsp;lda &#40;address_temp_lo&#41;,y<br />&nbsp; &nbsp;sta get_block<br /></div><br /><br />After that, I do a couple of subroutines, one to grab the tile numbers from, which is also my first time dealing with jump tables, and the other routine sticks the tiles in a buffer located at $600. Then I increment Y, check it to be #$40, and go loading from the buffer at $600 to the PPU:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp;jsr choose_block<br /><br />&nbsp; &nbsp;jsr do_block_buffer<br />&nbsp; &nbsp;iny<br />&nbsp; &nbsp;cpy #$40<br />&nbsp; &nbsp;bne :-<br />&nbsp; &nbsp;inc address_temp_hi<br /><br />&nbsp; &nbsp;jsr do_top_nametable<br /><br />; ------------------------------------------<br /><br />choose_block:<br />&nbsp; &nbsp;lda get_block<br />&nbsp; &nbsp;asl a<br />&nbsp; &nbsp;tax<br />&nbsp; &nbsp;lda block_types+1,x<br />&nbsp; &nbsp;pha<br />&nbsp; &nbsp;lda block_types,x<br />&nbsp; &nbsp;pha<br />&nbsp; &nbsp;rts<br /><br />; Below is the table of addresses for what to do for each block<br />block_types:<br />&nbsp; &nbsp;.addr open_block-1<br />&nbsp; &nbsp;.addr stage1_solid_block-1<br />&nbsp; &nbsp;.addr electric_side_block-1<br />&nbsp; &nbsp;.addr stage2_solid_block-1<br />&nbsp; &nbsp;.addr electric_top_block-1<br /><br />; Here are the kind of things I do in those subroutines:<br />open_block:<br />&nbsp; &nbsp;lda #$00<br />&nbsp; &nbsp;sta tile_1<br />&nbsp; &nbsp;sta tile_2<br />&nbsp; &nbsp;sta tile_3<br />&nbsp; &nbsp;sta tile_4<br />&nbsp; &nbsp;rts<br />stage1_solid_block:<br />&nbsp; &nbsp;lda #$01<br />&nbsp; &nbsp;sta tile_1<br />&nbsp; &nbsp;lda #$02<br />&nbsp; &nbsp;sta tile_2<br />; etc etc.... <br /><br />; Here is where the tiles are put into a buffer<br />do_block_buffer:<br />&nbsp; &nbsp;ldx metatile_index<br />&nbsp; &nbsp;lda tile_1<br />&nbsp; &nbsp;sta bg_buffer,x<br />&nbsp; &nbsp;inx<br />&nbsp; &nbsp;lda tile_2<br />&nbsp; &nbsp;sta bg_buffer,x<br />&nbsp; &nbsp;txa<br />&nbsp; &nbsp;clc<br />&nbsp; &nbsp;adc #31<br />&nbsp; &nbsp;tax<br />&nbsp; &nbsp;lda tile_3<br />&nbsp; &nbsp;sta bg_buffer,x<br />&nbsp; &nbsp;inx<br />&nbsp; &nbsp;lda tile_4<br />&nbsp; &nbsp;sta bg_buffer,x<br />&nbsp; &nbsp;txa<br />&nbsp; &nbsp;sec<br />&nbsp; &nbsp;sbc #31<br />&nbsp; &nbsp;tax<br />&nbsp; &nbsp;stx metatile_index<br />;&nbsp; &nbsp;bne :+<br />;&nbsp; &nbsp;inc metatile_index+1&nbsp; &nbsp; &nbsp;; I forgot to take this block out of the code<br />;:&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; edited now<br />&nbsp; &nbsp;rts<br /><br />; Pull it to the PPU<br /><br />do_top_nametable:<br />&nbsp; &nbsp;lda #$20<br />&nbsp; &nbsp;sta $2006<br />&nbsp; &nbsp;ldx #$00<br />&nbsp; &nbsp;sta $2006<br />:&nbsp; &nbsp;lda bg_buffer,x<br />&nbsp; &nbsp;sta $2007<br />&nbsp; &nbsp;inx<br />&nbsp; &nbsp;bne :-<br />&nbsp; &nbsp;rts<br /></div>
+<br />
+<br />The left pic is what it looks like when I build it, and the right one is what it should look <em>similar</em> to (top 256 tiles):
+<br />
+<br /><img src="http://img.photobucket.com/albums/v287/I_am_Roth/web_examples/crappy_loading.png" alt="Image" /> <img src="http://robertlbryant.com/gaming/images/clik_ss0.png" alt="Image" />
+<br />
+<br />I can't figure out what is going on at all :/ If anyone can spot something I'm doing entirely wrong, let me know. This is getting pretty aggravating.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Thu Jan 29, 2009 6:29 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />You are overwriting the bottom row of the metatiles because of the way metatile_index is incremented. Think about it: after writing the last metatile of the first row, that "sbc #31" will try to place the pointer to the left of it, but since the row ended that will actually be the first tile of the next row of tiles, so the new row of metatiles overwrites the bottom half of the previous one.
+<br />
+<br />What you have to do is detect the end of a metatile row and add 32 to the index when that happens. Maybe you can fix it with this (between "tax" and "stx metatile_index"):
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp;and #%00011111<br />&nbsp; &nbsp;bne :+<br />&nbsp; &nbsp;clc<br />&nbsp; &nbsp;adc #32<br />&nbsp; &nbsp;tax<br />:</div>
+<br />
+<br />EDIT: I just want to add that I think you are overcomplicating things, and wasting a lot of ROM by storing metatiles like that (as code, instead of just data). There are many ways you can make that code faster, smaller and simpler. If you want some tips for that, let us know.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Roth</b> [ Thu Jan 29, 2009 7:03 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Well, I have switched those numbers to numerous things (the two 31's above). Because, I lay two tiles down, add 31 to that to get to the next row, then lay two tiles down. OHHHHHHH! Wait, after the whole first two rows are laid down, then the rest is getting over-written... crap. Okay. Because the first row goes down, then the second row, then the third row doesn't start on the third row, instead it starts on the second row... okay. Wow, how stupid haha Thanks for that : )
+<br />
+<br />About the way I store it, here is how I store the metatiles:
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">board_1_1:<br />&nbsp; &nbsp;.byte $01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01<br />&nbsp; &nbsp;.byte $01,$01,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$01,$01<br />&nbsp; &nbsp;.byte $01,$02,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$02,$01<br />&nbsp; &nbsp;.byte $01,$01,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$01,$01<br /><br />&nbsp; &nbsp;.byte $01,$01,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$01,$01<br />&nbsp; &nbsp;.byte $01,$02,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$02,$01<br />&nbsp; &nbsp;.byte $01,$01,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$01,$01<br />&nbsp; &nbsp;.byte $01,$02,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$02,$01<br /><br />&nbsp; &nbsp;.byte $01,$01,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$01,$01<br />&nbsp; &nbsp;.byte $01,$01,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$01,$01<br />&nbsp; &nbsp;.byte $01,$02,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$02,$01<br />&nbsp; &nbsp;.byte $01,$01,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$01,$01<br /><br />; This is how I define each metatile block:<br />open_block:<br />&nbsp; &nbsp;lda #$00<br />&nbsp; &nbsp;sta tile_1<br />&nbsp; &nbsp;sta tile_2<br />&nbsp; &nbsp;sta tile_3<br />&nbsp; &nbsp;sta tile_4<br />&nbsp; &nbsp;rts<br />stage1_solid_block:<br />&nbsp; &nbsp;lda #$01<br />&nbsp; &nbsp;sta tile_1<br />&nbsp; &nbsp;lda #$02<br />&nbsp; &nbsp;sta tile_2<br />&nbsp; &nbsp;lda #$03<br />&nbsp; &nbsp;sta tile_3<br />&nbsp; &nbsp;lda #$04<br />&nbsp; &nbsp;sta tile_4<br />&nbsp; &nbsp;rts<br />electric_side_block:<br />&nbsp; &nbsp;lda #$05<br />&nbsp; &nbsp;sta tile_1<br />&nbsp; &nbsp;sta tile_2<br />&nbsp; &nbsp;lda #$06<br />&nbsp; &nbsp;sta tile_3<br />&nbsp; &nbsp;sta tile_4<br />&nbsp; &nbsp;rts<br />stage2_solid_block:<br />&nbsp; &nbsp;lda #$07<br />&nbsp; &nbsp;sta tile_1<br />&nbsp; &nbsp;lda #$08<br />&nbsp; &nbsp;sta tile_2<br />&nbsp; &nbsp;lda #$09<br />&nbsp; &nbsp;sta tile_3<br />&nbsp; &nbsp;lda #$0a<br />&nbsp; &nbsp;sta tile_4<br />&nbsp; &nbsp;rts<br />electric_top_block:<br />&nbsp; &nbsp;lda #$0b<br />&nbsp; &nbsp;sta tile_1<br />&nbsp; &nbsp;sta tile_3<br />&nbsp; &nbsp;lda #$0c<br />&nbsp; &nbsp;sta tile_2<br />&nbsp; &nbsp;sta tile_4<br />&nbsp; &nbsp;rts<br /><br /></div>
+<br />
+<br />The blocks are called from the jump table, and those are the only metatiles I have defined right now. If there is a better way, I am always open to suggestions!
+<br />
+<br />EDIT: Oh, and the fix didn't fix it, but after rereading your post and what-not, it finally clicked what was going on, so now I can mess with it some more. Thanks man : )
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Thu Jan 29, 2009 7:10 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Roth wrote:</div><div class="quotecontent">Oh, and the fix didn't fix it, but after rereading your post and what-not, it finally clicked what was going on, so now I can mess with it some more. Thanks man : )</div>
+<br />Oh, there is a glitch in my fix! it should be:
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">and #%00011111<br />&nbsp; &nbsp;bne :+<br />&nbsp; &nbsp;txa<br />&nbsp; &nbsp;clc<br />&nbsp; &nbsp;adc #32<br />&nbsp; &nbsp;tax<br />:</div>
+<br />Forgot the TXA! Maybe it will work now. The 31s you used should work fine.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Roth</b> [ Thu Jan 29, 2009 7:22 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><span style="font-size: 200%; line-height: normal">: D</span>
+<br />
+<br /><img src="http://img.photobucket.com/albums/v287/I_am_Roth/web_examples/proper_loading_w00t.png" alt="Image" />
+<br />
+<br />You're a king man. Now I have to check this out and pick it apart. Every time ANDs and ORAs and EORs are involved, I have to look at things and think hard hehe
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Dwedit</b> [ Thu Jan 29, 2009 7:24 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />AND: mask bits off
+<br />ORA: turning bits on
+<br />EOR: bit toggling
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Celius</b> [ Thu Jan 29, 2009 7:29 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Even worse it BCC and BCS. I can never remember which one means Branch on Greater than or which means Branch on Less than. I think Tokumaru said once that it's easy to remember because if the carry has been cleared, M &gt; A because the 1 has been borrowed or something, and I loosely remember that.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Thu Jan 29, 2009 7:41 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />That "and #%00011111" is used to detect the end of a row. A row has 32 tiles, numbered 0 to 31. 31 in binary is 00011111, and if you add 1 to it, it becomes 00100000 (32 decimal). This means that every time a row ends, the lower 5 bits will switch from 11111 to 00000. The higher bits don't matter. When you AND 00011111 with another value, the result will only be 0 if all 5 bits of the value are 0, so the Z flag tells us if the row ended or not.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Thu Jan 29, 2009 8:11 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Now for some optimizations to your code! =)
+<br />
+<br />First, it's great that you understood the jump table + RTS trick, but this is hardly a good place to use it. All those metatile routines with lots of LDAs and STAs will cost you a nice chunk of ROM down the road. Instead of a table of routines, you could have 4 tables listing the tiles used by the metatiles:
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; open<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; |&nbsp; &nbsp; stage1_solid<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; |&nbsp; &nbsp; |&nbsp; &nbsp; electric_side<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; |&nbsp; &nbsp; |&nbsp; &nbsp; |&nbsp; &nbsp; &#40;...&#41;<br />tile1:<br />&nbsp; &nbsp; &nbsp; &nbsp; .db $00, $01, $05, &#40;...&#41;<br />tile2:<br />&nbsp; &nbsp; &nbsp; &nbsp; .db $00, $02, $05, &#40;...&#41;<br />tile3:<br />&nbsp; &nbsp; &nbsp; &nbsp; .db $00, $03, $06, &#40;...&#41;<br />tile4:<br />&nbsp; &nbsp; &nbsp; &nbsp; .db $00, $04, $06, &#40;...&#41;</div><br />That way, after "lda (address_temp_lo),y" you could read the tiles much faster with:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp;tax<br />&nbsp; &nbsp;lda tile1, x<br />&nbsp; &nbsp;sta tile_1<br />&nbsp; &nbsp;lda tile2, x<br />&nbsp; &nbsp;sta tile_2<br />&nbsp; &nbsp;lda tile3, x<br />&nbsp; &nbsp;sta tile_3<br />&nbsp; &nbsp;lda tile4, x<br />&nbsp; &nbsp;sta tile_4</div>
+<br />OK, but the next optimization is actually to get rid of the tile_1, tile_2, tile_3, tile_4 variables. There is no need for them when you can read the tiles directly from the table. In your <strong>do_block_buffer</strong> routine, you could just read from the tile tables directly, but you'll have to free either X or Y to do it. You could probably free Y, as it's just being used to read map data, so you could save it somewhere before copying the metatile to the buffer and restore it later.
+<br />
+<br />There are some other things you could do, such as use a smaller buffer, like 64 bytes for only 1 full row of metatiles, and draw rows one by one. This will come in handy when you decide to make scrolling games, because then you'll only be able to update single columns or rows of metatiles. Making the rendering system row/column oriented will help when that time comes. And it's actually an advantage to use a smaller buffer, because you'll have more free RAM.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Thu Jan 29, 2009 9:23 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tokumaru wrote:</div><div class="quotecontent">There are some other things you could do, such as use a smaller buffer, like 64 bytes for only 1 full row of metatiles, and draw rows one by one. This will come in handy when you decide to make scrolling games, because then you'll only be able to update single columns or rows of metatiles. Making the rendering system row/column oriented will help when that time comes. And it's actually an advantage to use a smaller buffer, because you'll have more free RAM.</div>
+<br />But depending on how you decide to compress your maps and/or make the environment destructible, you may still need to keep a screen's worth of metatiles in RAM in order to do collision detection.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Thu Jan 29, 2009 9:36 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Celius wrote:</div><div class="quotecontent">Even worse it BCC and BCS. I can never remember which one means Branch on Greater than or which means Branch on Less than.</div>
+<br />The Apple IIGS Hardware Reference included a copy of the 65C816 data sheet. This defined BLT as an alias for BCC, and BGE as an alias for BCS. (<a href="http://6502.org/documents/datasheets/wdc/" class="postlink">6502.org has a newer version as a PDF</a>; check page 38.) So yes, these mnemonics are canon, and <a href="http://www.cc65.org/doc/ca65-3.html#ss3.2" class="postlink">ca65 can be set to recognize them</a>.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>MetalSlime</b> [ Fri Jan 30, 2009 1:30 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Celius wrote:</div><div class="quotecontent">Even worse it BCC and BCS. I can never remember which one means Branch on Greater than or which means Branch on Less than. I think Tokumaru said once that it's easy to remember because if the carry has been cleared, M &gt; A because the 1 has been borrowed or something, and I loosely remember that.</div>
+<br />
+<br />sorry to continue the threadjack, but I remember it like this:
+<br />
+<br />S is greater than C in the alphabet, so BCS is the "greater than" branch
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Roth</b> [ Fri Jan 30, 2009 11:46 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />EDIT: I have since figured out how to do the bottom portion of this post, though it is a bit ugly. I included a beq between the bcs and bne. Ugly I think, but works : P
+<br />
+<br /><strong>ORIGINAL POST:</strong>
+<br /><div class="quotetitle">tokumaru wrote:</div><div class="quotecontent">Instead of a table of routines, you could have 4 tables listing the tiles used by the metatiles <strong>&lt;snip&gt;</strong> OK, but the next optimization is actually to get rid of the tile_1, tile_2, tile_3, tile_4 variables. There is no need for them when you can read the tiles directly from the table. In your <strong>do_block_buffer</strong> routine, you could just read from the tile tables directly, but you'll have to free either X or Y to do it. You could probably free Y, as it's just being used to read map data, so you could save it somewhere before copying the metatile to the buffer and restore it later.</div><br /><br />Ah, nice, that was pretty easy to implement, too!<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">tile_a:<br />&nbsp; &nbsp;.byte $00,$01,$05,$07,$0b<br />tile_b:<br />&nbsp; &nbsp;.byte $00,$02,$05,$08,$0c<br />tile_c:<br />&nbsp; &nbsp;.byte $00,$03,$06,$09,$0b<br />tile_d:<br />&nbsp; &nbsp;.byte $00,$04,$06,$0a,$0c<br /><br />do_block_buffer:<br />&nbsp; &nbsp;ldy get_block<br />&nbsp; &nbsp;ldx metatile_index<br />&nbsp; &nbsp;lda tile_a,y<br />&nbsp; &nbsp;sta bg_buffer,x<br />&nbsp; &nbsp;inx<br />&nbsp; &nbsp;lda tile_b,y<br />&nbsp; &nbsp;sta bg_buffer,x<br />&nbsp; &nbsp;txa<br />&nbsp; &nbsp;clc<br />&nbsp; &nbsp;adc #31<br />&nbsp; &nbsp;tax<br />&nbsp; &nbsp;lda tile_c,y<br />&nbsp; &nbsp;sta bg_buffer,x<br />&nbsp; &nbsp;inx<br />&nbsp; &nbsp;lda tile_d,y<br />&nbsp; &nbsp;sta bg_buffer,x<br />&nbsp; &nbsp;txa<br />&nbsp; &nbsp;sec<br />&nbsp; &nbsp;sbc #31<br />&nbsp; &nbsp;tax<br />&nbsp; &nbsp;and #%00011111<br />&nbsp; &nbsp;bne :+<br />&nbsp; &nbsp;txa<br />&nbsp; &nbsp;clc<br />&nbsp; &nbsp;adc #32<br />&nbsp; &nbsp;tax<br />:&nbsp; &nbsp;stx metatile_index<br />&nbsp; &nbsp;rts<br /><br />; preserving Y after getting the block<br />&nbsp; &nbsp;ldy #$00<br />:&nbsp; &nbsp;lda &#40;address_temp_lo&#41;,y<br />&nbsp; &nbsp;sta get_block<br />&nbsp; &nbsp;tya<br />&nbsp; &nbsp;pha<br /><br />&nbsp; &nbsp;jsr do_block_buffer<br />&nbsp; &nbsp;pla<br />&nbsp; &nbsp;tay<br />&nbsp; &nbsp;iny<br />&nbsp; &nbsp;cpy #$40<br />; more code blah blah<br /></div><br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">There are some other things you could do, such as use a smaller buffer, like 64 bytes for only 1 full row of metatiles, and draw rows one by one. This will come in handy when you decide to make scrolling games, because then you'll only be able to update single columns or rows of metatiles. Making the rendering system row/column oriented will help when that time comes. And it's actually an advantage to use a smaller buffer, because you'll have more free RAM.</div><br /><br />That sounds pretty interesting, but right now my focus is going to be on pulling the nametable in. Right now it's having problems doing both the top and middle portion at the same time, although it looks to me like it should be working fine. Correct me if I'm wrong, but should the BCS branch down to where I have it going, and the BNE should branch up, but if Y is 40, it should skip both of those and run the code to fill the top nametable?<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp;ldy #$00<br />:&nbsp; &nbsp;lda &#40;address_temp_lo&#41;,y<br />&nbsp; &nbsp;sta get_block<br />&nbsp; &nbsp;tya<br />&nbsp; &nbsp;pha<br /><br />;&nbsp; &nbsp;jsr choose_block<br /><br />&nbsp; &nbsp;jsr do_block_buffer<br />&nbsp; &nbsp;pla<br />&nbsp; &nbsp;tay<br />&nbsp; &nbsp;iny<br />&nbsp; &nbsp;cpy #$40<br />&nbsp; &nbsp;bcs :+<br />&nbsp; &nbsp;bne :-<br /><br />&nbsp; &nbsp;inc address_temp_hi<br />&nbsp; &nbsp;jsr do_top_nametable<br />:<br />&nbsp; &nbsp;cpy #$80<br />&nbsp; &nbsp;bne :--<br />&nbsp; &nbsp;inc address_temp_hi<br />&nbsp; &nbsp;jsr do_middle_nametable<br /></div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

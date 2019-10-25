@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=9&amp;t=8316" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2011-11-18T20:44:19-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=9&amp;t=8316</id>
+<entry>
+<author><name><![CDATA[infiniteneslives]]></name></author>
+<updated>2011-11-18T20:44:19-07:00</updated>
+<published>2011-11-18T20:44:19-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8316&amp;p=86507#p86507</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8316&amp;p=86507#p86507"/>
+<title type="html"><![CDATA[Need help for Kazzo USB rom dumper]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8316&amp;p=86507#p86507"><![CDATA[
+If that's the original firmware it looks that phi2 is ALREADY being toggled.  But the original issue was supposed to be that it wasn't?<br /><br />I'm sure the frequency isn't 1.7Mhz but I would think it's enough to prevent a reset.  I'm not really sure how that mapper reset thing works though...<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4832">infiniteneslives</a> — Fri Nov 18, 2011 8:44 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[byemu]]></name></author>
+<updated>2011-11-18T16:21:18-07:00</updated>
+<published>2011-11-18T16:21:18-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8316&amp;p=86501#p86501</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8316&amp;p=86501#p86501"/>
+<title type="html"><![CDATA[Need help for Kazzo USB rom dumper]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8316&amp;p=86501#p86501"><![CDATA[
+<div class="quotetitle">HardWareMan wrote:</div><div class="quotecontent"><br />I think that the firmware for the controller must be improved in order to correct work management PH2 signal. The old one controls PH2 pin directly wich are may not be compatible with new schematic with oscillator. By the way, you checked for presence of frequency?<br /></div><br /><br /><br />I think so,but i don't know how to improved,maybe I can try it.<br /><br />see the firmware's sourcecode,maybe you can improved it(I use a 1.6mhz quarz).<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent"> //  00000000<br /> //       |||____PHI2  1=up,0=down<br /> //       ||_____ROMCS 1=up<br /> //       |______RW    1=up<br /> //<br /> // BUS_CLOSE = ~&#40;1 &lt;&lt; CPU_PHI2&#41;<br />void cpu_read&#40;uint16_t address, uint16_t length, uint8_t *data&#41;<br />&#123;<br />   BUS_CONTROL_OUT = BUS_CLOSE;//pulldown CPU_PHI2,other are up<br />   while&#40;length != 0&#41;&#123;<br />      uint8_t c = BUS_CLOSE;<br />      direction_write&#40;&#41;;<br />      address_set&#40;address&#41;;<br />      if&#40;&#40;address &amp; 0x8000&#41; != 0&#41;&#123;<br />         c &amp;= bit_get_negative&#40;CPU_ROMCS&#41;;//pulldown CPU_ROMCS<br />      &#125;<br />      c |= 1 &lt;&lt; CPU_PHI2;//pullup PHI2<br />      BUS_CONTROL_OUT = c;//execute op<br />      direction_read&#40;&#41;;<br />      *data = DATABUS_IN;<br />      data += 1;<br />      BUS_CONTROL_OUT = BUS_CLOSE;<br />      address += 1;<br />      length--;<br />   &#125;<br />   direction_write&#40;&#41;;<br />&#125;<br /><br />void cpu_read_6502&#40;uint16_t address, uint16_t length, uint8_t *data&#41;<br />&#123;<br />   while&#40;length != 0&#41;&#123;<br />      uint8_t c = BUS_CLOSE;<br />      //down -&gt; up<br />      direction_write&#40;&#41;;<br />      address_set&#40;address&#41;;<br />      BUS_CONTROL_OUT = c;//execute op<br />      clock_wait&#40;1&#41;;//wait 550ns<br />      <br />      //phi2 up<br />      c |= &#40;1 &lt;&lt; CPU_PHI2&#41;;////pullup PHI2<br />      if&#40;&#40;address &amp; 0x8000&#41; != 0&#41;&#123;<br />         c &amp;= bit_get_negative&#40;CPU_ROMCS&#41;;//pulldown CPU_ROMCS<br />      &#125;<br />      BUS_CONTROL_OUT = c;//execute op<br />      direction_read&#40;&#41;;<br />      clock_wait&#40;1&#41;;//wait 550ns<br />      *data = DATABUS_IN;//read data<br />      data += 1;<br /><br />      BUS_CONTROL_OUT = c;//execute op<br />      <br />      //phi2 down, bus close<br />      BUS_CONTROL_OUT = BUS_CLOSE;//pulldown CPU_PHI2,other are up<br />      <br />      address += 1;<br />      length--;<br />   &#125;<br />   address_set&#40;ADDRESS_CLOSE&#41;;<br />&#125;<br /><br />/*<br />NTSC hardware timing<br />Master clock fsc: 21.4772272 MHz<br />CPU clock fsc/12: 1.789773MHz<br />clock per second 12/fsc: 5.58*10**-7 sec, 0.55 us<br />*/<br />void cpu_write_6502&#40;uint16_t address, uint16_t length, const uint8_t *data&#41;<br />&#123;<br />   while&#40;length != 0&#41;&#123;<br />      uint8_t control;<br />      address_set&#40;address&#41;;<br />      <br />      //phi2 down<br />      ////pulldown CPU_RW and CPU_PHI2<br />      control = bit_get_negative&#40;CPU_RW&#41; &amp; bit_get_negative&#40;CPU_PHI2&#41;;<br />      BUS_CONTROL_OUT = control;<br />      clock_wait&#40;1&#41;;//wait 550ns<br /><br />      //phi2 up<br />      if&#40;&#40;address &amp; 0x8000&#41; != 0&#41;&#123;<br />         control &amp;= bit_get_negative&#40;CPU_ROMCS&#41;;//pulldown CPU_ROMCS<br />      &#125;<br /><br />      control |= &#40;1 &lt;&lt; CPU_PHI2&#41;;//pullup PHI2<br />      BUS_CONTROL_OUT = control;<br />      //data set<br />      DATABUS_OUT = *data;//write data<br />      data++;<br />      clock_wait&#40;1&#41;;//wait 550ns<br />      <br />      //phi2 down<br />      control &amp;= bit_get_negative&#40;CPU_PHI2&#41;;<br />      BUS_CONTROL_OUT = control;<br />      if&#40;&#40;address &amp; 0x8000&#41; != 0&#41;&#123;<br />         control &amp;= bit_get_negative&#40;CPU_ROMCS&#41;;<br />      &#125;<br />      BUS_CONTROL_OUT = control;<br />      <br />      //bus close<br />      BUS_CONTROL_OUT = BUS_CLOSE;<br />      clock_wait&#40;1&#41;;<br />      <br />      address += 1;<br />      length--;<br />   &#125;<br />   address_set&#40;ADDRESS_CLOSE&#41;;<br />&#125;</div><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4997">byemu</a> — Fri Nov 18, 2011 4:21 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[HardWareMan]]></name></author>
+<updated>2011-11-18T10:36:09-07:00</updated>
+<published>2011-11-18T10:36:09-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8316&amp;p=86487#p86487</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8316&amp;p=86487#p86487"/>
+<title type="html"><![CDATA[Need help for Kazzo USB rom dumper]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8316&amp;p=86487#p86487"><![CDATA[
+I think that the firmware for the controller must be improved in order to correct work management PH2 signal. The old one controls PH2 pin directly wich are may not be compatible with new schematic with oscillator. By the way, you checked for presence of frequency?<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=2016">HardWareMan</a> — Fri Nov 18, 2011 10:36 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[byemu]]></name></author>
+<updated>2011-11-18T00:31:01-07:00</updated>
+<published>2011-11-18T00:31:01-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8316&amp;p=86476#p86476</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8316&amp;p=86476#p86476"/>
+<title type="html"><![CDATA[Need help for Kazzo USB rom dumper]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8316&amp;p=86476#p86476"><![CDATA[
+<div class="quotetitle">HardWareMan wrote:</div><div class="quotecontent"><br />As I already <a href="http://nesdev.com/bbs/viewtopic.php?p=86375#86375" class="postlink">said</a>:<br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">This signal are not required to be toggled at 1.7MHz, all depend on capasitor. Sometimes couple of hundred kHz are enough.<br /></div></div><br /><br />I am add your circuit to kazzo ,but it's failed!<br />why?<br /><br />I can not read the cpu data from 0x8000 t0 0xffff!<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4997">byemu</a> — Fri Nov 18, 2011 12:31 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[HardWareMan]]></name></author>
+<updated>2011-11-16T20:30:12-07:00</updated>
+<published>2011-11-16T20:30:12-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8316&amp;p=86428#p86428</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8316&amp;p=86428#p86428"/>
+<title type="html"><![CDATA[Need help for Kazzo USB rom dumper]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8316&amp;p=86428#p86428"><![CDATA[
+As I already <a href="http://nesdev.com/bbs/viewtopic.php?p=86375#86375" class="postlink">said</a>:<br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent"><br />This signal are not required to be toggled at 1.7MHz, all depend on capasitor. Sometimes couple of hundred kHz are enough.<br /></div><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=2016">HardWareMan</a> — Wed Nov 16, 2011 8:30 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2011-11-16T05:39:59-07:00</updated>
+<published>2011-11-16T05:39:59-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8316&amp;p=86403#p86403</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8316&amp;p=86403#p86403"/>
+<title type="html"><![CDATA[Need help for Kazzo USB rom dumper]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8316&amp;p=86403#p86403"><![CDATA[
+I'd guess anything between 1 and 3 MHz would work, depending on the values of the caps in the cart's reset detector. So go ahead and try the 1.6 MHz.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Wed Nov 16, 2011 5:39 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[byemu]]></name></author>
+<updated>2011-11-16T04:51:32-07:00</updated>
+<published>2011-11-16T04:51:32-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8316&amp;p=86402#p86402</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8316&amp;p=86402#p86402"/>
+<title type="html"><![CDATA[Need help for Kazzo USB rom dumper]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8316&amp;p=86402#p86402"><![CDATA[
+<div class="quotetitle">HardWareMan wrote:</div><div class="quotecontent"><br />IC 74xx00, resistors 390 Ohm, capasitors 300 pf, quarz 1,7 MHz (or so).<br /></div><br /><br />oh,390 Ohm!<br />In market,I can only buy the quarz 1.6 MHz!<br />Can I replace the 1.7 mhz, or must change the element.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4997">byemu</a> — Wed Nov 16, 2011 4:51 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[HardWareMan]]></name></author>
+<updated>2011-11-16T01:54:26-07:00</updated>
+<published>2011-11-16T01:54:26-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8316&amp;p=86391#p86391</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8316&amp;p=86391#p86391"/>
+<title type="html"><![CDATA[Need help for Kazzo USB rom dumper]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8316&amp;p=86391#p86391"><![CDATA[
+You welcome.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=2016">HardWareMan</a> — Wed Nov 16, 2011 1:54 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[byemu]]></name></author>
+<updated>2011-11-16T01:53:36-07:00</updated>
+<published>2011-11-16T01:53:36-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8316&amp;p=86390#p86390</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8316&amp;p=86390#p86390"/>
+<title type="html"><![CDATA[Need help for Kazzo USB rom dumper]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8316&amp;p=86390#p86390"><![CDATA[
+<div class="quotetitle">HardWareMan wrote:</div><div class="quotecontent"><br />IC 74xx00, resistors 390Ohm, capasitors 300pf, quarz 1,7MHz (or so).<br /></div><br /><br />thank you！<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4997">byemu</a> — Wed Nov 16, 2011 1:53 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[HardWareMan]]></name></author>
+<updated>2011-11-16T01:53:59-07:00</updated>
+<published>2011-11-16T01:51:57-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8316&amp;p=86389#p86389</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8316&amp;p=86389#p86389"/>
+<title type="html"><![CDATA[Need help for Kazzo USB rom dumper]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8316&amp;p=86389#p86389"><![CDATA[
+IC 74xx00, resistors 390 Ohm, capasitors 300 pf, quarz 1,7 MHz (or so).<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=2016">HardWareMan</a> — Wed Nov 16, 2011 1:51 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[byemu]]></name></author>
+<updated>2011-11-16T01:26:03-07:00</updated>
+<published>2011-11-16T01:26:03-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8316&amp;p=86388#p86388</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8316&amp;p=86388#p86388"/>
+<title type="html"><![CDATA[Need help for Kazzo USB rom dumper]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8316&amp;p=86388#p86388"><![CDATA[
+<div class="quotetitle">HardWareMan wrote:</div><div class="quotecontent"><br />Something like this.<br /><img src="http://savepic.su/769168.png" alt="Image" /><br /></div><br /><br />Maybe this circuit can add to my dumper（ Kazzo USB rom dumper）！<br />can you show me more detail？（ex:parts list）<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4997">byemu</a> — Wed Nov 16, 2011 1:26 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[HardWareMan]]></name></author>
+<updated>2011-11-16T01:06:14-07:00</updated>
+<published>2011-11-16T01:06:14-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8316&amp;p=86386#p86386</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8316&amp;p=86386#p86386"/>
+<title type="html"><![CDATA[Need help for Kazzo USB rom dumper]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8316&amp;p=86386#p86386"><![CDATA[
+Something like this.<br /><img src="http://savepic.su/769168.png" alt="Image" /><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=2016">HardWareMan</a> — Wed Nov 16, 2011 1:06 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[byemu]]></name></author>
+<updated>2011-11-16T00:59:29-07:00</updated>
+<published>2011-11-16T00:59:29-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8316&amp;p=86385#p86385</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8316&amp;p=86385#p86385"/>
+<title type="html"><![CDATA[Need help for Kazzo USB rom dumper]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8316&amp;p=86385#p86385"><![CDATA[
+<div class="quotetitle">infiniteneslives wrote:</div><div class="quotecontent"><br />I know of any easy ways to set this up with the kazoo.  It's may be possible to do it with a script but I would doubt it.  <br /><br />If you revised the firmware you could easily just keep toggling the PHI2 signal.  But you would have to know a thing or two about AVR programming.<br /><br />The other hack job option would be to just send the /CE signal to the PHI2 pin.  That would work if the PRG and CHR are dumped simultaneously.  If your script does not have them being dumped at the same time I guess you would want to AND CHR /A13 and PRG /CE.  The toggling of those signals should be enough to keep you from resetting the mapper I would guess.<br /></div><br /><br /><br />I try to change the firmware sourcode and rewrite to the dumper!<br />but failed(only a fat lot date are right，I don't know what's the problem)<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4997">byemu</a> — Wed Nov 16, 2011 12:59 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[byemu]]></name></author>
+<updated>2011-11-16T00:49:04-07:00</updated>
+<published>2011-11-16T00:49:04-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8316&amp;p=86384#p86384</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8316&amp;p=86384#p86384"/>
+<title type="html"><![CDATA[Need help for Kazzo USB rom dumper]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8316&amp;p=86384#p86384"><![CDATA[
+<div class="quotetitle">HardWareMan wrote:</div><div class="quotecontent"><br />Obviously ask infiniteneslives to do this. :3 Or make improvements by yourself if sources are available.<br /></div><br /><br />I think the best way is add a circuit <br />can keep waveform on the sign phi2 and autosyn the cpu read and write sign.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4997">byemu</a> — Wed Nov 16, 2011 12:49 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[infiniteneslives]]></name></author>
+<updated>2011-11-16T00:47:36-07:00</updated>
+<published>2011-11-16T00:47:36-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8316&amp;p=86382#p86382</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8316&amp;p=86382#p86382"/>
+<title type="html"><![CDATA[Need help for Kazzo USB rom dumper]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8316&amp;p=86382#p86382"><![CDATA[
+I know of any easy ways to set this up with the kazoo.  It's may be possible to do it with a script but I would doubt it.  <br /><br />If you revised the firmware you could easily just keep toggling the PHI2 signal.  But you would have to know a thing or two about AVR programming.<br /><br />The other hack job option would be to just send the /CE signal to the PHI2 pin.  That would work if the PRG and CHR are dumped simultaneously.  If your script does not have them being dumped at the same time I guess you would want to AND CHR /A13 and PRG /CE.  The toggling of those signals should be enough to keep you from resetting the mapper I would guess.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4832">infiniteneslives</a> — Wed Nov 16, 2011 12:47 am</p><hr />
+]]></content>
+</entry>
+</feed>

@@ -1,0 +1,60 @@
+#include	"..\DLL\d_iNES.h"
+#include	"..\Hardware\h_MMC3.h"
+
+namespace {
+uint8	Latch;
+
+void	Sync (void) {
+	MMC3::SyncPRG(0x0F, (Latch &0x3) <<4);
+	MMC3::SyncCHR_ROM(0x7F, (Latch &0xC) <<5);
+	MMC3::SyncMirror();
+}
+
+BOOL	MAPINT	Load (void) {
+	MMC3::Load(Sync);
+	return TRUE;
+}
+
+int	MAPINT	SaveLoad (STATE_TYPE mode, int offset, unsigned char *data) {
+	SAVELOAD_BYTE(mode, offset, data, Latch);
+	offset = MMC3::SaveLoad(mode, offset, data);
+	if (mode == STATE_LOAD)	Sync();
+	return offset;
+}
+
+void	MAPINT	Write8 (int Bank, int Addr, int Val) {
+	if ((Addr &0xFF0) ==0x010)
+		Latch = Addr &0x00F;
+	else
+		MMC3::CPUWrite89(Bank, Addr, Val);
+	Sync();
+}
+
+void	MAPINT	Reset (RESET_TYPE ResetType) {	
+	MMC3::Reset(ResetType);
+	EMU->SetCPUWriteHandler(0x8, Write8);
+
+	if (ResetType ==RESET_HARD) Latch =0;
+	Sync();
+}
+
+void	MAPINT	Unload (void) {
+	MMC3::Unload();
+}
+
+uint16 MapperNum = 516;
+} // namespace
+
+const MapperInfo MapperInfo_516 = {
+	&MapperNum,
+	_T("Brilliant Com EduBank"),
+	COMPAT_FULL,
+	Load,
+	Reset,
+	Unload,
+	NULL,
+	MMC3::PPUCycle,
+	SaveLoad,
+	NULL,
+	NULL
+};

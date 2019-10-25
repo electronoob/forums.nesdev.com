@@ -1,0 +1,417 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Changing the scroll every 2 scanlines</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Changing the scroll every 2 scanlines</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=12241">http://forums.nesdev.com/viewtopic.php?f=2&amp;t=12241</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Sun Jan 11, 2015 9:42 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Changing the scroll every 2 scanlines</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />In another thread I considered drawing a raycaster's viewport using tiles that contain only 1 software pixel in the Y axis, and vertically compressing 2 name tables (60 tiles) into a 120-pixel tall area by changing the scroll every 2 scanlines. Changing the scroll isn't much of a problem, since the fine Y scroll isn't used at all and 2 $2006 writes can take care of it, but doing it without wasting massive amounts of CPU time is looking like a challenge.<br /><br />Without a mapper, 100% of the time while the viewport is rendered would be spent on this, since I can't think of any constant-timed task that could be done between scroll changes. MMC3 IRQs fire kinda late in the scanline, enough that the scroll can't be reliably changed right away. Waiting for the next scanline would mean a little over 50% of the time spent squeezing the viewport, which is much better but still fairly expensive.<br /><br />What would the alternative be? A cycle-based IRQ counter? With that I could time the IRQs so there'd be no waiting at all, and all the stolen time would go towards actually changing the scroll, which I imagine will be around 30% of the time, which sounds more reasonable. Problem is these mappers aren't as easy to come as the MMC3, and I don't know if they'll play nice with 4-screen mirroring across different emulators and flash carts.<br /><br />Can anyone think of other ways to vertically squeeze the screen without sacrificing too much CPU time?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Sun Jan 11, 2015 10:07 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Changing the scroll every 2 scanlines</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />It'd be fairly easy to trigger an IRQ when the PPU fetches a specific tile or location from the nametable... although the exact phase you'd need for this application might require some experimentation.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Sun Jan 11, 2015 11:45 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Changing the scroll every 2 scanlines</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I was thinking you could use looping DPCM IRQ that fires at a fixed rate. It can recur at ~4 scanlines, I think? Might be more realistic to do 3 scanlines per scroll instead of 2.<br /><br />1. Wait a special number of cycles (you'll need to create a table mapping the IRQ timings during the frame to their scanline positions, since each IRQ is going to fire in a different but specific horizontal position).<br />2. Set a scroll for this scanline.<br />3. CPU wait for 2 (or 3) scanlines, set scroll a second time.<br />4. Return from interrupt to resume executing arbitrary code.<br /><br />You'd have to do a lot of CPU waiting, but at least you could have maybe 30% free time outside the IRQ response.<br /><br />Actually... does IRQ still work on looping DPCM? If not, accumulated jitter would probably kill this idea.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Mon Jan 12, 2015 2:12 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Changing the scroll every 2 scanlines</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Without a mapper, 100% of the time while the viewport is rendered would be spent on this, since I can't think of any constant-timed task that could be done between scroll changes.[/quote<br />You could execute a virtual machine and execute a main thread, so that each VM instruction takes a constant amount of cycles, and after every 2 or 3 instructions you do a scroll change (or any other timing sensitive operation such as a $4011 write).<br /><br />Not that it'd allow your main thread to execute very fast, but at least it's better than nothing.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent"> MMC3 IRQs fire kinda late in the scanline, enough that the scroll can't be reliably changed right away.</div></div><br />I'm no specialist, but $2006 writes, as well as the lower bits of the $2005 write takes effect immediately. Of course because of the jitter it will still be a major problem, as visual glitches will appear.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Mon Jan 12, 2015 4:00 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Changing the scroll every 2 scanlines</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">lidnariq wrote:</div><div class="quotecontent">It'd be fairly easy to trigger an IRQ when the PPU fetches a specific tile or location from the nametable...</div><br />Custom hardware is outside of the question for me. Too much work before the first line of code can be written, and the whole chicken/egg thing sucks.<br /><br /><div class="quotetitle">rainwarrior wrote:</div><div class="quotecontent">I was thinking you could use looping DPCM IRQ that fires at a fixed rate.</div><br />While this is an interesting suggestion, my experience with DPCM IRQs has been nothing but painful. I could never get a steady effect from that thing.<br /><br /><div class="quotetitle">Bregalad wrote:</div><div class="quotecontent">You could execute a virtual machine and execute a main thread, so that each VM instruction takes a constant amount of cycles, and after every 2 or 3 instructions you do a scroll change (or any other timing sensitive operation such as a $4011 write).</div><br />That's a very different approach, I like it. It would be a hell of a slow VM, but at least you'd be doing something instead of just waiting! I wouldn't do this in this particular case though, because delayed scroll changes with the MMC3 still sound faster.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">I'm no specialist, but $2006 writes, as well as the lower bits of the $2005 write takes effect immediately. Of course because of the jitter it will still be a major problem, as visual glitches will appear.</div><br />I think you're right, and yes, the jittering is the problem.<br /><br />One thing I just realized is that I could probably do the first $2006 write at the end of the previous IRQ, which would allow me to finish setting the scroll sooner (save A, load second $2006 byte, write it). That's 10 CPU cycles + 7 to enter the IRQ plus any left over cycles from the instruction that's running when the IRQ fires, we're looking at up to 72 PPU cycles (NTSC)... plus 260, which is when MMC3 IRQs fire, that's 332, well into the first fetches for the next scanline.<br /><br />I don't care if the fetched data is wrong, because the first 2 tiles are always blank, but the IRQ latency will prevent me from resetting the scroll at a constant spot every time, so there will probably be a lot of jittering.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Mon Jan 12, 2015 4:14 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Changing the scroll every 2 scanlines</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Here's another crazy thought: while the viewport is rendering, only run logic that doesn't use the X register, so it can contain the second $2006 byte always ready to be written as soon as the NMI fires. That should guarantee that the scroll is always changed before PPU cycle 320, even on PAL, right?<br /><br />Losing X for a while every frame sucks, but I thing I can cast rays using only A and Y, for example.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Mon Jan 12, 2015 4:21 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Changing the scroll every 2 scanlines</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">That's a very different approach, I like it. It would be a hell of a slow VM, but at least you'd be doing something instead of just waiting! I wouldn't do this in this particular case though, because delayed scroll changes with the MMC3 still sound faster.</div><br />You are right, but my idea doesn't require the MMC3. Also I through you hated the MMC3's IRQ (and personally I agree it's weird/inconvenient as opposed to the MMC5, the FDS or VRC series for example).<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Here's another crazy thought: while the viewport is rendering, only run logic that doesn't use the X register, so it can contain the second $2006 byte always ready to be written as soon as the NMI fires. That should guarantee that the scroll is always changed before PPU cycle 320, even on PAL, right?</div><br />Definitely possible, but it sounds like the main thread would be extremely painful to code. The time lost because you loose a registers, which implies more memory loads and stores, will probably be on par with the time lost by waiting in each IRQ.<br /><br />Also I didn't mention it, but I think the MMC3 can fire IRQs in two different positions in the scanline depending on which pattern table (left or right) is used for BG and sprites. Have you considered both possibilities ?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Mon Jan 12, 2015 5:53 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Changing the scroll every 2 scanlines</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I do dislike how the MMC3's scanline counter kills the versatility of 8x16 sprites, but I won't be needing to use sprites from both pattern tables this time, so it's fine.<br /><br />Not using X would only affect part of the main thread, which should probably be split into 2 threads because of this. I can think of a few tasks that will work decently using only A and Y. It's certainly faster than a VM with constant-timed instructions.<br /><br />Yes, I have considered the alternate MMC3 IRQ timing, which fires later than in the normal setup, so it wouldn't help me set the scroll sooner, but would result in less wasted time in case I decided to wait for the next HBlank to change the scroll.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Sik</b> [ Mon Jan 12, 2015 10:17 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Changing the scroll every 2 scanlines</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I just had the random thought of making those lines blank, hiding any glitches if you change scroll mid-line (...in theory). The problem is that it pretty much creates a scanlines effect, which may come up as annoying.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Mon Jan 12, 2015 11:59 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Changing the scroll every 2 scanlines</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Sik wrote:</div><div class="quotecontent">I just had the random thought of making those lines blank, hiding any glitches if you change scroll mid-line (...in theory). The problem is that it pretty much creates a scanlines effect, which may come up as annoying.</div><br />I don't see how that would help saving time, seeing as I'd still have to wait for the next HBlank in order to enable rendering back on... Also, in this particular case, scanlines would compromise the dithering method I plan on using to create more colors.<br /><br />I'll probably try setting the scroll at the start of the next HBlank (at this point we can be sure there'll be no glitches), effectively wasting 1 scanline every 2 scanlines. Yes, it sucks, but the alternative of having 2 main threads (one of them unable to use X) seems like hell to manage.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Dwedit</b> [ Mon Jan 12, 2015 12:53 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Changing the scroll every 2 scanlines</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I don't quite understand what you're trying to do, perhaps post a mock screenshot?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Mon Jan 12, 2015 1:17 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Changing the scroll every 2 scanlines</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Someone is using the top 2 rows of each tile as a constant CHR table and rendering to nametables, with each map entry representing an 8x2 pixel area of the screen. This requires 4-screen mirroring (TVROM) and requires changing the scroll every 2 scanlines. See <a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=11290&amp;hilit=fmv" class="postlink">FMV on the NES</a> for more on this technique. And if you don't want to hog the CPU for the entire picture, you need to have a mapper-generated interrupt trigger the writes to the scroll register that change the scroll.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Mon Jan 12, 2015 2:45 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Changing the scroll every 2 scanlines</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />tepples is better with words than I am, but here's my explanation anyway:<br /><br />I'm considering rendering the graphics for a raycaster this way. Each tile contains 2 software pixels, one on the left and one on the right, so these pixels are really tall. I don't want them to be this tall, but this is the only way I can store all possible combinations of colors in under 256 tiles, so that I don't have to update the pattern tables during gameplay. In order to have more acceptable pixels I want to display only 2 rows of each tile and skip the other 6.<br /><br />The ultimate goal is to resize a 256x480-pixel area to 256x120, and for that I need to change the scroll every 2 scanlines. I can't spend a lot of CPU time on this though, because raycasting is already a very CPU-intensive task.<br /><br />And here's why explaining your ideas to other people is good: <strong>I JUST HAD AN IDEA: Instead of changing the scroll every 2 scanlines, I can do it every 4 scanlines!</strong> I just have to display the bottom of a row of tiles followed by the top of the one below it. Losing 1 scanline out of 4 is much more acceptable than what I was considering before.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Celius</b> [ Mon Jan 12, 2015 3:11 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Changing the scroll every 2 scanlines</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Dwedit wrote:</div><div class="quotecontent">I don't quite understand what you're trying to do, perhaps post a mock screenshot?</div><br />Another explanation: he's trying to basically scale a really tall image vertically by changing the Y scroll every 2 scanlines. Unaltered, the image would span 2 nametables and would appear to be stretched really tall. Scrunching the image makes it appear normal.<br /><br /><div class="quotetitle">tokumaru wrote:</div><div class="quotecontent">And here's why explaining your ideas to other people is good: <strong>I JUST HAD AN IDEA: Instead of changing the scroll every 2 scanlines, I can do it every 4 scanlines!</strong> I just have to display the bottom of a row of tiles followed by the top of the one below it. Losing 1 scanline out of 4 is much more acceptable than what I was considering before.</div><br />Genius!
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Mon Jan 12, 2015 3:22 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Changing the scroll every 2 scanlines</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">And here's why explaining your ideas to other people is good: I JUST HAD AN IDEA: Instead of changing the scroll every 2 scanlines, I can do it every 4 scanlines! I just have to display the bottom of a row of tiles followed by the top of the one below it. Losing 1 scanline out of 4 is much more acceptable than what I was considering before.</div><br />Very clever indeed. I can just see how you got excited <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" /><br /><br />The only issue is that scrolling to line #6 of fine scroll is more annoying than scrolling to line #0, #1, #2 or #3 because it can't be done with $2006 alone, but I guess this is a minor issue in your case.<br /><br />Sounds like a raycaster with decent graphics and framerate is on the way to go  <img src="./images/smilies/Mfr_icon_homebrew.png" alt=":beer:" title="Beer" />  <img src="./images/smilies/icon_biggrin.gif" alt=":D" title="Very Happy" /><br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">See FMV on the NES for more on this technique.</div><br />I can't belive I completely missed this topic back then. The problem is that while the technique is impressive, the demoes FMV themselves are very unimpressive. Probably it would take real handcrafted artistic work to make this meaningful, and this requires, well, a good artist who has lots of time.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

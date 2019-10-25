@@ -1,0 +1,95 @@
+SUNSOFT VS.System sub board DRGN-D note
+author:na6ko, date:2015.09.06
+
+[memory map]
+CPU
+$0000-$401f 基本家庭用と同じだが、業務用向けに若干の変更あり
+$4040       control register #0 (write only)
+$4041       control register #1 (write only)
+$4042-$407f 未定義
+$4080-$5fff $4000-$407f の mirror
+$6000-$7fff VS.System shared RAM
+$8000-$9fff program ROM bank #0 (switchable)
+$a000-$ffff program ROM bank #1 (fixed)
+
+PPU
+0x0000-0x0fff character ROM bank #0
+0x1000-0x1fff character ROM bank #1
+0x2000-0x2fff nametable RAM (mirror なし, 俗に言う4画面)
+0x3000-0x3fff 家庭用と同じ
+
+[register]
+control register #0 (address $4040.write)
+bit7:1 未定義
+bit0   control for control register #1??
+       0:disable, 1:enable
+
+control register #1 (address $4041.write)
+bit7   ROM select for program ROM bank #0
+       0:IC5, 1:IC7
+bit6   IC7 A13
+bit5:3 character ROM bank #0 page
+bit2:0 character ROM bank #1 page
+
+register #0 は data 0 を write すると、 #1 の値は全て 0 になるらしい??
+
+[ROM data decryption]
+ROM data は memory controller によって address と register に無関係で単純な bitswap と反転をしてから CPU に渡される.
+
+~rom_d[5] -> cpu_d[7]
+~rom_d[6] -> cpu_d[6]
+rom_d[7]  -> cpu_d[5]
+rom_d[4]  -> cpu_d[4]
+rom_d[1]  -> cpu_d[3]
+rom_d[2]  -> cpu_d[2]
+~rom_d[3] -> cpu_d[1]
+~rom_d[0] -> cpu_d[0]
+
+[pinout]
+memory controller - MB64H435
+DIP40
+ 1 i  PPU A12|40 o IC7 OE#
+ 2 i  ROM D0 |39 o IC5 OE#
+ 3 i  ROM D1 |38 o ROM CE#
+ 4 i  ROM D2 |37 i RESET
+ 5 i  ROM D3 |36 o IC5 A13
+ 6 i  ROM D4 |35 i CPU AB15
+ 7 i  ROM D5 |34 i CPU AB14
+ 8 i  ROM D6 |33 i CPU AB13
+ 9 i  ROM D7 |32 i CPU AB6
+10 p  GND    |31 i CPU AB5
+11 io CPU DB0|30 p +5V
+12 io CPU DB1|29 i CPU AB4
+13 io CPU DB2|28 i CPU AB3
+14 io CPU DB3|27 i CPU AB2
+15 io CPU DB4|26 i CPU AB1
+16 io CPU DB5|25 i CPU AB0
+17 io CPU DB6|24 i write??
+18 io CPU DB7|23 i CPU PHI2
+19 o  IC8 A12|22 i Master Clock
+20 o  IC8 A13|21 o IC8 A14
+
+note:
+1から9: IC7 と IC5 で共有
+11から18: write register 入力兼 decrypted data 出力
+24: 74HC08 を介し、CPU A15 and CPU R/W が入力されるが不十分な気がする. write cycle 検出に疑問. (OR gate なら普通なのだが...)
+22: 21.4MHz
+38: CPU AB15 の反転出力
+39,40: bank register と CPU AB14:13 の decode
+
+IC7 - main program ROM - 27C256
+A14:0 = CPU AB14:0 (from CPU)
+CE# = ROM CE# (from MB64H435)
+OE# = IC7 OE# (from MB64H435)
+
+IC5 - sub program ROM - 27C128
+A13 = IC5 A13 (from MB64H435)
+A12:0 = CPU AB12:0 (from CPU)
+CE# = ROM CE# (from MB64H435)
+OE# = IC5 OE# (from MB64H435)
+
+IC8 - character ROM - 27C256
+A14:12 = IC8 A14:12 (from MB64H435)
+A11:0 = PPU A11:0
+CE# = PPU A13
+OE# = PPU RD#

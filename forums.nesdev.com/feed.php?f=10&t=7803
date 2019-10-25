@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=10&amp;t=7803" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2011-05-29T18:14:27-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=10&amp;t=7803</id>
+<entry>
+<author><name><![CDATA[shawnleblanc]]></name></author>
+<updated>2011-05-29T18:14:27-07:00</updated>
+<published>2011-05-29T18:14:27-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=7803&amp;p=78891#p78891</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=7803&amp;p=78891#p78891"/>
+<title type="html"><![CDATA[Stuck trying to fill one name table.]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=7803&amp;p=78891#p78891"><![CDATA[
+Thanks a lot for your feedback! I've been looking into your suggestions. I've also spent a bit more time looking into 16 bit counting/looping and I've got a few ideas I'll try out.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4879">shawnleblanc</a> — Sun May 29, 2011 6:14 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[UncleSporky]]></name></author>
+<updated>2011-05-29T17:13:28-07:00</updated>
+<published>2011-05-29T17:13:28-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=7803&amp;p=78888#p78888</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=7803&amp;p=78888#p78888"/>
+<title type="html"><![CDATA[Stuck trying to fill one name table.]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=7803&amp;p=78888#p78888"><![CDATA[
+One thing that is important to understand (and that others are trying to convey) is that you <em>don't have to</em> go 32 across, 30 down.<br /><br />I know it seems obvious and natural, you're filling up a screen that's 32 across and 30 down, but $2007 doesn't care about that - it just takes all the data sequentially, in order.<br /><br />So what you can do instead is insert 256 tiles in a row, 4 times, which works out to the same result.<br /><br />Note that you don't have to modify your data at all to do this, even though you have it presented in a nice 32x30 grid, ultimately it's the same thing as 256x4.<br /><br />Here's my own code for doing it in ASM6, similar to others:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">load_screen<br /><br />   ldy #0      ;y goes from 0 to 256<br />   ldx #4      ;x goes from 4 down to 0<br />   lda #&lt;background<br />   sta tmp16x   ;store the low bits of background in a temporary address variable<br />   lda #&gt;background<br />   sta tmp16x+1   ;and also store the high bits<br /><br />   lda #$24   ;load the name table at $2400<br />   sta $2006<br />   lda #$00<br />   sta $2006<br />-   lda &#40;tmp16x&#41;,y   ;load the data located at the temp variable + y<br />   sta $2007<br />   iny      ;increase y by 1<br />   bne -      ;loop back until y has gone through 256 iterations<br /><br />   ;Increase the high bits of the address by 1.<br />   ;This is the same as adding 256, and y is already<br />   ;back at 0, so we're ready for the next 256 bytes!<br /><br />   inc tmp16x+1<br /><br />   dex<br />   bne -      ;loop until we've done this four times &#40;using x&#41;<br /><br />   ldy #$00   ;clear the name table at $2800 &#40;current location&#41; with blank data<br />   ldx #$04<br />   lda #$00<br />-   sta $2007<br />   iny<br />   bne -<br />   dex<br />   bne -<br /><br />   rts<br /></div><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3438">UncleSporky</a> — Sun May 29, 2011 5:13 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[thefox]]></name></author>
+<updated>2011-05-29T05:44:29-07:00</updated>
+<published>2011-05-29T05:44:29-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=7803&amp;p=78874#p78874</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=7803&amp;p=78874#p78874"/>
+<title type="html"><![CDATA[Stuck trying to fill one name table.]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=7803&amp;p=78874#p78874"><![CDATA[
+<div class="quotetitle">shawnleblanc wrote:</div><div class="quotecontent"><br />I'll try again. Let me rephrase:<br /><br />Ignoring the PPU specifics, I'm not sure how to iterate over my 32 x 30 background data. So I'm looking for an example.<br /></div><br />Usually you'll want to use indirect addressing (like in 3gg's example) when the data is over 256 bytes. Basically what you want to do is set up a pointer (2 bytes) on zeropage, copy 256 bytes at a time using indirect y addressing, and increase the high byte of the zeropage pointer after each 256 byte iteration.<br /><br />Another, maybe easier for a newcomer to understand is just using 4 separate loops. This method is not very generic though and the code will often become harder to maintain because of copy-pasting (unless macros are used).<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent"><br />Also, I don't know how to set the background data in my code so that it starts at a $XX00 address, to make iterating over it simpler. The .org command doesn't appear to do this. Maybe I have to pad it with .db?<br /></div><br />Maybe there's a .align directive in the assembler you're using. In any case, aligning it won't necessarily make the code much simpler to write, it'll make it a little bit faster though because there are less page crosses.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=80">thefox</a> — Sun May 29, 2011 5:44 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[3gengames]]></name></author>
+<updated>2011-05-28T21:10:42-07:00</updated>
+<published>2011-05-28T21:10:42-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=7803&amp;p=78866#p78866</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=7803&amp;p=78866#p78866"/>
+<title type="html"><![CDATA[Stuck trying to fill one name table.]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=7803&amp;p=78866#p78866"><![CDATA[
+Here's my program to put a screen to the screen, hope it helps! It uses some more advanced memory pointing though. To get a screen, you pass the variable to it from the A register.<br /><br />You need to have a list of ROM pointers [Low byte first] and then have those point to the ROM where the screen is. Then you need the bulk transfer variable, too. Anyone have any optimizations please show <br />me/him. Thanks!<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">ScreenToScreen:<br />  ASL A<br />  TAX<br />  LDA ScreenPointers,X<br />  STA BulkTransfer<br />  INX<br />  LDA ScreenPointers,X<br />  STA BulkTransfer+1<br />  LDA $2002<br />  LDA #$20<br />  STA $2006<br />  LDA #$00<br />  STA $2006<br />  LDX #$04<br />  LDY #$00<br />ScreenToScreenLoop:<br />  LDA &#91;BulkTransfer&#93;,Y<br />  STA $2007<br />  INY<br />  BNE ScreenToScreenLoop<br />  INC BulkTransfer+1<br />  DEX<br />  BNE ScreenToScreenLoop<br />  LDA #$00<br />  STA $2005<br />  LDA #$FF<br />  STA $2005<br />  RTS<br /></div><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4311">3gengames</a> — Sat May 28, 2011 9:10 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[shawnleblanc]]></name></author>
+<updated>2011-05-28T20:09:35-07:00</updated>
+<published>2011-05-28T20:09:35-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=7803&amp;p=78863#p78863</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=7803&amp;p=78863#p78863"/>
+<title type="html"><![CDATA[Stuck trying to fill one name table.]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=7803&amp;p=78863#p78863"><![CDATA[
+I'll try again. Let me rephrase:<br /><br />Ignoring the PPU specifics, I'm not sure how to iterate over my 32 x 30 background data. So I'm looking for an example. <br /><br />Also, I don't know how to set the background data in my code so that it starts at a $XX00 address, to make iterating over it simpler. The .org command doesn't appear to do this. Maybe I have to pad it with .db?<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4879">shawnleblanc</a> — Sat May 28, 2011 8:09 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[3gengames]]></name></author>
+<updated>2011-05-28T19:00:09-07:00</updated>
+<published>2011-05-28T19:00:09-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=7803&amp;p=78858#p78858</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=7803&amp;p=78858#p78858"/>
+<title type="html"><![CDATA[Stuck trying to fill one name table.]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=7803&amp;p=78858#p78858"><![CDATA[
+What you do is you"feed" $2007 when you assign to the PPU pointer to the $2000 point of RAM on the PPU side. Problem #1 is you took the palette code and modified it. That's wrong. When you write to $2007, it increments automatically. Can you wrap your head around that or do you need more explanation?<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4311">3gengames</a> — Sat May 28, 2011 7:00 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[shawnleblanc]]></name></author>
+<updated>2011-05-28T18:36:41-07:00</updated>
+<published>2011-05-28T18:36:41-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=7803&amp;p=78857#p78857</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=7803&amp;p=78857#p78857"/>
+<title type="html"><![CDATA[Stuck trying to fill one name table.]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=7803&amp;p=78857#p78857"><![CDATA[
+I have a 32 by 30 table defined of what my background should be. Problem is, I can't figure out the code to fill the PPU. This is modified from the Nerdy Nights Background 2 example. In it, only the first few lines are filled but I'd like to fill the whole screen.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">FillNametables:<br />  LDA $2002             ; read PPU status to reset the high/low latch<br />  LDA #$20<br />  STA $2006             ; write the high byte of $2000 address &#40;nametable 0&#41;<br />  LDA #$00<br />  STA $2006             ; write the low byte of $2000 address<br />  LDY #$00              ; start a background row 0<br />  LDX #$00              ; start at background column 0<br />FillNametablesLoop:<br />  LDA #$45              ; this is my tile value. this is supposed to incrementally get the background value from the data, but now it's just hardcoded.<br />  STA $2007<br />  INX                      ; move right one tile<br />  CPX #$20<br />  BNE FillNametablesLoop<br />  INY                      ; move down one line<br />  CPY #$1E             <br />  BNE FillNametablesLoop<br /><br /><br /><br /><br />background:<br />  .db $45,$45,$45,$45,$45,$45,$45,$45,$45,$45,$45,$45,$45,$45,$45,$45<br />  .db $45,$45,$45,$45,$45,$45,$45,$45,$45,$45,$45,$45,$45,$45,$45,$45<br /><br />  etc, etc. for 32 x 30 tiles.<br />   <br /><br /></div><br /><br />So I'd like to feed A with the background values, but I'm not sure how to do it. <br /><br />Is there an example I can look at?<br /><br />Thanks!<br />Shawn<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4879">shawnleblanc</a> — Sat May 28, 2011 6:36 pm</p><hr />
+]]></content>
+</entry>
+</feed>

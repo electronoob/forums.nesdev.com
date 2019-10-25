@@ -1,0 +1,547 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - cycle for cycle stuff</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">cycle for cycle stuff</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=3&amp;t=547">http://forums.nesdev.com/viewtopic.php?f=3&amp;t=547</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>3</strong> of <strong>7</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Tue Feb 07, 2006 4:56 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I think it's good that people are trying different methods of emulation. It gets everyone scrutinzing the way they do it and finding new areas for optimization. If you find a method that's slow, be sure you figure out why it's slow.
+<br />
+<br />I've been trying optimizations of my NES CPU emulator lately. I found it was easiest to use it in a standalone mode and just run a simple infinite loop for a few billion clocks. You can easily try different basic schemes without having to worry about getting everything right and having it work well in a full emulator. This can help filter the designs that are obviously slow.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>byuu</b> [ Mon Mar 27, 2006 6:05 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Whoa, sorry to bump such an old topic. I'd have posted sooner if I knew about this thread.
+<br />
+<br />While I write an SNES emulator, the two systems are very similar so I see no reason we can't share experiences.
+<br />
+<br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Ok, today i finally finished the new cycle-for-cycle accurate 6502 emulator ... Boy, nothing could prepare me for it. On my P4 2.2GHZ I had 60FPS, and full 30 times slower than the previous core, which had 1800FPS in the same situation. </div>
+<br />
+<br />Then you seriously botched something up. I went from an opcode-based core that synced the clocks once per opcode (merely adding to an opcode_cycle_count var for each read/write/io cycle) to pretty much the switch/case cycle system and lost about 30% performance, eg 100fps to 70fps. The new one syncs and updates clocks after every CPU cycle.
+<br />
+<br />Anyway, I realize that you can probably pull off perfect accuracy by making the CPU the master controller and enslaving all other processors (PPU, APU, etc), but this is definitely not a good way to write self-documenting code. PPU and APU synchronization should be nowhere near the CPU core.
+<br />
+<br />Now, let me go into the reasons I feel I had to break the SNES CPU core down so that it could return after executing single cycles.
+<br />
+<br />1) CPU&lt;&gt;APU communication. The SNES has a dedicated sound chip, unlike the NES, that can actually execute instructions. Since most people consider it a "black box", only accessible via four ports, it can be mostly emulated as a slave device. But what about when you want a debugger? Say you want one that lets you step opcode by opcode, and edit registers between steps. So what do you do when you run one CPU opcode and your emulator crosses over an APU opcode, then starts on another APU opcode before the CPU opcode returns so your debugger can update? Simple, you end up in the middle of a new APU opcode, and you can no longer safely edit the APU registers. Second, the APU would <em>have</em> to be able to break after single cycle steps to properly emulate things like when the CPU reads from the APU port, and in the middle of the opcode the APU writes to that port. Timestamps and such work, but again this makes for sloppy coding and is a hack at best.
+<br />
+<br />2) DMA synchronization. The DMA runs at 1/8th the CPU clock, so in order to emulate DMA sync delays (time between enabling DMA and the transfer beginning, and the time from DMA ending to the CPU resuming), you have to be able to single-step instructions. If you forcefully execute the entire instruction, and a DMA happens in the middle of that transfer, you will be forced to complete the DMA transfer immediately. Quite a problem when a single DMA can take up to ten full frames (64kbytes * 8 channels * 8 cycles/byte transferred).
+<br />
+<br />3) Interrupts. Interrupts test at the start of a new bus opcode cycle. Of course, the work cycle is one behind this (both the NES and SNES are two-pipeline processors), so you need to test and possibly trigger interrupts one cycle before the end of each opcode. This can be done with Quietust's approach, but again is less elegant.
+<br />
+<br />4) Code mixing. As stated before, it's definitely advantageous from a coding standpoint to keep each core as absolutely separated as possible. I have maybe 3-4 functions that need to be exposed for all of my core chips, CPU, APU, DSP, and PPU, and it works fantastically.
+<br />
+<br />Now that we've established that there is merit to being able to cycle step and return, let's talk about how best to do it :)
+<br />
+<br />First off, I personally feel that C++ is a bad language for parallelism. I don't have a "better" language, either. Essentially, I think something like a "thread" type would be needed. This would basically be a class where you call it directly, e.g. thread t1; t1(); and it runs until it hits pause() or exit().
+<br />Each thread would have its own stack, and calling the thread would restore the stack pointer and program counter, pausing it would save the stack and program counter and return to where the thread was called.
+<br />In essence, it's a fake thread that isn't truly run in parallel with other threads. But it's extremely lightweight, needing to only save and restore two registers and make an indirect jump instead of just a stack push and direct jump.
+<br />
+<br />The benefit?
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">thread CPU &#123;<br />//cycle 0 is always op fetch, no need to add that into each opcode<br />&nbsp; void opa9&#40;&#41; &#123;<br />&nbsp; //cycle 1<br />&nbsp; &nbsp; regs.aa.l = op_read&#40;&#41;; pause&#40;&#41;;<br />&nbsp; &nbsp; if&#40;!regs.p.m&#41; &#123; flags_lda_8bit&#40;&#41;; pause&#40;&#41;; return; &#125;<br />&nbsp; //cycle 2 &#40;only executed when accumulator is in 16-bit mode&#41;<br />&nbsp; &nbsp; regs.aa.w = op_read&#40;&#41;; flags_lda_16bit&#40;&#41;; pause&#40;&#41;;<br />&nbsp; &#125;<br />&#125;;</div>
+<br />
+<br />Yeah. It would be amazingly useful. You could break out and re-enter things right in the middle of functions. You'd never have problems with the stack getting crushed (CPU calls PPU calls APU calls PPU calls CPU calls APU ... crash). Each thread would only need a tiny stack heap. May not be all that processor efficient, but neither is going from cpu -&gt; run -&gt; run_opcode_cycle -&gt; switch(opcode) -&gt; switch(cycle) -&gt; regs.a.l = op_read(); break; break; return; return; return; for what is essentially a read and assign.
+<br />
+<br />But since we can't throw out the language to do this, who has better ideas? The truth is, the switch(cycle) system is hideously inefficient, even though it only costs me 30% performace, that's still way too much.
+<br />
+<br />Oh, and I didn't notice anyone mentioning this. What about bus hold times? Reads and writes don't hapen at the start of the bus cycle, you know.
+<br />Take the SNES latch counters, if you read from $2137 or write to $4201, it copies the H/V counter positions to $213c/$213d. Now, the funny thing is that both lda $2137 and sta $4201 use the exact same cycles, the only difference is the read vs write to the actual address. Both consume six clock cycles, and yet writing to $4201 results in the counter being four clock cycles ahead of reading from $2137. Why? Write hold times are longer than read hold times. I admit, my hold times may not be perfect, but they're made from highly logical guesses and the timing schematics (stored in uS) inside the w65c16s technical manual.
+<br />I'm betting you guys are just compensating by adjusting your numbers to match the NES, right?
+<br />e.g. if your emulator needs to set Vblank at V=225,HC=2, you do that rather than setting it to the true V=225,HC=6 because you ignore the read hold delay of 4 cycles? Sure, you get the same results, but which is more correct? :)
+<br />I don't have the luxury of cheating like this with two coprocessors talking to each other in realtime.
+<br />
+<br />* Obviously my cycle comparisons are invalid for the NES, but hopefully you get the idea. With the SNES, one CPU cycle consumes 6-12 clock cycles against the 21mhz timing crystal.
+<br />
+<br />Heh, sorry for posting so much. This is my favorite subject regarding emulation. I'm very curious to hear your ideas.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>teaguecl</b> [ Mon Mar 27, 2006 10:29 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />byuu, lot's of good points in your post.  The threading you described is known as "cooperative threading", where the threads run until they give up their time.  I agree that emulating per cycle is more accurate, and also produces much more easy to read code.  You don't end up mixing PPU/CPU/APU code at all.  However, I've avoided it because of two reasons (which I'm guessing is why it's not suggested generally by members here):
+<br />1. It is thought of as slow.  I've never implemented this style, partially because somebody here (maybe Brad Taylor in his emulation notes) did some tests and saw huge performance problems with that implementation.  Something huge, like 100x slower I think.  I"ve always assumed this approach would be very slow, but have never run the tests myself.  Maybe the performance loss would be worth the code readability?
+<br />2. The added accuracy is not necssary on the NES.  The smallest unit of time which can affect an on screen pixel is a single CPU cycle (3 PPU cycles in NTSC).  Using the "catch up" style emulator you can be as accurate as needed to get the correct display.
+<br />
+<br />Obviously a more accurate simulation has it's value, especially as CPU's get faster and faster.  In fact a mult-threaded approach is looking more reasonable now that mulit-core CPU's are getting popular.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>byuu</b> [ Mon Mar 27, 2006 11:55 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">The threading you described is known as "cooperative threading"</div><br /><br />Never heard of it. So is it doable in c++ without non-portable libraries? The big thing it needs that is going to be hard is the ability to leave and resume in the <em>middle</em> of functions. It also needs to be stack safe. You should be able to adjust the stack unevenly between each "thread" call.<br />So eg calling the CPU could then jump into the CPU opcode decoder routine, jump into the CPU opcode routine, and then return halfway through that and not destroy the stack completely. The next call to CPU would immediately return back from three functions in a row and the execute a bit of the next CPU code and then return back to the thread caller.<br />I need to work it out on paper, but I think you pretty much would need to allocate custom stacks for each "thread". No getting around it, c++ is an inefficient language for this.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">1. It is thought of as slow. I've never implemented this style, partially because somebody here (maybe Brad Taylor in his emulation notes) did some tests and saw huge performance problems with that implementation. Something huge, like 100x slower I think.</div><br /><br />That's ridiculous. I can tell you I wasn't getting 6000fps before I decided to go cycle-based. If you're counting just the raw CPU, maybe 50%, but you have to factor in that other things remain at the same speed as they were before, so total speed loss is about 20-30% in my case, as stated above.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">2. The added accuracy is not necssary on the NES.</div>
+<br />
+<br />Funny, it was always my opinion that the older and slower the system, the more accuracy is needed. Not to mention it's easier to pull off since the emulator is less demanding. Hey, whatever works for you.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>WedNESday</b> [ Tue Mar 28, 2006 2:54 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I kinda rushed the testing of the emulator so it is very likely that there was a mistake. Here is an example of what I did;
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">inline void OpticCode69&#40;&#41; // ADC Immediate<br />&#123;<br />&nbsp; &nbsp;switch&#40;CPU.Cycle&#41;<br />&nbsp; &nbsp;&#123;<br />&nbsp; &nbsp;&nbsp; &nbsp;case 0:<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;CPU.PC++;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;CPU.Cycle++;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;break;<br />&nbsp; &nbsp;&nbsp; &nbsp;case 1:<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if&#40; CPU.A + Byte + CPU.CF &gt; 0xFF &#41;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;CPU.TMP = 1; else CPU.TMP = 0;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if&#40; &#40;char&#41;CPU.A + &#40;char&#41;Byte + CPU.CF &lt; -128 || &#40;char&#41;CPU.A + &#40;char&#41;Byte + CPU.CF &gt; 127 &#41;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;CPU.VF = 0x40; else CPU.VF = 0x00;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;CPU.NF = CPU.ZF = CPU.A += Byte + CPU.CF;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;CPU.CF = CPU.TMP;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;CPU.PC++;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;CPU.Cycle = 0;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;break;<br />&nbsp; &nbsp;&#125;<br />&nbsp; &nbsp;CPU.CC++;<br />&#125;<br /><br />inline void OpticCode&#40;&#41;<br />&#123;<br />&nbsp; &nbsp;switch&#40;CPU.OpticCode&#41;<br />&nbsp; &nbsp;&#123;<br />&nbsp; &nbsp;&nbsp; &nbsp;case 0x69: OpticCode69&#40;&#41;; break;<br />&nbsp; &nbsp;&#125;<br />&#125;<br /><br />// Main Loop e.g. VBlank<br /><br />for&#40; CPU.CC = 0; CPU.CC &lt; 2278; &#41;<br />&#123;<br />&nbsp; &nbsp;OpticCode&#40;&#41;;<br />&nbsp; &nbsp;Draw3Pixels&#40;&#41;;<br />&#125;<br /></div>
+<br />
+<br />Now when I tested it I left out everything I possibly could so the speed result was not affected by anything other than the CPU.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Tue Mar 28, 2006 4:06 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Anyway, I realize that you can probably pull off perfect accuracy by making the CPU the master controller and enslaving all other processors (PPU, APU, etc), but this is definitely not a good way to write self-documenting code. PPU and APU synchronization should be nowhere near the CPU core.</div><br /><br />And they don't need to be. The CPU runs merrily along and calls a memory read/write function for accesses. That function dispatches to the appropriate handler (RAM, PPU, APU, etc.). Then the emulator for the component itself does whatever catch-up is necessary to get to the present time, then applies the effect of the access. The CPU knows nothing of synchronization; all it must do is ensure that the memory read/write handler is given the current time.<br /><br />I take strong issue with your claims that the catch-up design is a hack. Since I'm somewhat familiar with the SPC-700, I'd appreciate a concrete example where the catch-up is ugly or just plain won't work. Maybe you should start a new thread for it.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">In essence, it's a fake thread that isn't truly run in parallel with other threads. But it's extremely lightweight, needing to only save and restore two registers and make an indirect jump instead of just a stack push and direct jump.</div>
+<br />
+<br />Such a form of cooperative non-preemptive threads can be implemented without any OS support or even any special language support. The longjmp() mechanism uses a similar mechanism, and if you've ever taken a look at the source for it, it's quite simple. I wouldn't be surprised if gcc already has something like you describe. Whereas the manual technique with a swtich statement basically has you simulating a program counter to keep track of where you were in the function, the efficient implementation uses the actual program counter. Your CPU emulator would yield control to another thread at each point in an instruction. Yielding would simply save the current context (program counter, stack pointer, and registers), then restore the context of the other thread which is becoming active. Seriously, look around, because something like this is probably available. On Mac OS Classic, the thread manager provided exactly this kind of thing with explicit yielding, separate stacks for each thread, etc., and it was quite efficient.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>sinamas_</b> [ Tue Mar 28, 2006 5:07 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I share blargg's opinion on this. I tend to implement sound and video on a catch-up basis, and only update status registers when they're accessed. (I do update the cycle counter in the middle of memory opcodes of course.) My event system is almost entirely dedicated to interrupts. Since most or all interaction between components happen through memory reads/writes I think it's natural to handle it like this (you'll want to keep your opcode-reads fast though). I can't see why this approach needs to be hard to understand. It seems unneccesary to be "cycle-accurate" everywhere when it's so easy to predict when it's needed and when it's not. In fact I think I could even use a dynarec most of the time and still be effectively cycle-accurate. Of course, some systems require more interaction between components than other systems.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>mozz</b> [ Tue Mar 28, 2006 3:08 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">byuu wrote:</div><div class="quotecontent">1) CPU&lt;&gt;APU communication. The SNES has a dedicated sound chip, unlike the NES, that can actually execute instructions. Since most people consider it a "black box", only accessible via four ports, it can be mostly emulated as a slave device. But what about when you want a debugger? Say you want one that lets you step opcode by opcode, and edit registers between steps. So what do you do when you run one CPU opcode and your emulator crosses over an APU opcode, then starts on another APU opcode before the CPU opcode returns so your debugger can update? Simple, you end up in the middle of a new APU opcode, and you can no longer safely edit the APU registers. Second, the APU would <em>have</em> to be able to break after single cycle steps to properly emulate things like when the CPU reads from the APU port, and in the middle of the opcode the APU writes to that port. Timestamps and such work, but again this makes for sloppy coding and is a hack at best.</div>
+<br />byuu,
+<br />
+<br />First of all, your emulator is awesome.  =)  I understand your design goals and that readability/maintainability are much more important to you than performance.
+<br />
+<br />I just wanted to point out that, in general, it is not strictly necessary to simulate the CPU and the SPC700 in lock-step <strong>even when debugging</strong>.  For example, if I put breakpoints in the CPU's address space but not the SPC700's, then I could always run the CPU ahead of the SPC700 when they were not interacting, and if I hit a breakpoint in the CPU address space, I'd just "catch up" the CPU before stopping in the debugger.  And vice versa.  Only if you put breakpoints in both address spaces, is it strictly necessary to simulate both in lock-step.
+<br />
+<br />I am very interested in this because I would like to see a high-performance SNES emulator emerge with accuracy as good as bsnes.  I would expect such an emulator to not use switch statements per cycle, but instead to be more like zsnes:  straight-line assembly code for CPU or SPC700, except with the capability to do a context-switch in the middle of executing a CPU instruction (for example, as part of completing a memory access, you might have to suspend and simulate the other task until the value you're trying to read is available).
+<br />
+<br />I understand that lock-step is easier for you to manage in your emulator though, and I applaud your efforts towards accurate emulation of the SNES --- something which seems long overdue for a 15-year-old console!
+<br />
+<br />--mozz
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>mozz</b> [ Tue Mar 28, 2006 3:20 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I just thought of something that I should probably make explicit.  A CPU core is really just a state machine.  Well, when you write some code to simulate a state machine, you can either represent the state explicitly (by keeping it in a variable), or implicitly (by the program counter, or which part of your code is currently executing).
+<br />
+<br />In the explicit model, you typically simulate the progress of the state machine by calling a function, which uses a switch statement (or something) to dispatch to different bits of code based on the value of the state variable.  You run the code, set the variable to a new value, and then return from the function.  Now, this is very much how byuu's cycle-based emulator Bsnes works.  The advantage is that you can call the function whenever you want, and do one unit of work.  You can then decide if you want to go off and do something else, or if you want to call it again to do another unit of work.
+<br />
+<br />The other model, the implicit model, involves representing the "current state" by your position in the code.  You switch to a new state by transferring control to a different place in the code (e.g. with a goto statement).  That is how I would expect my "efficient but accurate" emulator to be implemented---it would look very much like the instruction-based emulators, except that the code to handle the effects of each cycle would need to be in the correct order, and you'd need to account for the correct number of machine cycles between read or write calls.  Because the "current state" is partly embodied in the host machine's program counter, in order to pause in the simulating of a CPU instruction and go off and simulate something else, we need to be able to preserve and restore the host machine's program counter.  And that is why I talk about green threads and context-switching.
+<br />
+<br />And the effects don't <em>really</em> need to be emulated in the right order, if they are not observable from outside the CPU (unless you care about that for debugging, for example).  You can fudge a bit.  As long as externally-visible effects (such as memory access cycles) occur at the correct time, and as long as you can suspend (i.e. context-switch) on demand at the beginning of any memory access cycle, you can have single-cycle accuracy and yet run almost as fast as an instruction-based emulator does.
+<br />
+<br />Sorry if any of this is confusing or unclear.  =)
+<br />
+<br />P.S.  Byuu, is that 30% overhead figure just for your CPU core?  Or your entire emulator?  Even if its just the CPU core, keep in mind that the 65816 is more complicated than a 6502, so the relative overhead for a NES core might be higher.  <img src="./images/smilies/icon_wink.gif" alt=":wink:" title="Wink" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>mozz</b> [ Tue Mar 28, 2006 3:52 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">byuu wrote:</div><div class="quotecontent"><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">The threading you described is known as "cooperative threading"</div><br /><br />Never heard of it. So is it doable in c++ without non-portable libraries?<br />[...]<br />I need to work it out on paper, but I think you pretty much would need to allocate custom stacks for each "thread". No getting around it, c++ is an inefficient language for this.</div>
+<br />
+<br />EDIT: that part is correct at least.  <img src="./images/smilies/icon_wink.gif" alt=":wink:" title="Wink" />
+<br />What you need is SEPARATE STACK SPACE for each task.  When you switch tasks, you also switch stacks.  So whatever function call you were in the middle of when you last suspended that task, it is preserved perfectly on the stack for that task.
+<br />
+<br />So that's the jist of co-operative multithreading.  Multiple "threads" or "tasks" of execution, which explicitly yield to each other at the desired points--no preemption (these are sometimes called "green threads" to distinguish them from real OS threads).  You basically allocate a small stack area and a small area for saving host machine registers (the "context" as it is called), for each green thread.  Then you have a small routine (which you probably have to write in assembly) that knows how to switch between them.  It saves the registers (including the stack pointer) of the old task, and loads the registers for the new task (including its stack pointer) from its context area.  Each green thread points to its own stack.  Note that because you are switching co-operatively, you may not need to save all the registers.  This is different from the "preemptive multitasking" used by OS threads, which must save and restore ALL registers because the OS might preempt the thread at any time.  For any CS students out there, the concept of green threads is very similar to co-routines.
+<br />
+<br />WinNT-based OSes have something called a "fiber" which is basically a green thread.  You could use those for context switching if you just want to try things out.  However they might have bad performance (I have no idea).
+<br />
+<br />Edit: How do you allocate the stacks for each task?  Well, you could use malloc or new[] or something, but be careful about calling any OS functions without switching back to the "true" OS stack first.  Another way is to reserve a bunch of stack space with a local array variable in an outer function call (such as main).  Touch the pages of each array with a for-loop to make sure it's actually paged in (because demand-paging of stack space only works if you touch the stack pages linearly, which is unlikely to be the case here).  Then stick the address of the top of the array into your context structure's stack pointer slot.  I'm not sure which is better.  I once wrote code that used the malloc method and we had to change it to the other method because Windows 95/98 would crash when we called OutputDebugString with our stack pointer pointing into the heap instead of the real thread stack.  Or maybe our stacks were just too small...who knows.  If you avoid calling any OS functions on them you can probably get by with pretty small stacks.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>byuu</b> [ Tue Mar 28, 2006 6:07 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">I take strong issue with your claims that the catch-up design is a hack.</div>
+<br />
+<br />Sorry, it's just my personal opinion. If it works, it works. I try and code things as a reference implementation, which is obviously terrible for performance. There's no need to separate PPU synchronization from CPU memory accesses, but I think it's generally a good idea. I know I'm not exactly emulating logic gates and other insanely low level hardware things like that, but I believe in sticking to how hardware does things as much as possible without being utterly ridiculous. Of course, that's completely relative.
+<br />
+<br />mozz: I do allow breakpoints to be set in both the CPU and APU, I also allow them both to be stepped cycle by cycle in real time. See bsnes v0.013's debugger for an example of this.
+<br />
+<br />Stack size isn't a problem. Even a massive stack is only 256kb, and I only need four (including the main program). The DSP and APU can share, at least for now as I have no idea what happens between DSP cycles, and there's no way to find out without some serious hardware analysis tools that I simply don't have.
+<br />
+<br />I have a few concerns then. First off, how do you switch the stack in c++? setjmp/longjmp do not do this. makethread/switchthread are unix only. x86 assembler turns my application from completely portable to not at all portable. But I could at least create a wrapper so the asm parts could be ported.
+<br />
+<br />Currently, I have two ideas. One is to just use that library approach and use cooperative multitasking. The other is to write a library to hide the state machine code from the emulation code as much as possible, something like:
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">void op_lda_addr_w&#40;&#41; &#123;<br />begin_state_machine&#40;&#41;;<br />&nbsp; aa.l = op_read&#40;&#41;;<br />&nbsp; yield&#40;&#41;;<br />&nbsp; aa.h = op_read&#40;&#41;;<br />&nbsp; yield&#40;&#41;;<br />&nbsp; regs.a.l = op_read&#40;MODE_ADDR, aa.w++&#41;;<br />&nbsp; yield&#40;&#41;;<br />&nbsp; regs.a.h = op_read&#40;MODE_ADDR, aa.w&#41;;<br />&nbsp; flags_lda_addr_w&#40;&#41;;<br />//yield&#40;&#41;; before return?<br />end_state_machine&#40;&#41;;<br />&#125;</div>
+<br />
+<br />Of course, there's no performance advantage there, it just makes the code LOOK like it's cooperative. But this is also insufficient for some cases as I can't break out from the level below, e.g. in the middle of the op_read() call to simulate the bus hold time.
+<br />
+<br />As far as adding true cooperative multithreading, one problem I'm worried about there is what about exiting the thread and restarting it? Say the user tries to reset the SNES, but the CPU thread is in the middle of an opcode. With the state machine, I can just reset the states and jump back to the start. I'd have to add is_reset() right after every yield for the purposes of returning back to the start of the stack to account for that, I believe...
+<br />
+<br />If I were to write my emu in assembler, I could easily do what I wanted. But I'm not interested in sharing the platform limitations that ZSNES suffers to this day.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Tue Mar 28, 2006 7:19 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Sorry, it's just my personal opinion. If it works, it works.</div><br /><br />Oh well, I was hoping for actual problem cases for the catch-up method. I agree that a straightforward design like you describe is great for ease-of-implementation, comprehension, and simplicity. If high efficiency wasn't a prime goal, I would not use catch-up. And like you say, <em>all</em> emulators are at a higher level than the console itself. All take liberty by merely emulating the behavior of the hardware at some level, rather than emulating the hardware itself. Putting aside the extremely low-level operation at the molecular and finer levels, practical things like bad cartridge connections and power glitches require a much lower level of emulation than all emulators currently achieve.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">First off, how do you switch the stack in c++?</div><br /><br />C++ is capable of <em>utilizing</em> a cooperative threading library. Implementation of such a library, on the other hand, cannot be done in C or C++; it absolutely requires assembly. Cooperative multithreading is very architecture-neutral and should be easy to implement on any architecture. The only area where you might encounter issues is in stack manipulation and the operating system's interaction with this, but as mozz said, you could just divide the normal stack into sub-stacks. This is what I did in the version I wrote. As far as the OS is concerned, it's all one thread.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">As far as adding true cooperative multithreading, one problem I'm worried about there is what about exiting the thread and restarting it? Say the user tries to reset the SNES, but the CPU thread is in the middle of an opcode.</div>
+<br />
+<br />Just reinitialize the CPU thread's state and start it fresh. Read mozz's nice description of the equivalence of a state machine's current state with the program counter in the threaded version. The old state is irrelevant unless you're allocating memory and storing the pointer in a local variable; if you acquire any resources you should keep the reference in a non-local variable, like a member of the CPU object.
+<br />
+<br />I'm going to implement a 6502 version of this to show how simple it is.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>byuu</b> [ Tue Mar 28, 2006 7:31 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Oh well, I was hoping for actual problem cases for the catch-up method.</div>
+<br />
+<br />I cited many in my first post. To repeat one example, how would you complete a DMA transfer that activates in the middle of an opcode if your CPU emulator can't break out until the opcode is completed? To get the timing right, you'd have to return from the opcode so that you can DMA bits at a time. If you make the CPU the absolute master function over the entire emulator, then you could get away with adding all the sync stuff into the DMA.
+<br />
+<br />Then what do you do about the CPU&lt;&gt;APU cycle interleaving? You can't interleave each cycle for both unless at least one is a state machine capable of breaking after each cycle is executed.
+<br />
+<br />What about single opcode stepping both the CPU and APU? Much harder when you have to complete the CPU opcode, which could bump the APU opcode forwad some.
+<br />
+<br />These issues likely don't apply to the NES, but they do apply to most multiprocessor systems.
+<br />
+<br />Anyway, there are ways to get around everything. But a lot of them are indeed hackish. eg using a timestamp buffer to store memory values for the CPU&lt;&gt;APU sync, or making the CPU the absolute master controller for the entire emulator.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Tue Mar 28, 2006 10:57 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />It sounds like you aren't interested in giving the catch-up method a fair chance, but I'll try to discuss this anyway. That means focusing on one example rather than throwing them around randomly without scrutinizing any one thoroughly. The DMA seems like a good one, but I'll need a bit more info on what DMA can do. Can you give a concrete situation, i.e. DMA occurs here and does this while CPU is in middle of opcode X? That way you don't have to describe DMA in general, just what it's doing in that case, that precludes using catch-up.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>byuu</b> [ Wed Mar 29, 2006 3:57 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">It sounds like you aren't interested in giving the catch-up method a fair chance, but I'll try to discuss this anyway.</div>
+<br />
+<br />I don't mind giving it a fair chance, it obviously works for you guys. But I'm not interested in using it myself, having tried for the better part of three months to get those issues I mentioned working. That includes even if every issue I have were solved. I was mainly posting because I wanted to know if anyone had successfully used cooperative multitasking in an emulator quickly and cleanly. Or if anyone had ideas on how to.
+<br />
+<br />Ok, DMA. When you write to $420b, it performs one transfer for each bit set.
+<br />So you have up to eight channels, each channel can send up to 65536 bytes, and each byte transferred takes 8 cycles. There are 1324 available cycles per scanline, and 262 scanlines per frame.
+<br />
+<br />When you write to $420b, the system executes one more CPU opcode cycle (this could be the opcode fetch of the next opcode cycle if the last cycle of the current opcode writes to $420b). It then waits a bit for syncing and then runs all of the DMA transfers before returning control to the CPU.
+<br />
+<br />Now, you can sync things by calling APU and PPU sync commands for each DMA byte transfer. The DMA transfers can affect the APU and PPU, as it can write to its address lines. The problem is returning back to the main program. If you run ten frames worth of DMA transfers, then your GUI will be unresponsive (unless you call window update routines in your DMA byte transfer), your sound will skip (unless you call directsound buffer updating code), your debugger won't be able to freeze emulation (unless you jump into that from your DMA transfer routine and don't exit that routine until the user resumes with the debugger -- and now your debugger needs to sync the GUI messages up on its own), and you won't be able to take savestates in the middle of a DMA transfer because you won't be able to re-enter your transfer in the middle of it.
+<br />
+<br />Yeah, all of these things can be overcome. But if there was only just some way to do fast and clean cooperative multitasking, you wouldn't have to worry about adding APU/PPU/GUI/Sound/Debugger syncing inside anything in the CPU that executes a memory read or write on a port.
+<br />Obviously, you can skip syncing the PPU when a PPU register is not accessed, same for APU, same for the rest.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>3</strong> of <strong>7</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

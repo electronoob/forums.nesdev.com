@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=10&amp;t=11056" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2014-02-28T03:45:43-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=10&amp;t=11056</id>
+<entry>
+<author><name><![CDATA[Kasumi]]></name></author>
+<updated>2014-02-28T03:45:43-07:00</updated>
+<published>2014-02-28T03:45:43-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11056&amp;p=126228#p126228</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11056&amp;p=126228#p126228"/>
+<title type="html"><![CDATA[Re: How long [should my/does your] engine take to...]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11056&amp;p=126228#p126228"><![CDATA[
+<div class="quotetitle">pops wrote:</div><div class="quotecontent"><br />Thanks for the replies, everyone. I was particularly interested to learn what percentage of a frame was spent in sprite rendering for everyone else. If anyone would like to chime in on this subject, I'd be interested in hearing your statistics as well.<br /></div><br />The following post was written while very tired, look forward to missing words/words that rhyme with the intended word.  <img src="http://forums.nesdev.com/images/smilies/icon_lol.gif" alt=":lol:" title="Laughing" /> (Edit3: I just removed some evidence of the tiredness. A whole block of text was in this post twice. &gt;_&gt;)<br /><br />I typically love to share this sort of info because I also usually want it.  <img src="http://forums.nesdev.com/images/smilies/icon_wink.gif" alt=":wink:" title="Wink" />  I always optimize a lot, but hearing the cycle counts of other people helps me know if someone's doing something faster. So I can then ask how they did it. <img src="http://forums.nesdev.com/images/smilies/icon_biggrin.gif" alt=":D" title="Very Happy" /> But in this case, it's fairly difficult for me to figure out how long just rendering takes because in my game each object has its own render behavior which can be used solely to render or for many other things. Many objects check for collisions in their render routine rather than their main routine. This ensures that each object's position is already final for that frame, so you don't get stuff like player one not being able to grab player two but player two could grab player one if their positions/speeds were swapped. If I didn't do what I do, player two could move into player one's grab range after the grab attempt already failed, but player one's position would already be final by the time player two tried to grab him...  (PS: I highly advise absolutely everyone to ignore things like this if doing NES development. People don't really notice one frame advantages between player ports unless they specifically look for them, and the time it takes to make everything totally fair is huge. I'm somewhat proud I've eliminated most, if not all, cases of frame-unfairness between players, but at the end of the day it just makes my game slower for something no one cares about.)<br /><br />Anyway, no one asked about any of that. Here's the info you're looking for:<br /><br />My fastest render routine that draws a 2x2 object to the screen clocks in at around 439 cycles. It does a very small amount of things that aren't directly related to rendering it, but it's probably fewer than 20 cycles, whatever. Doing it 16 times would be 7,024 cycles+some for the loop. So we'll say 7,324, whatever.<br /><br />In this case, the horizontal/vertical flip components are known in advance and not calculated (but still have to be blended with the palette of the object), and the tiles are not fixed (I have to add an offset to each tile because the same object might use the same set of tiles, but stored in a different place in a different CHR bank). This routine also will not draw say... the right side of the object on the left side of the screen, if the object's top left position isn't off screen. It's a per sprite check. If you don't care about this, you can do it even faster.<br /><br />... And wait, I guess I lied, because what I thought was going to be my slowest 2x2 routine is actually faster and is 382 cycles max. This 382 cycles is for an object where horizontal/vertical flipping is not known in advance, but no offsets are added to the CHR tile numbers. (It's the main character, so the sprites are always in the same part of the CHR bank.) It 16 times would be 6112 cycles+some for the loop. So 6412, whatever. <br /><br />I thought it would be slower because it also accounts for wrapping (in levels with wrapping, it will draw the right side of the object on the left side of the screen, in levels without, it doesn't), and makes a few more decisions. The reason it's faster is that it saves the setup (storing to temp RAM so the generic function can act on it, then loading the return values.), plus the tiny 12 cycles of overhead you get from each call to a subroutine. <br /><br />So maybe 10,500 just for just translating &quot;real&quot; positions to screen positions for sprites/sprites tiles seems a little high to me, for what it's worth. <br /><br />Edit 2: I guess I should mention that none of my sprite rendering routine will flip metasprites. I have to have both a left facing and right facing metasprite defined in rom in most cases. Though for objects like a rotating ball, you can just swap the tile drawn for upper right and upper left to flip horizontally etc. In fact, the object that took 439 cycles does exactly that. That why the flipping is known in advance, it's always the same for each corner. If flipping metasprites is where your time is going, it's probably not that bad. You might still be able to make it slightly faster, though.<br /><br />For scrolling, again it's hard for me to figure out (But I won't rant about it this time). But 15% of frame time for both a horizontal and vertical update sounds pretty fast to me, depending on what it includes. (Like... does this include the NMI routine drawing from the buffers/decompressing your level map?) Even if it includes none of that, it may even be faster than mine, which is pretty cool.<br /><br />If you're really interested I can try to get exact counts, but I will say that in rare cases scrolling alone in my game can dominate up to about half of my frame time if the player happens to scroll past both the x screen boundary and the y screen boundary in the same frame. It also needs the screens themselves to be fairly hard on the decompression routine. (This includes the NMI drawing time, and decompressing 3 new screens of the level.) For cases where screen decompression is not involved, I think it does around the same as yours, maybe worse.<br /><br />Edit: Here's an old post of mine in an entire topic you might be interested in: <!-- l --><a class="postlink-local" href="http://forums.nesdev.com/viewtopic.php?p=86756#p86756">viewtopic.php?p=86756#p86756</a><!-- l --><br /><br />I think I've made my scrolling faster since then. But the huge CPU sucker in my game is the main character. His routine takes even more time now that he does more, and I'm trying to support two of them with minimal slowdown...  <img src="http://forums.nesdev.com/images/smilies/icon_cry.gif" alt=":cry:" title="Crying or Very sad" /><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3504">Kasumi</a> — Fri Feb 28, 2014 3:45 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[thefox]]></name></author>
+<updated>2014-02-28T03:28:19-07:00</updated>
+<published>2014-02-28T03:28:19-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11056&amp;p=126226#p126226</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11056&amp;p=126226#p126226"/>
+<title type="html"><![CDATA[Re: How long [should my/does your] engine take to...]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11056&amp;p=126226#p126226"><![CDATA[
+Your numbers sound pretty normal to me, as well.<br /><br />Unfortunately comparisons are not easy to make because 1) I doubt many people's engines are rigged to produce performance numbers 2) the results will depend on what kind of features are supported. E.g. if your routine always renders 16x16 sprites only, it's going to be faster than a generic routine that can display sprites of any size. Flipping, clipping, 16-bit/8-bit coordinates, etc are other features that can have impact on performance. If you scrolling engine can only move 1 pixel per frame, it's going to be somewhat faster than one that can move at a variable rate. Naturally sprite rendering time will also depend on how many sprites are rendered. Were your numbers for the worst case scenario?<br /><br />I do agree that it'd be interesting to compare performance numbers. But I think it'd more interesting if we're more detailed about what kind of features are supported by the routines.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=80">thefox</a> — Fri Feb 28, 2014 3:28 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[pops]]></name></author>
+<updated>2014-02-27T23:01:37-07:00</updated>
+<published>2014-02-27T23:01:37-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11056&amp;p=126220#p126220</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11056&amp;p=126220#p126220"/>
+<title type="html"><![CDATA[Re: How long [should my/does your] engine take to...]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11056&amp;p=126220#p126220"><![CDATA[
+Thanks for the replies, everyone. I was particularly interested to learn what percentage of a frame was spent in sprite rendering for everyone else. If anyone would like to chime in on this subject, I'd be interested in hearing your statistics as well.<br /><br />The comment about allowing AI to take multiple frames was something I overlooked - thanks for that suggestion, 43110. Thanks as well to tokumaru - I managed to save another 500 cycles in my sprite handling code by following your suggestion, bringing the total down to 10500 cycles out of 27280 in the visible frame.<br /><br />The game I'm working on is - I suppose - a mix of final fantasy proper and fft: two opposing sides trade turns attacking each other on a grid. To be entirely honest, there's not yet any 'attacking' going on yet. But that's my next goal: creating the code that has actors moving around and responding to each other.<br /><br />Baby steps.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4328">pops</a> — Thu Feb 27, 2014 11:01 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Bregalad]]></name></author>
+<updated>2014-02-27T09:43:42-07:00</updated>
+<published>2014-02-27T09:43:42-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11056&amp;p=126195#p126195</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11056&amp;p=126195#p126195"/>
+<title type="html"><![CDATA[Re: How long [should my/does your] engine take to...]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11056&amp;p=126195#p126195"><![CDATA[
+Well, as long as you aren't observing any slowdowns, I see zero reason to spend time optimizing anything. Now the day slow downs starts to happen, you should optimize the routine that takes most time. It's as simple as that.<br /><br />PS : A FFT clonse on NES would be QUITE impressive !!<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=38">Bregalad</a> — Thu Feb 27, 2014 9:43 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[43110]]></name></author>
+<updated>2014-02-27T09:33:50-07:00</updated>
+<published>2014-02-27T09:33:50-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11056&amp;p=126193#p126193</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11056&amp;p=126193#p126193"/>
+<title type="html"><![CDATA[Re: How long [should my/does your] engine take to...]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11056&amp;p=126193#p126193"><![CDATA[
+final fantasy tactics style games are turn based right? So maybe just allow the AI, on it's turn (and possibly the results of your turn), take several video frames to compute.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6385">43110</a> — Thu Feb 27, 2014 9:33 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tokumaru]]></name></author>
+<updated>2014-02-27T07:39:25-07:00</updated>
+<published>2014-02-27T07:39:25-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11056&amp;p=126188#p126188</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11056&amp;p=126188#p126188"/>
+<title type="html"><![CDATA[Re: How long [should my/does your] engine take to...]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11056&amp;p=126188#p126188"><![CDATA[
+My 8-way scrolling takes practically the same time as yours, and the sprite rendering doesn't seem so off either. 16 objects is a lot to have active at once, but as long as they aren't all moving at the same time (and from looking at Final Fantasy Tactics videos it does seem like the characters stand still a lot) their AI should finish pretty fast.<br /><br />However, like rainwarrior said, there's always room for optimizations. Personally, I would leave the scrolling as is, since new rows and columns aren't needed every frame. I'd focus on speeding up the sprite drawing, which is something that happens every frame and is taking a considerable amount of time. Maybe if you unroll part of the sprite drawing loop you'll gain some speed... For example, instead of flipping sprites dynamically (by using variables for the coordinate deltas) you could have 2 loops, each one hardcoded to draw sprites facing a certain direction, and you pick the correct loop beforehand. Any decision making (i.e. compares and branches) inside loops that run several times have a huge impact on performance, so you should try to keep those to a minimum when performance matters, even if that means wasting a little more ROM.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=95">tokumaru</a> — Thu Feb 27, 2014 7:39 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[rainwarrior]]></name></author>
+<updated>2014-02-27T07:20:05-07:00</updated>
+<published>2014-02-27T07:20:05-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11056&amp;p=126187#p126187</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11056&amp;p=126187#p126187"/>
+<title type="html"><![CDATA[Re: How long [should my/does your] engine take to...]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11056&amp;p=126187#p126187"><![CDATA[
+That sounds fairly normal to me. Rendering is usually a pretty sizable part of the time budget (it is often this way in modern games too).<br /><br />This is not to say that you can't make it faster. You can always make your code faster, if you have enough time to spend optimizing.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=5165">rainwarrior</a> — Thu Feb 27, 2014 7:20 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[pops]]></name></author>
+<updated>2014-02-27T09:40:16-07:00</updated>
+<published>2014-02-26T23:02:25-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11056&amp;p=126178#p126178</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11056&amp;p=126178#p126178"/>
+<title type="html"><![CDATA[How long [should my/does your] engine take to...]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11056&amp;p=126178#p126178"><![CDATA[
+I just completed the part of my engine that has sprites animating around the screen... and I worry that I'm going to run out of cpu cycles before I get AI implemented.<br /><br />A little background: my engine is a 8-way scrolling final fantasy tactics game, with support for up to 16 sprites of a size from 8x8 to 32x32.<br /><br />When I have maxed out my sprites at 16 2x2 sprites on screen, the logic that takes the actor data and transforms it into on-screen sprites takes about 40% of the 240 scanlines available for frame processing. When I need to load both a row and a column of tiles/attributes, that takes another 15% of the 240 scanlines. This leaves me with only 45% for game logic.<br /><br />Is this normal? Or do you think my sprite logic is taking far too long, compared to your engines? Can anyone offer the breakdown of how long your engines spend on each task each frame?<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4328">pops</a> — Wed Feb 26, 2014 11:02 pm</p><hr />
+]]></content>
+</entry>
+</feed>

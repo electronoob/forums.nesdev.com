@@ -1,0 +1,440 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - 16-bit stereo 32 kHz streaming success</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">16-bit stereo 32 kHz streaming success</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=12&amp;t=6121">http://forums.nesdev.com/viewtopic.php?f=12&amp;t=6121</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>3</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Fri Mar 05, 2010 5:43 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>16-bit stereo 32 kHz streaming success</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Today I got 16-bit <em>stereo</em> 32 kHz uncompressed streaming to the SPC-700 working. It sets the echo buffer size to one sample, and disables echo write. This results in the DSP reading the stereo samples every 32 clocks and playing them. Then some timed S-SMP code copies the samples from the S-CPU to the echo buffer every 32 clocks.
+<br />
+<br />The core S-SMP code uses word moves from the IO registers, and has the echo buffer at address 0 so it can use word writes as well. The lack of indexed writing is what allows this to stream 128 K/sec, well over the apparent maximum transfer rate detailed in another post.
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp; &nbsp; ; Stream samples from S-CPU<br />-&nbsp; &nbsp; &nbsp;movw&nbsp; ya,CPUIO0&nbsp; &nbsp;; 5 left<br />&nbsp; &nbsp; &nbsp; movw&nbsp; 0,ya&nbsp; &nbsp; &nbsp; &nbsp; ; 5<br />&nbsp; &nbsp; &nbsp; mov&nbsp; &nbsp;CPUIO3,#$80 ; 5 acknowledge<br />&nbsp; &nbsp; &nbsp; movw&nbsp; ya,CPUIO2&nbsp; &nbsp;; 5 right<br />&nbsp; &nbsp; &nbsp; mov&nbsp; &nbsp;CPUIO3,#0&nbsp; &nbsp;; 5 clear acknowledge<br />&nbsp; &nbsp; &nbsp; movw&nbsp; 2,ya&nbsp; &nbsp; &nbsp; &nbsp; ; 5<br />&nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; movw&nbsp; ya,CPUIO0&nbsp; &nbsp;; 5 left<br />&nbsp; &nbsp; &nbsp; movw&nbsp; 0,ya&nbsp; &nbsp; &nbsp; &nbsp; ; 5<br />&nbsp; &nbsp; &nbsp; mov&nbsp; &nbsp;CPUIO3,#$80 ; 5 acknowledge<br />&nbsp; &nbsp; &nbsp; movw&nbsp; ya,CPUIO2&nbsp; &nbsp;; 5 right<br />&nbsp; &nbsp; &nbsp; mov&nbsp; &nbsp;CPUIO3,#0&nbsp; &nbsp;; 5 clear acknowledge<br />&nbsp; &nbsp; &nbsp; movw&nbsp; 2,ya&nbsp; &nbsp; &nbsp; &nbsp; ; 5<br />&nbsp; &nbsp; &nbsp; bra&nbsp; &nbsp;-&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; 4</div><br />Even though there seem to be no spare cycles, a couple can be squeezed out. You'll note that the acknowledgements back to the S-CPU change twice per sample. This simplifies the S-CPU synchronization code.<br /><br />On the S-CPU side, writing samples is very easy:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">; A,X,Y all 16 bits wide<br />loop:<br />&nbsp; &nbsp; &nbsp; ; Wait for S-SMP to be ready for more samples<br />:&nbsp; &nbsp; &nbsp;bit APUIO2<br />&nbsp; &nbsp; &nbsp; bpl :-<br />&nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; ; Write left and right samples. There's time<br />&nbsp; &nbsp; &nbsp; ; to do some table lookups instead of having<br />&nbsp; &nbsp; &nbsp; ; them pre-calculated in x and y.<br />&nbsp; &nbsp; &nbsp; nop<br />&nbsp; &nbsp; &nbsp; stx APUIO0<br />&nbsp; &nbsp; &nbsp; sty APUIO2<br />&nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; ; Calculate next samples.<br />&nbsp; &nbsp; &nbsp; ; 486 master clocks available to do so.<br />&nbsp; &nbsp; &nbsp; ...<br />&nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; bra loop</div>
+<br />Note how the synchronization merely waits for the small window in which the fourth I/O register is set to $80. I used this instead of a comparison with a counter, because that would have required more cycles on the S-CPU side. Better to make the S-SMP do a bit more work (write two acknowledgement values each sample) rather than the S-CPU.
+<br />
+<br />I've been able to write a simple mono real-time FM synthesizer, but it doesn't have volume control as there's not enough time. I figured I'd post this in case anyone did have some actual samples worth outputting. The above code works perfectly, as I've tested it carefully with things like sine waves and various samples. I can put together a complete demo if anyone's interested.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Fri Mar 05, 2010 5:48 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />So you found how to emulate NES $4011 <img src="./images/smilies/icon_smile.gif" alt=":-)" title="Smile" />
+<br />
+<br />I wonder how suitable this would be for speech synthesis. For this, you won't really need more than 8-bit mono at 8.0 or 10.7 kHz, so filling an entire page of the echo buffer might simplify the S-CPU side of it and allow game logic to run at the same time.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>byuu</b> [ Fri Mar 05, 2010 8:08 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Even generating music will be tough. 128K/s is a lot of bandwidth. The entirety of SNES work RAM.
+<br />
+<br />But if this can be dropped to a lower bit rate, say 16KHz 8-bit mono or stereo, then it could lead to something really impressive if an SA-1 coprocessor were used as a custom audio mixer. The quality gain would be in avoiding 4-bit ADPCM.
+<br />
+<br />Or perhaps someone could make some really awesome synth music in the 486 clock window ...
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Fri Mar 05, 2010 8:36 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />The main challenge here was to reach the full rate of the SPC-700's DAC, to see whether it could even be done. Lower rates allow plenty of time for indexed addressing on the SMP side, and thus buffering, as tepples mentioned. Buffering is more efficient on the S-CPU side too, and allows other tasks like graphics at the same time.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Sat Mar 06, 2010 1:46 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Well this is clever, as always, Blarg. Congratulations on finding this method. I always wondered if the echo buffer could be used for streaming, it seems it does ! Echo can definitely turn into a 9th channel for the SPC somehow.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Sat Mar 06, 2010 3:08 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />You can't do anything else, though, since it ties up the S-SMP. It's more of a curiosity, unless someone sticks an MPEG decoder in a cartridge and uses the SPC-700 as a roundabout DAC. Or maybe someone wants to stick a really high quality, short sample in his homebrew game and play it at the title screen. This just establishes that it can be done...
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>byuu</b> [ Sat Mar 06, 2010 9:53 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Using the audio mixing stereo pins on the cartridge connector would mix directly into the DAC, completely bypassing the need for S-CPU and S-SMP code. You could in fact end up using the S-SMP as a dedicated logic coprocessor.
+<br />
+<br />But yes, showing that it's possible is truly awesome. A tech demo playing a song at 32KHz stereo with no ADPCM compression would be most cool. Just need a really great 48 second song. And then we can put to rest the arguments that the Genesis had a better sound chip once and for all :)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Sun Mar 07, 2010 8:18 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Haha, I like the idea of something to outdo the Genesis, as the latter only has something like an 8-bit DAC. Maybe someone can make a song that uses a few looped samples. It's definitely possible to layer a few. It needs to be something with some quiet passages, to show the dynamic range possible. It also must have some complex things that couldn't be synthesized with the DSP normally. Maybe something classical? Heh, it could start out with that FM synthesis I worked on, sounding like the Genesis, then meld into the sample, showing that it can do both.
+<br />
+<br />I've got the perfect piece: Mozart's <a href="http://en.wikipedia.org/wiki/Eine_kleine_Nachtmusik#Allegro" class="postlink">Eine kleine Nachtmusik</a>.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Wed Mar 10, 2010 8:51 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Finally, I finished a one-minute near-CD-quality demo for the SNES (2.9 MB download): <a href="http://byuusan.kuro-hitsuji.net.nyud.net/blargg_near_cd_quality.7z" class="postlink">blargg_near_cd_quality.7z</a> (<a href="http://byuusan.kuro-hitsuji.net/blargg_near_cd_quality.7z" class="postlink">mirror</a>).  
+<br />
+<br />Thanks to byuu for some assistance with the ROM access and testing. We found that it only plays properly on bsnes (or a SNES of course); the current SNES9x plays it much lower quality than it should. Put on headphones if possible, otherwise you can't really tell that it's 16-bit stereo.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Wed Mar 10, 2010 10:04 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Dynamic range is possible even with the existing ADPCM because the "A" is for Adaptive. This means the bitstream encodes the volume somehow, either explicitly (<a href="http://nesdev.com/bbs/viewtopic.php?p=29722#29722" class="postlink">number of shits</a> in BRR on Super NES) or implicitly (10% decay per sample in IMA on Nintendo DS). I'm more interested in the real-time synthesis aspects.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Wed Mar 10, 2010 11:38 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Heh, that's exactly what I did here. I compressed the original 16-bit samples to 8-bit samples, with a shift count stored for each group of 15 samples. There's barely enough time to decompress it in real-time on the S-CPU. I only did this to allow double the time in a 4MB ROM. For real-time synthesis, it'd make more sense to do a buffered approach, which would be entirely different than this (and much lower than 128KB/sec transfer to the SPC-700). That would run at a lower rate, probably 16 kHz, 8-bit mono or something.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>orwannon</b> [ Wed Mar 10, 2010 11:51 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">blargg wrote:</div><div class="quotecontent">Finally, I finished a one-minute near-CD-quality demo for the SNES (2.9 MB download): <a href="http://byuusan.kuro-hitsuji.net.nyud.net/blargg_near_cd_quality.7z" class="postlink">blargg_near_cd_quality.7z</a> (<a href="http://byuusan.kuro-hitsuji.net/blargg_near_cd_quality.7z" class="postlink">mirror</a>).</div>
+<br />Just tried this on the PowerPak. WOW! <img src="./images/smilies/icon_eek.gif" alt=":shock:" title="Shocked" /> Simply amazing. Great work, blargg. <img src="./images/smilies/icon_biggrin.gif" alt=":D" title="Very Happy" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>byuu</b> [ Fri Mar 12, 2010 8:23 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Would anyone mind testing this on the Windows Snes9X v1.52 release under Windows XP? It seems to crackle and pop for me, but not for the Windows port author.
+<br />
+<br />If it works cleanly there, then there's no reason not to use Snes9X instead for the lower system requirements.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>mic_</b> [ Fri Mar 12, 2010 9:03 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Sounds very noisy for me with Snes9x 1.51 on XP.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Fri Mar 12, 2010 11:10 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I noticed that the DSP configuration I used wasn't as loud as it could be, and thus wasn't using the full DAC precision. Here's an updated one: <a href="http://byuusan.kuro-hitsuji.net.nyud.net/blargg_near_cd_quality2.7z" class="postlink">blargg_near_cd_quality2.7z</a> (<a href="http://byuusan.kuro-hitsuji.net/blargg_near_cd_quality2.7z" class="postlink">mirror</a>). I've also updated the link in the original message.
+<br />
+<br />Before I had a single FIR constant of $3F (49%) and evol of $7F (99%). I had used the $3F because I was getting what sounded like overdriving when I was first developing the technique. I tried again yesterday and couldn't hear any of that, so I changed the FIR constant to $80 (-100%) and evol to $80 (-100%). Combined these give exactly 100%, i.e. no change in volume. There's no way to get +100%, so I used the two negatives to cancel each other out. This still technically only gives 15 bits per sample, due to the DSP always clearing the low bit during echo calculation, but there's no way around that.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>3</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

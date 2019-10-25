@@ -1,0 +1,417 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Oh no! Not another stupid custom mapper!</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Oh no! Not another stupid custom mapper!</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=9&amp;t=11474">http://forums.nesdev.com/viewtopic.php?f=9&amp;t=11474</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>3</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Drag</b> [ Mon Jul 28, 2014 5:45 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Oh no! Not another stupid custom mapper!</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Rather than me clogging <a href="http://forums.nesdev.com/viewtopic.php?f=9&amp;t=11459" class="postlink">this thread</a> with questions and other marginally-related-to-the-topic nonsense, I'm starting a new thread instead.<br /><br />So, I'm pretty much half-way through designing the rough draft of a pretty decent seeming mapper, needing only 74-series ICs so far. The absolute base design is as follows:<br /><br />16k VRAM<br />12 1k PPU banks<br />3 8k PRG banks (E000-FFFF fixed to last bank)<br /><br />The registers themselves (holding the current page number for each bank) are 4 74670s, which is a 4x4bit register file (basically 4 4-bit flipflops with built-in addressing and multiplexed output). The first three ICs handle the 12 PPU banks, and are 4-bit, which is perfect for the 16kb VRAM. The last IC handles the three PRG banks, and as-is, allow up to 128kb roms. However, the PRG banks can be extended to 8-bit by adding another 74670 in parallel to provide the upper 4 bits, allowing up to 2mb roms. This introduces slightly more complexity into the mapper, so I was thinking of having two seperate versions of the mapper, 128k and 2m.<br /><br />The reasoning behind having 3 PRG banks is so you can have bankswitchable DPCM data, and the first two banks fit the harvard memory model nicely (where code and data are seperated). So for example, you can put your music engine's code in 8000-9FFF, and have the music data in A000-BFFF, which allows any number of pages of music data, and then C000-DFFF can contain the current DPCM sample.<br /><br />I could easily cut this in half and have just one 16k PRG bank and one fixed 16k bank, and that'd allow 256k (with 4-bit registers) and 4m (with 8-bit registers), but you'd have a lot less flexibility with code and data space, plus no DPCM banking, so the 128k/2m cap seemed reasonable in light of this.<br /><br />Here is the current list of extended features I've finished or am working on:<br />- Special exception for nametable banks where the first two pages refer to internal VRAM instead of cart VRAM.<br />You'll always have at least 2 nametables to work with, and at least 2k of pattern table data (128 tiles out of 512). The remaining 14k is shared between the two. If you just use 8k of ram for tiles (standard chr-ram), the other 8k (plus internal vram) can be used for 10 nametables. Incidently, you need 15k worth of pattern table data to fill the <em>entire screen</em> with unique tiles, which brings me to the next feature.<br /><br />- Special bank 0 auto-increment-on-hot-tile mode (togglable).<br />A special mode where fetching the last byte of bank 0, which is pattern B of the last row of tile 3F, automatically advances bank 0 to the next page. This mode can be enabled or disabled as seen fit. This allows the extremely simple addition of digitized images to the screen, simply by displaying tiles 00-3F over and over on the nametable. This can fill the screen, or just be a smaller region (or 2) on the screen somewhere. Since this mode only affects bank 0, the other pattern table banks are free to hold whatever data you want, including UI elements, fonts, sprites, etc.<br />The way you'd use this mode is by writing to the 16th register (notice how only 15 are used for banks), which would actually load a counter with the starting page and enable the hot-tile mode, where the counter is incremented after the PPU finishes fetching from address $03FF. You'd need to reset the counter to the starting bank every vblank though. To go back to regular bank 0 mode, you'd just write to the bank 0 register like usual.<br /><br /><br />When I say &quot;I'm working on this mapper&quot;, I'm actually writing out where the traces are connected, the logic, things like that. However, I still have some things I don't know. For instance, if I have a 4-way OR gate, can I feed it with a chip's /OE signal (or rather, the signal that drives the chip's /OE), and 3 of the chip's outputs? I've been working under the assumption that the three inputs being hi-z won't matter since the fourth input (the chip's /OE) will always be 1, and since the 1 means the OR will output 1 regardless of the other three inputs, it shouldn't matter of the three inputs are hi-z at that point. But I dunno if this is actually true.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Mon Jul 28, 2014 6:34 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Oh no! Not another stupid custom mapper!</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Drag wrote:</div><div class="quotecontent">74670<br /></div> The 74'670 is only new-old-stock at this point, and supplies are dwindling. You may need to use more obnoxious things like latches and multiplexers or programmable logic instead.<br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">if I have a 4-way OR gate, can I feed it with a chip's /OE signal (or rather, the signal that drives the chip's /OE), and 3 of the chip's outputs? I've been working under the assumption that the three inputs being hi-z won't matter since the fourth input (the chip's /OE) will always be 1, and since the 1 means the OR will output 1 regardless of the other three inputs, it shouldn't matter of the three inputs are hi-z at that point. But I dunno if this is actually true.<br /></div>Well, anything you think of as Hi-Z doesn't mean <em>nothing</em> is driving the bus, so those pins may be driven even though you're not enabling the output. Plus Hi-Z doesn't actually mean &quot;no value&quot;, but rather &quot;some random value and you can't rely on it to be anything in particular&quot;<br /><br />The situation as you lay out sounds tentatively ok, but it's hard to tell without having a little more of the circuit.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Drag</b> [ Mon Jul 28, 2014 6:55 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Oh no! Not another stupid custom mapper!</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Well, ok, the chips I picked out are:<br />74155 - dual 2-&gt;4 demux<br />74161 - 4-bit reloadable binary counter with asynchronous clear<br />74257 - Quad 2-line to 1-line selector<br />74670 - 4x4 register file<br /><br />How can you tell if something is no longer manufactured?<br /><br />Also, I'll post more information about the circuit once I fill it out a bit more. The weird OR gate thing relates to the nametable page 0/1 exception.<br /><br />Q0 from the third 74670 (nametables) drives CIRAM A10, and (Q1 | Q2 | Q3 | /RE) (all from same '670) drives CIRAM /CE. The OR is 0 when the page number is less than 2, and Q0 selects which of the NES's internal 1k pages is being used.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Mon Jul 28, 2014 7:21 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Oh no! Not another stupid custom mapper!</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Drag wrote:</div><div class="quotecontent">How can you tell if something is no longer manufactured?<br /></div>I don't know of a more unified method than looking at some supplier, such as Digikey or Jameco, or a manufacturer such as NXP or TI.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Q0 from the third 74670 (nametables) drives CIRAM A10, and (Q1 | Q2 | Q3 | /RE) (all from same '670) drives CIRAM /CE. The OR is 0 when the page number is less than 2, and Q0 selects which of the NES's internal 1k pages is being used.</div>Under what conditions would <s>you want to tristate the output of the &#39;670</s> one of the three '670s not be driving the bus?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>l_oliveira</b> [ Mon Jul 28, 2014 7:34 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Oh no! Not another stupid custom mapper!</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Drag wrote:</div><div class="quotecontent">So, I'm pretty much half-way through designing the rough draft of a pretty decent seeming mapper, needing only 74-series ICs so far. The absolute base design is as follows:<br /><br />16k VRAM<br />12 1k PPU banks<br />3 8k PRG banks (E000-FFFF fixed to last bank)<br /></div><br /><br />Basically you're making something similar to this:<br /><!-- m --><a class="postlink" href="http://wiki.nesdev.com/w/index.php/INES_Mapper_085">http://wiki.nesdev.com/w/index.php/INES_Mapper_085</a><!-- m --><br /><br />And that's a damn good mapper. <img src="./images/smilies/icon_wink.gif" alt=";)" title="Wink" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Drag</b> [ Mon Jul 28, 2014 7:54 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Oh no! Not another stupid custom mapper!</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">lidnariq wrote:</div><div class="quotecontent"><div class="quotetitle">Drag wrote:</div><div class="quotecontent">How can you tell if something is no longer manufactured?<br /></div>I don't know of a more unified method than looking at some supplier, such as Digikey or Jameco, or a manufacturer such as NXP or TI.</div><br />I tried looking at Jameco, and I can order a 74LS670, but it doesn't mention anywhere that it's obsolete or part of a declining stock, so I don't know where to go for that information. I did find a 40-series version of the 4x4 register file, but mixing 40s and 74s doesn't seem to be easy unless you use 74HCTs, which the NES probably isn't.<br /><br /><div class="quotetitle">lidnariq wrote:</div><div class="quotecontent"><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Q0 from the third 74670 (nametables) drives CIRAM A10, and (Q1 | Q2 | Q3 | /RE) (all from same '670) drives CIRAM /CE. The OR is 0 when the page number is less than 2, and Q0 selects which of the NES's internal 1k pages is being used.</div>Under what conditions would <s>you want to tristate the output of the &#39;670</s> one of the three '670s not be driving the bus?</div><br />That shouldn't really matter, but right now, the register bus goes hi-z during fetches to 3000-3FFF, because VRAM is inhibited during that time, meaning its address inputs wouldn't matter. The Q signals going into the OR gate, and to CIRAM A10 can come either from the register bus or from the third '670. I arbitrarily chose the '670. Again, since /RE goes to one of the inputs of the OR gate as well, /RE being high should mean that the OR gate outputs 1 regardless of the other three inputs, whether they're high, low, or hi-z, right?<br /><br /><div class="quotetitle">l_oliveira wrote:</div><div class="quotecontent">Basically you're making something similar to this:<br /><!-- m --><a class="postlink" href="http://wiki.nesdev.com/w/index.php/INES_Mapper_085">http://wiki.nesdev.com/w/index.php/INES_Mapper_085</a><!-- m --><br /><br />And that's a damn good mapper. <img src="./images/smilies/icon_wink.gif" alt=";)" title="Wink" /></div><br />Pretty much, yep! Mine provides slightly different functionality though, like individual control over each nametable (plus enough memory for 4-screen), plus the advantage of using 74 series parts, so anyone can build it, rather than tearing apart a copy of Tiny Toons.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Mon Jul 28, 2014 8:57 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Oh no! Not another stupid custom mapper!</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Drag wrote:</div><div class="quotecontent">I tried looking at Jameco, and I can order a 74LS670, but it doesn't mention anywhere that it's obsolete or part of a declining stock, so I don't know where to go for that information.<br /></div>No-one makes LS series parts any more, because they're slower and higher power than HC and HCT parts.<br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent"> I did find a 40-series version of the 4x4 register file, but mixing 40s and 74s doesn't seem to be easy unless you use 74HCTs, which the NES probably isn't.<br /></div>Plain 40-series parts are often very slow ... maybe slow enough for the NES, maybe not. What part number?<br /><div class="quotetitle">Drag wrote:</div><div class="quotecontent">That shouldn't really matter, but right now, the register bus goes hi-z during fetches to 3000-3FFF, because VRAM is inhibited during that time, meaning its address inputs wouldn't matter.<br /></div>Oh, right, it's simpler to have three '670s with a nondecoded region than nonuniform decoding regions.<br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">/RE being high should mean that the OR gate outputs 1 regardless of the other three inputs, whether they're high, low, or hi-z, right?<br /></div>Yeah, that's safe... at least with CMOS, anyway.<br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Pretty much [like the VRC7], yep! Mine provides slightly different functionality though, like individual control over each nametable (plus enough memory for 4-screen), plus the advantage of using 74 series parts, so anyone can build it, rather than tearing apart a copy of Tiny Toons.<br /></div>I actually thought it looked a little closer to N163, because of the arbitrary nametable shuffling.<br /><br />Only other annoying thing is that you can't easily get 16KiB RAMs, only 8 and 32.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Drag</b> [ Mon Jul 28, 2014 9:24 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Oh no! Not another stupid custom mapper!</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">lidnariq wrote:</div><div class="quotecontent">No-one makes LS series parts any more, because they're slower and higher power than HC and HCT parts.</div><br />Wikipedia has a link to a datasheet for a 74HC/HCT670, so they probably exist somewhere.<br /><div class="quotetitle">lidnariq wrote:</div><div class="quotecontent">Plain 40-series parts are often very slow ... maybe slow enough for the NES, maybe not. What part number?</div><br />40108 and 40208. I'm not sure what the difference is, but the 40108 appears to be the &quot;average&quot; one.<br /><div class="quotetitle">lidnariq wrote:</div><div class="quotecontent">Only other annoying thing is that you can't easily get 16KiB RAMs, only 8 and 32.</div><br />Seriously? That seems kinda arbitrary to me. I guess you could wire two 8k's together
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Memblers</b> [ Tue Jul 29, 2014 12:38 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Oh no! Not another stupid custom mapper!</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Drag wrote:</div><div class="quotecontent"><div class="quotetitle">lidnariq wrote:</div><div class="quotecontent">No-one makes LS series parts any more, because they're slower and higher power than HC and HCT parts.</div><br />Wikipedia has a link to a datasheet for a 74HC/HCT670, so they probably exist somewhere.<br /></div><br /><br />I use <a href="http://findchips.com/" class="postlink">http://findchips.com/</a> to check availability of parts, looks like there are some available, and on ebay too.  But the availability looks weak, and at $1.40+ each, there's not much bang for the buck compared to a CPLD + regulator for about the same price.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent"><div class="quotetitle">lidnariq wrote:</div><div class="quotecontent">Only other annoying thing is that you can't easily get 16KiB RAMs, only 8 and 32.</div><br />Seriously? That seems kinda arbitrary to me. I guess you could wire two 8k's together</div><br /><br />You can't easily get 8kB SRAMs either, 32kB will surely be cheaper.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Drag</b> [ Tue Jul 29, 2014 1:21 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Oh no! Not another stupid custom mapper!</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Well then I suppose I'll have to work on a CPLD implementation once I hammer out the details of the glue logic version. <img src="./images/smilies/icon_razz.gif" alt=":P" title="Razz" /> At least with a CPLD, I can precisely control how many bits the registers have and can actually support a 32k vram. (though I'm having a hard time convincing myself to keep it as vram and not vrom like any sane designer would do; I've just never seen a mapper like this done before, especially one with more than 4 nametables, so I'm curious about it)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Tue Jul 29, 2014 2:14 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Oh no! Not another stupid custom mapper!</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />VRC6 and N163 would have supported up to 256KiB and 32KiB of RAM for nametables respectively (both in lieu of the in-NES NTRAM), and N163 supported swapping that RAM around between tile data and nametable data.<br /><br />It would also be easy to add a 74'139 to convert <em>any</em> ASIC mapper to allow for ROM nametables and NTRAM-as-CHRRAM.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>infiniteneslives</b> [ Tue Jul 29, 2014 12:01 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Oh no! Not another stupid custom mapper!</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />If you have any interest in being cost effective I would recommend using CPLDs.  Your 74670 4X4 Reg files are ~$1.50ea in quantities of 250.  You have 4 of them for a total of $6 and I'm not even considering at the other parts.  You could have 144Mcells from two xc9572xl's for $4.50 and have extremely more capabilities than what you're talking about.  Not trying to crush dreams, but show the incentive of programmable logic options should you choose to learn how to use them.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Tue Jul 29, 2014 12:20 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Oh no! Not another stupid custom mapper!</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Couldn't the resources being spent on automatic pattern switching be used for generating IRQs instead? I find the usefulness of automatic pattern switching very limited, as it's often only necessary in cutscenes and the like, where you could very well use timed code instead. IRQs on the other hand are very useful during gameplay, where timed code would slow down your engine and other methods like sprite 0 hits and DMC IRQs aren't very flexible.<br /><br />I really liked Membler's idea of generating an IRQ when a certain pattern is fetched, so you can trigger it with the background or sprites, according to your needs. In fact, you can still do everything you could with the automatic bankswitching, you'll just have to do the bankswitching yourself, but that an insignificant price to pay considering you also get to do parallax effects, status bars, split screen 2-player games, rising water, big background bosses, and so on. Those are infinitely more interesting IMO, and I think it would be a shame to sacrifice that so a few lazy programmers can skip a couple of register writes in the opening and end scenes of their games.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Drag</b> [ Tue Jul 29, 2014 12:49 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Oh no! Not another stupid custom mapper!</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I think the auto bank increment mode is still a worthwhile feature to have. Besides, imagine a game like Ninja Gaiden, but with the ability to have large, hand-drawn backgrounds during the cutscenes. Or being able to have a large, hand-drawn background boss with multiple frames of animation (which'd be even more feasible now that I know 32k ram is more common than 16k). Not to mention, having the ability to replace the font portion of the pattern table with an arbitrary amount of ram for large VWF dialog windows. Now imagine all of this, but <em>not</em> needing to calculate scanline positions or anything. I'm certain that any programmer would <em>praise the sun</em> after learning that the hardware can something for them automatically.<br /><br />Besides, I did leave room for a scanline counter, and I was planning to add one later.<br /><br />And yes, I just got done saying I'd need to work on a CPLD implementation; but designing the circuit with glue-logic in mind is still helpful because I have a base I can grab my needed circuits from, and most of my work is just figuring out where the wires go.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Tue Jul 29, 2014 5:07 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Oh no! Not another stupid custom mapper!</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Drag wrote:</div><div class="quotecontent">imagine a game like Ninja Gaiden, but with the ability to have large, hand-drawn backgrounds during the cutscenes. Or being able to have a large, hand-drawn background boss with multiple frames of animation (which'd be even more feasible now that I know 32k ram is more common than 16k). Not to mention, having the ability to replace the font portion of the pattern table with an arbitrary amount of ram for large VWF dialog windows.</div><br />I'm not against any of that, but I'm against excluding everything else that can be done with raster effects just to spare the programmer from making a few calculations. Programmers shouldn't be this lazy.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Now imagine all of this, but <em>not</em> needing to calculate scanline positions or anything.</div><br />Now imagine being able to program a side-scroller without having to deal with progressive name table updates and VRAM bandwidth... I'm sure most programmers would rather use a Game Maker than code for the NES.<br /><br />My point is that there are literally no advantages for the final product... A person playing a game doesn't care whether the patterns are switched automatically or whether the programmer had to make a couple of calculations and register writes, but they will notice if one game has richer raster effects than another. This feature does not promote the betterment of the game, just the laziness of the programmer.<br /><br />I don't regret calling this laziness, because the complexity involved in preparing the numbers for manual bankswitching is inferior to almost every other aspect of a decent game, such as progressive name table updates, collision detection, physics, AI, you name it. If a person can't do those they shouldn't even be thinking of &quot;beautiful hand-drawn backgrounds&quot;, because their games are not going to be any polished. If they can handle those just fine, manual pattern switching couldn't possibly take more than half an hour to implement.<br /><br />I know this may be sounding a bit harsh, but this really is how I feel. The idea of crippling a feature that could be so much more versatile just in order to slightly simplify one specific use of it seems like a bad, bad call. It could be my desire to use more raster effects talking, since I'm not comfortable coding games for limited supply ASIC mappers and I've been waiting a while for a homebrew mapper with simple but versatile IRQ generation.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Besides, I did leave room for a scanline counter, and I was planning to add one later.</div><br />That's cool. Traditional scanline counting is probably too complicated to implement with discrete logic parts, so the idea of firing IRQs based on tile fetches sounds like the best compromise to me. What kind of IRQs do you plan of implementing?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>3</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

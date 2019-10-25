@@ -1,0 +1,598 @@
+;   Core Dump the internal RAM on the NES.
+;   Copyright (C) 2014  Johnathan Roatch
+;
+;   Copying and distribution of this file, with or without
+;   modification, are permitted in any medium without royalty
+;   provided the copyright notice and this notice are preserved
+;   in all source code copies.
+;
+;   This file is offered as-is, without any warranty.
+
+; 2014-08-14: Version 1.1
+;   - $01 and stack pointer are now preserved in idle frames.
+;   - added sounds.
+;   - moved stack pointer print out to top right.
+;   - 502 bytes code + 128 bytes chr data
+; 2014-08-11: Version 1.0
+;   - Initial release.
+;   - 485 bytes code + 128 bytes chr data
+
+; features for next version(s):
+; - view PRG ram at $6000-$7fff and rom at $8000-$ffff.
+; - view unaltered nametables and chr ram.
+; - find more optimizations.
+
+; the primary trick I employ to be able to interactively
+; browse ram without corrupting it is saving byte $01 in the Stack pointer,
+; and byte $00 in X, so that I can use the pair to do a load indirect.
+;
+; The rest of the code is all about sequencing PPU_ADDR and PPU_DATA
+;
+; coredump with the initial controller polling MUST be the first thing
+; that executes if you want to read what the uninitialized ram from
+; the console.
+
+  ; INTEGRATION NOTE:
+  ; this source assembles with asm6 and thus uses some specific features
+  ; such as how it does anonymous labels and byte statements.
+  ;
+  ; search for more of these notes for places of configuration/customization
+
+;----------------------------------------------------------------
+; nes.h
+;----------------------------------------------------------------
+PPU_CTRL        = $2000
+  NT_2000       = $00
+  NT_2400       = $01
+  NT_2800       = $02
+  NT_2C00       = $03
+  VRAM_DOWN     = $04
+  OBJ_0000      = $00
+  OBJ_1000      = $08
+  OBJ_8X16      = $20
+  BG_0000       = $00
+  BG_1000       = $10
+  VBLANK_NMI    = $80
+
+PPU_MASK        = $2001
+  LIGHTGRAY     = $01
+  BG_OFF        = $00
+  BG_CLIP       = $08
+  BG_ON         = $0A
+  OBJ_OFF       = $00
+  OBJ_CLIP      = $10
+  OBJ_ON        = $14
+  TINT_R        = $20
+  TINT_G        = $40
+  TINT_B        = $80
+
+PPU_STATUS      = $2002
+OAM_ADDR        = $2003
+OAM_DATA        = $2004
+PPU_SCROLL      = $2005
+PPU_ADDR        = $2006
+PPU_DATA        = $2007
+
+APU_PL1_VOL     = $4000
+APU_PL1_SWEEP   = $4001
+APU_PL1_LO      = $4002
+APU_PL1_HI      = $4003
+APU_PL2_VOL     = $4004
+APU_PL2_SWEEP   = $4005
+APU_PL2_LO      = $4006
+APU_PL2_HI      = $4007
+APU_TRI_LINEAR  = $4008
+APU_TRI_LO      = $400a
+APU_TRI_HI      = $400b
+APU_NOISE_VOL   = $400c
+APU_NOISE_LO    = $400e
+APU_NOISE_HI    = $400f
+APU_DMC_FREQ    = $4010
+APU_DMC_RAW     = $4011
+APU_DMC_START   = $4012
+APU_DMC_LEN     = $4013
+OAM_DMA         = $4014
+APU_SND_CHN     = $4015
+APU_FRAMECNT    = $4017
+
+JOY1            = $4016
+JOY2            = $4017
+  KEY_NONE      = %00000000
+  KEY_A         = %10000000
+  KEY_B         = %01000000
+  KEY_SELECT    = %00100000
+  KEY_START     = %00010000
+  KEY_UP        = %00001000
+  KEY_DOWN      = %00000100
+  KEY_LEFT      = %00000010
+  KEY_RIGHT     = %00000001
+
+
+;----------------------------------------------------------------
+; iNES header
+;----------------------------------------------------------------
+  .db "NES",$1a     ; magic signature
+  .db 1             ; number of PRG ROM in 16384 byte pages
+  .db 0             ; number of CHR ROM in 8192 byte pages
+  .db $00, $00      ; Mapper 0
+  .db $00           ; No submapper
+  .db $00           ; PRG ROM not 4 MiB or larger
+  .db $00           ; No PRG RAM
+  .db $00           ; no NES 2.0 feature
+  .db $00           ; NTSC; use $01 for PAL
+  .db $00           ; No special PPU
+  .dsb 2, $00       ; padding
+
+
+;----------------------------------------------------------------
+; Program
+;----------------------------------------------------------------
+.org $c000
+
+  ; INTEGRATION NOTE:
+  ; if you don't care for being able to call halt_and_coredump
+  ; from other code. Remove the branch at line 184, halt_and_coredump,
+  ; coredump_from_reset, and then make coredump the new reset.
+
+;;
+; Call this to halt game immediately and activate the debugger.
+halt_and_coredump:
+  pha
+  txa
+  pha
+  tya
+  pha
+  bit rti_byte      ; bit #$40
+  bvs coredump
+rti_byte:
+  rti
+
+
+;;
+; Go through normal init procedures while checking for
+;   a button combo to branch to dump core mode.
+coredump_from_reset:
+  clv
+  ;!; bvc coredump
+
+
+coredump:
+RAM_PTR = $00
+RAM_PTR_LO = RAM_PTR + 0
+RAM_PTR_HI = RAM_PTR + 1
+STATE_VAR = RAM_PTR_HI
+  sei               ; Disable interrupts
+  ldx #$00
+  stx PPU_CTRL      ; Disable NMI
+  stx PPU_MASK      ; Disable rendering
+  lda #$40
+  sta APU_FRAMECNT
+  lda #$01
+  sta APU_SND_CHN
+
+  ; INTEGRATION NOTE:
+  ; Initialize other I/O or mapper registers here.
+  ; Don't write in $0000-$07ff, use PPU, or use stack yet!
+  ; Preserve the overflow flag.
+
+  lda PPU_STATUS
+-:
+  lda PPU_STATUS
+  bpl -
+
+  ; no need to read pad and wait another frame
+  ; if called via halt_and_coredump.
+  ; INTEGRATION NOTE:
+  ; delete branch if halt_and_coredump is removed.
+  bvs start_of_ppu_writes
+
+read_pad2_for_starting_memory_read:
+  ldy #$01
+  txa   ;!; lda #$00
+  sty JOY1
+  sta JOY1
+-:
+  lda JOY2
+  ; INTEGRATION NOTE: Uncomment to read pad 1 as well.
+  ;ora JOY1
+  and #%00000011  ; ignore D2-D7
+  cmp #1          ; CLC if A=0, SEC if A>=1
+  tya
+  rol
+  tay
+  bcc -
+  ; A = Y = pad2
+
+  ; INTEGRATION NOTE: Customize the key combo here.
+  cpy #KEY_DOWN|KEY_A|KEY_B
+  beq END_memory_clear
+  ; Magic key check failed. Continue normal init.
+memory_clear:
+  ; dex   ;!; ldx #$ff
+  ; txs   ; set stack pointer
+
+  ; INTEGRATION NOTE:
+  ; do memory initalization and anything else but PPU operations here.
+  ; Just make sure carry is cleared at the end so that
+  ;   the code after the second PPU poll will work.
+  ; Unless you don't want the second PPU poll. In that case
+  ;   remove jump_to_exit, and execute jump from in here.
+
+  clc
+END_memory_clear:
+
+-:
+  bit PPU_STATUS
+  bpl -
+
+  bcs END_jump_to_exit
+jump_to_exit:
+
+  ; INTEGRATION NOTE:
+  ; This is the moment after the second PPU poll.
+  ; If the magic key check failed, then the stack is set,
+  ;   memory is cleared, and PPU is warmed up.
+  ; You should now enable NMI, set up you game loop,
+  ;   and jump to the correct spot.
+
+  ; lda #VBLANK_NMI
+  ; sta PPU_CTRL
+  ; jmp main
+  ; for this demo we just fall through.
+END_jump_to_exit:
+
+start_of_ppu_writes:
+set_palette:
+  lda #$3F
+  sta PPU_ADDR
+  lda #$0F
+  sta PPU_ADDR
+  ldy #$20
+  sty PPU_DATA
+  ; INTEGRATION NOTE: change if you don't want blue screen of death
+  lda #$01
+  sta PPU_DATA
+clear_nametable:
+    ;!; ldy #$20
+  sty PPU_ADDR
+    ;!; ldx #$00
+  stx PPU_ADDR
+
+
+    ;!; ldx #$00
+  ldy #-4
+--:
+  lda #$ff
+-:
+  sta PPU_DATA
+  inx
+  bne -
+  ; also play a startup sfx.
+  lda #%10101010
+  sta APU_PL1_VOL-$100+4, y
+  iny
+  bne --
+
+  ; INTEGRATION NOTE:
+  ; If the rom is not set up for CHR ram at PPU $0000-$0fff,
+  ;   remove upload_chr_ram and coredump_chr
+  ;   and make sure that tile $ff is blank
+  ;   and tiles $00 - $0f are hexdecimal numbers.
+
+upload_chr_ram:
+blank_tile:
+  lda #$0f
+  sta PPU_ADDR
+  ldy #$f0
+  sty PPU_ADDR
+    ;!; ldy #$f0  ;!; ldy #-$10
+-:
+  stx PPU_DATA
+  iny
+  bne -
+number_tiles:
+    ;!; ldx #$00
+  stx PPU_ADDR
+    ;!; ldx #$00
+  stx PPU_ADDR
+    ;!; ldx #$00
+    ;!; ldy #$00
+-:
+  tya
+  eor #%00001000
+  and #%00001111
+  bne +
+  txa
+  .db $CB, $08  ; asx #$08
++:
+  lda coredump_chr, x
+  sta PPU_DATA
+  inx
+  iny
+  bne -
+END_upload_chr_ram:
+
+print_stack_regester:
+  tsx
+write_stack_ptr:
+  lda #$20
+  sta PPU_ADDR
+  lda #$98
+  sta PPU_ADDR
+    ;!; ldy #$00
+  sty PPU_DATA
+  lda #$01
+  sta PPU_DATA
+  txa
+  lsr
+  lsr
+  lsr
+  lsr
+  sta PPU_DATA
+  txa
+  and #$0f
+  sta PPU_DATA
+
+  ; CPU has 4 mirrors From $0000 to $1fff
+  ; State var, a00xyzzz,
+  ;   a: screen needs to redraw.
+  ;   x: add half to page number
+  ;   y: button was pressed last frame
+  ;   z: page number
+
+  ldy #%10001000
+
+main_loop:
+-:
+  bit PPU_STATUS
+  bpl -
+
+  lda #BG_ON|OBJ_OFF
+  sta PPU_MASK
+
+check_for_page_switch:
+read_pads:
+  ldx #$01
+  lda #$00
+  stx JOY1
+  sta JOY1
+-:
+  lda JOY2
+  ; INTEGRATION NOTE:
+  ; If you don't want pad 1 to be mixed in as input,
+  ;   comment out this next line.
+  ora JOY1
+  and #%00000011  ; ignore D2-D7
+  cmp #1          ; CLC if A=0, SEC if A>=1
+  txa
+  rol
+  tax
+  bcc -
+  ; A = X = (pad1 | pad2)
+
+modify_state:
+  and #KEY_UP|KEY_DOWN      ; mask all buttons but up and down
+  tax
+  beq no_key_was_pressed:
+  tya
+  bit php_byte      ;!; bit #%00001000
+  bne END_modify_state      ; key needs to be not pressed last frame.
+    ;!; and #%00011111    ; upper 3 bits are assumed 0
+  cmp #%00010000    ; rotate the 5 bit field
+  rol
+  cpx #KEY_UP
+  bne +
+    ;!; sec  ; from cpx being equal.
+  sbc #$01  ; alternatively adc #$fe
++:
+  cpx #KEY_DOWN
+  bne +
+    ;!; sec  ; from cpx being equal.
+  adc #$00  ; alternatively sbc #$ff
++:
+  and #%00001111    ; mask button pressed and overflow bits.
+  lsr
+  ora #%10001000
+  bcc +
+  ora #%00010000
++:
+
+play_sfx:
+  ldx #%10001011
+  stx APU_PL1_SWEEP
+  sta APU_PL1_LO    ; pitch varies for each page.
+  ldx #%10000000
+  stx APU_PL1_VOL
+  stx APU_PL1_HI
+
+  bne store_state   ;!; jmp store_state
+php_byte:
+  php
+no_key_was_pressed:
+  tya
+  and #%11110111
+store_state:
+  tay
+END_modify_state:
+
+END_check_for_page_switch:
+  ; still in vblank.
+  tya
+  bpl main_loop
+print_current_half_page:
+save_ram:
+  ldx RAM_PTR_HI
+  txs               ; save high byte to SP
+  ldx RAM_PTR_LO    ; and low byte to X
+clear_draw_flag:
+  ; tya
+  and #%01111111
+  sta STATE_VAR
+turn_off_screen:
+  ldy #BG_OFF|OBJ_OFF   ;!; ldy #$00
+  sty PPU_MASK
+unpack_STATE_VAR:
+    ;!; lda STATE_VAR
+  asl
+  asl
+  asl
+  and #%10000000
+  sta RAM_PTR_LO
+
+print_address:
+  lda #$20
+  sta PPU_ADDR
+  lda #$84
+  sta PPU_ADDR
+    ;!; ldy #$00
+  sty PPU_DATA
+  lda RAM_PTR_HI
+  and #%00000111
+  sta PPU_DATA
+  lda RAM_PTR_LO
+  beq +
+  lda #$08
++:
+  sta PPU_DATA
+    ;!; ldy #$00
+  sty PPU_DATA
+
+  lda #$20
+  sta PPU_ADDR
+  lda #$c4
+  sta PPU_ADDR
+
+  lda STATE_VAR
+  and #%00010111
+  bne END_print_special_bytes
+print_special_bytes:
+  ; this is now on page 0.0, so this needs to
+  ;   print the two saved bytes in X and SP.
+  txa
+  tay
+  tsx
+  ;!; tya
+  lsr
+  lsr
+  lsr
+  lsr
+  sta PPU_DATA
+  tya
+  and #$0f
+  sta PPU_DATA
+  lda PPU_DATA
+  inc RAM_PTR_LO
+  txa
+  lsr
+  lsr
+  lsr
+  lsr
+  sta PPU_DATA
+  txa
+  and #$0f
+  sta PPU_DATA
+  lda PPU_DATA
+  inc RAM_PTR_LO
+  ;!; txs
+  tya
+  tax
+END_print_special_bytes:
+
+print_byte_loop:
+  ldy #$00
+  lda (RAM_PTR), y
+  lsr
+  lsr
+  lsr
+  lsr
+  sta PPU_DATA
+  lda (RAM_PTR), y
+  and #$0f
+  sta PPU_DATA
+  inc RAM_PTR_LO
+insert_blanks:
+  ldy #$01
+  lda RAM_PTR_LO
+  and #%00000011
+  bne +
+  iny   ;!; ldy #2
+  lda RAM_PTR_LO
+  and #%00000111
+  bne +
+  ldy #$08
+  lda RAM_PTR_LO
+  and #%00011111
+  bne +
+  ldy #$28
++:
+-:
+  lda PPU_DATA
+  dey
+  bne -
+  lda RAM_PTR_LO
+  and #%01111111
+  bne print_byte_loop
+restore_ram:
+  lda #$20
+  sta PPU_ADDR
+  lda #$9a
+  sta PPU_ADDR
+  lda PPU_DATA  ; dummy read
+  lda PPU_DATA
+  asl
+  asl
+  asl
+  asl
+  ora PPU_DATA
+
+  stx RAM_PTR_LO
+  ldy STATE_VAR
+  tsx
+  stx RAM_PTR_HI
+  tax
+  txs
+set_scroll:
+  ldx #$00
+  stx PPU_SCROLL
+  stx PPU_SCROLL
+END_print_current_half_page:
+
+  jmp main_loop
+END_coredump:
+
+.align 128
+
+  ; INTEGRATION NOTE:
+  ; You can replace this with your own custom 1bpp font
+coredump_chr:
+  .db $78,$cc,$dc,$fc,$ec,$cc,$78,$00   ; 0
+  .db $30,$f0,$30,$30,$30,$30,$fc,$00   ; 1
+  .db $78,$cc,$0c,$38,$60,$cc,$fc,$00   ; 2
+  .db $78,$cc,$0c,$38,$0c,$cc,$78,$00   ; 3
+  .db $1c,$3c,$6c,$cc,$fe,$0c,$0c,$00   ; 4
+  .db $fc,$c0,$f8,$0c,$0c,$cc,$78,$00   ; 5
+  .db $38,$60,$c0,$f8,$cc,$cc,$78,$00   ; 6
+  .db $fc,$cc,$0c,$18,$30,$60,$60,$00   ; 7
+  .db $78,$cc,$cc,$78,$cc,$cc,$78,$00   ; 8
+  .db $78,$cc,$cc,$7c,$0c,$18,$70,$00   ; 9
+  .db $30,$78,$cc,$cc,$fc,$cc,$cc,$00   ; A
+  .db $fc,$66,$66,$7c,$66,$66,$fc,$00   ; B
+  .db $3c,$66,$c0,$c0,$c0,$66,$3c,$00   ; C
+  .db $fc,$6c,$66,$66,$66,$6c,$fc,$00   ; D
+  .db $fe,$62,$68,$78,$68,$62,$fe,$00   ; E
+  .db $fe,$62,$68,$78,$68,$60,$f0,$00   ; F
+
+  ; INTEGRATION NOTE:
+  ; If your game doesn't use the IRQ vector, then you can set it
+  ;   to halt_and_coredump and rom fill with brk ($00).
+  ; So that you might find where errant branches are happening.
+
+;----------------------------------------------------------------
+; interrupt vectors
+;----------------------------------------------------------------
+.org $fffa
+
+vectors:
+  .dw rti_byte
+  .dw coredump_from_reset
+  .dw halt_and_coredump

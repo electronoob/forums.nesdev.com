@@ -1,0 +1,387 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - 2A03 in the Wild (Running It Standalone)</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">2A03 in the Wild (Running It Standalone)</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=9&amp;t=5178">http://forums.nesdev.com/viewtopic.php?f=9&amp;t=5178</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>skrasms</b> [ Sat May 16, 2009 5:09 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>2A03 in the Wild (Running It Standalone)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I've been doing experiments with a 2A03 by itself for a synthesizer, and I do not understand some of the results. This test was conducted to see what happens on startup, when the chip first gets power and a clock. The setup is very simple: D7-D0 are tied through 10k ohm resistors to ground. When the 2A03 tries to read, it will always see 0x00. If any actual data comes out of the data bus, the 10k ohm resistors are simple loads to limit the current. NMI, IRQ, and RES are all tied to VCC for a logic high. 
+<br />
+<br />My logic analyzer is only 8 pins, so I went with VCC, RD/WR, CLK/12, A4-A0. 
+<br />
+<br />When the chip first gets power, it does a counting sequence of some kind before it starts.
+<br />
+<br /><img src="http://www.skrasoft.com/blog/blogfiles/2A03/startup1.png" alt="Image" />
+<br />
+<br />Here is a close-up view
+<br />
+<br /><img src="http://www.skrasoft.com/blog/blogfiles/2A03/startup2.png" alt="Image" />
+<br />
+<br />Eventually the processor tries to actually run a program. Since it is stuck reading 0x00, it gets a reset vector of 0x00 followed by BRK instructions that keep it looping. 
+<br />
+<br /><img src="http://www.skrasoft.com/blog/blogfiles/2A03/startup3.png" alt="Image" />
+<br />
+<br />Here is a close-up view
+<br />
+<br /><img src="http://www.skrasoft.com/blog/blogfiles/2A03/startup4.png" alt="Image" />
+<br />
+<br />So what is the counting sequence at the beginning? It happens consistently every time, with A4 always having 8 bursts of logic toggles before the "program" starts.
+<br />
+<br />I would also think that with this setup, the first thing I'd see on the address pins during execution would correspond with the reset vector location at 0xFFFC and 0xFFFD. That should be 11100 and 11101 on the five probed address bus pins while RD is high, but I don't see it happen. Am I missing something obvious?
+<br />
+<br />Any help is appreciated <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Sun May 17, 2009 7:36 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />There are two different DMA paths in the NES: the $4014 blit-sprite-memory, which always starts reading from an address $xx00 and writes to $2004, and the DPCM which starts reading at $xyz0, x≥0xC, z={0,4,8,C} and goes for 16*w+1.
+<br />
+<br />Looking at the timing diagram, this looks like
+<br />* read from 0, write to 4
+<br />* read from 1, write to 4
+<br />* read from 2, write to 4
+<br />* read from 3, write to 4
+<br />* read from 4, write to 4
+<br />.. &amp;c. So it looks like this is the $4014 DMA.
+<br />
+<br />If you tie pin 30 on the 2A03 high (which the wiki states should disable the extra sound &amp;c hardware) does it stop happening?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Jeroen</b> [ Sun May 17, 2009 8:53 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Also are you resetting the thing? You need to reset it.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>skrasms</b> [ Sun May 17, 2009 9:49 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">lidnariq wrote:</div><div class="quotecontent">There are two different DMA paths in the NES: the $4014 blit-sprite-memory, which always starts reading from an address $xx00 and writes to $2004, and the DPCM which starts reading at $xyz0, x≥0xC, z={0,4,8,C} and goes for 16*w+1.<br /><br />Looking at the timing diagram, this looks like<br />* read from 0, write to 4<br />* read from 1, write to 4<br />* read from 2, write to 4<br />* read from 3, write to 4<br />* read from 4, write to 4<br />.. &amp;c. So it looks like this is the $4014 DMA.<br /><br />If you tie pin 30 on the 2A03 high (which the wiki states should disable the extra sound &amp;c hardware) does it stop happening?</div>
+<br />
+<br />So it sounds like I should be expecting the counting sequence. I tied pin 30 high and got identical results.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>skrasms</b> [ Sun May 17, 2009 9:56 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Jeroen wrote:</div><div class="quotecontent">Also are you resetting the thing? You need to reset it.</div>
+<br />
+<br />When and why does it need to be reset? When I first made a 2A03 synth before, I had to play around toggling VCC and RES to get it to actually work. I'd like to understand what is supposed to happen  <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" /> 
+<br />
+<br />Right now I have the reset pin tied to VCC, so each time I switch the chip on reset goes high. Do I need to hold RES low for a while after VCC turns on and then switch it high, or just toggle it low and back at some point during startup?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Jeroen</b> [ Sun May 17, 2009 10:01 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />It's a weird cpu thing. You need to reset them for a few seconds on powerup so they can stabilize. (and also so the power supply and stuff can stabilize)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>skrasms</b> [ Sun May 17, 2009 1:21 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I changed my system so that power switches on while RES is held low, and after a second I tie RES high. I don't get the counting pattern at all anymore. The chip now starts up like this:
+<br /><img src="http://www.skrasoft.com/blog/blogfiles/2A03/startup5.png" alt="Image" />
+<br />
+<br />Here's a slightly closer view
+<br /><img src="http://www.skrasoft.com/blog/blogfiles/2A03/startup6.png" alt="Image" />
+<br />
+<br />Here is a close up on the first address pin action
+<br /><img src="http://www.skrasoft.com/blog/blogfiles/2A03/startup7.png" alt="Image" />
+<br />
+<br />I do see the 11100 -&gt; 11101 -&gt; 00000 address data that I was expecting, though I'm not sure what the few clock cycles before it are. 
+<br />
+<br />So just taking the 4 least significant bits on the address bus and starting where the bus drops to 0x0, it goes:
+<br />
+<br />1) Read address 0x0
+<br />2) Read address 0xF
+<br />3) Read address 0xE
+<br />4) Read address 0xC
+<br />5) Read address 0xD
+<br />6) Read address 0x0
+<br />7) Read address 0x1
+<br />8) Write address 0xD
+<br />9) Write address 0xC
+<br />10) Write address 0xB
+<br />11) Read address 0xE
+<br />12) Read address 0xF
+<br />
+<br />
+<br />I read somewhere that the BRK command goes to the address located in 0xFFFE and 0xFFFF. Are steps 2 and 3 above related to that?
+<br />
+<br />I would expect step 6 would issue a BRK command, so then I would see 0xE and 0xF come up next. Why does it instead turn to 0x1 followed by three write commands before 0xE and 0xF show up on the address bus?
+<br />
+<br />Thanks for all the help so far.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Memblers</b> [ Sun May 17, 2009 1:32 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">skrasms wrote:</div><div class="quotecontent">I would expect step 6 would issue a BRK command, so then I would see 0xE and 0xF come up next. Why does it instead turn to 0x1 followed by three write commands before 0xE and 0xF show up on the address bus?<br /></div>
+<br />
+<br />I suspect 0x1 is it fetching the 'operand' for the BRK instruction, and the writes to 0xD,0xC,0xB are it pushing the processor status and return address onto the stack.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>cpow</b> [ Sun May 17, 2009 4:22 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />What is the LA that you are using?  I've been looking for a cheap USB-based 8/16 channel LA for a while.  I never seem to find one cheap enough to get it 'under the radar'.   <img src="./images/smilies/icon_rolleyes.gif" alt=":roll:" title="Rolling Eyes" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>skrasms</b> [ Sun May 17, 2009 8:18 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">NESICIDE wrote:</div><div class="quotecontent">What is the LA that you are using?  I've been looking for a cheap USB-based 8/16 channel LA for a while.  I never seem to find one cheap enough to get it 'under the radar'.   <img src="./images/smilies/icon_rolleyes.gif" alt=":roll:" title="Rolling Eyes" /></div>
+<br />
+<br />It's a Saleae Logic. It's pretty slow (~16MHz) and only eight channels, but it can record long spans of time. It has decoders for I2C, SPI, and asynchronous serial. I think the cost was $150.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

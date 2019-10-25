@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=10&amp;t=12089" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2014-12-07T10:14:18-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=10&amp;t=12089</id>
+<entry>
+<author><name><![CDATA[Tsutarja]]></name></author>
+<updated>2014-12-07T10:14:18-07:00</updated>
+<published>2014-12-07T10:14:18-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=12089&amp;p=137371#p137371</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=12089&amp;p=137371#p137371"/>
+<title type="html"><![CDATA[Re: Code stuck at $0000]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=12089&amp;p=137371#p137371"><![CDATA[
+It's working almost. Just a minor issue that I'd like to get fixed. I get some kind of clipping on the first scanline where the split happens (see picture).<br />Here is what I have related to the IRQ (didn't change anything in ScrollBg which I posted in my last post):<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">ScanlineIRQSet:         ; Set up scanline interrupt<br /> LDA #$D8<br /> STA IRQLacth<br /> STA IRQReload<br /> STA IRQEnable<br /> RTS<br /><br />IRQ:            ; Scanline interrupt<br /> PHA            ; Push A, X &amp; Y to stack<br /> TXA<br /> PHA<br /> TYA<br /> PHA<br /> LDA #%00000111         ; Split screen<br /> STA IRQDisable<br /> STA PPUAddr<br /> LDA #%01100000<br /> STA PPUAddr<br /> PLA            ; Pull A, X &amp; Y from stack<br /> TAY<br /> PLA<br /> TAX<br /> PLA<br /> RTI</div><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6724">Tsutarja</a> — Sun Dec 07, 2014 10:14 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tokumaru]]></name></author>
+<updated>2014-12-06T17:10:52-07:00</updated>
+<published>2014-12-06T17:10:52-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=12089&amp;p=137339#p137339</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=12089&amp;p=137339#p137339"/>
+<title type="html"><![CDATA[Re: Code stuck at $0000]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=12089&amp;p=137339#p137339"><![CDATA[
+<div class="quotetitle">Tsutarja wrote:</div><div class="quotecontent"><br />the IRQ begin generated will set X scrolling to #$FF (which seems to be the beginning of the second nametable when mirroring vertically)<br /></div><br />it's actually the very end of the first name table (1 pixel of it) followed by 255 pixels of the second name table. It might not make much of a difference, but the correct way to show all 256 pixels of the second name table would be to set the X scroll to 0 ($2005) and select the second name table using PPUCTRL ($2000).<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent"><br />and then store #$00 to Y scrolling<br /></div><br />The vertical scroll can't be set mid-frame using $2005. Whatever value you try to write will not have any effect. To affect the vertical scroll in any way, you need to write to $2006 in addition to $2005. Values written to $2006 affect the scroll in a different way. Here's how the 16-bit value written to $2006 is interpreted by the NES:<br /><br />1st byte: *yyyNNYY<br />2nd byte: YYYXXXXX<br /><br />XXXXX: coarse X scroll;<br />YYYYY: coarse Y scroll;<br />NN: name table;<br />yyy: fine Y scroll;<br /><br />It would be possible to set the scroll to any position you wanted using only $2006, except for 2 little problems: 1- the fine X scroll can only be set through $2005; 2- when you write the second byte, the PPU automatically clears the highest y bit from the first write, so you lose some control over the fine Y scroll. These problems can be solved by mixing $2005 and $2006 writes together, but most NES programmers back in the time didn't know that. In any case, status bars always start at an even tile boundary, meaning that the fine Y scroll is always 0, so this isn't an issue in this case.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=95">tokumaru</a> — Sat Dec 06, 2014 5:10 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Tsutarja]]></name></author>
+<updated>2014-12-06T15:47:15-07:00</updated>
+<published>2014-12-06T15:47:15-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=12089&amp;p=137336#p137336</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=12089&amp;p=137336#p137336"/>
+<title type="html"><![CDATA[Re: Code stuck at $0000]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=12089&amp;p=137336#p137336"><![CDATA[
+<div class="quotetitle">koitsu wrote:</div><div class="quotecontent"><br />I briefly skimmed (did not really look at in depth) the code yesterday while I wasn't feeling very well, and I saw some spots where it looks like you're re-setting PPUScroll/$2005 to some value like $FF.  Possibly this needs to be adjusted as to not include the area of the screen where the status bar is?  Just a thought.<br /></div><br /><br />The purpose for this is that once the scanline #$D7 is reached, the IRQ begin generated will set X scrolling to #$FF (which seems to be the beginning of the second nametable when mirroring vertically) and then store #$00 to Y scrolling (but doesn't store it to the scrollY variable) because the status bar is at the bottom of the second nametable. Then, once it runs ScrollBg next time, it will reset X scrolling back to #$00 and Y scrolling to whatever value was previously written to scrollY variable. Not sure if that's the best way to do this, but that's essentially how I'm trying to do it.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">ScrollBg:<br /> LDY timer0<br /> CPY #$02<br /> BNE SkipScroll<br /> LDY #$00<br /> STY scrollX<br /> STY PPUScroll<br /> LDX scrollY<br /> DEX<br /> CPX #$F0<br /> BCC SkipScrollFix<br /> LDX #$EF<br />SkipScrollFix:<br /> STX scrollY<br /> STX PPUScroll<br /> LDY #$00<br /> STY timer0         ; Reset timer0<br />SkipScroll:<br /> RTS<br /><br />ScanlineIRQSet:         ; Set up scanline interrupt<br /> LDA #$D7<br /> STA IRQLacth<br /> STA IRQReload<br /> STA IRQEnable<br /> RTS<br /><br />IRQ:            ; Scanline interrupt<br /> PHA            ; Push A, X &amp; Y to stack<br /> TXA<br /> PHA<br /> TYA<br /> PHA<br /> LDA #$FF         ; Split screen<br /> STA IRQDisable<br /> STA scrollX<br /> STA PPUScroll<br /> LDA #$00<br /> STA PPUScroll<br /> PLA            ; Pull A, X &amp; Y from stack<br /> TAY<br /> PLA<br /> TAX<br /> PLA<br /> RTI</div><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6724">Tsutarja</a> — Sat Dec 06, 2014 3:47 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[koitsu]]></name></author>
+<updated>2014-12-06T14:58:56-07:00</updated>
+<published>2014-12-06T14:58:56-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=12089&amp;p=137335#p137335</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=12089&amp;p=137335#p137335"/>
+<title type="html"><![CDATA[Re: Code stuck at $0000]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=12089&amp;p=137335#p137335"><![CDATA[
+I briefly skimmed (did not really look at in depth) the code yesterday while I wasn't feeling very well, and I saw some spots where it looks like you're re-setting PPUScroll/$2005 to some value like $FF.  Possibly this needs to be adjusted as to not include the area of the screen where the status bar is?  Just a thought.<br /><br />Code in question is part of the IRQ/BRK handler:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent"> LDA #$FF<br /> STA IRQDisable<br /> STA scrollX<br /> STA PPUScroll<br /> LDA #$00<br /> STA PPUScroll<br /></div><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3">koitsu</a> — Sat Dec 06, 2014 2:58 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2014-12-06T13:54:42-07:00</updated>
+<published>2014-12-06T13:54:42-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=12089&amp;p=137334#p137334</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=12089&amp;p=137334#p137334"/>
+<title type="html"><![CDATA[Re: Code stuck at $0000]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=12089&amp;p=137334#p137334"><![CDATA[
+Disabling and reenabling rendering during vblank does, however, give an additional 85 cycles (line -1's draw time) if you're right on the edge. In the first volume of Action 53, I had to patch NES15 to disable rendering because the multicart overhead was pushing its video memory update code just over the edge.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Sat Dec 06, 2014 1:54 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tokumaru]]></name></author>
+<updated>2014-12-06T13:42:53-07:00</updated>
+<published>2014-12-06T13:42:53-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=12089&amp;p=137332#p137332</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=12089&amp;p=137332#p137332"/>
+<title type="html"><![CDATA[Re: Code stuck at $0000]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=12089&amp;p=137332#p137332"><![CDATA[
+<div class="quotetitle">Tsutarja wrote:</div><div class="quotecontent"><br />Getting closer. I managed to get rid of the flickering by disabling/enabling rendering in NMI instead of the subroutines that may require it. It also makes my NMI code slightly more faster when there is a lot of graphical updates.<br /></div><br />Actually, you don't have to disable and re-enable rendering at all, as long as all the updates fit inside VBlank time (which they should!). If you can't guarantee that, turning rendering off and back on will prevent VRAM corruption, but the screen will &quot;jump&quot;.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=95">tokumaru</a> — Sat Dec 06, 2014 1:42 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[rainwarrior]]></name></author>
+<updated>2014-12-06T12:54:54-07:00</updated>
+<published>2014-12-06T12:54:54-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=12089&amp;p=137329#p137329</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=12089&amp;p=137329#p137329"/>
+<title type="html"><![CDATA[Re: Code stuck at $0000]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=12089&amp;p=137329#p137329"><![CDATA[
+By the way, FCEUX will save an AVI directly (it's in the File menu), you don't need to run a capture program on top of it.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=5165">rainwarrior</a> — Sat Dec 06, 2014 12:54 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Tsutarja]]></name></author>
+<updated>2014-12-06T12:30:04-07:00</updated>
+<published>2014-12-06T12:30:04-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=12089&amp;p=137327#p137327</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=12089&amp;p=137327#p137327"/>
+<title type="html"><![CDATA[Re: Code stuck at $0000]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=12089&amp;p=137327#p137327"><![CDATA[
+Getting closer. I managed to get rid of the flickering by disabling/enabling rendering in NMI instead of the subroutines that may require it. It also makes my NMI code slightly more faster when there is a lot of graphical updates. The status bar is not working though (the splitting itself). I need to try to fix that.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6724">Tsutarja</a> — Sat Dec 06, 2014 12:30 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tomaitheous]]></name></author>
+<updated>2014-12-06T11:43:17-07:00</updated>
+<published>2014-12-06T11:43:17-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=12089&amp;p=137326#p137326</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=12089&amp;p=137326#p137326"/>
+<title type="html"><![CDATA[Re: Code stuck at $0000]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=12089&amp;p=137326#p137326"><![CDATA[
+You're using $2005 for the mid screen interrupt routine to the change the scroll, but aren't you supposed to use $2006 mid screen? Also, in the debugger, on every other frame - the screen is blank before it hits the mapper interrupt. Maybe you're not resetting up something for the scroll regs on every vblank?<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3645">tomaitheous</a> — Sat Dec 06, 2014 11:43 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Tsutarja]]></name></author>
+<updated>2014-12-05T14:20:51-07:00</updated>
+<published>2014-12-05T14:20:51-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=12089&amp;p=137311#p137311</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=12089&amp;p=137311#p137311"/>
+<title type="html"><![CDATA[Re: Code stuck at $0000]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=12089&amp;p=137311#p137311"><![CDATA[
+It's almost working! The problem I have is some kind of flickering, but because it's hard to describe what exactly is happening I'll attach the .nes file so you can see it (screen capture didn't record enough frames per second to capture it).<br /><br />Here is the code too: <!-- m --><a class="postlink" href="http://pastebin.com/7CuNC8by">http://pastebin.com/7CuNC8by</a><!-- m --><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6724">Tsutarja</a> — Fri Dec 05, 2014 2:20 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2014-12-05T10:21:27-07:00</updated>
+<published>2014-12-05T10:21:27-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=12089&amp;p=137307#p137307</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=12089&amp;p=137307#p137307"/>
+<title type="html"><![CDATA[Re: Code stuck at $0000]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=12089&amp;p=137307#p137307"><![CDATA[
+MMC3 has <a href="http://wiki.nesdev.com/w/index.php/MMC3" class="postlink">reference documents</a> produced by the reverse engineers of the greater NESdev community. If you have programmed for any other non-trivial mapper, these reference documents should help you get a status bar working.<br /><br />If that's too long:<br /><ol style="list-style-type: decimal"><li>Make sure the background is using the first pattern table ($0000) and the sprites the second ($1000). </li><li>Disable all other IRQ sources (APU frame, APU DMC) and set the interrupt priority to 0 with <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">cli</tt>. (Priority 0 lets IRQ and NMI through; priority 1 lets only NMI through.) </li><li>In your NMI handler, make any necessary updates to OAM, palette, and video memory (in that order), scroll the playfield into view, write the number of scanlines above your status bar to $C000 (PIT period), then write anything to $C001 (reload PIT) and $E001 (enable PIT IRQ). </li><li>In your IRQ handler, write anything to $E000 (disable PIT IRQ) and scroll the status bar into view. </li></ol><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Fri Dec 05, 2014 10:21 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Tsutarja]]></name></author>
+<updated>2014-12-05T10:11:53-07:00</updated>
+<published>2014-12-05T10:11:53-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=12089&amp;p=137306#p137306</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=12089&amp;p=137306#p137306"/>
+<title type="html"><![CDATA[Re: Code stuck at $0000]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=12089&amp;p=137306#p137306"><![CDATA[
+<div class="quotetitle">tokumaru wrote:</div><div class="quotecontent"><br />I don't think there are any MMC3 tutorials though, but that's probably not necessary.<br /></div><br /><br />Why not? How am I supposed to know how to use a mapper if there is no tutorial? Just trying and guessing probably won't yield much result.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6724">Tsutarja</a> — Fri Dec 05, 2014 10:11 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tokumaru]]></name></author>
+<updated>2014-12-05T08:19:33-07:00</updated>
+<published>2014-12-05T08:19:33-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=12089&amp;p=137304#p137304</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=12089&amp;p=137304#p137304"/>
+<title type="html"><![CDATA[Re: Code stuck at $0000]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=12089&amp;p=137304#p137304"><![CDATA[
+There are ways to implement a status bar at the bottom of the screen that don't require any mappers, but they're not exactly trivial. With an MMC3 it gets much easier. I don't think there are any MMC3 tutorials though, but that's probably not necessary.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=95">tokumaru</a> — Fri Dec 05, 2014 8:19 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Tsutarja]]></name></author>
+<updated>2014-12-05T07:31:47-07:00</updated>
+<published>2014-12-05T07:31:47-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=12089&amp;p=137303#p137303</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=12089&amp;p=137303#p137303"/>
+<title type="html"><![CDATA[Re: Code stuck at $0000]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=12089&amp;p=137303#p137303"><![CDATA[
+In your game however the status bar is at the top. I want it to the bottom of the screen. I don't think there is reliable way to get sprite 0 hit every frame in my game so I'm fairly sure I need MMC3 to do this (because it has a scanline counter thing). It would allow me to make some fancy background effects too (such as transitions).<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6724">Tsutarja</a> — Fri Dec 05, 2014 7:31 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[nIghtorius]]></name></author>
+<updated>2014-12-04T15:45:18-07:00</updated>
+<published>2014-12-04T15:45:18-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=12089&amp;p=137281#p137281</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=12089&amp;p=137281#p137281"/>
+<title type="html"><![CDATA[Re: Code stuck at $0000]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=12089&amp;p=137281#p137281"><![CDATA[
+<div class="quotetitle">Tsutarja wrote:</div><div class="quotecontent"><br />Okay it works now. Next I need to figure out how to draw the status bar from the second nametable (I have a plan for that, but I'm not sure if it'll work).<br /><br />EDIT: Okay, my plan didn't work. I guess I need to use MMC3 mapper to get the vertical scrolling and status bar at the same time. I need to find tutorial for the usage of the mapper first though.<br /></div><br /><br />You do not need a MMC3 mapper to have vertical scrolling and status bar at the same time. It can be done using normal NROM mapping. You need to do the 2006/2005/2005/2006 PPU trick. I have done this myself by utilizing a sprite #0 hit at the last scanline aroundisch the 250th X position and then 2006/2005/2005/2006 scroll set technique.<br /><br />My Nametables are set as follows: VERTICAL scroll<br /><br />Nametable @ addr 0x2000 == gamescreen<br />Nametable @ addr 0x2400 == Statusbar thingy<br /><br />First I set the base nametable select register of the PPU ($2000) to render from basenametable #1 (where my statusbar resides), set sprite #0 to collide with the last bar of my statusbar.<br />in the NMI I update stuff and set base nametable to #1 (statusbar) then poll for the sprite #0 hit, after that I use the 2006/2005/2005/2006 trick to set base nametable #0 and set Y-scroll and Y-fine scroll.<br /><br />This enables me to splitscroll vertically <img src="http://forums.nesdev.com/images/smilies/icon_biggrin.gif" alt=":D" title="Very Happy" /><br /><br />I'll include my not-finished game (port from an Konami MSX-game) as a .NES file to show it is possible <img src="http://forums.nesdev.com/images/smilies/icon_smile.gif" alt=":)" title="Smile" /><br /><br />---- <br /><br />Disclaimer: it is unfinished code and mostly it is in a conceptional fase. As it is also my first NES game what I am trying to write. At least I use some kind of compression in the nametables <img src="http://forums.nesdev.com/images/smilies/icon_razz.gif" alt=":P" title="Razz" /><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6497">nIghtorius</a> — Thu Dec 04, 2014 3:45 pm</p><hr />
+]]></content>
+</entry>
+</feed>

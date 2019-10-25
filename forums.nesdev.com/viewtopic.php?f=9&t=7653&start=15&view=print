@@ -1,0 +1,522 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - What's going on with the MMC5 counter?</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">What's going on with the MMC5 counter?</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=9&amp;t=7653">http://forums.nesdev.com/viewtopic.php?f=9&amp;t=7653</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>2</strong> of <strong>4</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>qbradq</b> [ Fri Apr 15, 2011 3:20 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tepples wrote:</div><div class="quotecontent">MMC5 has to count horizontal fetches to tell sprite banks from background banks and figure out at what point on the scanline to vertically split.</div>
+<br />
+<br />Dang Tepples, that was totally lost on me! Thanks for pointing that out!
+<br />
+<br />I was just thinking in the John that a more robust way of detecting scanlines is to look for the idle cycle at the end of one for synchronization, then just count the CHR /RD edges until you hit 336. If you see more than one idle PPU cycle you know rendering is disabled, and you can reset the state machine.
+<br />
+<br />That should approximate the behavior we see. When you disable the PPU through a register write there are at least 2 PPU cycles between the end of the write and the execution of the next CPU instruction byte, during which time the PPU should be idle.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Drag</b> [ Fri Apr 15, 2011 7:29 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><a href="http://drag.wootest.net/misc/mmc5test.nes" class="postlink">MMC5 test rom</a> (Edit: Redownload, I forgot to properly initialize sprites)
+<br />This rom ought to test for the quirks I mentioned a while back. I don't have the means to put this on an actual MMC5 cart, so could someone here do it?
+<br />
+<br />When the screen scrolls up, you should see a bunch of 0s at the top of the screen. That's attribute data being rendered as nametable data, by setting the Y scrolling to $FF. Underneath this is a row of down arrows, that's just to indicate the top of the nametable.
+<br />
+<br />The PPU will incidentally make a duplicate read all on its own, when it goes to render the "tile" at 23FF (also happens at 27FF, 2BFF, and 2FFF), because it'll fetch 23FF as a tile, and then fetch 23FF as an attribute. If the scanline counter indeed looks for a duplicate fetch, then the ruler thing at the bottom of the screen should move when the invalid data scrolls onto the screen. It could:
+<br /><ul><li>Shift down 8 pixels</li><li>Shift up 8 pixels</li><li>Cover the screen</li><li>Do nothing at all</li></ul>
+<br />
+<br />If the ruler moves at all, <em>how</em> it moves will determine what kind of duplicate read the MMC5 looks for.
+<br />
+<br />If the ruler stays still the whole time, then we can't quite conclude anything.
+<br />
+<br />Press start to pause/unpause the scrolling at any point, and use the left/right keys to scroll the screen left and right (this changes where the incidental double-read occurs). So, if the ruler doesn't immediately freak out when the invalid data scrolls on screen, try pausing it, and then moving the screen left and right.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Sat Apr 16, 2011 10:02 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Well I said I'd help but I didn't expect to have to do it so soon. I think I only have one 256 kb Flash ROM and one 32kb permanant SRAM at the momment, I hope I'll be able to make a devcart using those next week so I could tell the result on a real MMC5.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>qbradq</b> [ Sat Apr 16, 2011 10:52 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I could also make a test cart, but I'd have to get some new ROM chips first. I got a Willem PCB5 and it is not working with the 29F020 chips I have.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Drag</b> [ Sat Apr 16, 2011 11:06 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I put all of the code in a single 16k bank, so you can use whatever size rom you want, just mirror the data.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Drag</b> [ Thu May 05, 2011 9:42 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />So has anyone had a chance to test this? I'm personally interested in whether or not any of the quirks I mentioned are happening.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>loopy</b> [ Tue Dec 13, 2011 6:01 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I tried your test rom.  The ruler does indeed move, if you scroll to the left a little bit.  Interesting! Not what I was expecting.
+<br />
+<br /><a href="http://youtu.be/dGhVxdFJVuY" class="postlink">http://youtu.be/dGhVxdFJVuY</a>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Zepper</b> [ Sun Feb 19, 2012 5:34 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Just tried this ROM, but something's strange. It has 16k of PRG ROM, but it writes $00 to $5100, setting the PRG mode to 32k. My emu crashes because there's no 32k page available.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Sun Feb 19, 2012 6:42 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Mirror, mirror on the wall...
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Zepper</b> [ Sun Feb 19, 2012 7:18 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Non-standard settings. Why? I had to duplicate the 16k page in the file &amp; change the iNES header for 2 of 0x4000 PRG banks. It worked.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Drag</b> [ Wed Feb 22, 2012 1:16 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Sorry about that, I think I originally coded this to be 32k in size, but then I later changed it to 16k, probably without updating my code to explicitly set up a 16k + 16k bank setup. Then again, I was under the understanding that if your ROM chip is smaller than 32k, it'll always be mirrored to 32k because the ROM chip won't ever see the upper address lines from the NES.
+<br />
+<br />Thank you so incredibly much for testing this, loopy! I'll need to reread my ramblings in this thread in order to figure out what my train of thought from 7 months ago was, but I think this confirms that the MMC5's scanline counter detects duplicate PPU fetches in order to count scanlines.
+<br />
+<br />The reason I can conclude this is because of the trick I mentioned, where I'm giving the PPU an invalid Y-scroll value, and tricking it into reading $23FF twice consecutively (once as a tile and then again as an attribute byte). The MMC5 detects this duplicate read, and clocks the scanline counter on each scanline that the trick-tile occupies, which is why the ruler moves up when it scrolls onto the screen.
+<br />
+<br />Since it's detecting my trick duplicate read, that means it must also be detecting the duplicate read that occurs at the end of each scanline (cycles 336-339), and since it clocks the scanline counter when it detects these duplicate reads, that must be how it's counting scanlines.
+<br />
+<br />So, that's one MMC5 mystery solved. <img src="./images/smilies/icon_biggrin.gif" alt=":D" title="Very Happy" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>infiniteneslives</b> [ Wed Feb 22, 2012 5:12 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Drag wrote:</div><div class="quotecontent">The reason I can conclude this is because of the trick I mentioned, where I'm giving the PPU an invalid Y-scroll value, and tricking it into reading $23FF twice consecutively (once as a tile and then again as an attribute byte). The MMC5 detects this duplicate read, and clocks the scanline counter on each scanline that the trick-tile occupies, which is why the ruler moves up when it scrolls onto the screen. <br /><br />Since it's detecting my trick duplicate read, that means it must also be detecting the duplicate read that occurs at the end of each scanline (cycles 336-339), and since it clocks the scanline counter when it detects these duplicate reads, that must be how it's counting scanlines.<br /><br />So, that's one MMC5 mystery solved. <img src="./images/smilies/icon_biggrin.gif" alt=":D" title="Very Happy" /></div>
+<br />
+<br />NICE!  Nifty little way to get inside and figure out how it's detecting what's going on.  So the logic involved here seems pretty simple for detecting this.  The only costly thing is the number of I/O, but that's needed for the EXRAM anyways.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Wed Feb 22, 2012 5:30 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Yahooooo !
+<br />Let's toast on this !
+<br />
+<br />
+<br />I think those extra unnecessarly fetches at the end of each scanlines are really weird/undocumented. I didn't even know it was a duplicate fetch.
+<br />This also explains/confirms why the MMC5's counter doesn't work on clones at all, clones which obviously have another fetching sequence.
+<br />
+<br />What sucks, though, is that you can't intentionally display the attribute table as a nametable on the MMC5 while using the SL counter, as it will be clocked twice in that part (apparently). Displaying the attribute table as a nametable is the only way to fully use the ExGraphix mode without any waste, as you can get a 32x32 tilemap with every tile having single color.
+<br />Not a big issue though, since to do that you'd only need to trigger an IRQ after displaying the last true nametable row ($23a0-$23bf) to force the counter to $23c0, so after this line the IRQ counter is not necessary any longer.
+<br />
+<br />Is there any other "mysteries" in the MMC5 left ? Like how it detects forced blanking, how exactly the ExRAM is accessed (dual port), how fast is the multiplier, etc...
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Drag</b> [ Wed Feb 22, 2012 10:30 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />An interesting thing with this video is that the effect doesn't start until the trick tile is actually the third tile on the scanline (from the left). As in, the ruler didn't move until there were 3 columns of dots on the screen.
+<br />
+<br />The reason this is interesting is due to the fetches the PPU makes to render a scanline, which there's a handy reference for <a href="http://wiki.nesdev.com/w/index.php/PPU_rendering" class="postlink">here</a>.
+<br />
+<br />The first two tiles of a scanline are fetched at the end of the PREVIOUS scanline, just before the duplicate read. However, when the trick tile is within the first two columns of the screen (when there are only 2 columns of dots in the video), the ruler is unaffected.
+<br />
+<br />With one column of dots on the screen, the fetches should look something like this:
+<br />
+<br />23FF -- First tile for next scanline --
+<br />23FF &lt;- Trick duplicate read
+<br />0000
+<br />0008
+<br />23E0 -- Second tile for next scanline --
+<br />23F8
+<br />0000
+<br />0008
+<br />23E1 -- The end-of-scanline duplicate read, MMC5 detects this --
+<br />23E1
+<br />-- Idle Cycle --
+<br />23E1 -- Beginning of next scanline, third tile for this scanline --
+<br />23F8
+<br />0000
+<br />0008
+<br />
+<br />However, the MMC5 doesn't seem to be recognizing this. Same for when there are two columns of dots on the screen:
+<br />
+<br />23FE -- First tile for next scanline --
+<br />23FF
+<br />0000
+<br />0008
+<br />23FF -- Second tile for next scanline --
+<br />23FF &lt;- Trick duplicate read
+<br />0000
+<br />0008
+<br />23E0 -- The end-of-scanline duplicate read, MMC5 detects this --
+<br />23E0
+<br />-- Idle Cycle --
+<br />23E0 -- Beginning of next scanline, third tile for this scanline --
+<br />23F8
+<br />0000
+<br />0008
+<br />
+<br />but with three columns of dots on the screen, the MMC5 detects the trick and clocks the scanline counter one extra time.
+<br />
+<br />23FD -- First tile for next scanline --
+<br />23FF
+<br />0000
+<br />0008
+<br />23FE -- Second tile for next scanline --
+<br />23FF
+<br />0000
+<br />0008
+<br />23FF -- The end-of-scanline duplicate read, MMC5 detects this --
+<br />23FF
+<br />-- Idle Cycle --
+<br />23FF -- Beginning of next scanline, third tile for this scanline --
+<br />23FF  &lt;- Trick duplicate read
+<br />0000
+<br />0008
+<br />
+<br />I don't know what happens when the tile is on other parts of the scanline, but why does this trick only work when the tile is on the third column of the screen?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>loopy</b> [ Wed Feb 22, 2012 11:00 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Because it's looking for *3* reads, not 2.
+<br />
+<br />1 column:
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">23FF<br />23FF<br />0000 <br />0008 <br /><br />23E0<br />23F8 <br />0000 <br />0008 <br /><br />23E1 \<br />23E1&nbsp; \ 1<br />&nbsp; &nbsp; &nbsp; /<br />23E1 /<br />23F8 <br />0000 <br />0008 <br /><br /></div><br /><br />2 columns:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">23FE<br />23FF <br />0000 <br />0008<br />&nbsp;<br />23FF<br />23FF<br />0000 <br />0008 <br /><br />23E0 \<br />23E0&nbsp; \ 1<br />&nbsp; &nbsp; &nbsp; /<br />23E0 /<br />23F8<br />0000 <br />0008 <br /></div><br /><br />3 columns:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">23FD<br />23FF <br />0000 <br />0008<br />&nbsp;<br />23FE<br />23FF <br />0000 <br />0008 <br /><br />23FF \<br />23FF&nbsp; \ 1 \<br />&nbsp; &nbsp; &nbsp; /&nbsp; &nbsp; \ 2<br />23FF /&nbsp; &nbsp; &nbsp;/<br />23FF&nbsp; &nbsp; &nbsp; /<br />0000 <br />0008<br /></div>
+<br />
+<br />That's how I've implemented it on the Powerpak anyway, and the results look the same.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>2</strong> of <strong>4</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

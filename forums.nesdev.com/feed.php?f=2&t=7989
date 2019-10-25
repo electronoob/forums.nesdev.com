@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=2&amp;t=7989" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2011-07-25T20:44:28-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=2&amp;t=7989</id>
+<entry>
+<author><name><![CDATA[halkun]]></name></author>
+<updated>2011-07-25T20:44:28-07:00</updated>
+<published>2011-07-25T20:44:28-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=7989&amp;p=82033#p82033</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=7989&amp;p=82033#p82033"/>
+<title type="html"><![CDATA[how big can a mapper get? (Mapper 163 questions)]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=7989&amp;p=82033#p82033"><![CDATA[
+I found some emulator code that describes how the bank switcher work for Mapper 163. Anyone care to translate? I'm just copying the bank switch code from the original rom, but I 'd like to have an idea of how it works. Here is two code snippets from two different emulators.<br /><br />I know that $5000 is a security check, and 5001-5003 switch the rom, but are the arguments?<br /><br />there is also a scan-line interrupt at 127&gt; I think. <br /><br />anyone want to help decipher?<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">//////////////////////////////////////////////////////////////////////////<br />//           Mapper163  NanJing Games &#40;NES Chinese RPR game&#41;            //<br />//////////////////////////////////////////////////////////////////////////<br /><br />void   Mapper163::Reset&#40;&#41;<br />&#123;<br />   reg&#91;1&#93; = 0xFF;<br />   strobe = 1;<br />   security = trigger = reg&#91;0&#93; = 0x00;<br />   SetPROM_32K_Bank&#40;15&#41;;<br />   SetCRAM_8K_Bank&#40;0&#41;;<br />&#125;<br /><br />BYTE Mapper163::ReadLow&#40; WORD addr &#41;<br />&#123;<br />   if&#40;&#40;addr&gt;=0x5000 &amp;&amp; addr&lt;0x6000&#41;&#41;<br />   &#123;<br />      switch &#40;addr &amp; 0x7700&#41;<br />      &#123;<br />         case 0x5100:<br />               return security;<br />               break;<br />         case 0x5500:<br />               if&#40;trigger&#41;<br />                  return security;<br />               else<br />                  return 0;<br />               break;<br />      &#125;<br />      return 4;<br />   &#125;<br />   else if&#40; addr&gt;=0x6000 &#41; &#123;<br />      return   CPU_MEM_BANK&#91;addr&gt;&gt;13&#93;&#91;addr&amp;0x1FFF&#93;;<br />   &#125;<br />   return 0;<br />&#125;<br /><br />void Mapper163::WriteLow&#40;WORD addr, BYTE data&#41;<br />&#123;<br />   if&#40;&#40;addr&gt;=0x4020 &amp;&amp; addr&lt;0x6000&#41;&#41;<br />   &#123;<br />      if&#40;addr==0x5101&#41;&#123;<br />         if&#40;strobe &amp;&amp; !data&#41;&#123;<br />            trigger ^= 1;<br />         &#125;<br />         strobe = data;<br />      &#125;else if&#40;addr==0x5100 &amp;&amp; data==6&#41;&#123;<br />         SetPROM_32K_Bank&#40;3&#41;;<br />      &#125;<br />      else&#123;<br />         switch &#40;addr &amp; 0x7300&#41;<br />         &#123;<br />            case 0x5000:<br />                  reg&#91;1&#93;=data;<br />                  SetPROM_32K_Bank&#40; &#40;reg&#91;1&#93; &amp; 0xF&#41; | &#40;reg&#91;0&#93; &lt;&lt; 4&#41; &#41;;<br />                  if&#40;!&#40;reg&#91;1&#93;&amp;0x80&#41;&amp;&amp;&#40;nes-&gt;ppu-&gt;GetScanlineNo&#40;&#41;&lt;128&#41;&#41;<br />                     SetCRAM_8K_Bank&#40;0&#41;;<br />                  break;<br />            case 0x5200:<br />                  reg&#91;0&#93;=data;<br />                  SetPROM_32K_Bank&#40; &#40;reg&#91;1&#93; &amp; 0xF&#41; | &#40;reg&#91;0&#93; &lt;&lt; 4&#41; &#41;;<br />                  break;<br />            case 0x5300:<br />                  security=data;<br />                  break;<br />         &#125;<br />      &#125;<br />   &#125;<br />   else if&#40; addr&gt;=0x6000 &#41; &#123;<br />      CPU_MEM_BANK&#91;addr&gt;&gt;13&#93;&#91;addr&amp;0x1FFF&#93; = data;<br />   &#125;<br />&#125;<br /><br />void   Mapper163::HSync&#40;int scanline&#41;<br />&#123;<br />   if&#40; &#40;reg&#91;1&#93;&amp;0x80&#41; &amp;&amp; nes-&gt;ppu-&gt;IsDispON&#40;&#41; &#41; &#123;<br />      if&#40;scanline==127&#41;&#123;<br />         SetCRAM_4K_Bank&#40;0, 1&#41;;<br />         SetCRAM_4K_Bank&#40;4, 1&#41;;<br />      &#125;<br />      if&#40;scanline==239&#41;&#123;<br />         SetCRAM_4K_Bank&#40;0, 0&#41;;<br />         SetCRAM_4K_Bank&#40;4, 0&#41;;<br />      &#125;<br />   &#125;<br />&#125;<br /><br />void   Mapper163::SaveState&#40; LPBYTE p &#41;<br />&#123;<br />   p&#91;0&#93; = reg&#91;0&#93;;<br />   p&#91;1&#93; = reg&#91;1&#93;;<br />&#125;<br /><br />void   Mapper163::LoadState&#40; LPBYTE p &#41;<br />&#123;<br /><br />   reg&#91;0&#93; = p&#91;0&#93;;<br />   reg&#91;1&#93; = p&#91;1&#93;;<br />&#125;<br /></div><br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">/*************************************************************<br /><br /> Bootleg Board by Nanjing<br /><br /> Games: A lot of pirate originals<br /><br /> iNES: mapper 163<br /><br /> In MESS: Unsupported.<br /><br /> *************************************************************/<br /><br />static void nanjing_irq&#40; device_t *device, int scanline, int vblank, int blanked &#41;<br />&#123;<br />   nes_state *state = device-&gt;machine&#40;&#41;.driver_data&lt;nes_state&gt;&#40;&#41;;<br /><br />   if &#40;BIT&#40;state-&gt;m_mmc_reg&#91;0&#93;, 7&#41;&#41;<br />   &#123;<br />      if &#40;scanline == 127&#41;<br />      &#123;<br />         chr4_0&#40;device-&gt;machine&#40;&#41;, 1, CHRRAM&#41;;<br />         chr4_4&#40;device-&gt;machine&#40;&#41;, 1, CHRRAM&#41;;<br />      &#125;<br /><br />      if &#40;scanline == 239&#41;<br />      &#123;<br />         chr4_0&#40;device-&gt;machine&#40;&#41;, 0, CHRRAM&#41;;<br />         chr4_4&#40;device-&gt;machine&#40;&#41;, 0, CHRRAM&#41;;<br />      &#125;<br />   &#125;<br /><br />&#125;<br /><br />static WRITE8_HANDLER&#40; nanjing_l_w &#41;<br />&#123;<br />   nes_state *state = space-&gt;machine&#40;&#41;.driver_data&lt;nes_state&gt;&#40;&#41;;<br />   LOG_MMC&#40;&#40;&quot;nanjing_l_w, offset: %04x, data: %02x\n&quot;, offset, data&#41;&#41;;<br /><br />   offset += 0x100;<br /><br />   if &#40;offset &lt; 0x1000&#41;<br />      return;<br /><br />   if &#40;offset == 0x1100&#41;   // 0x5100<br />   &#123;<br />      if &#40;data == 6&#41;<br />         prg32&#40;space-&gt;machine&#40;&#41;, 3&#41;;<br />      return;<br />   &#125;<br /><br />   if &#40;offset == 0x1101&#41;   // 0x5101<br />   &#123;<br />      UINT8 temp = state-&gt;m_mmc_count;<br />      state-&gt;m_mmc_count = data;<br /><br />      if &#40;temp &amp; !data&#41;<br />         state-&gt;m_mmc_latch2 ^= 0xff;<br />   &#125;<br /><br />   switch &#40;offset &amp; 0x300&#41;<br />   &#123;<br />      case 0x000:<br />      case 0x200:<br />         state-&gt;m_mmc_reg&#91;BIT&#40;offset, 9&#41;&#93; = data;<br />         if &#40;!BIT&#40;state-&gt;m_mmc_reg&#91;0&#93;, 7&#41; &amp;&amp; ppu2c0x_get_current_scanline&#40;state-&gt;m_ppu&#41; &lt;= 127&#41;<br />            chr8&#40;space-&gt;machine&#40;&#41;, 0, CHRRAM&#41;;<br />         break;<br />      case 0x300:<br />         state-&gt;m_mmc_latch1 = data;<br />         break;<br />   &#125;<br /><br />   prg32&#40;space-&gt;machine&#40;&#41;, &#40;state-&gt;m_mmc_reg&#91;0&#93; &amp; 0x0f&#41; | &#40;&#40;state-&gt;m_mmc_reg&#91;1&#93; &amp; 0x0f&#41; &lt;&lt; 4&#41;&#41;;<br />&#125;<br /><br />static READ8_HANDLER&#40; nanjing_l_r &#41;<br />&#123;<br />   nes_state *state = space-&gt;machine&#40;&#41;.driver_data&lt;nes_state&gt;&#40;&#41;;<br />   UINT8 value = 0;<br />   LOG_MMC&#40;&#40;&quot;nanjing_l_r, offset: %04x\n&quot;, offset&#41;&#41;;<br /><br />   offset += 0x100;<br /><br />   if &#40;offset &lt; 0x1000&#41;<br />      return 0;<br /><br />   switch &#40;offset &amp; 0x700&#41;<br />   &#123;<br />      case 0x100:<br />         value = state-&gt;m_mmc_latch1;<br />         break;<br />      case 0x500:<br />         value = state-&gt;m_mmc_latch2 &amp; state-&gt;m_mmc_latch1;<br />         break;<br />      case 0x000:<br />      case 0x200:<br />      case 0x300:<br />      case 0x400:<br />      case 0x600:<br />      case 0x700:<br />         value = 4;<br />         break;<br />   &#125;<br />   return value;<br />&#125;<br /></div><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4945">halkun</a> — Mon Jul 25, 2011 8:44 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Dwedit]]></name></author>
+<updated>2011-07-23T11:35:12-07:00</updated>
+<published>2011-07-23T11:35:12-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=7989&amp;p=81933#p81933</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=7989&amp;p=81933#p81933"/>
+<title type="html"><![CDATA[how big can a mapper get? (Mapper 163 questions)]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=7989&amp;p=81933#p81933"><![CDATA[
+I bet if someone ported the Zelda Oracles games to the NES, they would be 2MB in size when put together.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=53">Dwedit</a> — Sat Jul 23, 2011 11:35 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2011-07-23T08:56:31-07:00</updated>
+<published>2011-07-23T08:56:31-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=7989&amp;p=81923#p81923</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=7989&amp;p=81923#p81923"/>
+<title type="html"><![CDATA[how big can a mapper get? (Mapper 163 questions)]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=7989&amp;p=81923#p81923"><![CDATA[
+Action 52 uses 2 MB, but that's probably inefficiently coded. Donkey Kong Country for GBC (a system comparable to an NES with MMC5) uses 4 MB, but about half of each bank is blank.<br /><br />If you use more than 512 KB of PRG ROM, your program won't run on a PowerPak, and you'll need to solder together your own test cart.<br /><br />I'll try to have an SNROM template for you tonight so you can get started. Once you finish recoding Midgar, I should have the SUROM template ready.<br /><br />(When you're looking at the subway map, is that <a href="http://en.wikipedia.org/wiki/Cloud_computing" class="postlink">Cloud computing</a>?)<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Sat Jul 23, 2011 8:56 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[MottZilla]]></name></author>
+<updated>2011-07-23T07:05:47-07:00</updated>
+<published>2011-07-23T07:05:47-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=7989&amp;p=81920#p81920</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=7989&amp;p=81920#p81920"/>
+<title type="html"><![CDATA[how big can a mapper get? (Mapper 163 questions)]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=7989&amp;p=81920#p81920"><![CDATA[
+Yes but for homebrew purposes there is nothing wrong with doing this for your own game. Afterall Nintendo never was going to have a NES game with 2 megabytes of ROM. I'd be interested in seeing a game that actually needed 2 megabytes of ROM.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=1726">MottZilla</a> — Sat Jul 23, 2011 7:05 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2011-07-23T04:37:23-07:00</updated>
+<published>2011-07-23T04:37:23-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=7989&amp;p=81916#p81916</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=7989&amp;p=81916#p81916"/>
+<title type="html"><![CDATA[how big can a mapper get? (Mapper 163 questions)]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=7989&amp;p=81916#p81916"><![CDATA[
+If you set the "battery" bit in the iNES header, emulators <em>should</em> emulate 8 KiB of PRG RAM, decoded to $6000-$7FFF with a 74HC20 (dual 4-input NAND) (see <a href="http://wiki.nesdev.com/w/index.php/PRG_RAM_circuit#Using_7420" class="postlink">schematic</a>). There are no existing boards with PRG RAM on mapper 2, but Family BASIC has PRG RAM on mapper 0, and in my opinion the extension to other discrete boards is obvious.<br /><br />For a custom version of mapper 2 with more than 256 KiB of ROM, you'll need more than four bits of bank number: replace the 74HC161 (4-bit binary counter) with a 74HC377 (8-bit flip-flop) and add a second 74HC32 (quad 2-input OR). Because this makes the bank table much bigger, you'll probably need the other half of the 74HC20 that avoids bus conflicts.<br /><br />For a custom version of mapper 2 with mirroring control, you'd want to use a 74HC153 data selector/multiplexer. The inputs are GND, Vcc, CHR A10, and CHR A11, the select line is from the '377, and the output is CIRAM A10.<br /><br />The parts list so far:<br /><ul><li>PRG ROM </li><li>6264 or 62256: PRG RAM </li><li>6264 or 62256: CHR RAM </li><li>CIClone: stop blinking on front-loaders </li><li>74HC377: hold bank number </li><li>74HC32 * 2: make fixed bank (second optional for SUROM-style super-bank operation) </li><li>74HC20: decode PRG RAM and avoid bus conflicts between '377 and PRG ROM </li><li>74HC153: mirroring control (optional; not part of mapper 2) </li></ul><br />You have five 7400 series ICs, and at that point Nintendo would have switched your project from discrete logic to an ASIC mapper.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Sat Jul 23, 2011 4:37 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[halkun]]></name></author>
+<updated>2011-07-23T00:26:34-07:00</updated>
+<published>2011-07-23T00:26:34-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=7989&amp;p=81905#p81905</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=7989&amp;p=81905#p81905"/>
+<title type="html"><![CDATA[how big can a mapper get? (Mapper 163 questions)]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=7989&amp;p=81905#p81905"><![CDATA[
+I was looking at UxROM, but according to the wiki, there is no WRAM at all in that configuration. Or is that just trivial to just flip a bit in the ines header?<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4945">halkun</a> — Sat Jul 23, 2011 12:26 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[infiniteneslives]]></name></author>
+<updated>2011-07-22T21:05:15-07:00</updated>
+<published>2011-07-22T21:05:15-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=7989&amp;p=81900#p81900</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=7989&amp;p=81900#p81900"/>
+<title type="html"><![CDATA[how big can a mapper get? (Mapper 163 questions)]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=7989&amp;p=81900#p81900"><![CDATA[
+<div class="quotetitle">MottZilla wrote:</div><div class="quotecontent"><br />If you wanted hardware wise it is trivial to adjust UxROM to have a nametable mirroring control bit, 8K of WRAM at $6000-$7FFF, and have 7 bits of PRG bank select. That should give you 2 Megabytes of PRG. It would be like MMC1 with CHR-RAM only without the drawbacks like the serial access and wonky support for over 256KB of PRG.<br /></div><br /><br />That's kinda what I've been thinking all along.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4832">infiniteneslives</a> — Fri Jul 22, 2011 9:05 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[MottZilla]]></name></author>
+<updated>2011-07-22T21:03:10-07:00</updated>
+<published>2011-07-22T21:03:10-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=7989&amp;p=81899#p81899</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=7989&amp;p=81899#p81899"/>
+<title type="html"><![CDATA[how big can a mapper get? (Mapper 163 questions)]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=7989&amp;p=81899#p81899"><![CDATA[
+If you wanted hardware wise it is trivial to adjust UxROM to have a nametable mirroring control bit, 8K of WRAM at $6000-$7FFF, and have 7 bits of PRG bank select. That should give you 2 Megabytes of PRG. It would be like MMC1 with CHR-RAM only without the drawbacks like the serial access and wonky support for over 256KB of PRG.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=1726">MottZilla</a> — Fri Jul 22, 2011 9:03 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[halkun]]></name></author>
+<updated>2011-07-22T13:09:40-07:00</updated>
+<published>2011-07-22T13:09:40-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=7989&amp;p=81894#p81894</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=7989&amp;p=81894#p81894"/>
+<title type="html"><![CDATA[how big can a mapper get? (Mapper 163 questions)]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=7989&amp;p=81894#p81894"><![CDATA[
+Which emus support NES 2.0<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4945">halkun</a> — Fri Jul 22, 2011 1:09 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2011-07-22T11:34:02-07:00</updated>
+<published>2011-07-22T11:34:02-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=7989&amp;p=81891#p81891</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=7989&amp;p=81891#p81891"/>
+<title type="html"><![CDATA[how big can a mapper get? (Mapper 163 questions)]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=7989&amp;p=81891#p81891"><![CDATA[
+<div class="quotetitle">tokumaru wrote:</div><div class="quotecontent"><br />Some emulators insist on not allowing hardware configurations that were not used by commercial games, even when the iNES header specifically asks for said configuration.<br /></div><br />If you've added a PRG RAM decoder circuit like that used in Family BASIC to your mapper 2-compatible board, say so in the NES 2.0 header.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Fri Jul 22, 2011 11:34 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tokumaru]]></name></author>
+<updated>2011-07-22T11:28:24-07:00</updated>
+<published>2011-07-22T11:28:24-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=7989&amp;p=81888#p81888</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=7989&amp;p=81888#p81888"/>
+<title type="html"><![CDATA[how big can a mapper get? (Mapper 163 questions)]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=7989&amp;p=81888#p81888"><![CDATA[
+Some emulators insist on not allowing hardware configurations that were not used by commercial games, even when the iNES header specifically asks for said configuration. This really sucks.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=95">tokumaru</a> — Fri Jul 22, 2011 11:28 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[3gengames]]></name></author>
+<updated>2011-07-22T11:17:14-07:00</updated>
+<published>2011-07-22T11:17:14-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=7989&amp;p=81885#p81885</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=7989&amp;p=81885#p81885"/>
+<title type="html"><![CDATA[how big can a mapper get? (Mapper 163 questions)]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=7989&amp;p=81885#p81885"><![CDATA[
+There's the WRAM bit in iNES to put it there for a reason, right? Although the amount selectable would be better, 99% should just want 8KB.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4311">3gengames</a> — Fri Jul 22, 2011 11:17 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Dwedit]]></name></author>
+<updated>2011-07-22T11:14:00-07:00</updated>
+<published>2011-07-22T11:14:00-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=7989&amp;p=81884#p81884</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=7989&amp;p=81884#p81884"/>
+<title type="html"><![CDATA[how big can a mapper get? (Mapper 163 questions)]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=7989&amp;p=81884#p81884"><![CDATA[
+Few modern emulators give WRAM to UxROM.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=53">Dwedit</a> — Fri Jul 22, 2011 11:14 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[qbradq]]></name></author>
+<updated>2011-07-22T05:24:28-07:00</updated>
+<published>2011-07-22T05:24:28-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=7989&amp;p=81866#p81866</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=7989&amp;p=81866#p81866"/>
+<title type="html"><![CDATA[how big can a mapper get? (Mapper 163 questions)]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=7989&amp;p=81866#p81866"><![CDATA[
+If you're only looking for emulator support I and don't need selectable nametable mirroring I would recommend mapper 2 (UxROM). Many emulators support up to 2MB of PRG-ROM.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3706">qbradq</a> — Fri Jul 22, 2011 5:24 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[halkun]]></name></author>
+<updated>2011-07-21T21:38:24-07:00</updated>
+<published>2011-07-21T21:38:24-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=7989&amp;p=81860#p81860</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=7989&amp;p=81860#p81860"/>
+<title type="html"><![CDATA[how big can a mapper get? (Mapper 163 questions)]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=7989&amp;p=81860#p81860"><![CDATA[
+figuring that I'm actually making this *for* emulators. If it can't run on an emulator at all, I won't be able to do anything...<br /><br />Cool beans though, I just made a blank test ROM with 2MB PRG and fceux took it. Now to play with it a little.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4945">halkun</a> — Thu Jul 21, 2011 9:38 pm</p><hr />
+]]></content>
+</entry>
+</feed>

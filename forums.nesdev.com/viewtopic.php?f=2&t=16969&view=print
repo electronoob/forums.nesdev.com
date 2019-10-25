@@ -1,0 +1,417 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - New technique for pushing video data faster</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">New technique for pushing video data faster</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=16969">http://forums.nesdev.com/viewtopic.php?f=2&amp;t=16969</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>3</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Drakim</b> [ Mon Jan 22, 2018 6:38 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>New technique for pushing video data faster</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />(If this technique is already known, then excuse my tomfoolery  <img src="./images/smilies/icon_lol.gif" alt=":lol:" title="Laughing" /> )<br /><br />So I was looking into <a href="https://forums.nesdev.com/viewtopic.php?f=22&amp;t=15440" class="postlink">popslide by tepples</a>, and while reading though the code another technique occurred to me. It doesn't work with the NES Stripe Image format, but it should be quite a lot faster (and thus be able to push more VRAM data per vblank).<br /><br />While popslide and similar techniques works like a sort of mini-interpreter, using an unused part of the stack as a blob of instructions and data, my technique drops the &quot;interpreter&quot; part in favor of using the &quot;Reverse RTS trick&quot;, filling the stack with addresses to various video updater methods followed by their data.<br /><br />So, it might look something like this:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">SetPalette1:<br />&nbsp; ; Set vram address to palette 1<br />&nbsp; LDA #$3F<br />&nbsp; STA $2006<br />&nbsp; PLA #$01<br />&nbsp; STA $2006<br />&nbsp; ; Pull out the palette values and give them to VRAM<br />&nbsp; PLA<br />&nbsp; STA $2007<br />&nbsp; PLA<br />&nbsp; STA $2007<br />&nbsp; PLA<br />&nbsp; STA $2007<br />&nbsp; RTS<br /><br />FillArbitraryData:<br />&nbsp; ; Set arbitrary address<br />&nbsp; PHA<br />&nbsp; STA $2006<br />&nbsp; PHA<br />&nbsp; STA $2006<br />&nbsp; ; Loop here filling $2007<br />&nbsp; RTS<br /><br />Terminator:<br />&nbsp; ; Restore stack to it's normal self here<br />&nbsp; RTS<br /><br /></div><br /><span style="text-decoration: underline"><strong>Stack:</strong></span><br /><span style="color: #FFCCFF">SetPalette1_Low<br />SetPalette1_High<br />Color1<br />Color2<br />Color3<br />FillArbitraryData_Low<br />FillArbitraryData_High<br />DataLength<br />Data1<br />Data2<br />Data3<br />Data4<br />Terminator_Low<br />Terminator_High</span><br /><br />Each &quot;RTS&quot; call on those methods will magically chain into the next one (costing only 6 cycles!), until it hits the terminator method which takes us out of this loop. Unlike a mini-interpreter, things don't become slower the more alternatives we create, so we can create very fast highly specialized methods for setting specific kinds of VRAM (like the palette).<br /><br />We can even use a macro to create an unrolled &quot;LDA # -&gt; STA&quot; loop for the absolutely fastest bandwidth 1 byte per 6 cycles for static ROM data like text.<br /><br />Furthermore, since we can jump to arbitrary addresses, we can create huge unrolled loops of &quot;PLA -&gt; STA&quot;, and then jump an arbitrary distance into that unrolled loop and use that as our starting point to push a certain amount of bytes, at no additional cost!<br /><br />The possibilities are limitless. You can write methods that push data exactly to the dot, not even needing to push a length byte to the stack.<br /><br /><strong><span style="text-decoration: underline">The cost of this technique:</span></strong><br />Adjusting the stack and starting the process: <strong>16 cycles</strong> (including initial JSR)<br />Static cost to start a segment: <strong>6</strong> cycles<br />Cost per segment: variable (but always lower than popslide due to specialization)<br />Cost to end the process: <strong>15</strong> cycles (including final RTS)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>pubby</b> [ Mon Jan 22, 2018 1:41 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: New technique for pushing video data faster</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />This has been used before <img src="./images/smilies/icon_wink.gif" alt=":wink:" title="Wink" /> but it's still a really cool use of CPS and I don't think most people know about it.<br /><br />I still prefer zeropage buffers for most updates though.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Dwedit</b> [ Mon Jan 22, 2018 2:11 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: New technique for pushing video data faster</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Popslides are still slower than in-ram LDA #xx \ STA $2007 slides.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Mon Jan 22, 2018 7:51 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: New technique for pushing video data faster</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Dwedit wrote:</div><div class="quotecontent">Popslides are still slower than in-ram LDA #xx \ STA $2007 slides.</div><br />Technically correct, in that you can empty the buffer one-third faster (6 cycles per byte compared to 8 cycles per byte). But with the stride of five bytes per immediate value and the update buffer straddling more than one 256-byte page, it might not be possible to <em>fill</em> the buffer quite as fast. In addition, devoting more of the 2048 bytes of unexpanded CPU RAM to such a buffer is likely to cause other parts of the program, such as game logic, to become slower as algorithmic space/time tradeoffs elsewhere in the program get tilted toward using more time. This is why the <a href="http://www.geocities.jp/littlimi/bad_apple_2_5.htm" class="postlink">30 fps version of &quot;Bad Apple&quot;</a> requires WRAM expansion (the <em>Kirby's Adventure</em> board), whereas the <a href="http://www.geocities.jp/littlimi/bad_apple_2.htm" class="postlink">15 fps version</a> does not (the <em>Mega Man 4</em> and <em>Mega Man 6</em> board).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>slembcke</b> [ Mon Jan 22, 2018 11:01 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: New technique for pushing video data faster</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />That's pretty clever. I've been musing about similar stack abuses for tail call hacking. In hindsight now it seems perfectly clear, push the destination to the stack and return. Thanks. <img src="./images/smilies/icon_biggrin.gif" alt=":D" title="Very Happy" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Tue Jan 23, 2018 3:21 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: New technique for pushing video data faster</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Why do you use those strange names instead of $2006 and $2007? Makes the code completely unreadable to me.<br /><br /><div class="quotetitle">pubby wrote:</div><div class="quotecontent">This has been used before <img src="./images/smilies/icon_wink.gif" alt=":wink:" title="Wink" /> </div><br />PLA/STA chains, definitely. The RTS I'm not so sure whether it had been used before in this context.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">I still prefer zeropage buffers for most updates though.</div><br />Me too, but in some (rare) cases it's not fast enough.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Popslides are still slower than in-ram LDA #xx \ STA $2007 slides.</div><br />LDA #imm / STA $2006 is about the fasest you can go, the only faster possibility is to include clever use of X and Y register for 2 most common values and avoid a LDA here; also some clever usage of INX/INY/DEX/DEY/LSR/ASL/ROL/ROR will be the same speed but with less bytes. I think Tokumaru already made a thread about that. Since generating such code in RAM would be difficult, it was mostly intended at staying in ROM, even if this eats a lot of it.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Drakim</b> [ Tue Jan 23, 2018 6:47 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: New technique for pushing video data faster</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Bregalad wrote:</div><div class="quotecontent">Why do you use those strange names instead of $2006 and $2007? Makes the code completely unreadable to me.</div><br /><br />Fixed!<br /><br /><div class="quotetitle">Bregalad wrote:</div><div class="quotecontent"><div class="quotetitle">pubby wrote:</div><div class="quotecontent">Popslides are still slower than in-ram LDA #xx \ STA $2007 slides.</div><br />LDA #imm / STA $2006 is about the fasest you can go, the only faster possibility is to include clever use of X and Y register for 2 most common values and avoid a LDA here; also some clever usage of INX/INY/DEX/DEY/LSR/ASL/ROL/ROR will be the same speed but with less bytes. I think Tokumaru already made a thread about that. Since generating such code in RAM would be difficult, it was mostly intended at staying in ROM, even if this eats a lot of it.</div><br /><br />With my RTS technique, you can point to RAM and execute it as a routine just like pubby prefers, or you can point to ROM to a series of tightly placed opcodes like Tokumaru's tricks, or you can put the values you want on the stack itself and point to a routine that pulls them out.<br /><br />I got a lot of ROM space so I've been creating various specialized routines to do certain tasks as fast as physically possible. One of my routines is just straight up 1024 &quot;STA $2007&quot; in a row, I jump to the routine start plus an offset so that if I only want to write 50 bytes, it jumps to start+(1024-50)*3, and bam, 50 unrolled STA statements, all at the same low cost of an RTS statement like everything else.<br /><br />Compared to having to do LDA $,X -&gt; CMP $ -&gt; BEQ or a jumptable for &quot;custom&quot; VRAM vblank routines it's both easier to implement, faster AND gives more options. Although RTS is more expensive than a relative branch, you'd have to make your video stripe uselessly primitive to not go above 6 cycles for the selection process (and then you'd still lose out at length due to lack of specialization routines).<br /><br /><div class="quotetitle">Bregalad wrote:</div><div class="quotecontent"><div class="quotetitle">pubby wrote:</div><div class="quotecontent">This has been used before <img src="./images/smilies/icon_wink.gif" alt=":wink:" title="Wink" /> </div><br />PLA/STA chains, definitely. The RTS I'm not so sure whether it had been used before in this context.<br /></div><br /><br />Does that mean I get to give the technique a fancy name?  <img src="./images/smilies/icon_surprised.gif" alt=":o" title="Surprised" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>FrankenGraphics</b> [ Tue Jan 23, 2018 6:53 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: New technique for pushing video data faster</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Does that mean I get to give the technique a fancy name?  <img src="./images/smilies/icon_surprised.gif" alt=":o" title="Surprised" /></div><br /><br />By all means, yes! Also makes future convos easier to have when you can name drop techniques. <br />On the other hand if you don't people are going to refer to it as &quot;drakim slide&quot; and thus you'd be immortalized, like how i'd refer to a certain controller/dpcm fix as &quot;rahsennors' controller/dpcm fix&quot;.  <img src="./images/smilies/icon_wink.gif" alt=":wink:" title="Wink" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Rahsennor</b> [ Tue Jan 23, 2018 6:02 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: New technique for pushing video data faster</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I used exactly this technique for an unreleased game called <em>Hull Breach!</em>. I got it straight off the wiki, and thought it was a well-known method. I called it &quot;RTS chaining&quot;.<br /><br />Then I decided assembler wasn't for me, and my compiler can't cope with this trick, so I haven't used it since.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>FrankenGraphics</b> [ Tue Jan 23, 2018 6:20 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: New technique for pushing video data faster</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">an unreleased game called Hull Breach!.</div><br /><br />You rang?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>pubby</b> [ Tue Jan 23, 2018 10:38 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: New technique for pushing video data faster</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I've used it before too. <br /><br />One trick that can come in handy for stuff like this is using jsr to push addresses onto the stack. It's slightly faster than using lda+pha, especially if you're pushing multiple addresses in a row.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Drakim</b> [ Wed Jan 24, 2018 1:26 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: New technique for pushing video data faster</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Rahsennor wrote:</div><div class="quotecontent">I used exactly this technique for an unreleased game called <em>Hull Breach!</em>. I got it straight off the wiki, and thought it was a well-known method. I called it &quot;RTS chaining&quot;.<br /><br />Then I decided assembler wasn't for me, and my compiler can't cope with this trick, so I haven't used it since.</div><br /><br />Are you sure you got it off the wiki? I can't find a single instance of the phrase &quot;RTS chaining&quot; or even &quot;chaining&quot; on the wiki. Heck, I can't even find &quot;RTS chaining&quot; related to programming <strong>anywhere</strong> on the web. Are you sure that's the proper name for the technique, and that you aren't just mixing it up with the &quot;RTS Trick&quot;? (or is my google-fu too weak?)<br /><br /><strong>Edit:</strong> Oh wait, I read that wrong, <strong>you </strong> called it RTS chaining. Any idea what it was called in the wiki?<br /><br /><div class="quotetitle">pubby wrote:</div><div class="quotecontent">I've used it before too. <br /><br />One trick that can come in handy for stuff like this is using jsr to push addresses onto the stack. It's slightly faster than using lda+pha, especially if you're pushing multiple addresses in a row.</div><br /><br />I'm not sure I understand, how can you use JSR to push addresses onto the stack without actually jumping there at the same time? If this worked, shouldn't the vanilla &quot;RTS trick&quot; be using this as well?<br /><br /><strong>Edit: Ah, I think I may have found something similar being discussed before:</strong><br /><br /><!-- m --><a class="postlink" href="https://forums.nesdev.com/viewtopic.php?f=2&amp;t=13285">https://forums.nesdev.com/viewtopic.php?f=2&amp;t=13285</a><!-- m --><br /><br />I'm unsure why this technique hasn't caught on more,  it seems like the strictly superior way, unless you <strong>really </strong>need a full 256 sized stack for gameplay.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Wed Jan 24, 2018 3:26 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: New technique for pushing video data faster</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Drakim wrote:</div><div class="quotecontent">I'm unsure why this technique hasn't caught on more,  it seems like the strictly superior way, unless you <strong>really </strong>need a full 256 sized stack for gameplay.</div><br />Well this technique is very great but it's neither the easiest (using &quot;normal&quot; buffer with &quot;normal&quot; code is easier to handle, but slower) nor the fastest (creating raw chains of lda #imm - sta $2007 is faster), so people coding games where standard VRAM bandwith is enough will do it the standard way, and people doing fancy stuff pushing the system to its extreme limits will use the fastest way. For this technique to be useful, you need significantly extra VRAM bandwidth, but still not enough so that extreme technique is not worth it.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Oziphantom</b> [ Wed Jan 24, 2018 3:39 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: New technique for pushing video data faster</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Drakim wrote:</div><div class="quotecontent">Compared to having to do LDA $,X -&gt; CMP $ -&gt; BEQ or a jumptable for &quot;custom&quot; VRAM vblank routines it's both easier to implement, faster AND gives more options. Although RTS is more expensive than a relative branch, you'd have to make your video stripe uselessly primitive to not go above 6 cycles for the selection process (and then you'd still lose out at length due to lack of specialization routines).</div><br /><br />Nah<br /><br />Put your On X table at the bottom of the Stack so $100 + then you do a 1 byte stack dispatch<br /><br />get X to have value x2<br />txs<br />rts<br /><br />If all your code runs in 1 frame then the stack position should be fixed per frame, so you can always just restore the same point at the end of the NMI. If you go over a frame and interrupt yourself X_X<br /><br />The other catch with RTS chaining is you can't use the stack, not really a problem if you are just doing speed code from an NMI, but as a general system it not very practical, and making a self mod JSR chain(+6 per call) gives almost as much speed without the limitations.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Drakim</b> [ Wed Jan 24, 2018 8:12 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: New technique for pushing video data faster</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Bregalad wrote:</div><div class="quotecontent">Well this technique is very great but it's neither the easiest (using &quot;normal&quot; buffer with &quot;normal&quot; code is easier to handle, but slower)</div><br /><br />Is it? Hmmm, I mean, I concede the point that just setting up a &quot;normal dumb&quot; buffer is way easier, and it's probably what you should do when you are learning what's going on.<br /><br />I was more thinking about popslide's way of using the bottom-stack as a faster buffer (which seems like the de facto way of doing it, to the point where people are comparing alternative implementations), which involves the exact same stack switching techniques as I use. But where popslide (and any similar interpreter) has to write a tiny mini-parser for the stack data, consuming bytes and acting on it, my code is (after the stack switch) just an &quot;RTS&quot; statement.<br /><br />It jumps you right into a subroutine such as Set_BackgroundColor or Set_Palette, it's way easier and more straightforward at that point, in my opinion. Adding another subroutine is super trivial, you don't have to dig into popslide's source code to carefully figure out where to insert your new functionality. So I'd personally grade it easier and faster.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent"> nor the fastest (creating raw chains of lda #imm - sta $2007 is faster), so people coding games where standard VRAM bandwith is enough will do it the standard way, and people doing fancy stuff pushing the system to its extreme limits will use the fastest way.</div><br /><br />Which what you are saying is true in the strict technical sense, I'm not sure I agree with your overall point.<br /><br />While I do think that if you are writing some psedo-3d tech demo that needs to upload to vram really fast in a specific way, then nothing can beat your handcrafted code in speed.<br /><br />But if you are making an actual real game, which sometimes has a screen full of text, sometimes scrolls horizontally, sometimes vertically, sometimes cycles colors for shiny treasures, sometimes prints one and one letter in dialog, I'm not so certain you could beat the RTS technique. Simply because the RTS technique works like a reverse jumptable, and the overhead setup for stack switching is only 16 cycles. And no matter how crafty you are, your game will need some means of selectively pushing vram since you can't do everything every frame. And whatever you pick, I think the RTS technique would beat it, but maybe I'm being overly optimistic!
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>3</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

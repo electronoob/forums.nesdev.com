@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=5&amp;t=8718" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2012-03-14T18:06:49-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=5&amp;t=8718</id>
+<entry>
+<author><name><![CDATA[Zepper]]></name></author>
+<updated>2012-03-14T18:06:49-07:00</updated>
+<published>2012-03-14T18:06:49-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8718&amp;p=91343#p91343</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8718&amp;p=91343#p91343"/>
+<title type="html"><![CDATA[Getting the executable directory]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8718&amp;p=91343#p91343"><![CDATA[
+<a href="http://www.cplusplus.com/forum/beginner/7877/" class="postlink">#pragma once</a>... <img src="http://forums.nesdev.com/images/smilies/icon_smile.gif" alt=":)" title="Smile" /><br /><br />Thanks.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=39">Zepper</a> — Wed Mar 14, 2012 6:06 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Dwedit]]></name></author>
+<updated>2012-03-14T17:59:11-07:00</updated>
+<published>2012-03-14T17:59:11-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8718&amp;p=91342#p91342</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8718&amp;p=91342#p91342"/>
+<title type="html"><![CDATA[Getting the executable directory]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8718&amp;p=91342#p91342"><![CDATA[
+Microsoft royally screwed up Unicode on Windows by not supporting UTF-8, only UTF-16.<br /><br />So there are three ways to get Unicode support in a program:<br />* Use TCHAR stuff.  Macros everywhere!  Ugly as hell.  Text is 8-bit in an "ANSI" build, and 16-bit in a "Unicode" build.  Need to make a "tchar.h" file for Linux builds, that basically drops the _t prefixes from functions.<br />* Use the Unicode functions directly.<br />* Make shims that convert text to and from UTF-8 around stuff that really needs Unicode support (displayed text and filenames).<br /><br />If you want to change as little code as possible, I'd go with the Unicode shims.<br /><br />An example of overriding fopen: (make this into a header file somewhere)<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">#pragma once<br /><br />#define WIN32_LEAN_AND_MEAN<br />#include &lt;windows.h&gt;<br />#include &lt;stdio.h&gt;<br />#include &lt;shellapi.h&gt;<br /><br />static inline FILE* my_fopen&#40;const char *Filename, const char *Mode&#41;<br />&#123;<br />   FILE *file = NULL;<br />   int filename_length = strlen&#40;Filename&#41;;<br />   int filemode_length = strlen&#40;Mode&#41;;<br /><br />   int filename_buffer_size = filename_length+1;<br />   int filemode_buffer_size = filemode_length+1;<br /><br />   wchar_t *filename_buffer = &#40;wchar_t*&#41;malloc&#40;sizeof&#40;wchar_t&#41;*&#40;filename_length+1&#41;&#41;;<br />   wchar_t *filemode_buffer = &#40;wchar_t*&#41;malloc&#40;sizeof&#40;wchar_t&#41;*&#40;filemode_length+1&#41;&#41;;<br /><br />   do<br />   &#123;<br />      if &#40;0==MultiByteToWideChar&#40;CP_UTF8,0,Filename,-1,filename_buffer,filename_buffer_size&#41;&#41; break;<br />      if &#40;0==MultiByteToWideChar&#40;CP_UTF8,0,Mode,-1,filemode_buffer,filemode_buffer_size&#41;&#41; break;<br /><br />      file = _wfopen&#40;filename_buffer,filemode_buffer&#41;;<br />   &#125; while &#40;false&#41;;<br /><br />   free&#40;filename_buffer&#41;;<br />   free&#40;filemode_buffer&#41;;<br /><br />   return file;<br />&#125;<br /><br />static inline char** GetArgv&#40;&#41;<br />&#123;<br />   int nArgs;<br />   wchar_t **wargv = CommandLineToArgvW&#40;GetCommandLineW&#40;&#41;, &amp;nArgs&#41;;<br />   char ** argv = &#40;char**&#41;malloc&#40;&#40;nArgs+1&#41;*sizeof&#40;char*&#41;&#41;;<br />   argv&#91;nArgs&#93; = NULL;<br /><br />   for &#40;int i=0;i &lt; nArgs;i++&#41;<br />   &#123;<br />      int bufferSize = WideCharToMultiByte&#40;CP_UTF8,0,wargv&#91;i&#93;,-1,NULL,0,NULL,NULL&#41;;<br />      char *buffer = &#40;char*&#41;malloc&#40;bufferSize*sizeof&#40;char&#41;&#41;;<br />      WideCharToMultiByte&#40;CP_UTF8,0,wargv&#91;i&#93;,-1,buffer,bufferSize,NULL,NULL&#41;;<br />      argv&#91;i&#93; = buffer;<br />   &#125;<br />   LocalFree&#40;wargv&#41;;<br /><br />   return argv;<br />&#125;<br /><br /><br />#define fopen&#40;FileName,FileMode&#41; my_fopen&#40;FileName,FileMode&#41;<br /></div><br /><br />After you include that, any call to fopen() will expect the filename to be UTF-8 encoded in Windows, thus giving it Unicode support.<br /><br />Then you need a part where it changes argv to the result of "GetArgv()".<br /><br />The advantage to this method is that you change minimal code.  The disadvantage to this method is that it only affects your code.  Libraries still use ANSI functions to access files and display text, and won't work if you pass UTF-8 filenames or text to them.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=53">Dwedit</a> — Wed Mar 14, 2012 5:59 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Shiru]]></name></author>
+<updated>2012-03-14T17:48:12-07:00</updated>
+<published>2012-03-14T17:48:12-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8718&amp;p=91341#p91341</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8718&amp;p=91341#p91341"/>
+<title type="html"><![CDATA[Getting the executable directory]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8718&amp;p=91341#p91341"><![CDATA[
+<div class="quotetitle">Dwedit wrote:</div><div class="quotecontent"><br />Only problem with argv is that it's not Unicode on Windows.<br /></div><br />Actually, VC++ Express that I'm using (2008 version even) creates an Unicode compatible template:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">int _tmain&#40;int argc, _TCHAR* argv&#91;&#93;&#41;<br />&#123;<br />   return 0;<br />&#125;</div><br /><br />Since I don't need Unicode in most cases, I have to manually change that into the normal main for every console tool to keep code compatible with other compilers.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4205">Shiru</a> — Wed Mar 14, 2012 5:48 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Zepper]]></name></author>
+<updated>2012-03-14T17:23:19-07:00</updated>
+<published>2012-03-14T17:23:19-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8718&amp;p=91340#p91340</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8718&amp;p=91340#p91340"/>
+<title type="html"><![CDATA[Getting the executable directory]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8718&amp;p=91340#p91340"><![CDATA[
+For my best, special characters (like ã, á, à, õ, ç and more) are not recognized*, giving an error on file opening.<br /><br /><span style="font-size: 75%; line-height: normal">* using the standard C library, or Allegro</span><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=39">Zepper</a> — Wed Mar 14, 2012 5:23 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Dwedit]]></name></author>
+<updated>2012-03-14T16:37:06-07:00</updated>
+<published>2012-03-14T16:37:06-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8718&amp;p=91339#p91339</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8718&amp;p=91339#p91339"/>
+<title type="html"><![CDATA[Getting the executable directory]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8718&amp;p=91339#p91339"><![CDATA[
+Only problem with argv is that it's not Unicode on Windows.  On Linux, all 8-bit strings are UTF-8, so things just work.  But not on Windows, where 8-bit strings are localized to whatever the system locale is set to.  On Windows, you need to call GetCommandLineW to get the Unicode version of the command line.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=53">Dwedit</a> — Wed Mar 14, 2012 4:37 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Shiru]]></name></author>
+<updated>2012-03-14T15:33:26-07:00</updated>
+<published>2012-03-14T15:33:26-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8718&amp;p=91338#p91338</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8718&amp;p=91338#p91338"/>
+<title type="html"><![CDATA[Getting the executable directory]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8718&amp;p=91338#p91338"><![CDATA[
+Two popular ways are argv[0] or GetModuleFileName.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4205">Shiru</a> — Wed Mar 14, 2012 3:33 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Zepper]]></name></author>
+<updated>2012-03-14T15:26:14-07:00</updated>
+<published>2012-03-14T15:26:14-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8718&amp;p=91337#p91337</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8718&amp;p=91337#p91337"/>
+<title type="html"><![CDATA[Getting the executable directory]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8718&amp;p=91337#p91337"><![CDATA[
+Let's say a program (emulator) is placed at C:\EMU. Now, someone associates it with NES files, and click in a NES file from C:\CARTS. Since the program must read a config file, it doesn't exist at C:\CARTS, so it creates a new one, which shouldn't occur. How can I get the executable directory after launching the program?<br /><br /><span style="font-size: 75%; line-height: normal">(assuming Windows 7)</span><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=39">Zepper</a> — Wed Mar 14, 2012 3:26 pm</p><hr />
+]]></content>
+</entry>
+</feed>

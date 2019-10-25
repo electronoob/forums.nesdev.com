@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=3&amp;t=3585" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2007-09-24T05:30:30-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=3&amp;t=3585</id>
+<entry>
+<author><name><![CDATA[NerveGas]]></name></author>
+<updated>2007-09-24T05:30:30-07:00</updated>
+<published>2007-09-24T05:30:30-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=3585&amp;p=27182#p27182</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=3585&amp;p=27182#p27182"/>
+<title type="html"><![CDATA[What is WRONG with my PPU???]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=3585&amp;p=27182#p27182"><![CDATA[
+I was wrong, it looks like four-screen mirroring was set, but the mirror "type" was set to vertical. When I force it to four-screen it works fine.<br /><br />I'm very close to getting Rad Racer 2 working. There's one scanline in the middle of my screen that is orange (presumably the background) and I'm wondering where it's coming from. These are my increments below... is there anything I'm missing?<br /><br /><br />Top of scanline:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">    if &#40;S.PPU_R1 &amp; R1_SHOW_SCR&#41;<br />          S.vAddr = S.vAddr_Latch &amp; 0x7FFF;<br /></div><br /><br />Between scanlines:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">    /* Veritcal Increment */<br />    S.vAddr = &#40;S.vAddr + 0x1000&#41; &amp; 0x7FFF;<br />    if &#40;&#40;S.vAddr &amp; 0x7000&#41; == 0&#41;<br />    &#123;<br />        S.vAddr = &#40;S.vAddr &amp; 0x7C1F&#41; | &#40;&#40;S.vAddr + 0x20&#41; &amp; 0x3E0&#41;;<br />        if &#40;&#40;S.vAddr &amp; 0x3E0&#41; == 0x3C0&#41;<br />            S.vAddr = &#40;&#40;S.vAddr &amp; 0x7C1F&#41; ^ 0x800&#41;;<br />    &#125;<br /><br />    /* Horizontal Reset: PPU 257 */<br />    S.vAddr = &#40;S.vAddr &amp; 0xFBE0&#41; | &#40;S.vAddr_Latch &amp; 0x41F&#41;;<br /></div><br /><br />Registers:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">        case 0x2006: /* VRAM Address Register */   <br />          if &#40;S.PPU_Latch_Flag&#41; &#123;<br />             S.vAddr_Latch = &#40;S.vAddr_Latch &amp; 0xFF00&#41; | bData;<br />             S.vAddr = S.vAddr_Latch;<br />          &#125;       <br />          else &#123;  <br />             S.vAddr_Latch = &#40;&#40;bData &amp; 0x3F&#41; &lt;&lt; 8&#41; | &#40;S.vAddr_Latch &amp; 0xFF&#41;;<br />          &#125;   <br />          S.PPU_Latch_Flag ^= 1;                   <br />          break;      <br /><br /><br />        &#123;<br />            case &#40;0x2007&#41;: /* VRAM Read */<br />                if &#40;S.vAddr &lt;0x3F00&#41; &#123;<br />                    wScratch = S.vAddr;<br />                    wScratch &amp;= 0x3FFF;<br />                    bScratch = S.PPU_R7;<br />                    S.PPU_R7 = W.PPUBANK&#91; wScratch &gt;&gt; 10 &#93;&#91; wScratch &amp; 0x3FF &#93;;<br />                &#125; else &#123;<br />                    bScratch = W.PPUBANK&#91; wScratch &gt;&gt; 10 &#93; &#91; wScratch &amp; 0x3FF &#93;;<br />                &#125;<br /><br />                S.vAddr += &#40;S.PPU_R0 &amp; R0_INC_ADDR&#41; ? 0x20 : 0x01;<br />                S.vAddr &amp;= 0x3FFF;<br /><br />                return bScratch;<br />                break;<br /><br /><br />        case 0x2000: /* PPU Control Register 1 Write */<br />          S.PPU_R0 = bData;<br />          S.PPU_SP_Height = &#40;S.PPU_R0 &amp; R0_SP_SIZE&#41; ? 0x10 : 0x08;<br />          W.PPU_BG = &#40;S.PPU_R0 &amp; R0_BG_ADDR&#41; ? S.ChrBuf + 0x4000 : S.ChrBuf;<br />          W.PPU_SP = &#40;S.PPU_R0 &amp; R0_SP_ADDR&#41; ? S.ChrBuf + 0x4000 : S.ChrBuf;<br />          S.vAddr_Latch = &#40;S.vAddr_Latch &amp; 0xF3FF&#41; | &#40;&#40;word&#41; &#40;bData &amp; 3&#41; &lt;&lt; 10&#41;;<br />          break;<br /><br /><br />        case 0x2005: /* Scroll Register */<br />          lowerBits = &#40;bData &amp; 7&#41;;<br />          upperBits = &#40;bData &gt;&gt; 3&#41;;<br /><br />          if &#40;S.PPU_Latch_Flag&#41; &#123;<br />             S.vAddr_Latch = &#40;S.vAddr_Latch &amp; 0x8C1F&#41; | &#40;upperBits &lt;&lt; 5&#41; |<br />                &#40;lowerBits &lt;&lt; 12&#41;;<br />          &#125;<br />          else &#123;<br />             S.vAddr_Latch = &#40;S.vAddr_Latch &amp; 0xFFE0&#41; | upperBits;<br />             S.FineX = lowerBits;<br />          &#125;<br /><br />          S.PPU_Latch_Flag ^= 1;<br />          break;<br /><br /><br />        case 0x2007: /* VRAM Data */<br />        &#123;<br />            wScratch = S.vAddr;<br />            wScratch &amp;= 0x3FFF;<br /><br />            S.vAddr += &#40;S.PPU_R0 &amp; R0_INC_ADDR&#41; ? 0x20 : 0x01;<br />            if &#40;S.vAddr &gt; 0x3FFF&#41;<br />                S.vAddr &amp;= 0x3FFF;<br /><br /></div><br /><br />[/code]<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3402">NerveGas</a> — Mon Sep 24, 2007 5:30 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[hap]]></name></author>
+<updated>2007-09-23T02:42:01-07:00</updated>
+<published>2007-09-23T02:42:01-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=3585&amp;p=27181#p27181</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=3585&amp;p=27181#p27181"/>
+<title type="html"><![CDATA[What is WRONG with my PPU???]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=3585&amp;p=27181#p27181"><![CDATA[
+<div class="quotetitle">NerveGas wrote:</div><div class="quotecontent"><br />nope something else is hosey.<br /></div>Does Gauntlet (1) work then? If it doesn't, you've probably got a bug in your 4-screen-mirroring handling.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent"><br />mmc3 doesn't serve out of video ram right? that's just map 119?<br /></div>some games, like Megaman 4.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=115">hap</a> — Sun Sep 23, 2007 2:42 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[NerveGas]]></name></author>
+<updated>2007-09-22T17:01:24-07:00</updated>
+<published>2007-09-22T17:01:24-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=3585&amp;p=27162#p27162</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=3585&amp;p=27162#p27162"/>
+<title type="html"><![CDATA[What is WRONG with my PPU???]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=3585&amp;p=27162#p27162"><![CDATA[
+nope something else is hosey.<br /><br />mmc3 doesn't serve out of video ram right? that's just map 119?<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3402">NerveGas</a> — Sat Sep 22, 2007 5:01 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Disch]]></name></author>
+<updated>2007-09-22T16:56:28-07:00</updated>
+<published>2007-09-22T16:56:28-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=3585&amp;p=27161#p27161</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=3585&amp;p=27161#p27161"/>
+<title type="html"><![CDATA[What is WRONG with my PPU???]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=3585&amp;p=27161#p27161"><![CDATA[
+<div class="quotetitle">NerveGas wrote:</div><div class="quotecontent"><br />- Rad Racer 2 has a completely mangled background<br /></div><br /><br />Rad Racer 2 uses 4-screen mirroring.  But ROMs floating around don't mark that in the header.<br /><br />Try flipping that bit in the header on and see if it works.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=33">Disch</a> — Sat Sep 22, 2007 4:56 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[NerveGas]]></name></author>
+<updated>2007-09-22T14:59:30-07:00</updated>
+<published>2007-09-22T14:59:30-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=3585&amp;p=27158#p27158</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=3585&amp;p=27158#p27158"/>
+<title type="html"><![CDATA[What is WRONG with my PPU???]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=3585&amp;p=27158#p27158"><![CDATA[
+I'm not sure, but you can try it. Another method might be to try using OpenGL ES instead of CoreSurfaces. I suspect, though, that OpenGL would have to go through CoreSurfaces, so that may prove counter-intuitive.<br /><br />I'd like to find ways to optimize the mapper 5 code...it appears to run _very_ slow. Making Castlevania III and other mapper 5 games run may prove more useful than optimizing video.<br /><br />My current hit list is:<br />- Mapper 5 too slow / not completely right<br />- Mapper 119 (Which should be the same as mapper 4, but with RAM/ROM selection on bit 6); yet pinbot and high speed don't render properly.<br />- Rad Racer 2 has a completely mangled background<br />- When I set VBLANK START to 141 (where it should be) instead of 143, weird things happen in Mach Rider (screen flicker); trying to find the root of the problem.<br />- Star Wars doesn't initialize<br />- Cool Spot doesn't initialize<br />- Green background in Fantasy Zone<br />- Kung Fu and Rad Racer render OK, but due to (possibly) sprite hit stuff (which jodan is working on fixing), there is some distortion<br />- Punchout / Mike Tyson's Punchout has some rendering glitches on the title screen and in-between certain rounds (such as Von Kaiser)<br />- NES Scroll Test still fails vertically (might just be a lame test)<br />- TMNT 3 doesnt initialize<br />- Videomation appears to be broken (mapper problem?)<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3402">NerveGas</a> — Sat Sep 22, 2007 2:59 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Josh]]></name></author>
+<updated>2007-09-22T14:01:39-07:00</updated>
+<published>2007-09-22T14:01:39-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=3585&amp;p=27156#p27156</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=3585&amp;p=27156#p27156"/>
+<title type="html"><![CDATA[What is WRONG with my PPU???]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=3585&amp;p=27156#p27156"><![CDATA[
+I'm trying to think of ways that the rendering code might be optimized. It should be possible to draw 2 pixels per operation by using a short (16x4) look-up table to convert the planar bits to a 32-bit int. Do you happen to know if there's a penalty for unaligned DWORD-length writes on the iPhone's ARM CPU? That would make a difference in how such an algorithm would be implemented.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=110">Josh</a> — Sat Sep 22, 2007 2:01 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[NerveGas]]></name></author>
+<updated>2007-09-22T08:46:25-07:00</updated>
+<published>2007-09-22T08:46:25-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=3585&amp;p=27138#p27138</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=3585&amp;p=27138#p27138"/>
+<title type="html"><![CDATA[What is WRONG with my PPU???]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=3585&amp;p=27138#p27138"><![CDATA[
+I think we figured out rolling thunder and GI joe...there's a crucial 6-steps between vblank and the NMI that need to get executed. We also weren't counting the 512 steps for DMA... fixing all that seemed to fix everything in the code.<br /><br />On the iphone, it's auto-frameskip...i'm getting around 1 or 2 skip. It still runs pretty smooth.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3402">NerveGas</a> — Sat Sep 22, 2007 8:46 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Josh]]></name></author>
+<updated>2007-09-21T21:20:58-07:00</updated>
+<published>2007-09-21T21:20:58-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=3585&amp;p=27127#p27127</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=3585&amp;p=27127#p27127"/>
+<title type="html"><![CDATA[What is WRONG with my PPU???]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=3585&amp;p=27127#p27127"><![CDATA[
+I'm having trouble figuring out a good way to get the code running on Windows. Are you doing all your testing on the iPhone?<br /><br />What is the current speed of execution on the iPhone? Does it require frameskipping?<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=110">Josh</a> — Fri Sep 21, 2007 9:20 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[NerveGas]]></name></author>
+<updated>2007-09-18T19:02:34-07:00</updated>
+<published>2007-09-18T19:02:34-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=3585&amp;p=27077#p27077</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=3585&amp;p=27077#p27077"/>
+<title type="html"><![CDATA[What is WRONG with my PPU???]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=3585&amp;p=27077#p27077"><![CDATA[
+Awright well things are finally starting to shape up, SMB3 is running properly, and rad racer looks good except for a few glitches (some gaps, and tracks in the distance are choppy). Overall though, a lot of games are rendering properly now. <br /><br />One strange thing that happened - rolling thunder and gi joe no longer run at all. They didn't run to begin with, after forking the project, but with a little massaging of the PPU, they did come up for a bit. Now I just get a blank screen once again, and I can tell they haven't initialized. Any ideas what might be causing this?<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3402">NerveGas</a> — Tue Sep 18, 2007 7:02 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[NerveGas]]></name></author>
+<updated>2007-09-18T08:38:53-07:00</updated>
+<published>2007-09-18T08:38:53-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=3585&amp;p=27064#p27064</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=3585&amp;p=27064#p27064"/>
+<title type="html"><![CDATA[What is WRONG with my PPU???]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=3585&amp;p=27064#p27064"><![CDATA[
+Ah ok, so I get it from vAddr... how often should i update that, every scanline?<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3402">NerveGas</a> — Tue Sep 18, 2007 8:38 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2007-09-18T08:24:30-07:00</updated>
+<published>2007-09-18T08:24:30-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=3585&amp;p=27063#p27063</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=3585&amp;p=27063#p27063"/>
+<title type="html"><![CDATA[What is WRONG with my PPU???]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=3585&amp;p=27063#p27063"><![CDATA[
+<div class="quotetitle">NerveGas wrote:</div><div class="quotecontent"><br />EDIT: It looks like nY is never &gt; 29 any more now that I'm doing it right, so how can I tell if I need to flip the name table?<br /></div><br />You don't "flip" VRAM address bit 11 ($0800) when a "high" Y scroll value is written through $2005 or $2006. The hardware renders rows 30, 31, 0, 1, 2, 3, ... of a single nametable. Bit 11 changes during rendering only when the VRAM address updates after the bottom line of row 29.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Tue Sep 18, 2007 8:24 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[NerveGas]]></name></author>
+<updated>2007-09-18T07:46:39-07:00</updated>
+<published>2007-09-18T07:46:39-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=3585&amp;p=27062#p27062</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=3585&amp;p=27062#p27062"/>
+<title type="html"><![CDATA[What is WRONG with my PPU???]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=3585&amp;p=27062#p27062"><![CDATA[
+I'm getting a lot closer; implemented horizontal / vertical increments.  I think the biggest problem right now is selection of the proper name table. $2000 sets the name table, and $2005 flips it if bData &gt; 240. I also flip it locally inside my rendering routines for vertical / horizontal mirroring. Is there some other way I should be doing it? I tried reloading it after each clock, but that doesn't seem to set it right either.<br /><br />EDIT: It looks like nY is never &gt; 29 any more now that I'm doing it right, so how can I tell if I need to flip the name table?<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">   /* Develop Scroll Values */<br />    PPU_SCROLL_Y_BYTE = &#40;S.vAddr &gt;&gt; 5&#41; &amp; 0x1F;<br />    PPU_SCROLL_Y_BIT  = &#40;S.vAddr &gt;&gt; 12&#41; &amp; 0x07;<br />    PPU_SCROLL_X_BYTE = &#40;S.vAddr &amp; 0x1F&#41;;<br />    PPU_SCROLL_X_BIT  = S.FineX; <br /><br />    nY = PPU_SCROLL_Y_BYTE;<br />    nX = PPU_SCROLL_X_BYTE;<br /> <br />    nYBit = PPU_SCROLL_Y_BIT; <br />    nYBit &lt;&lt;= 3;<br /> <br />    /* Name Table Selection: Flip for vertical scrolling */<br />    nNameTable = S.PPU_NameTable;<br />    if &#40;nY &gt; 29&#41; &#123;  &lt;-------- NEVER TRUE<br />        nY -= 30;  <br />        nNameTable ^= NAME_TABLE_V_MASK;<br />    &#125;<br /></div>[/quote]<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3402">NerveGas</a> — Tue Sep 18, 2007 7:46 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[NerveGas]]></name></author>
+<updated>2007-09-18T05:18:19-07:00</updated>
+<published>2007-09-18T05:18:19-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=3585&amp;p=27059#p27059</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=3585&amp;p=27059#p27059"/>
+<title type="html"><![CDATA[What is WRONG with my PPU???]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=3585&amp;p=27059#p27059"><![CDATA[
+Right now i just want to use whatever's going to get most of the popular games to run. I don't think I'm going to have enough resources for a perfect emulator. But if you guys can help get rad racer and others working that would be great. This is the latest state of the code, I think it's sick... <br /><br />Read Ops:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">    case 0x2000:  /* PPU */<br />        switch&#40; wAddr &#41;<br />        &#123;<br />            case &#40;0x2007&#41;: /* VRAM Read */<br />                if &#40;S.vAddr &lt;0x3F00&#41; &#123;<br />                    wScratch = S.vAddr;<br />                    wScratch &amp;= 0x3FFF;<br />                    bScratch = S.PPU_R7;<br />                    S.PPU_R7 = W.PPUBANK&#91; wScratch &gt;&gt; 10 &#93;&#91; wScratch &amp; 0x3FF &#93;;<br />                &#125; else &#123;<br />                    bScratch = W.PPUBANK&#91; wScratch &gt;&gt; 10 &#93; &#91; wScratch &amp; 0x3FF &#93;;<br />                &#125;<br /><br />                S.vAddr += &#40;S.PPU_R0 &amp; R0_INC_ADDR&#41; ? 0x20 : 0x01;<br />                S.vAddr &amp;= 0x3FFF;<br /><br />                return bScratch;<br />                break;<br /><br />            case &#40;0x2004&#41;: /* SPR-RAM Read */<br />                return S.SPRRAM&#91; S.PPU_R3 &#93;;<br />                break;<br /><br />            case &#40;0x2002&#41;:<br />                S.PPU_Latch_Flag = 0;<br />                ret = S.PPU_R2;<br />                S.PPU_R2 &amp;= 0x7F;<br />                return ret;<br />                break;<br /><br />            default: /* $2000, $2001, $2003, $2005, $2006 */<br />                return S.PPU_R7;<br />                break;<br />        &#125;<br />        break;<br /></div><br /><br />Write Ops:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">    case 0x2000:  /* PPU */<br />      switch &#40; wAddr &#41;<br />      &#123;<br />        case 0x2000: /* PPU Control Register 1 */<br />          S.PPU_R0 = byData;<br />          S.PPU_SP_Height     = &#40;S.PPU_R0 &amp; R0_SP_SIZE&#41; ? 0x10 : 0x08;^M<br />          W.PPU_BG = &#40;S.PPU_R0 &amp; R0_BG_ADDR&#41; ? S.ChrBuf + 0x4000 : S.ChrBuf;^M<br />          W.PPU_SP = &#40;S.PPU_R0 &amp; R0_SP_ADDR&#41; ? S.ChrBuf + 0x4000 : S.ChrBuf;^M<br />          S.PPU_NameTable = NAME_TABLE0 + &#40; S.PPU_R0 &amp; R0_NAME_ADDR &#41;;^M<br />          S.vAddr_Latch = &#40;S.vAddr_Latch &amp; 0xF3FF&#41; | &#40;&#40;word&#41;&#40;byData &amp; 3&#41; &lt;&lt; 10&#41;;<br /><br />          break;<br /><br />        case 0x2001: /* PPU Control Register 2 */<br />          S.PPU_R1 = byData;<br />          break;<br /><br />        case 0x2002: /* PPU Status - NOT WRITABLE */<br />          break;<br /><br />        case 0x2003: /* Sprite RAM ADDR */<br />          S.PPU_R3 = byData;<br />          break;<br /><br />        case 0x2004: /* Sprite RAM DATA */<br />          S.SPRRAM&#91;S.PPU_R3&#93; = byData;<br />          break;<br /><br />        case 0x2005: /* Scroll Register */<br />          lowerBits = &#40;byData &amp; 7&#41;;<br />          upperBits = &#40;byData &gt;&gt; 3&#41;;<br /><br />          if &#40;S.PPU_Latch_Flag&#41; &#123;<br />             if &#40;byData &gt; 240&#41;<br />                S.PPU_NameTable ^= NAME_TABLE_V_MASK;<br />             S.vAddr_Latch = &#40;S.vAddr_Latch &amp; 0x8C1F&#41; | &#40;upperBits &lt;&lt; 5&#41; |<br />             &#40;lowerBits &lt;&lt; 12&#41;;<br />          &#125;<br />          else &#123;<br />             S.vAddr_Latch = &#40;S.vAddr_Latch &amp; 0xFFE0&#41; | upperBits;<br />             S.PPU_R5A = lowerBits;<br />          &#125;<br /><br />          S.PPU_Latch_Flag ^= 1;<br />          break;<br />        case 0x2006: /* VRAM Address Register */<br />          if &#40;S.PPU_Latch_Flag&#41; &#123;<br />             S.vAddr_Latch = &#40;S.vAddr_Latch &amp; 0xFF00&#41; | byData;<br />             S.vAddr = S.vAddr_Latch;<br />          &#125;<br />          else &#123;<br />             S.vAddr_Latch = &#40;&#40;byData &amp; 0x3F&#41; &lt;&lt; 8&#41; | &#40;S.vAddr_Latch &amp; 0xFF&#41;;<br />          &#125;<br />          S.PPU_Latch_Flag ^= 1;<br />          break;<br />        case 0x2007: /* VRAM Data */<br />        &#123;<br />            wScratch = S.vAddr;<br />            wScratch &amp;= 0x3FFF;<br /><br />            S.vAddr += &#40;S.PPU_R0 &amp; R0_INC_ADDR&#41; ? 0x20 : 0x01;<br />            if &#40;S.vAddr &gt; 0x3FFF&#41;<br />                S.vAddr &amp;= 0x3FFF;<br /><br />            if &#40;wScratch &lt; 0x2000 &amp;&amp; S.VRAMWriteEnable&#41;<br />            &#123;<br />              /* Pattern Data */<br />              S.ChrBufUpdate |= &#40; 1 &lt;&lt; &#40; wScratch &gt;&gt; 10 &#41; &#41;;<br />              W.PPUBANK&#91; wScratch &gt;&gt; 10 &#93;&#91; wScratch &amp; 0x3FF &#93; = byData;<br />            &#125;<br />            else if &#40;wScratch &lt; 0x3F00 &#41;  /* 0x2000 - 0x3EFF */<br />            &#123;<br />              /* Name Table and Mirror */<br />              W.PPUBANK&#91; &#40;wScratch&#41; &gt;&gt; 10 &#93;&#91; wScratch &amp; 0x3ff &#93; = byData;<br />              W.PPUBANK&#91; &#40;wScratch ^ 0x1000&#41; &gt;&gt; 10&#93;&#91; wScratch &amp; 0x3FF &#93; = byData;<br />            &#125;<br />            else if &#40;!&#40;wScratch &amp; 0xF&#41;&#41;  /* 0x3F00 or 0x3F10 */<br />            &#123;<br />                /* Palette Mirror */<br />                S.PPURAM&#91; 0x3f10 &#93; = S.PPURAM&#91; 0x3f14 &#93; = S.PPURAM&#91; 0x3f18 &#93;<br />              = S.PPURAM&#91; 0x3f1c &#93; = S.PPURAM&#91; 0x3f00 &#93; = S.PPURAM&#91; 0x3f04 &#93;<br />              = S.PPURAM&#91; 0x3f08 &#93; = S.PPURAM&#91; 0x3f0c &#93; = byData;<br /><br />                S.PalTable&#91; 0x00 &#93; = S.PalTable&#91; 0x04 &#93; = S.PalTable&#91; 0x08 &#93;<br />              = S.PalTable&#91; 0x0c &#93; = S.PalTable&#91; 0x10 &#93; = S.PalTable&#91; 0x14 &#93;<br />              = S.PalTable&#91; 0x18 &#93; = S.PalTable&#91; 0x1c &#93;<br />              = NesPalette&#91; byData &#93; | 0x8000;<br />            &#125;<br />            else if &#40;wScratch &amp; 0x03&#41;<br />            &#123;<br />              /* Palette */<br />              S.PPURAM&#91; wScratch &#93; = byData;<br />              S.PalTable&#91; wScratch &amp; 0x1f &#93; = NesPalette&#91; byData &#93;;<br />            &#125;<br />        &#125;<br />        break;<br />    &#125;<br /></div><br /><br />Scroll Registers:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">void NESCore_Develop_Scroll_Values&#40;&#41; &#123;<br /><br />  S.PPU_SCROLL_Y_BYTE = &#40;S.vAddr &gt;&gt; 5&#41; &amp; 0x1F;<br />  S.PPU_SCROLL_Y_BIT  = &#40;S.vAddr &gt;&gt; 12&#41; &amp; 0x07;<br /><br />  S.PPU_SCROLL_X_BYTE = &#40;S.vAddr &amp; 0x1F&#41;;<br />  S.PPU_SCROLL_X_BIT  = S.PPU_R5A;<br />&#125;<br /></div><br /><br />Increments:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">  if &#40;!&#40; S.PPU_R1 &amp; R1_SHOW_SCR &#41;&#41;<br />  &#123;<br />    /* Clear scanline if display is off */<br />    memset&#40; pPoint, 0, NES_DISP_WIDTH &lt;&lt; 1 &#41;; /* Assumes 16-Bit buffer! */<br />    Exec6502&#40;&amp;S.m6502_state, 85&#41;;<br />  &#125;<br />  else<br />  &#123;<br /><br />    if &#40;S.PPU_Scanline == 0&#41;<br />        S.vAddr = S.vAddr_Latch &amp; 0x7FFF;<br />...<br /><br />End of HBLANK<br /><br />    S.vAddr = &#40;S.vAddr &amp; 0xFBE0&#41; | &#40;S.vAddr_Latch &amp; 0x41F&#41;;<br /><br /><br /></div><br /><br />The last increment there after the hblank seems to break a lot of stuff as well, although more appears to be broken.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3402">NerveGas</a> — Tue Sep 18, 2007 5:18 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Josh]]></name></author>
+<updated>2007-09-18T04:54:15-07:00</updated>
+<published>2007-09-18T04:54:15-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=3585&amp;p=27058#p27058</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=3585&amp;p=27058#p27058"/>
+<title type="html"><![CDATA[What is WRONG with my PPU???]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=3585&amp;p=27058#p27058"><![CDATA[
+You do not need a per-pixel renderer to fix the gross graphical errors in games like Rad Racer and Crystalis. That only requires implementing rendering per scanline using the VRAM address. If your target platform is the iPhone or other handheld devices, then per-pixel rendering would be far too slow anyway.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=110">Josh</a> — Tue Sep 18, 2007 4:54 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[NerveGas]]></name></author>
+<updated>2007-09-17T19:31:26-07:00</updated>
+<published>2007-09-17T19:31:26-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=3585&amp;p=27051#p27051</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=3585&amp;p=27051#p27051"/>
+<title type="html"><![CDATA[What is WRONG with my PPU???]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=3585&amp;p=27051#p27051"><![CDATA[
+As far as accuracy goes, I'd just like rad racer, smb3, and others to work - I don't need to run obscure japanese games, etc.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3402">NerveGas</a> — Mon Sep 17, 2007 7:31 pm</p><hr />
+]]></content>
+</entry>
+</feed>

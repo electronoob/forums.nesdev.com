@@ -1,0 +1,439 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Visual 2C02</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Visual 2C02</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=9&amp;t=9440">http://forums.nesdev.com/viewtopic.php?f=9&amp;t=9440</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>2</strong> of <strong>5</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>mikejmoffitt</b> [ Wed Oct 31, 2012 10:26 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Visual 2C02</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Bregalad wrote:</div><div class="quotecontent">This sure looks very interesting, but how am I supposed to use this ?<br /><br />@mikejomffit : The NES <span class="posthilit">PPU</span> does not have RGB output, and it was never meant to have any. The output signal is composite by the very nature of how the NES palette works, and it can't be otherwise.</div><br /><br />I understand this. However, the R2C03+ series that was designed to have RGB output by means of the color look-up table can't be a far cry from the design of the 2C02. With the chip de-capped and more thoroughly understood, would re-implementing this capability be out of the question?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Quietust</b> [ Wed Oct 31, 2012 1:28 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Visual 2C02</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I've just updated the Visual 2C02 to reset at the very beginning of scanline 260 (by running it to scanline 260 over the course of about an hour, saving its state, and then changing the Reset button to just load that state instead) and also fixed a bug in the VRAM address T-&gt;V reload logic (missing buried contact). During this process, I've confirmed several details:<br /><br />1. When you reset the <span class="posthilit">PPU</span>, it's at the first visible scanline (i.e. scanline 0), and it's not until the <span class="posthilit">PPU</span> reaches the first pre-render scanline (scanline 261, also known as &quot;scanline -1&quot; in numerous emulators) that it becomes possible to write to most of the I/O registers.<br />2. The &quot;T-&gt;V (horizontal bits only)&quot; transfer during each scanline (including the prerender one) happens at pixel 257, as previously observed.<br />3. The previously observed &quot;T-&gt;V (all bits)&quot; at cycle 304 isn't exactly correct - what's really happening is that the <span class="posthilit">PPU</span> copies the <strong>non-horizontal</strong> bits from T-&gt;V during <strong>every</strong> pixel from 280 through 304 inclusive (which happens to correspond to the HBlank pulse).<br />4. Reading/writing $2007 appears to start the I/O one pixel after the CPU read/write cycle finishes.<br />5. Writing $2004 appears to push the actual data into SPR-RAM one pixel after the CPU write cycle finishes and increment the address 1 cycle later. It isn't clear exactly when the memory controller latches the value to be written, but it's probably at the beginning of the CPU's write cycle, so going faster than the 2A03's sprite DMA would probably fail.<br />6. The above pixel numbers are actually off by 1 compared to the cycle numbers we currently know for the rendering process - a typical scanline appears to go as follows:<br /><br />0 - junk (latched address $1000 but did nothing)<br />1-2 - read nametable byte of 3rd tile<br />3-4 - read attribute table byte of 3rd tile<br />5-6 - read pattern table byte of 3rd tile<br />7-8 - read pattern table byte of 3rd tile<br />9-16 - fetch 4th tile<br />17-24 - etc.<br />...<br />249-256 - fetch 34th tile<br />257-264 - fetch 1st sprite, resetting the horizontal scroll bits in the VRAM address<br />265-272 - fetch 2nd sprite<br />273-280 - fetch 3rd sprite, starting HBlank at the 2nd cycle of the final read<br />...<br />304-312 - fetch 7th sprite, ending HBlank at the 2nd cycle of the first read<br />313-320 - fetch 8th sprite<br />321-328 - fetch 1st tile (next scanline)<br />329-336 - fetch 2nd tile (next scanline)<br />337-338 - read nametable byte of 3rd tile<br />339-340 - read nametable byte of 3rd tile<br /><br />The entire chip uses a 2-phase clock where the 1st phase is what updates the H/V counters and actually starts external memory accesses (it's when ALE|/RD|/WR get activated) and the second phase is what triggers changes in the video signal (e.g. hblank starts halfway through cycle 280 and ends halfway through cycle 305). When the CPU and <span class="posthilit">PPU</span> clocks are properly &quot;synchronized&quot;, memory accesses from the CPU (which take 3 pixels to complete) will be noticed by the <span class="posthilit">PPU</span> at the beginning of the second pixel (which probably explains the difference between the above pixel numbers and the previously known cycle numbers), while reads don't actually sample their data until the very end of the 3rd pixel (according to some testing with the Visual 2A03).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Wed Oct 31, 2012 3:05 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Visual 2C02</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />This is all very initeresting things !<br /><br />I must admit I am still not yet familiar with observing transistors on a die, especially considering this is old technology which I think uses exclusively NMOS transistors (no PMOS) which is extremely weird. If anyone could explain me basically how this works or point me to some explanation it would be great.<br /><br />I know it's nothing new, but it's funny how the <span class="posthilit">PPU</span> actually fetches 34 tiles when only 33 can be displayed. It's also funny to see how they did the colour DRAM with plain capacitors. The caps seem even smaller than transistors which is very surprising to me.<br /><br />PS : Do you guys remember this old demo which says &quot;Emulation might never be perfect, if you agree press start&quot; ? Well not only this demo did ironically not run properly on the real hardware, but also it was wrong, emulation <em>might</em> be perfect.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>org</b> [ Wed Oct 31, 2012 3:18 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Visual 2C02</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />OAM:<br /><br /><a href="http://breaknes.com/files/PPU/OAM.jpg" class="postlink"><img src="http://breaknes.com/files/PPU/OAM_sm.jpg" alt="Image" /></a><br />(clickable)<br /><br />including:<br />- OAM fetch and control logic<br />- OAM I/O buffer<br />- OAM RAS/CAS<br />- OAM DRAM<br /><br />I identified some control lines, which may help.<br /><br />Some <span class="posthilit">PPU</span> simulation here : <br /><!-- m --><a class="postlink" href="http://code.google.com/p/breaks/source/browse/#svn/trunk/BreaksRP2C02/SRC">http://code.google.com/p/breaks/source/ ... RP2C02/SRC</a><!-- m -->
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Wed Oct 31, 2012 3:25 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Visual 2C02</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Is is me, or OAM is actually SRAM, not DRAM as previously doccumented ?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Wed Oct 31, 2012 3:25 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Visual 2C02</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Bregalad wrote:</div><div class="quotecontent">emulation <em>might</em> be perfect.</div><br />...and slow! XD
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>org</b> [ Wed Oct 31, 2012 3:35 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Visual 2C02</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Both palette RAM and OAM are using pair of transistors, forming dynamic bi-stable latch. So this is obviously DRAM.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>kyuusaku</b> [ Wed Oct 31, 2012 4:30 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Visual 2C02</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />org: I think you have the OAM row/word line's inverted, the rightmost line is high when all row bits are high, so shouldn't it be 31?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>org</b> [ Wed Oct 31, 2012 4:44 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Visual 2C02</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Yup, I'll update circuit tomorrow )<br /><br />Originally it was in correct order, but at some moment they got inverted  <img src="./images/smilies/icon_mrgreen.gif" alt=":mrgreen:" title="Mr. Green" /><br /><br />(I think it was after I wrote OAM RAS simulator: <!-- m --><a class="postlink" href="http://code.google.com/p/breaks/source/browse/trunk/BreaksRP2C02/SRC/OAM.c">http://code.google.com/p/breaks/source/ ... /SRC/OAM.c</a><!-- m --> and started to examine RAS outputs)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Quietust</b> [ Wed Oct 31, 2012 4:54 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Visual 2C02</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">org wrote:</div><div class="quotecontent">Both palette RAM and OAM are using pair of transistors, forming dynamic bi-stable latch. So this is obviously DRAM.</div><br />Specifically, each memory cell consists of two transistors which have one terminal connected to GND and the other terminal connected to the opposite transistor's gate - applying voltage to one side causes the other side to be pulled down to GND. There's no positive feedback between them, though - the voltage simply floats within the gate and needs to be refreshed every so often by isolating the bus, precharging it, then exposing one column of cells to the bus so that it boosts the &quot;high&quot; side closer to VCC (while the &quot;low&quot; side simply sucks the charge into GND).<br /><br />If it were SRAM, there would be two inverters feeding into each other, which manifests itself (in NMOS) as 4 transistors (2 of which are just pull-up resistors) - most of the registers on the chip are implemented as &quot;dynamic latches&quot;, which are effectively inverter loops with an extra transistor+selector in the middle so that it can be reloaded with an external value (i.e. from CPU write) instead of itself.<br /><br /><div class="quotetitle">kyuusaku wrote:</div><div class="quotecontent">org: I think you have the OAM row/word line's inverted, the rightmost line is high when all row bits are high, so shouldn't it be 31?</div><br />The OAM0-7 (but not OAM8) lines feeding into the row/column decoders are inverted from the actual SPR-RAM address register - the far right &quot;row&quot; of memory is indeed &quot;row 0&quot; (in that it's the one that gets contains the values at SPR-RAM addresses $00-$07). However, the address lines themselves are not only inverted, but they are also backwards - the column decoder at the top takes A0-A2+A8 (not A5-A8) and the row decoder in the middle takes A3-A7 (not A0-A4), all organized from bottom to top (i.e. OAM5/6/7/8 are actually A0/A1/A2/A8 and OAM0/1/2/3/4 are actualy A7/A6/A5/A4/A3).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>kyuusaku</b> [ Wed Oct 31, 2012 5:03 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Visual 2C02</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />This might help:<br /><br /><a href="http://img707.imageshack.us/img707/4043/69200610large.jpg" class="postlink"><img src="http://imageshack.us/scaled/thumb/707/69200610large.jpg" alt="Image" /></a><br /><br />Edits:<br />Kind of funny that OAM and palette RAM make up 60% of the transistors. <br /><br />I've auto-captured the NOT and NOR gates, 1151 of them. Useful? I'll attach them anyway...<br />The first element is the output net/node, the rest are inputs.
+
+		
+			<br clear="all" /><br />
+
+			<table class="tablebg" width="100%" cellspacing="1">
+			<tr>
+				<td><b class="genmed">Attachments: </b></td>
+			</tr>
+			
+				<tr>
+					<td>
+			<span class="genmed">
+				<img src="./styles/subsilver2/imageset/icon_topic_attach.gif" width="14" height="18" alt="" title="" /> 
+				<a href="./download/file.php?id=131">not-nor gates.txt</a> [28.16 KiB]
+			</span><br />
+			<span class="gensmall">Downloaded 47 times</span>
+		
+
+		<br />
+	</td>
+				</tr>
+			
+			</table>
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Quietust</b> [ Wed Oct 31, 2012 9:13 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Visual 2C02</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I appear to have run into a bug in ChipSim, and it's probably the same one that was causing bizarre glitches in the Visual 2A03's triangle channel. Whenever I attempt to write to $2005 or $2006, the toggle always clears itself when the write starts, seemingly because transistors are being turned on and off in the wrong order. I have an idea as to how I can fix it, but I'm not sure if it'll work.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>kyuusaku</b> [ Thu Nov 01, 2012 12:20 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Visual 2C02</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Anyone have any ideas on how to group transistors for comprehensible textual output? I've refined the node (guess I can call it &quot;node&quot;, eww) organization so I can walk through the schematic and fairly easily transcribe it to paper, since my netbook doesn't really have the screen space, but that gets old really fast when you have to write down and match node numbers.<br /><br />Or know a schematic capture program with a simple design/symbol format that can beautify ratsnest output?<br /><br />Blah, I wish I didn't notice this thread, oh how work and chores have suffered &gt;_&lt; I'm more interested in the schematic side of things but I even tried my hand at a simulator &gt;_&lt; &gt;_&lt; The design is solid, in theory, since it implements iterative (uniform for now) propagation. If anything it'll be friendlier than Visual6502's at &lt;200 lines.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>org</b> [ Thu Nov 01, 2012 2:53 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Visual 2C02</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />That's how I'm doing it ) At first I trace all layers of high resolution die photos:<br /><!-- m --><a class="postlink" href="http://breaknes.com/files/PPU/2C02G.zip">http://breaknes.com/files/<span class="posthilit">PPU</span>/2C02G.zip</a><!-- m --><br />(since I dont have delayered images I took diffusion layer from Quietust site, other layers are traced by myself)<br /><br />Then I save it as PNG, cut some part and double the scale (original picture still too small to draw transistors).<br />Then I start to draw it piece by piece:<br /><!-- m --><a class="postlink" href="http://breaknes.com/files/PPU/OAM.zip">http://breaknes.com/files/<span class="posthilit">PPU</span>/OAM.zip</a><!-- m --><br /><br />Ctrl-C -&gt; Ctrl-V really helps to me, there are too many regular structures on the chip )<br /><br />I tried to restore circuit from the node list, but its a mess.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Quietust</b> [ Thu Nov 01, 2012 7:59 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Visual 2C02</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />From the information I've gotten on the Visual 6502 mailing list, it sounds like these timing glitches I'm running into will need to be handled on a case-by-case basis (the Visual 6502 and 6800 seemingly also had this problem and presumably had to be hand-tweaked) - I've reordered the transistors in the $2005/$2006 toggle and it seems to be working correctly now.<br /><br />In the process of checking that, I've also confirmed several additional useful bits in the simulator:<br />1. Palette RAM works correctly - I've successfully written and verified a string of 00s (came back as 00), a string of FFs (came back as 3F), and an incrementing sequence 00-1F (which came back as <strong>10</strong>,01,02,03,<strong>14</strong>,05,06,07,<strong>18</strong>,09,0a,0b,<strong>1c</strong>,0d,0e,0f,<strong>10</strong>,11,12,13,<strong>14</strong>,15,16,17,<strong>18</strong>,19,1a,1b,<strong>1c</strong>,1d,1e,1f, just as expected).<br /><br />2. The video signal generator also seems to be working correctly - I measured the timing of all the various regions listed on the <a href="http://wiki.nesdev.com/w/index.php/NTSC_video" class="postlink">wiki page</a>, and they matched 100% (though, for some reason, the &quot;pulse&quot; sometimes came out with the &quot;left border&quot; color - maybe it doesn't always show up?), and I also confirmed that the &quot;active&quot; region actually starts at &quot;pixel&quot; 4 (the second cycle of the 3rd tile's attribute read), which might be important for proper grayscale/emphasis timing.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>2</strong> of <strong>5</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

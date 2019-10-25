@@ -1,0 +1,417 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Getting around the DPCM bug in a ROM hack</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Getting around the DPCM bug in a ROM hack</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=10&amp;t=10930">http://forums.nesdev.com/viewtopic.php?f=10&amp;t=10930</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>za909</b> [ Sat Jan 25, 2014 7:14 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Getting around the DPCM bug in a ROM hack</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Hey people! I'm fairly new to 6502 programming in a sense, that I've never actually used proper tools to make anything, hopefully that'll change!<br />I've been into ROM hacking for quite a while though, and the next step requires me to be here pretty much. I want to modifiy the sound engine made by Capcom, which is used in a ton of their MMC3 games, to include DPCM sample playback. That's not difficult by any means, as I can simply replace one of the less useful effect handlers with my DPCM subroutine. The things is, that this would very likely introduce the glitched controller reads as an artifact.<br /><br />Since I have a working ROM here by default, I don't want to go all the way of replacing the entire routine for the controller. Can I do something about this and include it in the code for the sample playback?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Sat Jan 25, 2014 8:12 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Getting around the DPCM bug in a ROM hack</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />The best way to go about it would involve replacing the routine that actually reads 8 bits from the controller. This wouldn't affect the code that interprets the value read from the controller, which is what I think you're worried about. The best way to hack this in without causing unpredictable slowdown is to read the controller twice, compare the values, and use the values read in the previous frame if they don't match.<br /><br />Do you have a disassembled listing of the existing controller reading routine, starting where it writes to $4016?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>za909</b> [ Sat Jan 25, 2014 8:48 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Getting around the DPCM bug in a ROM hack</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tepples wrote:</div><div class="quotecontent">Do you have a disassembled listing of the existing controller reading routine, starting where it writes to $4016?</div><br /><br />Yeah I have a &quot;complete&quot; but mostly undocumented disassembly for Megaman 3 that I found. I hope this is the right thing. I just simply located where it writes to $4016 (and reads from afterwards) and apparently, this is supposed to be it, in bank $1E.<br />It also seems to be reading the second controller, but I could care less about fixing the input from there.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">L1E_C545:<br />&nbsp; &nbsp;ldx #$01<br />&nbsp; &nbsp;stx $4016<br />&nbsp; &nbsp;dex<br />&nbsp; &nbsp;stx $4016<br />&nbsp; &nbsp;ldx #$08<br />L1E_C550:<br />&nbsp; &nbsp;lda $4016<br />&nbsp; &nbsp;lsr<br />&nbsp; &nbsp;rol $14<br />&nbsp; &nbsp;lsr<br />&nbsp; &nbsp;rol $00<br />&nbsp; &nbsp;lda $4017<br />&nbsp; &nbsp;lsr<br />&nbsp; &nbsp;rol $15<br />&nbsp; &nbsp;lsr<br />&nbsp; &nbsp;rol $01<br />&nbsp; &nbsp;dex<br />&nbsp; &nbsp;bne L1E_C550<br />&nbsp; &nbsp;lda $00<br />&nbsp; &nbsp;ora $14<br />&nbsp; &nbsp;sta $14<br />&nbsp; &nbsp;lda $01<br />&nbsp; &nbsp;ora $15<br />&nbsp; &nbsp;sta $15<br />&nbsp; &nbsp;ldx #$01<br />L1E_C573:<br />&nbsp; &nbsp;lda $14,x<br />&nbsp; &nbsp;tay<br />&nbsp; &nbsp;eor $16,x<br />&nbsp; &nbsp;and $14,x<br />&nbsp; &nbsp;sta $14,x<br />&nbsp; &nbsp;sty $16,x<br />&nbsp; &nbsp;dex<br />&nbsp; &nbsp;bpl L1E_C573<br />&nbsp; &nbsp;ldx #$03<br />L1E_C583:<br />&nbsp; &nbsp;lda $14,x<br />&nbsp; &nbsp;and #$0c<br />&nbsp; &nbsp;cmp #$0c<br />&nbsp; &nbsp;beq L1E_C593<br />&nbsp; &nbsp;lda $14,x<br />&nbsp; &nbsp;and #$03<br />&nbsp; &nbsp;cmp #$03<br />&nbsp; &nbsp;bne L1E_C599<br />L1E_C593:<br />&nbsp; &nbsp;lda $14,x<br />&nbsp; &nbsp;and #$f0<br />&nbsp; &nbsp;sta $14,x<br />L1E_C599:<br />&nbsp; &nbsp;dex<br />&nbsp; &nbsp;bpl L1E_C583<br />&nbsp; &nbsp;rts</div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Jarhmander</b> [ Sat Jan 25, 2014 9:17 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Getting around the DPCM bug in a ROM hack</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">za909 wrote:</div><div class="quotecontent">It also seems to be reading the second controller, but I could care less about fixing the input from there.</div><br />It does read from controller #2, this is likely some test code left by the developers. It is possible to do mega jumps if one hold a certain button on the controller #2.<br />You could simply eliminate the code that reads the second controller and act as if no button is ever pressed.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Sat Jan 25, 2014 9:33 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Getting around the DPCM bug in a ROM hack</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I'm kinda wondering, modifying the controller code and adding some DPCM playback commands to the sound engine doesn't sound too tough at all, but how are you going to find space for always-resident DPCM samples? For everything but DPCM you can find space in any bank and swap it in only when needed, but DPCM is always playing! Is this for a romhack, or are you trying to transplant the music engine into your own homebrew? (I'm presuming a romhack since you're asking about modifying the controller routines.) MMC3 does have a banking scheme that suits DPCM well, but if there's vital code running in those banking regions it may be difficult to rearrange.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>za909</b> [ Sat Jan 25, 2014 10:04 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Getting around the DPCM bug in a ROM hack</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />This would be for a romhack basically.<br /><br />It's quite simple. Bank $1F is always loaded to $E000-$FFFF and never once swapped. There's enough unused junk data here for me to replace, although most of the are in very inconvenient spots, as I can only read from every 64th byte.<br />There's enough space for a 64 byte sample, a 32 byte sample, and two 289 byte samples (I want these to be really short bass notes, a C and a C# note, so I can cover two octaves with the low pitches, except the upper E and B would be missing)<br />The game Bee 52 by Codemasters had a very similar approach. I found that slap bass works alright even at such a low quality.<br /><br />But I could ultimately use drum samples and never worry about the pitch.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Sat Jan 25, 2014 10:24 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Getting around the DPCM bug in a ROM hack</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />First I did a couple microoptimizations for space, using the ring counter trick to kill use of X and the CMP trick to read both hardwired controllers (bit 0 of $4016 and $4017) and expansion controllers without needing $00 and $14. Then I used the extra space to add logic that reads the controller twice and uses the previous frame's keypresses if they don't match. I haven't bothered to count the bytes from both versions nor to test it, and I'm open to corrections.<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">cur_keys = $16<br />new_keys = $14<br />tmp_keys = $00<br /><br />read_pads_once:&nbsp; &nbsp; ; Corresponds to L1E_C545<br />&nbsp; &nbsp;lda #$01<br />&nbsp; &nbsp;sta $4016&nbsp; &nbsp; &nbsp; &nbsp;; Load button states into controller's shift register<br />&nbsp; &nbsp;sta tmp_keys+1&nbsp; ; End the loop once the 1 gets shifted up to carry<br />&nbsp; &nbsp;lsr a<br />&nbsp; &nbsp;sta $4016&nbsp; &nbsp; &nbsp; &nbsp;; Finish loading button states<br />bitloop:<br />&nbsp; &nbsp;lda $4016&nbsp; &nbsp; &nbsp; &nbsp;; read the controller<br />&nbsp; &nbsp;and #$03&nbsp; &nbsp; &nbsp; &nbsp; ; remove open bus bits<br />&nbsp; &nbsp;cmp #$01&nbsp; &nbsp; &nbsp; &nbsp; ; C = true if either button is pressed<br />&nbsp; &nbsp;rol tmp_keys+0<br />&nbsp; &nbsp;lda $4017<br />&nbsp; &nbsp;and #$03<br />&nbsp; &nbsp;cmp #$01<br />&nbsp; &nbsp;rol tmp_keys+1&nbsp; ; C = true if this is the last button<br />&nbsp; &nbsp;bcc bitloop&nbsp; &nbsp; &nbsp;; look ma, no X!<br />&nbsp; &nbsp;rts<br /><br />read_pads:<br />&nbsp; &nbsp;jsr read_pads_once<br />&nbsp; &nbsp;lda tmp_keys+0<br />&nbsp; &nbsp;sta new_keys+0<br />&nbsp; &nbsp;lda tmp_keys+1<br />&nbsp; &nbsp;sta new_keys+1<br />&nbsp; &nbsp;jsr read_pads_once<br />&nbsp; &nbsp;ldx #1<br />fixloop:<br />&nbsp; &nbsp;; Sanity check 1: Make sure the two reads match<br />&nbsp; &nbsp;; (DPCM double clock compensation)<br />&nbsp; &nbsp;ldy cur_keys,x<br />&nbsp; &nbsp;lda tmp_keys,x<br />&nbsp; &nbsp;cmp new_keys,x<br />&nbsp; &nbsp;beq frame_not_glitched<br />&nbsp; &nbsp;lda cur_keys,x&nbsp; ; If glitched, use the previous frame<br />frame_was_glitched:<br />&nbsp; &nbsp;; At this point, A holds the current buttons and Y holds<br />&nbsp; &nbsp;; the previous buttons<br /><br />&nbsp; &nbsp;sta cur_keys,x<br /><br />&nbsp; &nbsp;; Sanity check 2: Left+Right or Up+Down cancel each other out.<br />&nbsp; &nbsp;; Corresponds to L1E_C583<br />&nbsp; &nbsp;and #$0C<br />&nbsp; &nbsp;cmp #$0C<br />&nbsp; &nbsp;bne not_updown<br />&nbsp; &nbsp;eor cur_keys,x<br />&nbsp; &nbsp;sta cur_keys,x<br />not_updown:<br />&nbsp; &nbsp;lda cur_keys,x<br />&nbsp; &nbsp;and #$03<br />&nbsp; &nbsp;cmp #$03<br />&nbsp; &nbsp;bne not_leftright<br />&nbsp; &nbsp;eor cur_keys,x<br />&nbsp; &nbsp;sta cur_keys,x<br />not_leftright:<br /><br />&nbsp; &nbsp;; Calculate newly pressed buttons<br />&nbsp; &nbsp;; Corresponds to L1E_C573<br />&nbsp; &nbsp;tya<br />&nbsp; &nbsp;eor #$FF<br />&nbsp; &nbsp;and cur_keys,x<br />&nbsp; &nbsp;sta new_keys,x<br />&nbsp; &nbsp;dex<br />&nbsp; &nbsp;bpl fixloop<br />&nbsp; &nbsp;rts<br /></div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Sat Jan 25, 2014 10:37 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Getting around the DPCM bug in a ROM hack</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">The best way to hack this in without causing unpredictable slowdown is to read the controller twice, compare the values, and use the values read in the previous frame if they don't match.</div><br />I'm pretty sure most commercial games does it by reading twice, and repeat until you get two consecutive reads that match. In theory it could create major slowdowns, but in practice it doesn't.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>za909</b> [ Sat Jan 25, 2014 1:32 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Getting around the DPCM bug in a ROM hack</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Alright guys, sorry for wasting everyone's time. This is clearly not for me. I've spent the last 3 hours fiddling around and nothing worked.<br />I don't have proper assembly tools, nothing's working on my computer, I can't translate any code to hex properly, and I wish I could punch someone right now. I wouldn't have time to keep doing this hacking stuff anyway. Sorry again.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Sat Jan 25, 2014 1:36 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Getting around the DPCM bug in a ROM hack</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Har come on don't give up romhacking because of this !<br />You should have started by something simpler, like just palette or graphics hack.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>unregistered</b> [ Sat Jan 25, 2014 3:55 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Getting around the DPCM bug in a ROM hack</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">za909 wrote:</div><div class="quotecontent">Alright guys, sorry for wasting everyone's time. This is clearly not for me. I've spent the last 3 hours fiddling around and nothing worked.<br />I don't have proper assembly tools, nothing's working on my computer, I can't translate any code to hex properly, and I wish I could punch someone right now. I wouldn't have time to keep doing this hacking stuff anyway. Sorry again.</div>When I'm stumped I pray. : )
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Sat Jan 25, 2014 7:52 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Getting around the DPCM bug in a ROM hack</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">unregistered wrote:</div><div class="quotecontent">When I'm stumped I pray. : )</div><br />I'm not a religious person, but if I were I wouldn't bother God with my NES ROM Hacking problems while so much bad stuff is happening all around the world!
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>thefox</b> [ Sat Jan 25, 2014 10:31 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Getting around the DPCM bug in a ROM hack</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tokumaru wrote:</div><div class="quotecontent"><div class="quotetitle">unregistered wrote:</div><div class="quotecontent">When I'm stumped I pray. : )</div><br />I'm not a religious person, but if I were I wouldn't bother God with my NES ROM Hacking problems while so much bad stuff is happening all around the world!</div><br />God is omnipotent though, so he wouldn't care.<br /><br />(P.S. I'm not religious either.)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>za909</b> [ Sun Jan 26, 2014 1:12 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Getting around the DPCM bug in a ROM hack</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />The problem isn't that I have no idea what I'm doing. I've been hacking for what...4 years now? The problem is that when I wanted to actually practice 6502 asm, I could never find any assembler that worked for me. They're either all DOS or x32 based, so I can't really run them at all, or they're like nesticle, which just intimidate me so bad at first glance. I mean there so much stuff, and I don't know where to begin. All I'd want is just getting straight to the point and start writing my code. I know what the opcodes mean and do (except that I don't get what the difference is between LSR and ROR) and I understand how to control the other peripherals with the CPU.<br /><br />Hacking now suddenly seems much more difficult than making a new game. I have to make sure I don't change anything, not the stack, not the CPU status before I end my part of the code, and I can't exceed the original amount of data.<br />In my programs there'd be huge lag anyway because of pushing and pulling every millisecond to make sure the next operations have a clean status register.<br /><br />I'll come back to this once I have some time.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Kasumi</b> [ Sun Jan 26, 2014 6:07 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Getting around the DPCM bug in a ROM hack</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Hacking now suddenly seems much more difficult than making a new game.</div><br />Absolutely, for anything more than the simplest of changes. <br /><br />Rant edit: Also, making original stuff is a good thing to do. I never learned how to hack. One day I just realized I could after making original stuff for so long. I feel like people who get into hacking first skip a lot of the programming fundamentals and end up banging their head against the wall over really dumb stuff. (Not you specifically, just a thing I see in general.) Whatever game is in question already does things like read the joypad and whatever, so when you hack you avoid learning how to do stuff like that. In fact, many spend more time looking for ways to avoid learning a thing than would take to just learn it. Don't be that guy, please. If the end hacked result and not the knowledge is all you care about, I imagine you won't get it done.<br /><br />I used to like making free, simple hacks for group hacked-end-result, but I've gradually lost my taste for that.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">I could never find any assembler that worked for me.</div><br />As unregistered said, get asm6: <!-- m --><a class="postlink" href="http://home.comcast.net/~olimar/NES/">http://home.comcast.net/~olimar/NES/</a><!-- m --><br />It's even open source if you happen to not be on Windows.<br /><br />It'll take a very simple input. Here's a piece of a thing I assembled. Basically just needs a .org statement and your code. Will give you a binary, which you then throw into the rom.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">pointerlo = $02<br />pointerhi = $03<br /><br />;Initialize Pointer<br />;Must find two free bytes of zero page RAM<br />&nbsp; &nbsp;.org $FF30<br />&nbsp; &nbsp;lda #$01<br />&nbsp; &nbsp;sta pointerlo;Unused, reserved for player 2<br />&nbsp; &nbsp;lda #$60<br />&nbsp; &nbsp;sta pointerhi;Unused, reserved for player 2<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;jmp $8095<br /></div><br /><br />Edit: Ah! And if you're working with a disassembly, yes, you have to get working whatever assembler was used by who made the disassembly or modify the disassembly to work with the assembler YOU choose. Thems the breaks. The latter generally isn't too tough if you actually understand your assembler's syntax.<br /><br />If you want to practice 6502 code from scratch in a test setting, there's the 6502 macroassembler: <!-- m --><a class="postlink" href="http://exifpro.com/utils.html">http://exifpro.com/utils.html</a><!-- m --><br /><br />Edit: <div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">(except that I don't get what the difference is between LSR and ROR)</div><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">clc<br />lda #$01<br />lsr a<br />;#$00 is in A<br /></div><br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">sec<br />lda #$01<br />lsr a<br />;#$00 is in A<br /></div><br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">clc<br />lda #$01<br />ror a<br />;#$00 is in A<br /></div><br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">sec<br />lda #$01<br />ror a<br />;#$80 is in A<br /></div><br /><br />Ror puts the carry bit into bit 7 of memory (or A). Lsr ignores the carry, and always shifts a zero into bit 7.<br /><br />Edit: Hopefully the final edit... Tepples, your routine is missing the label &quot;frame_not_glitched&quot;, and clocks in at 93 bytes. The original was 88. There might be other problems too, I might look at it more when I have some more time.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

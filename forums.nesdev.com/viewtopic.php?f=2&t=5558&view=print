@@ -1,0 +1,246 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - ca65: Passing parameter to function with a software stack</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">ca65: Passing parameter to function with a software stack</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=5558">http://forums.nesdev.com/viewtopic.php?f=2&amp;t=5558</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Banshaku</b> [ Wed Sep 09, 2009 11:32 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>ca65: Passing parameter to function with a software stack</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Warning: wall of text.
+<br />
+<br />In some previous threads (<a href="http://nesdev.com/bbs/viewtopic.php?t=5491" class="postlink">here</a> and <a href="http://nesdev.com/bbs/viewtopic.php?t=5481" class="postlink">here</a>) me, Miau and Disch have been talking about macros, how to use the stack in a better way, parameters etc.
+<br />
+<br />Disch came out with the concept of a software stack in zero page instead of using the real one.  After thinking a little bit about it, I decided to make one and tried to make a few macro to help the process of using it.
+<br />
+<br />Here's the concept.  First, you need to define a variable in zero page for the stack pointer and some constant for the location of the stack. You have to init it like the real stack with the value $FF
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">.segment &quot;ZEROPAGE&quot;<br />zpStackPointer:&nbsp; &nbsp;&nbsp; &nbsp;.res 1 ; Software stack pointer<br /><br />; ... Some code later<br /><br />; Define for stack location<br />SOFTWARE_STACK&nbsp; &nbsp;= $00&nbsp; &nbsp;&nbsp; &nbsp;; Software stack pointer is in zero page<br /><br />.segment &quot;CODE&quot;<br />&nbsp; &nbsp;ldx #$FF<br />&nbsp; &nbsp;stx zpStackPointer &nbsp; &nbsp;&nbsp; &nbsp;; Set software stack pointer<br /></div><br /><br />The init must be done after your init your memory to zero.  Then, you need to create a method that defines a few parameters.  The way you define a method is this way:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">; The procedure with parameter <br />.proc subShowAnimFrame<br />; Parameters on software stack:<br />.struct Param<br />&nbsp; &nbsp;PosX &nbsp; &nbsp; &nbsp; &nbsp;.byte&nbsp; &nbsp;; X location<br />&nbsp; &nbsp;PosY &nbsp; &nbsp; &nbsp; &nbsp;.byte&nbsp; &nbsp;; Y Location<br />&nbsp; &nbsp;SpriteDir&nbsp; &nbsp;.byte&nbsp; &nbsp;; Sprite direction<br />.endstruct<br /><br />; ... some code here<br />.endproc<br /></div><br /><br />The structure defined inside the .proc is important: it defines the size of your parameters and where they are located. It will become clearer later.<br /><br />Now you need a few macro to make your life easier (and make your code cleaner to read). One is for allocating memory, one is for loading parameters and the other one is for releasing memory.<br /><br />Here's the macros:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">;-&gt;BEGIN----------------------------------------------------------------------<br />; Allocate memory on the stack for parameters<br />;<br />; Parameter:&nbsp; <br />;&nbsp; &nbsp;paramStruct : The structure that represent the parameters that needs memory<br />;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;to be allocated.<br />;<br />; Notes: The stack pointer value is put by default in the X index at the end. This<br />;&nbsp; &nbsp; &nbsp; &nbsp; is because we expect to store parameters after alocating memory.<br />;<br />.macro alocateMemOnStack paramStruct<br />&nbsp; &nbsp;lda zpStackPointer&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;; Load stack pointer<br />&nbsp; &nbsp;sec&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<br />&nbsp; &nbsp;sbc #.sizeof&#40;paramStruct&#41;&nbsp; &nbsp;&nbsp; &nbsp;; Adjust stack pointer<br />&nbsp; &nbsp;sta zpStackPointer&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;; save it<br />&nbsp; &nbsp;tax&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;; Store stack pointer value in index<br />.endmacro<br />;-&lt;END------------------------------------------------------------------------<br /><br />;-&gt;BEGIN----------------------------------------------------------------------<br />; Release the memory stored for the parameters on the stack<br />;<br />; Parameter:&nbsp; <br />;&nbsp; &nbsp;paramStruct : The structure that represent the parameters that needs memory<br />;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;to be released.<br />;<br />.macro releaseMemFromStack paramStruct<br />&nbsp; &nbsp;lda zpStackPointer&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;; Load stack pointer<br />&nbsp; &nbsp;clc&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<br />&nbsp; &nbsp;adc #.sizeof&#40;paramStruct&#41;&nbsp; &nbsp;&nbsp; &nbsp;; Adjust stack pointer<br />&nbsp; &nbsp;sta zpStackPointer&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;; save it<br />.endmacro<br />;-&lt;END------------------------------------------------------------------------<br /><br />;-&gt;BEGIN----------------------------------------------------------------------<br />; Store parameter on the stack<br />;<br />; Parameter:&nbsp; <br />;&nbsp; &nbsp;paramLocation : Where in memory relative to the stack pointer that is should<br />;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;be stored.<br />;&nbsp; &nbsp;value&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;: The value we want to store<br />;<br />; Note: We should make it more inteligent and knows when it's a 16/8 value to store<br />;<br />.macro spos paramLocation, value<br />&nbsp; &nbsp;lda value<br />&nbsp; &nbsp;sta SOFTWARE_STACK + paramLocation, x<br />.endmacro<br />;-&lt;END------------------------------------------------------------------------<br /></div><br /><br />Now that we have some macro to do the job, it's time to see how to use them.  Here's the code example to call a function with parameters:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp;; Alocate ram the size of all parameters<br />&nbsp; &nbsp;alocateMemOnStack subShowAnimFrame::Param<br /><br /><br />&nbsp; &nbsp;; Store parameters on stack<br />&nbsp; &nbsp;spos subShowAnimFrame::Param::PosX, #$00<br />&nbsp; &nbsp;spos subShowAnimFrame::Param::SpriteDir, zpDebugMMDir<br />&nbsp; &nbsp;spos subShowAnimFrame::Param::PosY, #$64<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;jsr subShowAnimFrame<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;; Release it<br />&nbsp; &nbsp;releaseMemFromStack subShowAnimFrame::Param<br /></div><br /><br />Now without explanation it will be hard to understand. The first line allocate ram on the stack. How it work is that is the macro receive as a parameter the function parameter's structure (subShowAnimFrame::Param).  The macro will check the size of the structure and will allocate the ram right away. Then it will set the X register with the current stack location.<br /><br />The spos puts a parameter on the stack. The first parameter is the location on the stack (subShowAnimFrame::Param::PosX). The second one is the value you want to put. In it's current stage, you can only put 8 bits value. I want to improve it later.<br /><br />One thing you will find interesting is the order of parameters is <strong>not important</strong>. Since the structure knows the location in memory of a parameter and you allocated the RAM you need before using it, you don't have to worry about parameters order. this will be the same thing when retrieving them too.<br /><br />Now that we called the method, we need to know how to access those parameters inside it. Here's the code example:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp;ldx zpStackPointer<br />&nbsp; &nbsp;lda SOFTWARE_STACK + Param::SpriteDir, x ; Check sprite orientation.<br /></div>
+<br />
+<br />Since you use a software stack in zero page, you must first load the X register with the stack pointer. Then you can access the location of the variable with stack location + location in RAM (SOFTWARE_STACK + Param::SpriteDir).  You don't have to worry if it's parameter 1 or 2, the structure will take care of it.
+<br />
+<br />The pro of this approach is to have dynamic allocation of parameters. Once you understand how to use the macro properly, it's quite simple.  It removes the possibility of using by accident some temp variable defined elsewhere too. If you want local variables, you could just add a few extra parameters inside the struct. The value of those "parameters" will be initialized inside the method. This way, the memory for the parameters and local variables would be allocated before calling the function.
+<br />
+<br />The cons are that there will be a small price in performance. You need to load the stack pointer in X every time you want to access a value. Compared to a direct zero page variable, you have do do a few processing before being able to access it. So I will not recommend this approach for critical method used in the vblank for example.  But in some other cases, it could make the programming easier for methods that have many parameters. You don't have to worry how many temp variable you have and if someone is using them.
+<br />
+<br />I have been testing it yesterday and for now it's working. I need to test it more to see if there is any issues I didn't see yet.  
+<br />
+<br />That's was a long message.  Any comment on the subject will be appreciated.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Movax12</b> [ Fri Sep 28, 2012 8:45 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: ca65: Passing parameter to function with a software stac</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I wanted to do something like this with as little additional coding as required (not counting the macros themselves) and have come up with something I like. This does not use a stack, because I did not want the additional overhead in the code slowing things down and reducing flexability - I just wanted to know that my code was not doing anything it shouldn't. <br /><br />So I decided to just have a kind of range checking system that warns you if you might be doing something bad and provide you with the chance to take a close look and ignore the warnings if everything is okay. Once you are completed your game/app you can turn off the checks and eliminate any slowdown from range checking.<br /><br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">; In a main module, define:<br /><br />FUNCTION_RANGE_CHECKING_ON = 1 ;Turn off if functions are okay<br />FUNCTION_LOCAL_SIZE = $0A ;# bytes for local zero page shared<br />FUNCTION_PARAMS_SIZE = $06 ;bytes for paramaters<br /><br />; these two must be the first thing reserved in zeropage<br />.segment &quot;ZEROPAGE&quot;<br />function_locals: .res FUNCTION_LOCAL_SIZE&nbsp; <br />param:&nbsp; &nbsp;.res FUNCTION_PARAMS_SIZE&nbsp; &nbsp; &nbsp;<br /></div><br /><br />Anywhere else or in an included file define your callable functions as: <br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">.func get_nametableaddress<br /><br /><br />.locals<br />&nbsp;nametableaddress .byte<br />.endlocals<br /><br />; IN:&nbsp; reg x has nametable x, reg y has nametable y<br />; OUT : reg x has low address, reg y has high address<br />; LOCAL: Uses 1 byte<br /><br />&nbsp;tya&nbsp; &nbsp; &nbsp;<br />&nbsp;asl&nbsp; &nbsp; <br />&nbsp;<br />&nbsp;asl&nbsp; &nbsp; <br />&nbsp;asl<br />&nbsp;asl<br />&nbsp;asl<br />&nbsp; <br />&nbsp;stx local::nametableaddress<br />&nbsp;ora local::nametableaddress <br />&nbsp;tax<br />&nbsp;tya <br />&nbsp;lsr<br />&nbsp;lsr<br />&nbsp;lsr<br />&nbsp;ora #$20<br />&nbsp;tay<br />&nbsp;rts<br />&nbsp;<br />.endfunc<br /></div><br />If you wish to define a function as above inside a scope and export/import it: <br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">;export:<br />.exportfunc get_nametableaddress<br /><br />;import:<br />.importfunc get_nametableaddress<br /></div><br />In code, you can use call: <br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; call get_nametableaddress, #10,#10<br /></div><br />The macro will generate a small amount of code that checks the local variable usage and parameter usage. In this example no paramater memory is used because the macros justs loads reg x and y. There is no stack! Only a small amount of code will be output that checks for overuse or nested use of paramaters and local memory use and outputs a warning, so you can look closer and see if there is a problem or not. If you do pass paramaters in paramater memory space use clear_param num, where num is the number of paramaters acknolwedged as read/no longer needed: <br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">.func some_function<br /><br />; IN reg X,Y (addressIN) and a, param+0 (addressout)<br /><br />.locals<br />&nbsp;addressIN .word<br />&nbsp;addressOUT .word<br />.endlocals<br /><br /><br /><br />&nbsp;stx local::addressIN<br />&nbsp;sty local::addressIN + 1<br />&nbsp;<br />&nbsp;sta local::addressOUT<br />&nbsp;lda param+0<br />&nbsp;clear_param 1<br />&nbsp;sta local::addressOUT + 1<br />&nbsp;;.....etc<br /></div><br />If you look at the very first line of code: <br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">FUNCTION_RANGE_CHECKING_ON = 1 ;Turn off if functions are okay</div><br />If you comment that line, no extra code will be generated and your assembled code will be the same as if you did not use any range checking code of these macros.<br /><br />I made a blog post here where I posted the macro code: <!-- m --><a class="postlink" href="http://mynesdev.blogspot.ca/2012/09/tracking-local-variable-usage.html">http://mynesdev.blogspot.ca/2012/09/tra ... usage.html</a><!-- m --><br /><br />Disclaimer: I just finished this code, I do not know if it works 100%
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>thefox</b> [ Sat Sep 29, 2012 4:42 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: ca65: Passing parameter to function with a software stac</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Personally, I wouldn't use <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">.feature leading_dot_in_identifiers</tt>, I would leave the dotted identifiers exclusively to the assembler.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">; these two must be the first thing reserved in zeropage<br />.segment &quot;ZEROPAGE&quot;<br />function_locals: .res FUNCTION_LOCAL_SIZE&nbsp; <br />param:&nbsp; &nbsp;.res FUNCTION_PARAMS_SIZE</div><br />This is not a good idea, you should put it in a separate segment. And even then, you probably should add an <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">.assert</tt> that verifies they are where they're supposed to be: <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">.assert function_locals = 0, error, &quot;oh no&quot;</tt><br /><br />About the parameter checking, I have been thinking for some time about possibly adding a feature to an emulator that could allow doing such checks without performance overhead. One possible feature would be runtime asserts, but to support something like this they'd have to be pretty complex.<br /><br />And this brings me to another possible feature: Lua/Python code embedding in the ROM. What I mean is, you could embed pieces of script code within the ROM to do the debug checks without any overhead. Hell, it could even be used to easily implement placeholders for some of the features of the game until they get replaced with 6502 code.<br /><br />Note that the code wouldn't actually have to be physically in the ROM, it could be output to an entirely separate file which is read by the emulator based on debug symbols, so it wouldn't even have to add practically any ROM overhead. Needless to say, this feature would only be used at development time.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Sat Sep 29, 2012 5:09 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: ca65: Passing parameter to function with a software stac</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I'm not sure what is the advantage of using a software stack against a hardware one. Maybe a very slight gain of performance ?<br /><br />Because you'll need the X register anyways, but acessing the hardware stack will be done with :<br />lda $100 + wathever,X<br /><br />which is only one byte more and one cycle slower than doing it in zero page.<br /><br />However the pushing and pulling of parameters can be done with pha / pla, which can't be done with the software stack approach, thus a gain of bytes and speed against a software stack.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Movax12</b> [ Sat Sep 29, 2012 6:59 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: ca65: Passing parameter to function with a software stac</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I'll try the assert. Personally I like the way the . reads, it's more about aesthetics though I think of it a bit like extending the assembler. Having a segment I guess is okay, but then I have to change the .cfg if I need to change the size, it seems like more effort.<br /><br />I was using the hardware stack before, but I decided I didn't like it due to a few factors. If your paramaters are in zeropage you can perform any instruction with them without having to load or pull them from the stack for one. Plus I don't use a stack at all, just shared space with a count of memory used.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>thefox</b> [ Sat Sep 29, 2012 7:13 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: ca65: Passing parameter to function with a software stac</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Movax12 wrote:</div><div class="quotecontent">I'll try the assert. Personally I like the way the . reads, it's more about aesthetics though I think of it a bit like extending the assembler. Having a segment I guess is okay, but then I have to change the .cfg if I need to change the size, it seems like more effort.</div><br />Yeah I understand it's for aesthetics, and certainly thought about doing it myself too, but ended up using syntax hilighting instead for a similar effect.<br /><br />You don't have to change the .cfg if the segment size changes. You can have one MEMORY definition (which specifies the size), and put multiple segments in it. The order of the segments in the linker file defines the ordering in the memory area.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

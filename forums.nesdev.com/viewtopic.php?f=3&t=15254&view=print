@@ -1,0 +1,186 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Native 6502 code inducing debugger/emulator functionality</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Native 6502 code inducing debugger/emulator functionality</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=3&amp;t=15254">http://forums.nesdev.com/viewtopic.php?f=3&amp;t=15254</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>koitsu</b> [ Thu Dec 15, 2016 6:08 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Native 6502 code inducing debugger/emulator functionality</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Original thread/post that sparked me to create this one: <!-- l --><a class="postlink-local" href="http://forums.nesdev.com/viewtopic.php?p=184854#p184854">viewtopic.php?p=184854#p184854</a><!-- l -->  (please see my quoted text there for some context)<br /><br /><div class="quotetitle">rainwarrior wrote:</div><div class="quotecontent">&quot;STA $2001&quot; is using an &quot;actual opcode&quot;. ;P I don't really understand the advantage of BRK here (it saves 3 bytes but requires an IRQ handler?).</div><br />No, it's not implemented like that.  I should've been more precise in what I was trying to convey, so I will try my best to here.<br /><br />BRK as I described, <span style="text-decoration: underline">only with said feature in emulator turned on (default=off)</span>, would not act like like BRK normally would.  Instead, it would act as a communication point (think: trigger) for the emulator to do something -- again, PURELY for debugging or development purposes.  The second byte would act as a control byte, and the opcode/operand would not cost any cycles (unless there was some reason it absolutely had to in the emulation core, but there's legit reason it shouldn't).  The IRQ/BRK vector would not be called/utilised when this was enabled.<br /><br />You could implement the same thing through something like a write to some MMIO/register address that the emulator would honour.  NO$SNS implements <a href="http://problemkaputt.de/fullsnes.htm" class="postlink">exactly this</a> to some level: <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">21FCh-21FFh  Nocash Debug Extension &#40;char_out and 21mhz_timer in no$sns emu&#41;</tt>.  Here's why I dislike that approach, though I see the advantages it offers (a LOT more flexibility, agreed!):<br /><br />You end up spending actual time/cycles doing load/store operations that would affect the actual code/program behaviour past that point.  This kind of feature isn't just about &quot;brand new games/code being written&quot;, it's also got reverse-engineering/romhacking in mind -- where in some games you might have maybe 20 bytes of &quot;unused space&quot;, just enough for injection of a JMP yourcode + BRK $xx + JMP originalcode (let's not get into semantics about using JSR/RTS instead etc. -- besides the point).<br /><br />Using BRK to &quot;shell out to a debugger&quot; is something that's tried/true in the past: GSBug for the IIGS used it exactly that way.  My idea is similar, but also to add functionality (through the operand byte) to make the emulator do something and not just drop to the debugger.  Quoting the GSBug manual (note last line, re: monitor breaks vs. debugger breaks):<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Whenever a break occurs, GSBug takes over the machine. It saves the state of the machine and allocates a 1K block. The debugger beeps to let you know that a break has occurred and displays its version number on entry. All the registers, including the stack pointer and program counter will reflect the state of the machine immediately before the break instruction was executed. The program counter will point to the break instruction, and the stack pointer will not reflect the fact that the return address and processor status were pushed onto the stack when the instruction was executed.  To instruct the debugger not to trap breaks, you set monitor breaks instead of debugger breaks.  See &quot;Using Breakpoints&quot; later in this chapter for details on how to do this.</div><br />There's no reason I picked BRK other than the fact that it's a commonly-unused opcode that has a signature byte, giving it some degree of control.  You could use another opcode if you wanted, sure, but the problem on the 6502 (incl. NES -- because now I know people are doing this, shame on them ;-) ) is that people actually use the undocumented/unused opcodes for things.  I suppose the NOP/KIL ones would be useful (on the 65816 two common ones were <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">wdm</tt> ($42) which was a 2-byte NOP basically, and <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">cop</tt> ($02) which had its own vector and was intended for a coprocessor (least on the Apple IIGS we never had such)).  Point is: I don't care what opcode, just that it needs to have some particular operand or control byte after it.<br /><br />Heck, now that I'm thinking about it, maybe it could just be something like $42 but with several bytes and not just a single-byte operand.  Dunno.  You get the point though by now I'm sure.<br /><br /><div class="quotetitle">rainwarrior wrote:</div><div class="quotecontent">If you're trying to time within VBlank then you're not doing something you can see in the NES visual output anyway (though you could use an oscilloscope with $4011, $4016, etc. to get a signal across in an alternate way). I was demonstrating the use of $2001 there specifically because it makes visual output on the target hardware.</div><br />Yes, and it's something <a href="https://forums.nesdev.com/viewtopic.php?p=49245#p49245" class="postlink">I've talked about in the past being useful too</a>.  The downside is, as I described, that it's basically the &quot;only&quot; visual interface a programmer/developer/romhacker person might have to find out what's going on -- and $2001 <a href="https://wiki.nesdev.com/w/index.php/PPU_registers#Mask_.28.242001.29_.3E_write" class="postlink">affects a lot more than just R/G/B intensity</a>, so now you might have to manage/tweak bits 7-5 vs. what bits 4-0 have (in other words: a simple lda/sta is no longer involved).<br /><br />As for the oscilloscope... if you think this is practical for a homebrewer then let me know when I can book a flight to Planet Rainwarrior.  ;-)  We've seen repeated examples of people running out of VBlank time (and in many cases, nobody knowing how many CPU cycles are available in and out of VBlank per NTSC vs. PAL vs. Dendy) and showing up here not sure what's going on.  Oscilloscope + dedicated hardware of this sort (plus the understanding of EE) really isn't feasible.  Let's stay practical, yeah?  There are some emulators now that have a run-until-next-scanline feature, which I think is pretty good for what most people need (I'm excluding extreme cases like blargg's colour palette demo).<br /><br /><div class="quotetitle">rainwarrior wrote:</div><div class="quotecontent">If you want to time code within an emulator there's a lot of ways to do it. You can use breakpoints. You can trigger LUA from execution points, write instructions (including $2001), or various other triggers, and then use it to gather/process/output your statistics. There's also thefox's custom build of Nintendulator that adds profiling registers at $4020-$403F.</div><br />Breakpoints stop the emulator altogether.  Clicking Run or Continue over and over gets tedious, especially when you have several breakpoints.  I'm fine with debuggers, but I really prefer &quot;printf() debugging&quot;.  There are pros and cons to both.<br /><br />Lua requires an emulator that has Lua integrated, *and* that the homebrewer or romhacker know Lua, *and* that they know whatever functions/details are needed to achieve said goal in the emulator.  I think this provides most extensive capabilities, no doubt about it, but (respectfully, as someone who does bits of Lua!) it's asking a lot in comparison to what I describe above -- it puts a lot of weight on both the homebrewer *and* the emulator author equally.  I'm trying to keep it simple.<br /><br />Maybe coming up with a list of desired features that could be achieved during active runtime through unused/undocumented opcodes (and/or their operands or subsequent data bytes) would help?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Thu Dec 15, 2016 6:41 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Native 6502 code inducing debugger/emulator functionalit</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">koitsu wrote:</div><div class="quotecontent"><div class="quotetitle">rainwarrior wrote:</div><div class="quotecontent">If you're trying to time within VBlank then you're not doing something you can see in the NES visual output anyway (though you could use an oscilloscope with $4011, $4016, etc. to get a signal across in an alternate way). I was demonstrating the use of $2001 there specifically because it makes visual output on the target hardware.</div><br />Yes, and it's something <a href="https://forums.nesdev.com/viewtopic.php?p=49245#p49245" class="postlink">I've talked about in the past being useful too</a>.  The downside is, as I described, that it's basically the &quot;only&quot; visual interface a programmer/developer/romhacker person might have to find out what's going on -- and $2001 <a href="https://wiki.nesdev.com/w/index.php/PPU_registers#Mask_.28.242001.29_.3E_write" class="postlink">affects a lot more than just R/G/B intensity</a>, so now you might have to manage/tweak bits 7-5 vs. what bits 4-0 have (in other words: a simple lda/sta is no longer involved).<br /><br />As for the oscilloscope... if you think this is practical for a homebrewer then let me know when I can book a flight to Planet Rainwarrior.  <img src="./images/smilies/icon_wink.gif" alt=";-)" title="Wink" /></div><br />Let's not argue straw points here. You brought up and argued out of context my <a href="https://www.kickstarter.com/projects/1101008925/lizard/posts/1040806" class="postlink">example</a> that was <em>specifically</em> something that is <em>easy to do on a real NES</em>. If you want to argue about what's easy to do in an emulator, that's a completely different situation.<br /><br />I really don't appreciate you making fun of my suggestion that an oscilloscope might be the most appropriate tool for timing things within vblank on the hardware. If you wanna talk about a different context, fine, but I was responding to the context you borrowed from my original example.<br /><br />...after which I <a href="http://forums.nesdev.com/viewtopic.php?p=184854#p184854" class="postlink">mentioned several different approaches</a> to profiling in the (very different) context of emulators in the other thread. I'll reiterate them here in case they're useful:<br /><br /><ul><li> Writing the emphasis/greyscale bits of $2001 for rough/quick visual timing. Good for playtesting, and effective and easy on the real hardware.</li><li> Writing to $4011 (audio output) or $4016 (controller pin output), alternative output from the real hardware if you have appropriate tools.</li><li> Breakpoints in FCEUX or Nintendulator. You can see the scanline/pixel, and/or cycles since last breakpoint and counter reset, very useful when you need to time one specific routine.</li><li> Lua response to triggers in FCEUX. This is extremely versatile, you can trigger from execution, writes, reads, etc. whatever is appropriate, and at the same time you can use the scripting language to process the timing information and display it in a convenient form. You can even trigger on &quot;harmless&quot; writes to unused memory locations to send information that way. (I think some of blargg's tests do this for a debug text output.)</li><li> Use an emulator like thefox's <a href="http://forums.nesdev.com/viewtopic.php?t=6773" class="postlink">Nintendulator DX</a> which has some debugging extensions built in. (Not anywhere near as versatile as scripting, but sometimes more efficient.)</li><li> Trace logs. Take a log of everything that the CPU did for one or several frames. Maybe write a program to process this information, organize call stacks, time in/out of functions etc. There's a ton of information you can pull from these. The big drawback is that the log files get very large very quickly, usually only useful in short bursts of recording.</li></ul><br />I use any and all of these whenever they seem like the most effective tool. It's worth getting to know them all.<br /><br />In my view the &quot;killer&quot; debugging feature is FCEUX's Lua support. If you want a &quot;debug opcode&quot; you can use something like &quot;STA $FF&quot; or &quot;STA $4020&quot; or something else that happens to be &quot;harmless&quot; for your program. You can add all sorts of debug features through it (e.g. I use it frequently for hitbox visualization, or inspecting <a href="http://forums.nesdev.com/viewtopic.php?p=181008#p181008" class="postlink">sprite data</a>).<br /><br />Trace logs are an essential tool. There's really no substitute for these.<br /><br />On the other hand, I find the debugger extensions with fake opcodes / registers etc. to be the least useful, because they're generally redundant to other things (especially Lua scripting).<br /><br /><br />The biggest drawback to FCEUX's LUA scripting is only being able to run one script at once, though you can get around this generally by combining scripts.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>koitsu</b> [ Thu Dec 15, 2016 7:40 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Native 6502 code inducing debugger/emulator functionalit</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I hope folks find the information in this thread useful.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Thu Dec 15, 2016 11:42 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Native 6502 code inducing debugger/emulator functionalit</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />In case you want to use FCEUX Lua scripting to implement a debug function that runs in response to a particular opcode, here's a very basic example:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">function debug_trigger()<br />&nbsp; &nbsp;local pc = memory.getregister(&quot;pc&quot;)<br />&nbsp; &nbsp;local opcode = memory.readbyte(pc)<br />&nbsp; &nbsp;if opcode == 0xEA then<br />&nbsp; &nbsp;&nbsp; &nbsp;emu.print(&quot;EA triggered!\n&quot;)<br />&nbsp; &nbsp;end<br />end<br /><br />-- main<br /><br />memory.registerexec(0x0000,0x10000,debug_trigger)<br /><br />while (true) do<br />&nbsp; &nbsp;emu.frameadvance()<br />end</div><br />It's not terribly efficient, because it's running the Lua script for every single executed opcode, but it works, and if your machine is reasonably fast this lack of efficiency isn't a problem (my laptop can handle it fine).<br /><br />Implementing some kind of &quot;debug register&quot; is much more efficient, because then the Lua script only needs to run in response to specific writes.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

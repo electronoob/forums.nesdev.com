@@ -1,0 +1,211 @@
+Only in .: changes
+diff -c6 -r /home/shay/Documents/Nestopia140src/source/core/NstPpu.hpp ./source/core/NstPpu.hpp
+*** /home/shay/Documents/Nestopia140src/source/core/NstPpu.hpp	2008-05-24 21:40:28.000000000 -0500
+--- ./source/core/NstPpu.hpp	2012-12-02 23:51:05.335044441 -0600
+***************
+*** 307,318 ****
+--- 307,319 ----
+  				explicit Output(Video::Screen::Pixel*);
+  
+  				Video::Screen::Pixel* target;
+  				Video::Screen::Pixel* pixels;
+  				uint burstPhase;
+  				word palette[Palette::SIZE];
++				uint bgColor;
+  			};
+  
+  			struct Oam
+  			{
+  				Oam();
+  
+diff -c6 -r /home/shay/Documents/Nestopia140src/source/core/NstVideoRenderer.hpp ./source/core/NstVideoRenderer.hpp
+*** /home/shay/Documents/Nestopia140src/source/core/NstVideoRenderer.hpp	2008-04-25 19:56:26.000000000 -0500
+--- ./source/core/NstVideoRenderer.hpp	2012-12-02 23:49:41.487043084 -0600
+***************
+*** 195,206 ****
+--- 195,208 ----
+  					virtual ~Filter() {}
+  
+  					virtual void Blit(const Input&,const Output&,uint) = 0;
+  					virtual void Transform(const byte (&)[PALETTE][3],Input::Palette&) const;
+  
+  					const Format format;
++ 
++					uint bgColor;
+  				};
+  
+  				struct State
+  				{
+  					State();
+  
+***************
+*** 349,360 ****
+--- 351,364 ----
+  				}
+  
+  				bool IsReady() const
+  				{
+  					return filter;
+  				}
++ 
++				uint bgColor;
+  			};
+  		}
+  	}
+  }
+  
+  #endifdiff -c6 -r /home/shay/Documents/Nestopia140src/source/core/NstPpu.cpp ./source/core/NstPpu.cpp
+*** /home/shay/Documents/Nestopia140src/source/core/NstPpu.cpp	2008-06-08 00:28:18.000000000 -0500
+--- ./source/core/NstPpu.cpp	2012-12-02 23:52:30.299045816 -0600
+***************
+*** 306,317 ****
+--- 306,319 ----
+  
+  			UpdatePalette();
+  		}
+  
+  		void Ppu::UpdatePalette()
+  		{
++			output.bgColor = palette.ram[i] & uint(Palette::COLOR);
++ 
+  			for (uint i=0, c=Coloring(), e=Emphasis(); i < Palette::SIZE; ++i)
+  				output.palette[i] = (rgbMap ? rgbMap[palette.ram[i] & uint(Palette::COLOR)] : palette.ram[i]) & c | e;
+  		}
+  
+  		void Ppu::SaveState(State::Saver& state,const dword baseChunk) const
+  		{
+diff -c6 -r /home/shay/Documents/Nestopia140src/source/core/NstMachine.cpp ./source/core/NstMachine.cpp
+*** /home/shay/Documents/Nestopia140src/source/core/NstMachine.cpp	2008-05-25 12:04:02.000000000 -0500
+--- ./source/core/NstMachine.cpp	2012-12-02 23:51:10.891044531 -0600
+***************
+*** 507,518 ****
+--- 507,520 ----
+  				if (cheats)
+  					cheats->BeginFrame( tracker.IsFrameLocked() );
+  
+  				cpu.ExecuteFrame( sound );
+  				ppu.EndFrame();
+  
++				renderer.bgColor = ppu.output.bgColor;
++ 
+  				if (video)
+  					renderer.Blit( *video, ppu.GetScreen(), ppu.GetBurstPhase() );
+  
+  				cpu.EndFrame();
+  
+  				if (image)
+diff -c6 -r /home/shay/Documents/Nestopia140src/source/core/NstVideoRenderer.cpp ./source/core/NstVideoRenderer.cpp
+*** /home/shay/Documents/Nestopia140src/source/core/NstVideoRenderer.cpp	2008-04-25 21:55:44.000000000 -0500
+--- ./source/core/NstVideoRenderer.cpp	2012-12-02 23:50:10.535043554 -0600
+***************
+*** 802,813 ****
+--- 802,815 ----
+  						UpdateFilter( input );
+  
+  					if (Output::lockCallback( output ))
+  					{
+  						NST_VERIFY( std::labs(output.pitch) >= dword(state.width) << (filter->format.bpp / 16) );
+  
++						filter->bgColor = bgColor;
++ 
+  						if (std::labs(output.pitch) >= dword(state.width) << (filter->format.bpp / 16))
+  							filter->Blit( input, output, burstPhase );
+  
+  						Output::unlockCallback( output );
+  					}
+  				}
+diff -c6 -r /home/shay/Documents/Nestopia140src/source/core/NstVideoFilterNtsc.cpp ./source/core/NstVideoFilterNtsc.cpp
+*** /home/shay/Documents/Nestopia140src/source/core/NstVideoFilterNtsc.cpp	2008-02-29 22:06:20.000000000 -0600
+--- ./source/core/NstVideoFilterNtsc.cpp	2012-12-02 23:50:55.219044278 -0600
+***************
+*** 40,60 ****
+  
+  			template<typename Pixel,uint BITS>
+  			void Renderer::FilterNtsc::BlitType(const Input& input,const Output& output,uint phase) const
+  			{
+  				NST_ASSERT( phase < 3 );
+  
+  				const Input::Pixel* NST_RESTRICT src = input.pixels;
+  				Pixel* NST_RESTRICT dst = static_cast<Pixel*>(output.pixels);
+  				const long pad = output.pitch - (NTSC_WIDTH-7) * sizeof(Pixel);
+  
+  				phase &= lut.noFieldMerging;
+  
+  				for (uint y=HEIGHT; y; --y)
+  				{
+! 					NES_NTSC_BEGIN_ROW( &lut, phase, lut.black, lut.black, *src++ );
+  
+  					for (const Input::Pixel* const end=src+(NTSC_WIDTH/7*3-3); src != end; src += 3, dst += 7)
+  					{
+  						NES_NTSC_COLOR_IN( 0, src[0] );
+  						NES_NTSC_RGB_OUT( 0, dst[0], BITS );
+  						NES_NTSC_RGB_OUT( 1, dst[1], BITS );
+--- 40,61 ----
+  
+  			template<typename Pixel,uint BITS>
+  			void Renderer::FilterNtsc::BlitType(const Input& input,const Output& output,uint phase) const
+  			{
+  				NST_ASSERT( phase < 3 );
+  
++				const uint bgcolor = this->bgColor;
+  				const Input::Pixel* NST_RESTRICT src = input.pixels;
+  				Pixel* NST_RESTRICT dst = static_cast<Pixel*>(output.pixels);
+  				const long pad = output.pitch - (NTSC_WIDTH-7) * sizeof(Pixel);
+  
+  				phase &= lut.noFieldMerging;
+  
+  				for (uint y=HEIGHT; y; --y)
+  				{
+!					NES_NTSC_BEGIN_ROW( &lut, phase, bgcolor, bgcolor, *src++ );
+  
+  					for (const Input::Pixel* const end=src+(NTSC_WIDTH/7*3-3); src != end; src += 3, dst += 7)
+  					{
+  						NES_NTSC_COLOR_IN( 0, src[0] );
+  						NES_NTSC_RGB_OUT( 0, dst[0], BITS );
+  						NES_NTSC_RGB_OUT( 1, dst[1], BITS );
+***************
+*** 66,86 ****
+  						NES_NTSC_COLOR_IN( 2, src[2] );
+  						NES_NTSC_RGB_OUT( 4, dst[4], BITS );
+  						NES_NTSC_RGB_OUT( 5, dst[5], BITS );
+  						NES_NTSC_RGB_OUT( 6, dst[6], BITS );
+  					}
+  
+! 					NES_NTSC_COLOR_IN( 0, lut.black );
+  					NES_NTSC_RGB_OUT( 0, dst[0], BITS );
+  					NES_NTSC_RGB_OUT( 1, dst[1], BITS );
+  
+! 					NES_NTSC_COLOR_IN( 1, lut.black );
+  					NES_NTSC_RGB_OUT( 2, dst[2], BITS );
+  					NES_NTSC_RGB_OUT( 3, dst[3], BITS );
+  
+! 					NES_NTSC_COLOR_IN( 2, lut.black );
+  					NES_NTSC_RGB_OUT( 4, dst[4], BITS );
+  					NES_NTSC_RGB_OUT( 5, dst[5], BITS );
+  					NES_NTSC_RGB_OUT( 6, dst[6], BITS );
+  
+  					dst = reinterpret_cast<Pixel*>(reinterpret_cast<byte*>(dst) + pad);
+  
+--- 67,87 ----
+  						NES_NTSC_COLOR_IN( 2, src[2] );
+  						NES_NTSC_RGB_OUT( 4, dst[4], BITS );
+  						NES_NTSC_RGB_OUT( 5, dst[5], BITS );
+  						NES_NTSC_RGB_OUT( 6, dst[6], BITS );
+  					}
+  
+!					NES_NTSC_COLOR_IN( 0, bgcolor );
+  					NES_NTSC_RGB_OUT( 0, dst[0], BITS );
+  					NES_NTSC_RGB_OUT( 1, dst[1], BITS );
+  
+!					NES_NTSC_COLOR_IN( 1, bgcolor );
+  					NES_NTSC_RGB_OUT( 2, dst[2], BITS );
+  					NES_NTSC_RGB_OUT( 3, dst[3], BITS );
+  
+!					NES_NTSC_COLOR_IN( 2, bgcolor );
+  					NES_NTSC_RGB_OUT( 4, dst[4], BITS );
+  					NES_NTSC_RGB_OUT( 5, dst[5], BITS );
+  					NES_NTSC_RGB_OUT( 6, dst[6], BITS );
+  
+  					dst = reinterpret_cast<Pixel*>(reinterpret_cast<byte*>(dst) + pad);
+  
+

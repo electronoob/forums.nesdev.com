@@ -1,0 +1,375 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Mapper capability development: DMA theft, Register Spying</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Mapper capability development: DMA theft, Register Spying</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=9&amp;t=13235">http://forums.nesdev.com/viewtopic.php?f=9&amp;t=13235</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Myask</b> [ Sun Sep 13, 2015 2:10 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Mapper capability development: DMA theft, Register Spying</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><a href="http://forums.nesdev.com/viewtopic.php?f=4&amp;t=12716&amp;p=155149#p154579" class="postlink">Memblers</a> wrote:</div><div class="quotecontent">The OAM data shows up on the data bus, so a cart can interact with it. I think that would be a neat way to copy data to the mapper, but that's for another topic. <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" /></div><a href="http://wiki.nesdev.com/w/index.php?title=User%3AMyask%2FMyapper_thoughts&amp;action=historysubmit&amp;diff=10556&amp;oldid=10466" class="postlink">DMA theft?</a> Sure, why not.<br /><br />pseudocode for verilog<br />0. wait for enable/ 0b. wait for write of destination to mapper <br />1. on next write of #$xx to $4014 (requires all CPU address lines!! And data lines, since we want to spy.)...<br />2. for yy = 0...$ff <br />3. wait for CPU_ADDR = $xxyy [alternately, $2004]<br />4. copy CPU_DATA to [destination]+yy on cart <br />===<br />Meanwhile, register-spying, as it would mainly require memory space, having included all of <br />on read/write to 1'b001x_xxxx_xxxx_xyyy<br />--copy to memory<br />(If 2005/6, twiddle address latch; on 2002 read, clear it)<br />on read/write to 1'b0100_0000_000y_yyyy<br />--copy to memory<br /><br />Then, make accessible (on $4018? $4019? $4009? $400D?) after writing for which register you want (there are only 30, but with several have multiple modes- 2005/6 have two bytes, 4016/7 have reads and writes with different meaning, plus we might want what the internal-scroll variables are or something)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Sun Sep 13, 2015 7:53 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Mapper capability development: DMA theft, Register Spyin</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Myask wrote:</div><div class="quotecontent">DMA theft [...] pseudocode for verilog<br />0. wait for enable/ 0b. wait for write of destination to mapper <br />1. on next write of #$xx to $4014 (requires all CPU address lines!! And data lines, since we want to spy.)...<br />2. for yy = 0...$ff <br />3. wait for CPU_ADDR = $xxyy [alternately, $2004]<br />4. copy CPU_DATA to [destination]+yy on cart</div><br />You don't need all pins. You just need M2, R/W, /ROMSEL, and A14-A12 to decode a $4xxx write and a $2xxx write.<br /><ul><li>The host program sets up mapper ports to receive the next DMA </li><li>The mapper decodes a write to $4000-$4FFF </li><li>If a write to $2000-$2FFF is not decoded within 8 cycles, cancel the request  </li><li>The mapper decodes each of 256 writes to $2000-$2FFF </li></ul>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Sun Sep 13, 2015 11:51 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Mapper capability development: DMA theft, Register Spyin</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I've been playing around with putting an ethernet IC – Microchip's ENC624J600 – in a NES cart. It has a bunch of indirect addresses that seem to be ideal for hijacking the NES's OAM DMA for, one of which is at a local-to-the-IC address of 0x7E84 (a post-increment indirect memory access), which isn't too hard to make appear overlapping with $2004.<br /><br />My real problem is that I haven't figured out what getting data rapidly <strong>into</strong> this IC is useful for, especially since the rest of the IC's 24 KiB of RAM can be memory-mapped, so it's not like one'd want to assemble an ethernet packet in NES-local RAM and then copy it in.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>zzo38</b> [ Sun Sep 20, 2015 2:21 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Mapper capability development: DMA theft, Register Spyin</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I have thought of DMA theft and register spying too, although there is still many more possibilities too. But another possibility I have thought of is just the DMA is used to access the range of memory in sequence, which the mapepr might somehow use
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>3gengames</b> [ Tue Sep 29, 2015 11:58 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Mapper capability development: DMA theft, Register Spyin</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I could think of one: Tons of tiles being written to CHR-RAM. That alone would be worth it for a few people. Would allow for lots of smooth animation. CPU-Side preparation for it during gameplay would be pretty simple, too. As long as the update is in Vblank, you could take control of the chip entirely without worrying about bus collisions. Would be interesting to see.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Tue Sep 29, 2015 12:45 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Mapper capability development: DMA theft, Register Spyin</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />DMA to CHR-RAM either requires an FPGA that can entirely interpose the PPU's address bus, or using FPGA-internal block RAM.<br /><br />And because the NES CPU is so slow, DMA isn't clearly better than just making a dual-ported RAM, unless you're blitting uncompressed tiles from PRG ROM.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>mikejmoffitt</b> [ Tue Sep 29, 2015 1:51 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Mapper capability development: DMA theft, Register Spyin</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">lidnariq wrote:</div><div class="quotecontent">DMA to CHR-RAM either requires an FPGA that can entirely interpose the PPU's address bus, or using FPGA-internal block RAM.<br /><br />And because the NES CPU is so slow, DMA isn't clearly better than just making a dual-ported RAM, unless you're blitting uncompressed tiles from PRG ROM.</div><br /><br />Not only that - doesn't the 6502 demand bus mastering at all times? You'd have to pull it off of both busses, making the interposer just a little bigger, just so you can DMA with the PRG bus as a source.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Tue Sep 29, 2015 2:01 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Mapper capability development: DMA theft, Register Spyin</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />This is (I think?) still assuming hijacking OAM DMA, so the 2A03 as bus master isn't really a problem...
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Myask</b> [ Tue Sep 29, 2015 7:29 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Mapper capability development: DMA theft, Register Spyin</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">lidnariq wrote:</div><div class="quotecontent">DMA to CHR-RAM either requires an FPGA that can entirely interpose the PPU's address bus, or using FPGA-internal block RAM.</div>The NES drives PPU address lines during vblank when not accessing it? huh. I was suggesting catching it on the CPU read cycle half rather than the write.<br /><br /><div class="quotetitle">lidnariq wrote:</div><div class="quotecontent">And because the NES CPU is so slow, DMA isn't clearly better than just making a dual-ported RAM, unless you're blitting uncompressed tiles from PRG ROM.</div><br />Other simple uses: blit to name/attribute tables, blitting initial data to [W]RAM, saving from RAM to WRAM.<br />Yes, a dual-ported RAM would also serve for CHR-RAM, and have the advantage of being usable outside of VBlank...but DMA is faster than what the CPU can do otherwise; the best a program can do is 8 cycles per byte (full-unrolled LDA abs-STA abs) to copy from one place to another. [You can set up LDA imm, but that's just moving the cost elsewhere.]<br />DMA is 2 cycles per byte, isn't it? That's a big savings if you aren't going for dual-ported RAM.<br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">You don't need all pins. You just need M2, R/W, /ROMSEL, and A14-A12 to decode a $4xxx write and a $2xxx write.</div>That seems a little iffy and/or misfire-capable. Certainly wouldn't work if you wanted to map anything into $4xxx.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Tue Sep 29, 2015 8:17 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Mapper capability development: DMA theft, Register Spyin</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Myask wrote:</div><div class="quotecontent"><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">You don't need all pins. You just need M2, R/W, /ROMSEL, and A14-A12 to decode a $4xxx write and a $2xxx write.</div><br />That seems a little iffy and/or misfire-capable. Certainly wouldn't work if you wanted to map anything into $4xxx.</div><br />If there are things mapped into $4xxx, then there are obviously more CPU address lines going into the mapper to decode &quot;this is a mapper port, not an APU port&quot;.<br /><br />I think the idea is that the program does SEI and writes a mapper port to specify the destination for the copy. This sets up a state machine inside the mapper with the following states:<br /><ol style="list-style-type: decimal"><li>CPU writes a destination to the DMA destination port on the mapper </li><li>CPU writes source address bits 7-0 to $4xxx </li><li>Mapper waits for a CPU read where source bits 7-4 match !(PRG /CE) and A14-A12 </li><li>DMA is on </li></ol>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Tue Sep 29, 2015 8:20 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Mapper capability development: DMA theft, Register Spyin</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Yes, the PPU's address bus drivers never turn off. Why would they? That would increase complexity for no reason. And anyway, the PPU's bus is completely busy during rendering: every cycle is either dealing with the PPU's multiplexed address bus or actively transferring data over it.<br /><br /><div class="quotetitle">Myask wrote:</div><div class="quotecontent">Yes, a dual-ported RAM would also serve for CHR-RAM, and have the advantage of being usable outside of VBlank...but DMA is faster than what the CPU can do otherwise; <br /></div>Because the PPU's address bus drivers never turn off, hijacking DMA requires something functionally equivalent to dual-ported RAM anyway.<br /><br />DMA is really just another way of moving time costs around. Regardless of whether one prepares a buffer in RAM, and transfers it using an slow indexed loop, or unrolled LDA $x/STA $y, or more aggressively LDA #im / STA $y, or using DMA, it's still just additional time costs on top of the original data setup. Dual-ported RAM is the logical extreme—&quot;no copy&quot; transfers, because it's already where you want it to be.<br /><br />Which is why I said that the only use for DMA <em>in preference to</em> dual-ported RAM is specifically DMAing uncompressed data from ROM ... or copying data from a coprocessor like on the SNES with the S-DD1.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Tue Sep 29, 2015 8:57 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Mapper capability development: DMA theft, Register Spyin</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Or if DMA can be done using fewer logic resources than dual-ported RAM that can be both written <em>and read back</em>. Some codecs refer to previous decompressed data, and they wouldn't work quite as well on a write-only pseudo-dual-port scheme that uses a FIFO to queue mapper writes to be committed to VRAM during the 14 dummy fetches on each line. The obvious example is LZ77-family codecs. <a href="http://wiki.nesdev.com/w/index.php/PB53" class="postlink">The tile codec I've used in my recent projects</a> is mostly RLE, but it does have a few commands involving back-references:<br /><ul><li>Plane 0 $82 repeats the previous 16-byte packet verbatim. </li><li>Plane 0 $83 repeats a tile from the previous half of the circular buffer. This is used when decoding pattern tables $0000 and $1000 in parallel, and it dramatically improves compression ratio in NROM games that use the background pattern table select bit to animate some tiles (such as many Shiru games). </li><li>Plane 1 $82 repeats the previous 8 bytes, which produces a tile with colors 0 and 3. </li><li>Plane 1 $83 repeats the previous 8 bytes XOR'd with $FF, which produces a tile with colors 1 and 2. </li></ul><br />Or if we want to shift updates to vblank to avoid tearing. People <a href="http://forums.nesdev.com/viewtopic.php?p=147636#p147636" class="postlink">bring up tearing</a> when someone mentions CHR HDMA on Game Boy Color.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Myask</b> [ Sat Oct 03, 2015 10:32 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Mapper capability development: DMA theft, Register Spyin</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">lidnariq wrote:</div><div class="quotecontent">Yes, the PPU's address bus drivers never turn off. Why would they? That would increase complexity for no reason.</div><br />For no reason (read: I didn't think about it) I was thinking that the CPU would be controlling it for a DMA.  Which is, of course, the exact opposite point of DMA- something ELSE is directly accessing memory.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

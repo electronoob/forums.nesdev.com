@@ -1,0 +1,242 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - implementing faster dsound routines</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">implementing faster dsound routines</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=3&amp;t=629">http://forums.nesdev.com/viewtopic.php?f=3&amp;t=629</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Anes</b> [ Thu Oct 06, 2005 5:08 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>implementing faster dsound routines</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I just write cos i want to implement faster dsound routines. What im currently doing is to have my own write cursor and a function "CanWrite()" that tell me if there is enoughf space to stream the data. But there is a cons to this when i fill my own buffer with NES sound data (2048 bytes) and then i send you to the function that will play the buffer, the only way to get more or less good sound (no distorded, etc) is to have inside de playbuffer func. a line of code like:
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">While &#40;CanWrite&#40;&#41; &lt; buffer_size&#41;;<br /></div>
+<br />
+<br />CanWrite return the number of bytes that can be written.
+<br />that is done in the playbuffer function and the problem is that the while nevers exits if the amount of memory in the dsound buffer is, as the code line says &lt; buffer_size.
+<br />It actually works (dont get stuck), but it keeps waiting to have a razonable amount of mem to  write to the buffer which make my emulation slower.
+<br />
+<br />I thought that making it MultiThreaded could solve the problem, but i dont want to do it that way.
+<br />
+<br />Any idea/suggestion?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Thu Oct 06, 2005 5:13 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Regulating a framerate on the rate of soundoutput is actually a very solid way to keep a proper framerate.  If you're waiting on DSound to empty enough of the buffer and it's slowing emulation down... then your emulator may be producing too many samples.
+<br />
+<br />Rather than having an empty loop like you pasted, maybe you could sleep inside the loop so that you ease CPU time which you're waiting for samples to play.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>James</b> [ Thu Oct 06, 2005 6:13 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Here's how I keep the sound in sync/un-distorted in my emulator (I'm using Blargg's sound library with DirectSound):
+<br />
+<br />- Create a DirectSound buffer of an arbitrary size.  I use 100ms, or 6 frames
+<br />- Define a low and high threshold -- essentially how many frames worth of sound (or how many bytes) I want to have buffered.
+<br />- Here's what I do at the end of a frame:
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">while &#40;samples available&#41;<br />&#123;<br />&nbsp; &nbsp;Get number of bytes available in DS buffer &#40;DSB&#41;<br />&nbsp; &nbsp;if &#40;DSB bytes == 0&#41; //DS buffer full<br />&nbsp; &nbsp; &nbsp; continue;<br />&nbsp; &nbsp;read DSB bytes worth of samples into a buffer<br />&nbsp; &nbsp;if &#40;no more samples&#41;<br />&nbsp; &nbsp; &nbsp; break;<br />&nbsp; &nbsp;else<br />&nbsp; &nbsp; &nbsp; Copy sample buffer into DSB<br />&#125;<br /><br />Get number of bytes available in DSB<br /><br />if &#40;DSB bytes &lt; loThreshold&#41;&nbsp; //play pointer approaching write pointer<br />&nbsp; &nbsp;generate more samples next frame to catch up<br />else if &#40;DSB bytes &gt; hiThreshold&#41; //write pointer approaching play pointer<br />&nbsp; &nbsp;generate less samples next frame to slow down<br /></div>
+<br />
+<br />Blargg's library handles the NES sample -&gt; output sample rate adjustment, so when I say generate more/less samples, I'm modifying the adjustment rate here.  Oh -- and the sample adjustment is very small; only a couple of samples difference per frame, so it's inaudible.
+<br />
+<br />Look at the source code if you're interested (link in my sig).  It's in dire need of a cleanup, but it seems to get the job done pretty well.  With a +/- 3 sample/frame adjustment, I stay pretty well locked on to my buffer target.
+<br />
+<br />James
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>kode54</b> [ Thu Oct 06, 2005 6:21 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Yes, typically, you use Sleep(1) or so while waiting. If you actually want time slices that fine, you should use timeBeginPeriod(1) / timeEndPeriod(1) or so in your sound init/cleanup code.
+<br />
+<br />1ms or so is still about as fine as you can get out  of that. You can also do no better with WaveOut callback notifications.
+<br />
+<br />
+<br />In fact, the only real way you can get a guaranteed timely response when your blocks of samples have been played is to use Kernel Streaming, which is not future proof, offers no easy way to enumerate the output filter associated with the system default device, and is limited to sample depths and rates actually supported by the hardware. ( And no software mixing either, so you effectively hog the sound card if it doesn't feature hardware mixing. ) Bad drivers can lead to BSODs real easy this way.
+<br />
+<br />Lots of limitations, but if you feed it one frame worth of samples per write operation, you can sync the sound output to the completion events for each block and get spot-on timing, unlike with DSound or WaveOut.
+<br />
+<br />
+<br />For safest results, though, stick with DSound, or perhaps even try WaveOut, and use vsync to smooth out the frame display. Depending on how fast or slow your emulation loop is, it may be easy to get away with that, as long as your sample generation is accurate relative to frames rendered and the output sample rate, I think....
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Thu Oct 06, 2005 7:29 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Blargg's library handles the NES sample -&gt; output sample rate adjustment, so when I say generate more/less samples, I'm modifying the adjustment rate here. Oh -- and the sample adjustment is very small; only a couple of samples difference per frame, so it's inaudible. </div>
+<br />
+<br />What's really being adjusted here is the basic pitch of the sound. But the APU is still running the same number of emulated clocks per frame, just that each clock takes a little more/less of a fraction of an output sample than usual. Put another way, you're telling the APU that your output sampling rate (i.e. 44100 Hz) is 44160 Hz (for example), so it'll generate an extra sample for that frame. If you keep these adjustments very small, the pitch change will be inaudible (assuming you can adjust the pitch in that fine an increment).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

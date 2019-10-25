@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=10&amp;t=8772" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2012-03-29T14:55:39-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=10&amp;t=8772</id>
+<entry>
+<author><name><![CDATA[tokumaru]]></name></author>
+<updated>2012-03-29T14:55:39-07:00</updated>
+<published>2012-03-29T14:55:39-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8772&amp;p=91980#p91980</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8772&amp;p=91980#p91980"/>
+<title type="html"><![CDATA[Simple sprite moving loop]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8772&amp;p=91980#p91980"><![CDATA[
+<div class="quotetitle">sdm wrote:</div><div class="quotecontent"><br />stop when reach/cmp #$80, then change to dec $0203 and another cmp.<br /></div><br />So you want the sprite to move back and forth? Then you either need two loops (one goes right, the other goes left and when done goes back to the first loop) or you need to store the displacement in a variable, instead of hardcoding it with INC and DEC (this is more professional IMO).<br /><br />It goes something like this:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">   ;make the sprite move right &#40;displacement is positive&#41;<br />   lda #$01<br />   sta Displacement<br /><br />MoveSprite:<br /><br />   ;add the displacement, whatever it is<br />   clc<br />   lda $0203<br />   adc Displacement<br />   sta $0203<br /><br />   WaitVBlank: <br />   lda VBlankFlag<br />   cmp VBlankFlag<br />   beq WaitVBlank<br /><br />   lda $0203<br />   cmp #$80<br />   beq InvertDisplacement<br />   cmp #$20<br />   beq InvertDisplacement<br />   jmp MoveSprite<br /><br />InvertDisplacement:<br /><br />   ;this turns 1 into -1 and vice versa<br />   lda Displacement<br />   eor #%11111110<br />   sta Displacement<br /><br />   ;go move the sprite again<br />   jmp MoveSprite<br /><br />NMI:<br />   inc VBlankFlag<br />   rti</div><br />This will make the sprite go back and forth between coordinates $20 and $80, forever.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=95">tokumaru</a> — Thu Mar 29, 2012 2:55 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[sdm]]></name></author>
+<updated>2012-03-29T13:40:00-07:00</updated>
+<published>2012-03-29T13:40:00-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8772&amp;p=91974#p91974</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8772&amp;p=91974#p91974"/>
+<title type="html"><![CDATA[Simple sprite moving loop]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8772&amp;p=91974#p91974"><![CDATA[
+thanks.<br /><br />But i think about something like this (maybe i think wrong)<br /><br /><br />start sprite where i want (example horiz value #$20 )<br /><br />start inc $0203<br /><br />stop when reach/cmp #$80, then change to dec $0203 and another cmp.<br /><br />Or ad someting like nmi counter?<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=411">sdm</a> — Thu Mar 29, 2012 1:40 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tokumaru]]></name></author>
+<updated>2012-03-29T13:19:58-07:00</updated>
+<published>2012-03-29T13:19:58-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8772&amp;p=91972#p91972</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8772&amp;p=91972#p91972"/>
+<title type="html"><![CDATA[Simple sprite moving loop]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8772&amp;p=91972#p91972"><![CDATA[
+A loop is nothing more than a jump to code that has already run, so that it runs again. This jump can be conditional, so that the loop only runs a limited number of times, or unconditional, so that the loop runs forever.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">MoveSprite:<br />   inc $0203<br />   jmp MoveSprite</div><br />The code above is an infinite loop, that will move the sprite forever. However, since it doesn't wait for VBlank before moving the sprite again, you won't be able to see every step of the movement. The sprite will move ridiculously fast. To fix this, you have to wait for VBlank before moving the sprite again. A good way to wait for VBlank is to wait for a flag that is changed in the NMI to change (which will happen when the NMI fires, at the start of VBlank):<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">MoveSprite:<br />   inc $0203<br /><br />WaitVBlank:<br />   lda VBlankFlag<br />   cmp VBlankFlag<br />   beq WaitVBlank<br /><br />   jmp MoveSprite<br /><br />NMI:<br />   inc VBlankFlag<br />   rti</div><br />Not included in the code above is the actual sprite DMA, which is obviously required to display sprites. The DMA can go right after the wait for VBlank (right before the JMP) or in the NMI itself. Both ways will work.<br /><br />If you want to move the sprite up to a certain point and stop, you can't have an infinite loop, you have to give it a stop condition. In this case, the condition is that the sprite reaches a certain X coordinate:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">MoveSprite:<br />   inc $0203<br /><br />WaitVBlank:<br />   lda VBlankFlag<br />   cmp VBlankFlag<br />   beq WaitVBlank<br /><br />   lda $0203<br />   cmp #$80<br />   bne MoveSprite<br /><br />Forever:<br />   jmp Forever<br /><br />NMI:<br />   inc VBlankFlag<br />   rti</div><br />This will move the sprite all the way to coordinate 128, 1 pixel per frame, and then it will stop. For simple movements this kind of solution is acceptable, but for more complex animations you need something more robust, like a scripting system.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=95">tokumaru</a> — Thu Mar 29, 2012 1:19 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Shiru]]></name></author>
+<updated>2012-03-29T13:06:20-07:00</updated>
+<published>2012-03-29T13:06:20-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8772&amp;p=91969#p91969</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8772&amp;p=91969#p91969"/>
+<title type="html"><![CDATA[Simple sprite moving loop]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8772&amp;p=91969#p91969"><![CDATA[
+Set dx=0 for moving left, 1 for right.<br /><br />If dx is zero increment x, otherwise decrement x.<br /><br />If x hits (equal to) left or right boundary of the area, invert dx.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4205">Shiru</a> — Thu Mar 29, 2012 1:06 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[sdm]]></name></author>
+<updated>2012-03-29T12:55:01-07:00</updated>
+<published>2012-03-29T12:55:01-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8772&amp;p=91968#p91968</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8772&amp;p=91968#p91968"/>
+<title type="html"><![CDATA[Simple sprite moving loop]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8772&amp;p=91968#p91968"><![CDATA[
+How to add simple loop for sprite moving?<br /><br /><br />Simple code to move spr is easy:<br /><br />LDA $0203<br />CLC<br />ADC #$01<br />STA $0203<br /><br />or <br /><br />INC $0203<br /><br />But how make loop? I need move spr from "A" to "B" (about 50 pixels long) and back from "B" to "A".<br /><br />As simple as can be.<br /><br /><br /><img src="http://img441.imageshack.us/img441/5277/loopb.jpg" alt="Image" /><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=411">sdm</a> — Thu Mar 29, 2012 12:55 pm</p><hr />
+]]></content>
+</entry>
+</feed>

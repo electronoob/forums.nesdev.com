@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=12&amp;t=6112" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2010-03-04T17:32:42-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=12&amp;t=6112</id>
+<entry>
+<author><name><![CDATA[byuu]]></name></author>
+<updated>2010-03-04T17:32:42-07:00</updated>
+<published>2010-03-04T17:32:42-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6112&amp;p=57530#p57530</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6112&amp;p=57530#p57530"/>
+<title type="html"><![CDATA[Double-speed SPC data upload]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6112&amp;p=57530#p57530"><![CDATA[
+You should be able to combine the writes to $2142 and $2143 together into a 16-bit write, no?<br /><br />Only a problem when writing to $2140+$2141, the $2141 write echoes to $2143 because Nintendo hardware is insane.<br /><br />Perhaps 16-bit writes to $2143 and then $2141 would work, noting that $2144=$2140.<br /><br />Of course, the above is pointless if the S-SMP is too slow to read in the data any faster.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=375">byuu</a> — Thu Mar 04, 2010 5:32 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[blargg]]></name></author>
+<updated>2010-03-03T08:35:09-07:00</updated>
+<published>2010-03-03T08:35:09-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6112&amp;p=57465#p57465</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6112&amp;p=57465#p57465"/>
+<title type="html"><![CDATA[Double-speed SPC data upload]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6112&amp;p=57465#p57465"><![CDATA[
+Unless I've got my timing way off, the send loop below runs over twice as fast as necessary (times in master clocks). It doesn't have any fancy optimizations either, and uses indirect long addressing for maximum flexibility. The master clock is 21.5 MHz, and the SPC clock is 1 MHz, so you get about 21 master clocks per SPC clock. Each iteration takes 408 master clocks (plus whatever waiting it does for the SPC), or about 20 SPC clocks. Each iteration of the SPC loop takes 46 clocks, more than double that.<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">        ldy #$3F<br />loop:   lda &#91;ptr0&#93;,y    ; 48<br />        sta APUIO0      ; 30<br />        lda &#91;ptr1&#93;,y    ; 48<br />        sta APUIO1      ; 30<br />        lda &#91;ptr2&#93;,y    ; 48<br />        sta APUIO2      ; 30<br />        lda &#91;ptr3&#93;,y    ; 48<br />        sta APUIO3      ; 30<br />        tya             ; 14    <br />:       cmp APUIO3      ; 30<br />        bne :-          ; 16<br />        dey             ; 14<br />        bpl loop        ; 22</div><br /><br />Given that this only uses half the S-CPU's time, I wonder whether you could do real-time 16-bit 32 kHz mono synthesis and stream it live through the SPC? You could adjust the SPC-side code to run exactly in sync with the DSP, write to the echo buffer, and have it play it back. The S-CPU would then only be spending 31% of its time sending data to the SPC, and if the synthesis code could write directly to the SPC rather than to a buffer, this would be almost <em>halved</em>, as the memory reads in the loop above are where almost half the time is spent!<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=17">blargg</a> — Wed Mar 03, 2010 8:35 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2010-03-03T09:01:08-07:00</updated>
+<published>2010-03-03T08:07:14-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6112&amp;p=57463#p57463</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6112&amp;p=57463#p57463"/>
+<title type="html"><![CDATA[Double-speed SPC data upload]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6112&amp;p=57463#p57463"><![CDATA[
+Perhaps you aren't seeing the "sty $F7" on the SPC side because it's spelled "mov $F7,Y". The S-CPU would wait for that before loading four more bytes into ports. But then I dispute that the S-CPU is so much faster. It only runs at 2.7 MHz (slow RAM and possible slow ROM) vs. 2.0 MHz, and because of the interleaving, it'd still have to use 8-bit reads and writes to fill the ports. It'd also have to either use long absolute (24-bit) addressing for each byte or switch to the program segment (phk/plb) to modify the addresses before each page and then switch back to the data segment (lda #x/pha/plb).<br /><br />NTSC/PAL issues wouldn't weigh as heavily on the Super NES. As I understand it, the PAL S-CPU doesn't run slower; the PPU just generates more blank lines.<br /><br />EDIT: I am probably mistaken about the SPC clock rate, and the effective clock rate is slightly higher than 2.7 MHz because certain "internal operation" cycles use 6, not 8, master clock cycles.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Wed Mar 03, 2010 8:07 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[blargg]]></name></author>
+<updated>2010-03-03T08:03:27-07:00</updated>
+<published>2010-03-03T08:03:27-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6112&amp;p=57462#p57462</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6112&amp;p=57462#p57462"/>
+<title type="html"><![CDATA[Double-speed SPC data upload]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6112&amp;p=57462#p57462"><![CDATA[
+The clock signal is the MOV $F7,Y. I've added a comment to the original post, since it was kind of buried in the code before.<br /><br />It's interesting to consider the theoretical maximum transfer rate. If the S-CPU code were timed properly, no clock would be necessary, saving four clocks (the MOV $F7,Y), or one clock per byte, a 9% improvement. The loop could also be unrolled. Unrolling once would save 6 clocks per 7 bytes, or 0.75 clocks per byte, a 7% improvement. Further unrolling has a limit of a 1.5 clock savings, but it's countered by having to update more MSBs every page. Ignoring that, the theoretical minimum seems to be 9 clocks per byte, 22% less than my actual loop.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=17">blargg</a> — Wed Mar 03, 2010 8:03 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Bregalad]]></name></author>
+<updated>2010-03-03T07:52:15-07:00</updated>
+<published>2010-03-03T07:52:15-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6112&amp;p=57461#p57461</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6112&amp;p=57461#p57461"/>
+<title type="html"><![CDATA[Double-speed SPC data upload]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6112&amp;p=57461#p57461"><![CDATA[
+Wow this is very clever. Altough I don't see where the SPC send a clock to the S-CPU in your loop, it should probably send a clock each iteration of the inner loop, unless you can make a timed code on the host CPU that will be able to keep exacly in sync, but then it would be very sensitive to NTSC/PAL timing issues.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=38">Bregalad</a> — Wed Mar 03, 2010 7:52 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[blargg]]></name></author>
+<updated>2010-03-03T08:01:28-07:00</updated>
+<published>2010-03-03T07:35:47-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6112&amp;p=57460#p57460</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6112&amp;p=57460#p57460"/>
+<title type="html"><![CDATA[Double-speed SPC data upload]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6112&amp;p=57460#p57460"><![CDATA[
+I came up with a way to upload data to the SPC over twice as fast as the normal loader today. I haven't ever looked at games, but I figure they probably have similar optimized loaders. I figured I'd post this anyway.<br /><br />At best, the standard loader transfers one byte every 25 clocks, allowing 40K/sec. Its inner loop looks like this:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">loop:   CMP Y,$F4       ; 3<br />        BNE not_ready   ; 2<br />        MOV A,$F5       ; 3<br />        MOV $F4,Y       ; 4<br />        MOV &#91;$00&#93;+Y,A   ; 7<br />        INC Y           ; 2<br />        BNE loop        ; 4</div><br />Since the SPC is the slower CPU, the most efficient arrangement is for the SPC to read data as fast as it can and send a "clock" to the S-CPU. Then the S-CPU uploads some data, then waits for the clock before continuing. It doesn't send any acknowledgement, since it can easily keep up.<br /><br />There are four input ports, so it makes sense to transfer four bytes of data between each clock. We want to use the most efficient transfer instruction. I looked it over and there's no gain possible over a plain MOV A,$F4 for loading a byte. For writing, MOV !addr+Y,A is one clock faster than MOV [ptr]+Y,A. We can use self-modifying instructions to update the MSB of the address every 256 bytes.<br /><br />If we received data in normal order, we'd have to update the index every byte, costing 2 clocks. Instead, we can receive data for each quarter of a 256-byte page, and only update the index once every four bytes, saving 1.75 clocks per byte. This means we receive data like this for each page:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">$F4: $00-$3F<br />$F5: $40-$7F<br />$F6: $80-$BC<br />$F7: $C0-$FF</div><br />It's more efficient to decrement the index, so each quarter is received in reverse order as well. Here's the inner loop:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">        MOV Y,#$3F<br />quad:   MOV A,$F4       ; 3<br />        MOV !$0000+Y,A  ; 6<br />        MOV A,$F5       ; 3<br />        MOV !$0040+Y,A  ; 6<br />        MOV A,$F6       ; 3<br />        MOV !$0080+Y,A  ; 6<br />        MOV A,$F7       ; 3<br />        MOV $F7,Y       ; 4  tell S-CPU we're ready for more<br />        MOV !$00C0+Y,A  ; 6<br />        DEC Y           ; 2<br />        BPL quad        ; 4</div><br />Each iteration takes 46 clocks, so that works out to 11.5 clocks per byte, allowing about 87K/sec.<br /><br />Here's the entire loop, including page handling:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">        mov x,#page_count<br />page:   <br />        ; Transfer four-byte chunks<br />        mov y,#$3F<br />quad:   mov a,$F4<br />mov0:   mov !$0000+y,a<br />        mov a,$F5<br />mov1:   mov !$0040+y,a<br />        mov a,$F6<br />mov2:   mov !$0080+y,a<br />        mov a,$F7      ; tell S-CPU we're ready for more<br />        mov $F7,Y<br />mov3:   mov !$00C0+y,a<br />        dec y<br />        bpl quad<br />        <br />        ; Increment MSBs of addresses<br />        inc mov0+2<br />        inc mov1+2<br />        inc mov2+2<br />        inc mov3+2<br />        <br />        dec x<br />        bne page</div><br />The S-CPU side sending code looks similar, and the interleaved page transfer doesn't complicate it much. Using this in a SPC player allows uploading in 3/4 second. I can post a complete easily-usable routine if anyone's interested.<br /><br /><strong>EDIT:</strong> commented where S-CPU is notified that SPC is ready for more data.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=17">blargg</a> — Wed Mar 03, 2010 7:35 am</p><hr />
+]]></content>
+</entry>
+</feed>

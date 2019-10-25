@@ -1,0 +1,165 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - HDMA in indirect continuous mode (4 bytes transfer) fails</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">HDMA in indirect continuous mode (4 bytes transfer) fails</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=12&amp;t=11491">http://forums.nesdev.com/viewtopic.php?f=12&amp;t=11491</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Ramsis</b> [ Mon Aug 04, 2014 9:22 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>HDMA in indirect continuous mode (4 bytes transfer) fails</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />So I'm trying to devise a convenient HDMA implementation for a personal game project I'm working on. The idea is to use indirect HDMA mode for the main backdrop color gradient. The entries in the ROM-based HDMA table point to an array in the lower 8K of WRAM.<br /><br />The table itself is laid out like so:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">SRC_HDMA_ColorGradient:<br />&nbsp; &nbsp;.DB 1&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;; 176 scanlines for playfield, 48 for text box<br />&nbsp; &nbsp;.DW ARRAY_HDMA_BackgrPlayfield<br />&nbsp; &nbsp;.DB 1<br />&nbsp; &nbsp;.DW ARRAY_HDMA_BackgrPlayfield+4<br />&nbsp; &nbsp;.DB 1<br />&nbsp; &nbsp;.DW ARRAY_HDMA_BackgrPlayfield+8<br />&nbsp; &nbsp;.DB 1<br />&nbsp; &nbsp;.DW ARRAY_HDMA_BackgrPlayfield+12<br />&nbsp; &nbsp;.DB 1<br />&nbsp; &nbsp;.DW ARRAY_HDMA_BackgrPlayfield+16<br />.<br />.<br />.<br /></div><br /><br />The HDMA channel used for this (2) is set up like this:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">; -------------------------- channel 2: main backdrop color<br />&nbsp; &nbsp;lda #%01000011&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;; transfer mode (4 bytes --&gt; $2121, $2121, $2122, $2122), indirect table mode<br />&nbsp; &nbsp;sta $4320<br /><br />&nbsp; &nbsp;lda #$21&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;; PPU register $2121 (color index)<br />&nbsp; &nbsp;sta $4321<br /><br />&nbsp; &nbsp;ldx #SRC_HDMA_ColorGradient<br />&nbsp; &nbsp;stx $4322<br /><br />&nbsp; &nbsp;lda #:SRC_HDMA_ColorGradient<br />&nbsp; &nbsp;sta $4324<br /><br />&nbsp; &nbsp;lda #$7E&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;; indirect HDMA CPU bus data address bank<br />&nbsp; &nbsp;sta $4327<br /></div><br /><br />So far, so good. Works great. <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" /><br /><br /><img src="http://manuloewe.de/snestuff/projects/furryrpg_build_00170_1.png" alt="Image" /><br /><br /><br />Next, I'd like to switch to &quot;continuous&quot; HDMA mode for the sake of making the table more readable (by getting rid of all those <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">.DB 1</tt> directives).<br /><br />And this is what I get:<br /><br /><img src="http://manuloewe.de/snestuff/projects/furryrpg_build_00175.png" alt="Image" /><br /><br /><br />The new table looks like this:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">SRC_HDMA_ColorGradient:<br />&nbsp; &nbsp;.DB 112|$80&nbsp; &nbsp;; = $F0 = upper 112 playfield scanlines with &quot;continuous mode&quot; flag set<br /><br />&nbsp; &nbsp;.DW ARRAY_HDMA_BackgrPlayfield<br />&nbsp; &nbsp;.DW ARRAY_HDMA_BackgrPlayfield+4<br />&nbsp; &nbsp;.DW ARRAY_HDMA_BackgrPlayfield+8<br />&nbsp; &nbsp;.DW ARRAY_HDMA_BackgrPlayfield+12<br />.<br />.<br />.<br />&nbsp; &nbsp;.DW ARRAY_HDMA_BackgrPlayfield+444<br /><br />&nbsp; &nbsp;.DB 64|$80&nbsp; &nbsp;; = $C0 = lower 64 playfield scanlines with &quot;continuous mode&quot; flag set<br /><br />&nbsp; &nbsp;.DW ARRAY_HDMA_BackgrPlayfield+448<br />&nbsp; &nbsp;.DW ARRAY_HDMA_BackgrPlayfield+452<br />&nbsp; &nbsp;.DW ARRAY_HDMA_BackgrPlayfield+456<br />&nbsp; &nbsp;.DW ARRAY_HDMA_BackgrPlayfield+460<br />.<br />.<br />.<br />&nbsp; &nbsp;.DW ARRAY_HDMA_BackgrPlayfield+700<br /><br />&nbsp; &nbsp;.DB 48|$80&nbsp; &nbsp;; = $B0 = 48 textbox scanlines with &quot;continuous mode&quot; flag set<br /><br />&nbsp; &nbsp;.DW ARRAY_HDMA_BackgrTextBox<br />&nbsp; &nbsp;.DW ARRAY_HDMA_BackgrTextBox+4<br />&nbsp; &nbsp;.DW ARRAY_HDMA_BackgrTextBox+8<br />&nbsp; &nbsp;.DW ARRAY_HDMA_BackgrTextBox+12<br />.<br />.<br />.<br />&nbsp; &nbsp;.DW ARRAY_HDMA_BackgrTextBox+188<br /><br />&nbsp; &nbsp;.DB 0&nbsp; &nbsp;; end of HDMA table<br /></div><br /><br />As you can see from the screenshot, it does process the first 112 scanlines as intended, only to go haywire then. Geiger's HDMA tracing reveals this:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">H-DMA&#91;2&#93; (3) 0x7E1022-&gt;0x2121 ind, Count: 112, Rep: no , V-LINE:&nbsp; &nbsp;0 C19280<br />H-DMA&#91;2&#93; (3) 0x7E2A10-&gt;0x2121 ind, Count:&nbsp; 38, Rep: yes, V-LINE: 112 C19283<br />H-DMA&#91;2&#93; (3) 0x7E102E-&gt;0x2121 ind, Count:&nbsp; 16, Rep: yes, V-LINE: 150 C19286<br />H-DMA&#91;2&#93; (3) 0x7E3610-&gt;0x2121 ind, Count:&nbsp; 50, Rep: yes, V-LINE: 166 C19289<br />H-DMA&#91;2&#93; (3) 0x7E103A-&gt;0x2121 ind, Count:&nbsp; 16, Rep: yes, V-LINE: 216 C1928C</div><br /><br />Not only does the scanline count get messed up but WRAM data addresses as well. But how? And why? <img src="./images/smilies/icon_question.gif" alt=":?:" title="Question" /> <br /><br />I already tried to change the implementation from indirect mode to absolute mode. Curiously enough, continuous mode with the new table above then worked just as expected!<br /><br />I've read all there is to read about HDMA, HDMA modes, and the HDMA table format, but couldn't find any clue about potential limits regarding the combination of modes and/or data unit lengths. Could this be a hardware limitation, or even a bug? Or what am I missing? Most importantly, why does it work either in absolute &quot;continuous&quot; (i.e., with the repeat flag set) mode <em>or</em> in indirect &quot;normal&quot; (repeat flag clear) mode, but not in indirect continuous mode? (BTW, it's not an emulator issue either, the same error occurs on Geiger's tracer, higan &quot;performance&quot;, and higan &quot;accuracy&quot;).<br /><br />Any helpful suggestions are highly appreciated. Thanks! <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" /><br /><br />Ramsis
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>nocash</b> [ Tue Aug 05, 2014 2:28 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: HDMA in indirect continuous mode (4 bytes transfer) fail</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />You have misunderstood the format of the table in indirect mode.<br />For each block, there is only one <strong>single</strong> pointer (to <strong>N</strong> units).<br />Not <strong>N</strong> pointers (to <strong>single</strong> units).<br />Ie. this should do it:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">SRC_HDMA_ColorGradient:<br />&nbsp; &nbsp;.DB 112|$80&nbsp; &nbsp;; = $F0 = upper 112 playfield scanlines with &quot;continuous mode&quot; flag set<br />&nbsp; &nbsp;.DW ARRAY_HDMA_BackgrPlayfield<br />&nbsp; &nbsp;.DB 64|$80&nbsp; &nbsp;; = $C0 = lower 64 playfield scanlines with &quot;continuous mode&quot; flag set<br />&nbsp; &nbsp;.DW ARRAY_HDMA_BackgrPlayfield+448<br />&nbsp; &nbsp;.DB 48|$80&nbsp; &nbsp;; = $B0 = 48 textbox scanlines with &quot;continuous mode&quot; flag set<br />&nbsp; &nbsp;.DW ARRAY_HDMA_BackgrTextBox<br />&nbsp; &nbsp;.DB 0&nbsp; &nbsp;; end of HDMA table</div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Ramsis</b> [ Tue Aug 05, 2014 3:40 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: HDMA in indirect continuous mode (4 bytes transfer) fail</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Thanks, nocash, this indeed does the trick! <img src="./images/smilies/icon_biggrin.gif" alt=":D" title="Very Happy" /><br /><br /><s>So am I getting this right: There&#39;s a difference between absolute and indirect HDMA table format depending on whether &quot;continuous mode&quot; is used &#40;i.e., bit 7 of the line counter byte is set&#41;, because in absolute mode, I do have to list as many units as the line counter byte &#40;AND $7F&#41; specifies, correct?</s><br /><br />Edit: Got it now, forget the above. <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

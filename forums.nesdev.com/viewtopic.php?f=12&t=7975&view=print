@@ -1,0 +1,161 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - snes-sdk, tcc816, and large arrays</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">snes-sdk, tcc816, and large arrays</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=12&amp;t=7975">http://forums.nesdev.com/viewtopic.php?f=12&amp;t=7975</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Shiru</b> [ Wed Jul 13, 2011 10:22 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>snes-sdk, tcc816, and large arrays</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Just thought this information could be useful to someone who want to use <a href="http://code.google.com/p/snes-sdk/" class="postlink">snes-sdk</a> and will have the same problem I had, and solved with help of mic and Chilly Willy.
+<br />
+<br />The tcc816 from the snes-sdk is a nice C compiler, but currently it has few problems that could be a real showstopper for any large project (say, just a full screen picture and music).
+<br />
+<br />First problem, rather obvious, is that one piece of data can't be larger than 32K. So if you have a data array that is larger than 32K, you need to split it to few smaller arrays.
+<br />
+<br />Second problem. Compiler puts data into .data section regardless of const. When this section overflows, linker tell you there is no room in .data. You can fix this with a custom tool that will move all the const data to .rodata section. mic made <a href="http://code.google.com/p/neo-myth-menu/source/browse/trunk/SNES/NeoMythMenu/tools/constify.cpp" class="postlink">such a tool</a> (source code only), but you may need to change it a bit if you have different data organization in your program.
+<br />
+<br />Third problem. Even with the tool, when you have total amount of const data &gt;32K, you'll get a linker error that there is no room in .rodata now. The problem is neither the compiler nor linker are allocate data into ROM banks automatically. You have do to it by yourself, creating .rodata1, .rodata2 etc sections and putting no more than 32K of data in every .rodata section. You can do it either by creating a custom tool, or by declaring additional .rodata sections in a separate assembly file, including the data with incbin and referencing to the data from C code through extern.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>mic_</b> [ Thu Jul 14, 2011 3:47 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />For big data files, like graphics, music, level data, etc. the best thing is probably to incbin them in assembly files rather than converting the data files to C arrays. You don't need to split the files yourself, since the assembler can do that for you:
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">.bank 1<br />.incbin &quot;big_file.bin&quot; read $8000<br /><br />.bank 2<br />.incbin &quot;big_file.bin&quot; skip $8000 read $8000<br /><br />; and so on...<br /></div>
+<br />
+<br />
+<br />Some other tips:
+<br />
+<br />* The C compiler generates "superfree" sections for the compiled code. This means that the linker is free to put these sections anywhere it sees fit (i.e. where there's room for it). So if you use HiROM you might want to fill up the even banks (0, 2, 4, ...) with garbage to avoid having the linker placing any code or data in those banks, as they won't be directly addressable (you'd have to access them through one of the mirrors, e.g. $4xyyyy).
+<br />
+<br />* There's no way to tell the compiler to place code in the .data section. The assembler/linker won't even let you do it manually IIRC. So what I did was to write all code I wanted to execute from RAM in assembly and putting them in the ROM bank at $018000 (making sure to use word addressing instead of long addressing when these functions call eachother). At startup I would copy all that code from $018000 to $7E8000 and create function pointers to call the copies in RAM.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

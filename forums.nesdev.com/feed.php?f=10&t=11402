@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=10&amp;t=11402" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2014-07-08T19:14:47-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=10&amp;t=11402</id>
+<entry>
+<author><name><![CDATA[Kasumi]]></name></author>
+<updated>2014-07-08T19:14:47-07:00</updated>
+<published>2014-07-08T19:14:47-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11402&amp;p=130859#p130859</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11402&amp;p=130859#p130859"/>
+<title type="html"><![CDATA[Re: ASM6 and trouble with nametables...]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11402&amp;p=130859#p130859"><![CDATA[
+I feel I misled you a bit by saying don't write to $2005 outside the NMI. Granted that's fairly true (because it may affect a &quot;random&quot; portion of scanlines instead of the entire screen unless you know what you're doing), but that doesn't also mean writes to $2006/$2007 can only go in the NMI. As long as rendering is disabled, those are safe to write to at anytime. And there's no other way to draw an entire screen at once without disabling rendering anyway.<br /><br />For during gameplay updates when rendering is enabled, yes, $2006/$2007 writes should only go in the NMI.<br /><br />Just to get an idea about this without hopefully getting too advanced, each instruction takes a little bit of time. <a href="http://www.obelisk.demon.co.uk/6502/reference.html" class="postlink">You can look up how many cycles each instruction will take here by clicking it and looking at cycles.</a> There are approximately 2270 cycles before rendering begins after an NMI fires. Remember that writing to $2006/$2007 during rendering can make some bad things happen.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">   PHA;3 Cycles, 3 total<br />   TXA;2 Cycles, 5 total<br />   PHA;3 Cycles, 8 total<br />   TYA;2 Cycles, 10 total<br />   PHA;3 Cycles, 13 total<br /><br />                  ;; set oal dma (?) - look into this<br />   LDA #$00;2 Cycles, 15 total<br />   STA $2003;4 Cycles, 19 total<br />   LDA #$02;2 Cycles, 21 total<br />   STA $4014;4 cycles, 25 total<br />;At this point something NES specific happens. The write to $4014 triggers a thing that halts the CPU while it updates the PPU's OAM. This takes around 513 cycles.<br />;513 cycles, 538 total<br /></div><br />Now there are 1024 bytes in a single nametable. If you wanted to write them all with the same value without even using a loop (the fastest way possible), it'd look like this:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">lda #$00;2 cycles, 540 total<br />sta $2007;4 cycles 544 total<br />sta $2007 4 cycles 548 total<br />;insert 1022 more sta instructions here.<br /></div><br /><br />1022*4 = 4088 cycles. 4636 total. Way beyond the window, which means it would crash. Even if rendering were disabled beforehand (which would add to the cycle count slightly), writing to the scroll after this would not affect the entire screen. And this is for writing just one value, because loading different ones for each tile would add two cycles to every store. This is without a loop because the branches and inx/iny instructions that control the loop would also add to this time. <br /><br />(Absolutely use a loop like you have, because this fast method takes up a stupid amount of space in ROM. It's just to show that even the not-practical fastest way possible is not fast enough to get it done in the time window, and why)<br /><br />This time before rendering is the only real &quot;gotcha&quot; for NES background updates, but it is much easier to understand than work around. To do things like scrolling you have to prepare the bytes to update outside the NMI, so that the only thing the NMI needs to do is write those bytes to $2007. If it was also figuring out which bytes should go there, this logic would take up the valuable 2270 cycles and the game might crash. If you never update the background during gameplay, you can do all your nametables updates outside your NMI with rendering disabled in between levels.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3504">Kasumi</a> — Tue Jul 08, 2014 7:14 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[JoeGtake2]]></name></author>
+<updated>2014-07-08T18:40:20-07:00</updated>
+<published>2014-07-08T18:40:20-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11402&amp;p=130858#p130858</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11402&amp;p=130858#p130858"/>
+<title type="html"><![CDATA[Re: ASM6 and trouble with nametables...]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11402&amp;p=130858#p130858"><![CDATA[
+Ah, thanks Kasumi!  In context now, that makes more sense (from previous PM).  <br /><br />I shall trudge ever forward.  Thanks all for the assistance!<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6590">JoeGtake2</a> — Tue Jul 08, 2014 6:40 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Kasumi]]></name></author>
+<updated>2014-07-08T18:25:53-07:00</updated>
+<published>2014-07-08T18:25:53-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11402&amp;p=130857#p130857</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11402&amp;p=130857#p130857"/>
+<title type="html"><![CDATA[Re: ASM6 and trouble with nametables...]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11402&amp;p=130857#p130857"><![CDATA[
+That'd be because (unlike the code in your last post) you're trying to update the entire background in NMI. (In the code in your post before the one you're asking about, you did it below reset, before your main loop, and outside your NMI which is correct.)<br /><br />I said in a PM a while ago that you only have a very limited time to update the background after vblank happens, and if you write to $2006/$2007 after this period (and rendering is enabled), the game will crash. You seem to disable rendering before you write the backgrounds, which means it won't crash... BUT the code that updates the nametables is still taking up actual time. <br /><br />The scroll registers ($2005/$2000) need to be set before this window of time is over, or they'll only be set to the right values for the scanlines (a horizontal row of pixels) that haven't already been rendered. That is that $2005 is SAFE to write outside vblank time even when rendering is enabled, but it will only affect a portion of the screen UNLESS it is done during vblank time. (Which is why the Kirby's Adventure HUD never moves. The scroll for those scanlines is set after the rest are rendered with a different scroll value.)<br /><br />Edit: As well, writes to $2006/$2007 still affect the scroll even if done while rendering is disabled.<br /><br />There is only enough time to update about two rows and two columns of the screen in the tiny period you have between when rendering begins and your NMI. This is how games scroll without disabling rendering. They update only the new rows/columns that have been scrolled in while keeping rendering enabled. If you want to draw an entire new screen, you must disable rendering and draw it all then. You cannot do this every frame like you're trying to do without all kinds of weird stuff happening. Once the background is drawn, you only have to draw what's changed anyway, because the rest of it will stay on the PPU's memory map.<br /><br />Background updates are a tricky thing about NES dev.<br /><br />Edit: To fix it, move loadBKG back where it was. The rest of the post explains why that needs to happen.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3504">Kasumi</a> — Tue Jul 08, 2014 6:25 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[JoeGtake2]]></name></author>
+<updated>2014-07-08T18:05:55-07:00</updated>
+<published>2014-07-08T18:05:55-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11402&amp;p=130856#p130856</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11402&amp;p=130856#p130856"/>
+<title type="html"><![CDATA[Re: ASM6 and trouble with nametables...]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11402&amp;p=130856#p130856"><![CDATA[
+Thank you very much.  I have played with these ideas from the posts, but the result is exactly the same, unfortunately.<br /><br />Let me show you how I have essentially put the Nametable Load into the NMI and made the adjustments you all suggested:  The scroll is still off.  Now, all of this 'problem' is contained to the NMI - no more jump to a sub routine or anything.<br /><br />Any other thoughts?<br /><br />**NOTE: Still, with the new adjustments, if I load the nametable atthe end of the second vblank, use the subroutine, and do all the updates to $2000 and $2005 in the NMI, everything still works as expected, but when put into the NMI as shown below, there is still a strange scroll issue...**<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent"><br />NMI:<br />   PHA               ; push accumulator values to the stack.<br />   TXA<br />   PHA<br />   TYA<br />   PHA<br /><br />                  ;; set oal dma (?) - look into this<br />   LDA #$00<br />   STA $2003<br />   LDA #$02<br />   STA $4014<br /><br />                  ;; load palettes<br />   LDA $2002<br />   LDA #$3F<br />   STA $2006<br />   LDA #$00<br />   STA $2006<br />   LDX #$00<br />LoadPal:<br />   LDA PaletteData,x<br />   STA $2007<br />   INX<br />   CPX #$20<br />   BNE LoadPal<br />            ;; end load palette - load background<br /><br />;;I HAVE ALSO TRIED PLACING A WRITE TO<br />;;$2000 and $2005 here thinking maybe<br />;;literally after every write to $2007<br />;;this would need to written to<br />;; but this did not help.<br /><br />   LDA $2002<br />   LDA #$20<br />   STA $2006<br />   LDA #$00<br />   STA $2006<br />;;;;;; BOTH ABOVE AND BELOW HAVE<br />;;;;;; SAME RESULTS.<br />   ;LDA #$00<br />   ;STA $2001<br />   ;LDA $2002<br />   ;LDA #$20<br />   ;STA $2006<br />   ;LDA #$00<br />   ;STA $2006<br /><br />                  ;; load nametable<br />   LDA #&lt;nametable0<br />   STA addrLo<br />   LDA #&gt;nametable0<br />   STA addrHi<br />   <br />LoadBkg:<br />   LDX #$04<br />   LDY #$00<br />   <br />LoadNametableLoop:<br />   LDA #$00<br />   STA $2001<br />   LDA (addrLo),y<br />   STA $2007<br />   INY<br />   BNE LoadNametableLoop<br />   inc addrHi<br />   DEX<br />   BNE LoadNametableLoop<br />               ;; end load nametable<br />   <br />   LDA #%10010000   ;; after a write to $2007 like above<br />   STA $2000      ;; must reanable          <br />   LDA #%00011110   ;;write to $2000<br />   STA $2001             <br />   LDA #$00      ;; And set the<br />   STA $2005      ;; x scroll data<br />   STA $2005      ;; and y scroll data<br />   <br />                  ; re-pull accumulator values from the stack.<br />   PLA<br />   TAY<br />   PLA<br />   TAX<br />   PLA<br />   <br />   RTI               ; Return from whence you came.<br /></div><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6590">JoeGtake2</a> — Tue Jul 08, 2014 6:05 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Kasumi]]></name></author>
+<updated>2014-07-08T16:34:49-07:00</updated>
+<published>2014-07-08T16:34:49-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11402&amp;p=130855#p130855</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11402&amp;p=130855#p130855"/>
+<title type="html"><![CDATA[Re: ASM6 and trouble with nametables...]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11402&amp;p=130855#p130855"><![CDATA[
+Be careful.<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">RESET:<br />   SEI               ; Ignore Interupts<br />   LDA #$00         ; Load zero.<br />   STX $2000         ; Store it to $2000 (PPU - graphics) - disable NMI<br />   STX $2001         ; Store it to $2001 (PPU - graphics) - disable rendering<br />   STX $4010         ; Store it to $4010 (DMC IRQ) - disable DMC IRQ<br />   STX $4015         ; Store it to $4015 (APU) - disable APU sound<br /></div><br />You're storing X which has an undefined value at this point. Replace those STXs with STA so you're storing zero and not whatever was in X before you reset the game.<br /><br />Don't mess with the scroll ($2005) outside of the NMI until you really know what you're doing.<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">BNE LoadNametableLoop<br />   LDA #$00<br />   STA $2005<br />   LDA #%00011110<br />   STA $2001<br /></div><br /><br />What's more $2005 (and $2006) are double-write registers. Typically if you stored the same value to the same location  (like... say RAM) twice in a row, it wouldn't be different than doing it once. This is not true for double write registers, where writing to them twice in a row will make the same value do different things. There's no real way to know which write will affect which thing unless you reset them, which you do by reading $2002.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">lda #$00<br />sta $2005;This will affect either the X or Y scroll value.<br />lda #$20<br />sta $2005;This will affect which scroll value that the previous write DIDN'T. (If the first write changed X, this would change Y. If the first write changed Y, this would change X.)<br /></div><br /><br />So with the above code alone, you might end up with an X scroll value of $00 and a Y scroll value of $20, or you might end up with an X scroll value of $20 and a Y scroll value of $00. To avoid this Schrodinger's code, read $2002 first and always write to $2006/$2005 twice.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">bit $2002;(This reads from $2002 without changing A. If you don't care if A is changed, LDA will work too)<br />lda #$00<br />sta $2005;This will set the X scroll to $00.<br />lda #$20<br />sta $2005;This will set the Y scroll to $20<br /></div><br /><br />You are doing this properly with your $2006 code in your NMI:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">LDA $2002<br />   LDA #$3F<br />   STA $2006<br />   LDA #$00<br />   STA $2006<br /></div><br />You read $2002 which makes sure the first write will set the high byte of the address. Another interesting thing is that $2005 and $2006 share the same &quot;toggle&quot;. So if after the above code, you wrote a value to $2005, it would reliably write the X scroll. You would not need to read $2002 again to ensure this.<br /><br />Therefore, this would be fine:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">   LDA $2002<br />   LDA #$3F<br />   STA $2006<br />   LDA #$00<br />   STA $2006<br />   LDX #$00<br />LoadPal:<br />   LDA PaletteData,x<br />   STA $2007<br />   INX<br />   CPX #$20<br />   BNE LoadPal<br />   <br /><br />   lda (whatevervalue you need for $2000)<br />   sta $2000<br />   lda #$00 <br />   STA $2005         ;X scroll is zero<br />   STA $2005         ;Y scroll is zero<br /></div><br />As stated by rainwarrior, $2005/$2000 need to be rewritten after any writes to $2006/$2007 are made, and they need to be done after those writes are complete.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3504">Kasumi</a> — Tue Jul 08, 2014 4:34 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[rainwarrior]]></name></author>
+<updated>2014-07-08T16:21:57-07:00</updated>
+<published>2014-07-08T16:21:57-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11402&amp;p=130854#p130854</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11402&amp;p=130854#p130854"/>
+<title type="html"><![CDATA[Re: ASM6 and trouble with nametables...]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11402&amp;p=130854#p130854"><![CDATA[
+Whenever you write to $2006 or $2007, you overwrite whatever is currently in the scroll registers, because $2005 and $2006 are accessing the same internal registers, just in different ways.<br /><br />This is why you must reset scroll (write $2000, $2005, $2005) after you are finished making any updates via $2007.<br /><br />It is not necessary to write 0 to both $2006 and $2005. This is redundant, as the writes go to the same place.<br /><br />See my example at &quot;@scroll:&quot; and note that this step that sets the scroll registers is always done after all the other PPU updates. It is critical that it happen after other PPU updates (i.e. $2006/2007 writes) and before the end of vblank, where the hardware will pick up the last scroll values written.<br /><br />If you want to know a lot more about it, there is detail here: <a href="http://wiki.nesdev.com/w/index.php/The_skinny_on_NES_scrolling" class="postlink">http://wiki.nesdev.com/w/index.php/The_skinny_on_NES_scrolling</a><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=5165">rainwarrior</a> — Tue Jul 08, 2014 4:21 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[JoeGtake2]]></name></author>
+<updated>2014-07-08T14:42:41-07:00</updated>
+<published>2014-07-08T14:42:41-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11402&amp;p=130850#p130850</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11402&amp;p=130850#p130850"/>
+<title type="html"><![CDATA[Re: ASM6 and trouble with nametables...]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11402&amp;p=130850#p130850"><![CDATA[
+Gotcha - will absolutely do that, then!  <br /><br />So last night, we fixed the issue I was having.  Today, I completely rewrote my code (to better align with what I'm understanding of a good file structure, and commenting things out to better help me understand what is happening).<br /><br /><span style="text-decoration: underline"><strong>Rainwarrior</strong></span>, you suggested putting palette updates in the NMI, and I noticed that your example file also put nametable updates in the NMI.  I thought I would also try this.  I got funky results, for sure.  If I put the nametable update in the NMI, everything is off as far as the scroll, however I HAVE to reset the scroll data in the NMI for it to not be wonky (explained in the code).<br /><br />Anyhow, this code works as it is.  Hoorah.  Before moving forward, I wanted you guys to take a glance and see if the file structure looks alright or if I'm heading for a cliff anywhere, and also help me figure out why the scroll data must be in the NMI like this for it to work correctly.  <br /><br />I feel like this post alone has taught me a lot, and hopefully it shows in this updated code / is evident in the comments.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">;;AN ATTEMPT TO DEVELOP A GOOD FILE STRUCTURE <br />;;TO BE ASSEMBLED WITH ASM6.<br /><br />;; ======1. HEADER - taken care of in header file<br /><br />;; ======2. Establish variables and constants.<br />   .enum $0000         ; variabl section must open with this on ASM6<br />   addrLo .dsb 1<br />   addrHi .dsb 2<br />   .ende            ; variable section must close with this on ASM6<br />;; ======3. Where should the code start?<br />   .org $c000<br /><br />;; ======4. RESET<br /><br />RESET:<br />   SEI               ; Ignore Interupts<br />   LDA #$00         ; Load zero.<br />   STX $2000         ; Store it to $2000 (PPU - graphics) - disable NMI<br />   STX $2001         ; Store it to $2001 (PPU - graphics) - disable rendering<br />   STX $4010         ; Store it to $4010 (DMC IRQ) - disable DMC IRQ<br />   STX $4015         ; Store it to $4015 (APU) - disable APU sound<br />   LDA #$40         ; Load 64<br />   STA $4017         ; Store it to $4017 - disables APU IRQ<br />   CLD               ; disable decimal mode<br />   LDX #$FF         ; Load 255<br />   TXS               ; Initialize the stack<br />   <br />;; ======5. First vblank wait<br />   bit $2002<br />vbwait1:   <br />   bit $2002<br />   BPL vbwait1<br />   <br />;; =====6. Clear all ram except stack ($100)<br />   LDA #$00         ; Load zero to A<br />   LDX #$00         ; Load zero to X<br />clrMem:<br />   STA $0000,x<br />   STA $0200,x<br />   STA $0300,x<br />   STA $0400,x<br />   STA $0500,x<br />   STA $0600,x<br />   STA $0700,x         ; if you want to clear on reset<br />   INX<br />   BNE clrMem<br />   <br />;; =====7. Second vblank wait<br />vbwait2:<br />   bit $2002<br />   BPL vbwait2<br />   <br />;; =====8. Enable NMI for graphics updates<br />   LDA #%10010000      ; turn on NMI, set sprites to $0000/bkg to $1000<br />   STA $2000         ; write it to $2000<br />                     ; load palette data<br />   <br /><br />;; =====9. Load background/ nametable<br />                  ;; load background<br />                  ;; this does not work<br />                  ;; inside NMI.  Find out why(?)<br />   LDA #$00<br />   STA $2001<br />   LDA $2002<br />   LDA #$20<br />   STA $2006<br />   LDA #$00<br />   STA $2006<br />                  ;; load nametable<br />   LDA #&lt;nametable0<br />   STA addrLo<br />   LDA #&gt;nametable0<br />   STA addrHi<br />   jsr LoadBkg         ;; jump to LoadBkg, return below<br />                  ;;IF I RESET SCROLL DATA HERE<br />                  ;;SCROLL IS WRONG!<br />                  ;; Only if I put the Scroll data<br />                  ;;in NMI does it work.<br />                  ;; End of Background code that does<br />                  ;; not work in NMI.<br />                  <br /><br />   JMP main<br />   <br />;; =====10. Set up NMI - much to do with this section.<br />NMI:<br />   PHA               ; push accumulator values to the stack.<br />   TXA<br />   PHA<br />   TYA<br />   PHA<br />                  ; set up PPU<br />   LDA #%10010000<br />   STA $2000<br />   LDA #%00011110<br />   STA $2001<br /><br />                  ;; set oal dma (?) - look into this<br />   LDA #$00<br />   STA $2003<br />   LDA #$02<br />   STA $4014<br /><br />                  ;; load palettes<br />   LDA $2002<br />   LDA #$3F<br />   STA $2006<br />   LDA #$00<br />   STA $2006<br />   LDX #$00<br />LoadPal:<br />   LDA PaletteData,x<br />   STA $2007<br />   INX<br />   CPX #$20<br />   BNE LoadPal<br />   <br />                  ;;SCROLL DATA ONLY SEEMS TO GIVE<br />                  ;;PREDICTABLE OUTCOME IF PUT<br />                  ;;HERE.  PUTTING IT AFTER THE<br />                  ;;RETURN FROM LoadBkg SUB ROUTINE<br />                  ;;ABOVE gives strange results,<br />                  ;;as does making it the end of<br />                  ;;the sub routine...<br />                  <br />                  ;;but putting the nametable stuff<br />                  ;;here gives wonky results as well...<br />                  <br />   LDA $2000<br />   LDA #$00         ;; load zero to accumulator<br />   STA $2006         ;;<br />   STA $2006<br />   STA $2005         ;reset scroll<br />   STA $2005         ;reset scroll<br /><br />                  ; re-pull accumulator values from the stack.<br />   PLA<br />   TAY<br />   PLA<br />   TAX<br />   PLA<br />   <br />   RTI               ; Return from whence you came.<br /><br />;; ===== 11. Main Loop   <br />main:<br />   <br />   JMP main<br /><br />;; ===== 12. Sub routines<br />   <br />LoadBkg:<br />   LDX #$04<br />   LDY #$00<br />   <br />LoadNametableLoop:<br />   LDA #$00<br />   STA $2001<br />   LDA (addrLo),y<br />   STA $2007<br />   INY<br />   BNE LoadNametableLoop<br />   inc addrHi<br />   DEX<br />   BNE LoadNametableLoop<br />   LDA #$00<br />   STA $2005<br />   LDA #%00011110<br />   STA $2001<br />   <br />   RTS               ;return to setting up nametables.<br />   <br />;; ===== 13. Load binaries<br />PaletteData: <br />   .incbin &quot;charPal.pal&quot;<br />   .incbin &quot;bkgPal.pal&quot;<br />   <br />nametable0: <br />   .incbin &quot;mainBkg.nam&quot;<br />   <br />;; ===== 14. Vectors<br />   .org $fffa<br />   .dw NMI<br />   .dw RESET<br />   .dw 0<br />   <br />;; ===== 15. load Chr<br />   .incbin &quot;main.chr&quot;<br />   <br /></div><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6590">JoeGtake2</a> — Tue Jul 08, 2014 2:42 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Kasumi]]></name></author>
+<updated>2014-07-08T12:48:57-07:00</updated>
+<published>2014-07-08T12:48:57-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11402&amp;p=130848#p130848</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11402&amp;p=130848#p130848"/>
+<title type="html"><![CDATA[Re: ASM6 and trouble with nametables...]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11402&amp;p=130848#p130848"><![CDATA[
+<div class="quotetitle">rainwarrior wrote:</div><div class="quotecontent"><br />It's usually better to ask questions in the open, though. You'll get better answers if more people see the question, and also other people with the same problem may come by to read this thread.<br /></div><br />This. Also because if the person you PM doesn't know the answer, you're out of luck until you get another set of eyes on the problem anyway.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3504">Kasumi</a> — Tue Jul 08, 2014 12:48 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2014-07-08T10:27:41-07:00</updated>
+<published>2014-07-08T10:27:41-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11402&amp;p=130837#p130837</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11402&amp;p=130837#p130837"/>
+<title type="html"><![CDATA[Re: ASM6 and trouble with nametables...]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11402&amp;p=130837#p130837"><![CDATA[
+That and if you post in public, then anyone else can use Google or Bing to search for the question and end up here, where (as you've noticed) we don't bite newcomers.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Tue Jul 08, 2014 10:27 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[rainwarrior]]></name></author>
+<updated>2014-07-08T09:03:57-07:00</updated>
+<published>2014-07-08T09:03:57-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11402&amp;p=130827#p130827</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11402&amp;p=130827#p130827"/>
+<title type="html"><![CDATA[Re: ASM6 and trouble with nametables...]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11402&amp;p=130827#p130827"><![CDATA[
+Sure, PM me if you'd like, no need to ask. It's usually better to ask questions in the open, though. You'll get better answers if more people see the question, and also other people with the same problem may come by to read this thread.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=5165">rainwarrior</a> — Tue Jul 08, 2014 9:03 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[JoeGtake2]]></name></author>
+<updated>2014-07-08T06:59:33-07:00</updated>
+<published>2014-07-08T06:59:33-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11402&amp;p=130822#p130822</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11402&amp;p=130822#p130822"/>
+<title type="html"><![CDATA[Re: ASM6 and trouble with nametables...]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11402&amp;p=130822#p130822"><![CDATA[
+Thanks Rainwarrior - later today, I'm going to attempt to iterate through a basic file structure and try to build it from scratch and referencing your link as little as possible.  If I have pressing questions while I do, would you mind if I PM you?  I appreciate the help and the lengthy explanation.  You're the third person on this forum to be simply awesome about that!  100% of people helping, 0% of people impatiently trolling.  I can't stress enough how amazing I find that.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6590">JoeGtake2</a> — Tue Jul 08, 2014 6:59 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[rainwarrior]]></name></author>
+<updated>2014-07-08T06:38:12-07:00</updated>
+<published>2014-07-08T06:38:12-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11402&amp;p=130820#p130820</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11402&amp;p=130820#p130820"/>
+<title type="html"><![CDATA[Re: ASM6 and trouble with nametables...]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11402&amp;p=130820#p130820"><![CDATA[
+In the project I'm working on, I set up the first screen, and then I enable NMI and never need to turn it off. Between screen transitions, I turn off rendering, but the NMI routine continues playing music, for example. As long as the NMI routine itself can be prevented from messing with $2005/2006/2007 while rendering is off, it's perfectly valid to have it running while you're updating the hidden screen.<br /><br />Another thing: it's good practice to only ever upload palette data in the NMI handler. If done at other times, the writes to the palette will manifest visually as a change of background colour and you'll get a scanline or two of &quot;rainbow&quot; glitch. I found this very counter-intuitive, but it's sort of because the background colour is still active when rendering is off. Pointing the PPU address at any of the palette bytes will cause it to display the colour at that address, for some reason.<br /><br />Similarly, but for a different reason, don't use the OAM DMA outside of the NMI routine either. Most emulators don't simulate this, but when sprite rendering is off the data in the OAM begins to decay after a short time (30 scanlines or so), so there's not much point to update the OAM while rendering is off, as the data would likely be corrupt by the time you get rendering back on.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=5165">rainwarrior</a> — Tue Jul 08, 2014 6:38 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[JoeGtake2]]></name></author>
+<updated>2014-07-08T04:47:30-07:00</updated>
+<published>2014-07-08T04:47:30-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11402&amp;p=130819#p130819</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11402&amp;p=130819#p130819"/>
+<title type="html"><![CDATA[Re: ASM6 and trouble with nametables...]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11402&amp;p=130819#p130819"><![CDATA[
+Wow - Rainwarrior, that example has a ton of great stuff in it!  Thanks so much for that, I'm really going to dissect it.  Most of it makes perfect sense to me as I read it sort of casually...which is good!  Haha.<br /><br />Tokumaru, thanks for clarifying.<br /><br />All in all, this problem is officially <span style="text-decoration: underline"><strong>solved </strong></span>thanks to your guys' help.  More importantly, I have some more foundational knowledge which I didn't have before and some more things to directly study!  Much appreciated.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6590">JoeGtake2</a> — Tue Jul 08, 2014 4:47 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tokumaru]]></name></author>
+<updated>2014-07-07T23:10:56-07:00</updated>
+<published>2014-07-07T23:10:56-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11402&amp;p=130814#p130814</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11402&amp;p=130814#p130814"/>
+<title type="html"><![CDATA[Re: ASM6 and trouble with nametables...]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11402&amp;p=130814#p130814"><![CDATA[
+<div class="quotetitle">JoeGtake2 wrote:</div><div class="quotecontent"><br />could one of you go into a little more detail (maybe with a simple code example) of how you use the shadow register for $2000 and $2001?<br /></div><br />The shadow registers are just buffers... They aren't absolutely necessary, and should be the least of your problems for now. The only real advantage of buffering $2000/$2001 writes is that, since you're saving new $2000/$2001 values to RAM and only copying the values to the actual registers during VBlank, you don't get weird visual changes mid-screen, like a quick &quot;shake&quot; when rendering is turned on. All changes will happen during VBlank and will be invisible to the player. There's really no reason for you to worry about this now, since those small glitches are really quick and not permanent... once you have a better knowledge of the flow of an NES program, this will come naturally to you.<br /><br />The problem you faced was that you tried to buffer the very write that enables NMIs, which prevented NMIs from ever happening, so the shadow registers were never copied to the actual registers. The $2000 write that enables NMIs shouldn't be buffered (but you should do this write during VBlank). I believe most programs don't constantly enable and disable NMIs, in most cases NMIs are turned on from the very beginning, and a variable, which is checked by the NMI handler, is used to indicate what kind of task it's supposed to perform, if any.<br /><br />In my programs, I enable NMIs right after waiting the 2 PPU warm up frames, while I know the PPU is still in VBlank. The variable that controls what tasks will be done in the NMI should already be initialized by this time, as should the shadow registers if you are indeed copying them to the real registers in the NMI handler.<br /><br />EDIT: I just remembered that SMB1 is one game that keeps enabling/disabling NMIs, and this results in <a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=10104" class="postlink">visual glitches</a> from time to time.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=95">tokumaru</a> — Mon Jul 07, 2014 11:10 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[rainwarrior]]></name></author>
+<updated>2014-07-07T22:18:39-07:00</updated>
+<published>2014-07-07T22:18:39-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=11402&amp;p=130810#p130810</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=11402&amp;p=130810#p130810"/>
+<title type="html"><![CDATA[Re: ASM6 and trouble with nametables...]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=11402&amp;p=130810#p130810"><![CDATA[
+One of the reasons I wrote <a href="http://forums.nesdev.com/viewtopic.php?f=10&amp;t=11151" class="postlink">this example</a> was to demonstrate proper use of the PPU. It might be helpful. There are a lot of quirky issues to do with how to time turning the renderer on and off, and the steps to take when doing it, etc. It took me about two years of working with the NES to come to a point where I could write NES render code that doesn't have any strange 1-frame glitches somewhere.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=5165">rainwarrior</a> — Mon Jul 07, 2014 10:18 pm</p><hr />
+]]></content>
+</entry>
+</feed>

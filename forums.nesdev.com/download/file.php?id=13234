@@ -1,0 +1,688 @@
+.section "BytecodeInterpreter" ALIGN $100 FREE
+.block "Interpreter"
+
+;Bytecode interpreter.
+;R6 = Temp1/2
+;R7 = Temp3/4
+;PC = Pointer
+BytecodeInterpreter
+	jsr ConvertRegisters
+	sta r3+1		; (returns with A=0)
+	rol A
+	sta r3			; R3 := Carry flag (filled with 15 '0' bits)
+	jsr GetDirectPointer
+
+InterpreterLoopNewAdress	; Set VRAM adress to PC if necessary
+	lda PointerH
+	bmi InterpreterLoop
+	tax
+	and #$60
+	asl A
+	rol A
+	rol A
+	jsr ChrSet
+
+	bit $2002
+	txa
+	and #$1f
+	sta $2006
+	lda PointerL
+	sta $2006
+	lda $2007
+	lda $2007			; Discard one byte (because of PC adressing offset)
+
+InterpreterLoop
+	jsr NextByteCode
+	tay
+	and #$f8
+	beq _non_reg_opcode		; Determine between "Register-type" instruction or "Global" instruction
+
+	lsr A
+	lsr A
+	lsr A
+	tax				; X = 2*opcode #
+	lda #>(Do_DJNZ-1)
+	pha
+	lda Reg_Instr_Jmp_Tbl-1.w,X
+	pha
+
+	tya
+	and #$07
+	asl A				; X = 2*reg
+	tax
+	rts				;Execute regiter-type instruction
+
+_non_reg_opcode
+	lda #>(Do_JUMP-1)
+	pha
+	lda Non_Reg_Instr_Jmp_Tbl.w,Y
+	pha
+	rts				;Execute non-reg. instruction
+
+_fetch2
+	jsr NextByteCode
+	tax
+	jsr NextByteCode
+	tay
+	lda PointerH
+	rts
+
+; Global instructions
+
+; LDZP instruction
+Do_LDZP
+	jsr NextByteCode
+	tax
+	lda $00,X
+	sta r0
+	sty r0+1		; = $00
+	jmp InterpreterLoop
+
+Do_STZP
+	jsr NextByteCode
+	tax
+	lda r0
+	sta $00,X
+	jmp InterpreterLoop
+
+; CALL instruction
+Do_CALL
+	jsr _fetch2
+	pha
+	lda PointerL		;Push current bytecode PC
+	pha
+	lda #>(interpreter_return_bytecode-1)
+	pha
+	lda #<(interpreter_return_bytecode-1)
+	pha			;when the caller will do RETN, it will go to interpreter_return
+	stx PointerL
+	sty PointerH		;Use new PC adress
+	jmp InterpreterLoopNewAdress
+
+;CALL assembly instruction
+Do_CASM
+	jsr _fetch2
+	pha
+	lda PointerL
+	pha
+	lda #>(interpreter_return_asm-1)
+	pha
+	lda #<(interpreter_return_asm-1)
+	pha		;when the caller will do RTS, it will go to interpreter_return
+	tya
+	pha
+	txa
+	pha
+
+Do_RETN
+	lda r3
+	lsr A			;Convert R3.0 to carry, without affecting R3
+	lda r0
+	ldx r1
+	ldy r2			;Convert VM registers to assembly registers
+	rts			;Return to normal code
+
+Do_JUMP
+	jsr _fetch2
+	stx PointerL
+	sty PointerH
+	jmp InterpreterLoopNewAdress
+
+interpreter_return_asm
+	jsr ConvertRegisters
+
+interpreter_return_bytecode
+	pla
+	sta PointerL
+	pla
+	sta PointerH
+	jmp InterpreterLoopNewAdress
+
+ConvertRegisters
+	sta r0		;Convert assembly registers to VM registers
+	stx r1
+	sty r2
+	lda #$00
+	sta r0+1
+	sta r1+1
+	sta r2+1
+	rts
+
+;Read a byte from bytecode pointer
+NextByteCode
+	inc PointerL
+	bne +
+	inc PointerH
+
++	ldy #$00
+	lda PointerH
+	bmi +
+	lda $2007
+	rts
+
++	lda (Pointer),Y		;Read byte from memory
+	rts
+
+; VRAM adress = Rx
+SetVRAMAdr
+	bit $2002
+	lda r0+1,X
+	sta $2006
+	lda r0,X
+	sta $2006
+	rts
+
+;Increment Rx
+_incr_rx
+	inc r0,X
+	bne +
+	inc r0+1,X
++	rts
+
+; branch on condition true
+ConditionTrue
+	ldx #$00
+	jsr NextByteCode   ; get branch value
+	bpl +		; b: forward branch
+	dex		; = $FF
++	clc
+	adc PointerL
+	sta PointerL
+	txa
+	adc PointerH
+	sta PointerH
+	jmp InterpreterLoopNewAdress
+
+; ----------------------------
+; register branch instructions
+; ----------------------------
+.block "interpreter_critical"
+
+; Decrement Rx and branch if not zero
+Do_DJNZ
+	jsr _decr_rx
+
+; Branch if Rx not zero
+Do_BRNZ
+	lda r0,X
+	ora r0+1,X
+
+; Branch if not zero
+BranchNotZero
+	bne ConditionTrue
+
+; Branch if Rx negative
+Do_BRMI
+	lda r0+1,X
+	bmi ConditionTrue
+
+; false condition
+ConditionFalse
+	jsr NextByteCode
+	jmp InterpreterLoop
+
+; Branch if Rx zero
+Do_BRZE
+	lda r0,X
+	ora r0+1,X
+
+; Branch if zero
+BranchZero:
+	beq ConditionTrue
+	bne ConditionFalse
+
+; Branch if Rx positive
+Do_BRPL
+	lda r0+1,X
+	bpl ConditionTrue
+	bmi ConditionFalse
+
+; Branch if R0 != Rx
+Do_BRNE
+	lda r0+1,X
+	cmp r0+1
+	bne ConditionTrue
+	lda r0,X
+	cmp r0
+	jmp BranchNotZero
+
+; Branch if R0 == Rx
+Do_BREQ
+	lda r0+1,X
+	cmp r0+1
+	bne ConditionFalse
+	lda r0,X
+	cmp r0
+	jmp BranchZero
+
+; ----------------------------------------
+; destination memory register instructions
+; ----------------------------------------
+
+; R0 -> (Rx++)
+Do_STMW
+	lda r0
+	sta (r0,X)
+	jsr _incr_rx
+	lda r0+1
+	.db $2c
+
+; R0L -> (Rx++)
+Do_STMB
+	lda r0
+	sta (r0,X)
+	jmp Do_INCR
+
+; R0L -> (Rx)
+Do_STVB
+	jsr SetVRAMAdr
+	lda r0
+	sta $2007
+	jmp Do_INCR
+
+; Rx -> stack
+Do_PUSH
+	lda r0+1,X
+	pha
+	lda r0,X
+	pha
+	jmp InterpreterLoop
+
+; ------------------------------------
+; destination Rx register instructions
+; ------------------------------------
+
+; stack -> Rx
+Do_PULL
+	pla
+	sta r0,X
+	pla
+	sta r0+1,X
+	jmp InterpreterLoop
+   
+; Rx EOR $FF -> Rx
+Do_NEGA
+	lda r0+1,X
+	eor #$FF
+	tay
+	lda r0,X
+	eor #$FF
+	jmp W2Rx
+
+; immediate byte -> Rx
+Do_LDIB
+	jsr NextByteCode
+	.byte   $2C   ; skip word
+
+; $0000 -> Rx
+Do_CLER
+	lda #$00   ; skipped if LDIB instruction
+	ldy #$00
+	beq W2Rx
+
+; R0 -> Rx
+Do_STR0
+	lda r0
+	ldy r0+1
+
+; A/Y word -> Rx
+W2Rx
+	sta r0,X
+	sty r0+1,X
+	jmp InterpreterLoop
+
+; immediate word -> Rx
+Do_LDIW
+	jsr NextByteCode
+	sta r0,X
+	jsr NextByteCode
+	sta r0+1,X
+	jmp InterpreterLoop
+
+; Rx - immediate byte -> Rx
+Do_SUBI
+	jsr NextByteCode
+;	ldy #$00
+	bpl +
+	dey
++	jmp addd1
+
+; Rx + R0 -> Rx
+Do_ADDD
+	lda r0
+	ldy r0+1
+
+addd1
+	clc
+	adc r0,X
+	sta r0,X
+	tya
+	adc r0+1,X
+	sta r0+1,X
+	jmp InterpreterLoop
+
+Do_DECR
+	jsr _decr_rx
+--	jmp InterpreterLoop
+
+Do_SHFL			; Shifts R0 left 1...8 positions
+-	asl r0
+	rol r0+1
+	dex
+	dex
+	bpl -
+	bmi --
+
+Do_SHFR			; Shifts R0 rights 1...8 positions
+-	lsr r0+1
+	ror r0
+	dex
+	dex
+	bpl -
+	bmi --
+   
+; ------------------------------------
+; destination R0 register instructions
+; ------------------------------------
+
+Do_LDVB
+	jsr SetVRAMAdr
+	lda $2007
+	lda $2007
+	.db $2c			; Skip next 2-byte instruction
+
+; byte (Rx) -> R0
+Do_LDMB
+	lda (r0,X)
+	tay
+	lda #$00
+	beq +
+
+; word (Rx) -> R0
+Do_LDMW
+	lda (r0,X)
+	tay			; Load LSB in Y
+	jsr _incr_rx
+	lda (r0,X)		; Load MSB in A
++	sta r0+1
+	sty r0
+
+; Rx + 1 -> Rx
+Do_INCR
+	jsr _incr_rx		; increment Rx
+	jmp InterpreterLoopNewAdress
+
+; Rx -> R0
+Do_LDR0
+	lda r0,X
+	ldy r0+1,X
+
+; A/Y word -> R0
+W2R0
+	sta r0
+	sty r0+1
+	jmp InterpreterLoop
+
+Do_LAND
+	jmp Do_LAND2
+
+; Rx bitwise inclusive OR R0 -> R0
+Do_LIOR
+.endb	lda r0+1
+	ora r0+1,X
+	tay
+	lda r0
+	ora r0,X
+	jmp W2R0
+
+; Rx bitwise AND R0 -> R0
+
+Do_LAND2
+	lda r0+1
+	and r0+1,X
+	tay
+	lda r0
+	and r0,X
+	jmp W2R0
+
+;Decrement Rx
+_decr_rx
+	lda r0,X
+	bne +
+	dec r0+1,X
++	dec r0,X
+	rts
+
+Reg_Instr_Jmp_Tbl
+	.db <(Do_CLER-1)
+	.db <(Do_LDMW-1)
+	.db <(Do_LDVB-1)
+	.db <(Do_LDMB-1)
+	.db <(Do_STVB-1)
+	.db <(Do_STMW-1)
+	.db <(Do_STMB-1)
+	.db <(Do_LDIB-1)
+	.db <(Do_LDIW-1)
+	.db <(Do_STR0-1)
+	.db <(Do_LDR0-1)
+	.db <(Do_INCR-1)
+	.db <(Do_DECR-1)
+	.db <(Do_SHFL-1)
+	.db <(Do_SHFR-1)
+	.db <(Do_LIOR-1)
+	.db <(Do_LAND-1)
+	.db <(Do_ADDD-1)
+	.db <(Do_SUBI-1)
+	.db <(Do_NEGA-1)
+	.db <(Do_PUSH-1)
+	.db <(Do_PULL-1)
+	.db <(Do_DJNZ-1)
+	.db <(Do_BRNZ-1)
+	.db <(Do_BRZE-1)
+	.db <(Do_BRPL-1)
+	.db <(Do_BRMI-1)
+	.db <(Do_BRNE-1)
+	.db <(Do_BREQ-1)
+
+Non_Reg_Instr_Jmp_Tbl
+	.db <(Do_LDZP-1)
+	.db <(Do_STZP-1)
+	.db <(Do_CALL-1)
+	.db <(Do_CASM-1)
+	.db <(Do_RETN-1)
+	.db <(Do_JUMP-1)
+;	.db $00			; Just a filler
+;	.db $00
+.endb
+.ends
+
+;Bytecode instructions definitions
+
+.macro BYTECODE
+	jsr BytecodeInterpreter
+	.dw (\1) - 1
+.endm
+
+; Non-registers instructions
+.macro LDZP
+	.db $00	; Load byte from zero-page location
+	.db \1
+.endm
+.macro STZP
+	.db $01  ; Store byte to zero page location
+	.db \1
+.endm
+.macro CALL
+	.db $02	; CALL bytecode subroutine
+	.dw (\1) - 1
+.endm
+.macro CASM	; Call ASseMbly subroutine
+	.db $03
+	.dw (\1) - 1
+.endm
+.macro RETN
+	.db $04	; RETURN from subroutine
+.endm
+.macro JUMP
+	.db $05	; JUMP to arbitrary adress
+	.dw (\1) - 1
+.endm
+
+; Register instructions
+.macro CLER
+	.db $08 | \1	; CLearR Register
+.endm
+
+.macro LDMW		; Load R0 from memory word at Rx
+	.db $10 | \1
+.endm
+
+.macro LDVB		; Load R0 from VRAM byte at Rx
+	.db $18 | \1
+.endm
+
+.macro LDMB		; Load R0 from memory byte at Rx
+	.db $20 | \1
+.endm
+
+.macro STVB		; Strore R0L in VRAM at Rx
+	.db $28 | \1
+.endm
+.macro STMW
+	.db $30 | \1	; Store R0 to memory at Rx
+.endm
+.macro STMB		; Store R0L to memory at Rx
+	.db $38 | \1
+.endm
+.macro LDIB
+	.db $40 | \1	; LoaD Immediate Byte
+	.db \2
+.endm
+.macro LDIW
+	.db $48	| \1	; LoaD Immediate Word
+	.dw \2
+.endm
+
+.macro MOVE
+	.if \1 == R0
+		.db $58 | \2	; MOVE R0, Rx (aka LDR0)
+	.else
+		.if \2 == R0
+		.db $50 | \1	; MOVE Rx, R0 (aka STR0)
+		.else
+		.db $a8 | \2	; PUSH Rx
+		.db $b0 | \1	; PULL Ry
+		.endif
+	.endif
+.endm
+
+.macro INCR
+	.db $60 | \1	; INCRement register
+.endm
+.macro DECR
+	.db $68 | \1	; DECRement register
+.endm
+.macro SHFL
+	.if \1 < 8
+		.db $70 | (\1-1)	; SHiFt Left
+	.else
+		.printtt "Error - SHFL range is 1..8"
+	.endif
+.endm
+.macro SHFR
+	.if \1 < 8
+		.db $78 | (\1-1)	; SHiFt right
+	.else
+		.printtt "Error - SHFR range is 1..8"
+	.endif
+.endm
+.macro LIOR
+	.db $80 | \1	; Inclusive OR with Register 0
+.endm
+.macro LAND
+	.db $88 | \1	; AND with register 0
+.endm
+.macro ADDD
+	.db $90 | \1	; Add with register 0
+.endm
+.macro SUBI
+	.if \1 <= $80
+		.db $98 | \1	; Substract immediate
+		.db -\2
+	.else
+		.printtt "Error - SUBI range 0-128"
+		.fail
+	.endif
+.endm
+.macro ADDI
+	.if \1 <$80
+		.db $98 | \1	; Add immediate
+		.db \2
+	.else
+		.printtt "Error - SUBI range 0-127"
+		.fail
+	.endif
+.endm
+.macro NEGA
+	.db $a0 | \1	; Negate register
+.endm
+.macro PUSH
+	.db $a8 | \1	; PUsh register
+.endm
+.macro PULL
+	.db $b0 | \1	; Pull register
+.endm
+.macro DJNZ
+	.db $b8	| \1	; Decrement and Jump if Non Zero
+	.db (\2) - (_f)
+__
+.endm
+.macro BRNZ
+	.db $c0 | \1	; BRanch if Rx Not zero
+	.db (\2) - (_f)
+__
+.endm
+.macro BRZE
+	.db $c8 | \1	; BRanch if Rx is zero
+	.db (\2) - (_f)
+__
+.endm
+.macro BRPL
+	.db $d0 | \1	; BRanch if Rx >= 0
+	.db (\2) - (_f)
+__
+.endm
+.macro BRMI
+	.db $d8	| \1	; BRanch if Rx < 0
+	.db (\2) - (_f)
+__
+.endm
+.macro BRNE
+	.db $e0 | \1	; Branch if R0 != Rx
+	.db (\2) - (_f)
+__
+.endm
+.macro BREQ		; Branch if R0 == Rx
+	.db $e8 | \1
+	.db (\2) - (_f)
+__
+.endm
+; .macro BRGE
+	; .db $f0 | \1	; Branch if R0 >= Rx
+	; .db (\2) - (_f)
+; __
+; .endm
+; .macro BRSM		; Branch if R0 < Rx
+	; .db $f8 | \1
+	; .db (\2) - (_f)
+__
+.endm
+
+.define R0	$00
+.define R1	$01
+.define R2	$02
+.define R3	$03
+.define R4	$04
+.define R5	$05
+.define R6	$06
+.define R7	$07

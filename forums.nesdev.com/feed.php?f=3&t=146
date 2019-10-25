@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=3&amp;t=146" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2005-01-15T14:52:45-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=3&amp;t=146</id>
+<entry>
+<author><name><![CDATA[Disch]]></name></author>
+<updated>2005-01-15T14:52:45-07:00</updated>
+<published>2005-01-15T14:52:45-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=146&amp;p=925#p925</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=146&amp;p=925#p925"/>
+<title type="html"><![CDATA[apu dac conversion]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=146&amp;p=925#p925"><![CDATA[
+Simplest way I can explain:<br /><br />Keep vars for a CPU timestamp and an APU timestamp.  To keep things simple... let's say your CPU timestamp counts in CPU cycles (if the timestamp is 0, after you run LDA #$xx -- a 2 cycle instruction, your timestamp would be 2)<br /><br />On writes to APU registers... Call a 'RunAPU()' function or something of the sort... which catches the APU up to the current CPU timestamp.  Example:  your APU timestamp is 10, your CPU timestamp is 100, and the game just wrote to $4000... so you'd run the APU for 90 cycles.  Once the APU is caught up... apply the changes that the write performed.<br /><br />In RunAPU, you'd emulate all your sound channels and actually produce your sound.  Assuming you're using that simplest, low quality method I described earlier... RunAPU might look something like this:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">void RunAPU&#40;&#41;<br />&#123;<br />  int minticks;<br />  int doticks;<br />  int soundout;<br /><br />  doticks = nCPUTimestamp - nAPUTimestamp;<br />  nAPUTimestamp = nCPUTimestamp;<br /><br />  while&#40;doticks &gt; 0&#41;<br />  &#123;<br />    minticks = ceil&#40; fTicksUntilNextSample &#41;;<br />    if&#40;minticks &gt; doticks&#41;<br />      minticks = doticks;<br /><br />    doticks -= minticks;<br /><br />    ClockSquare1&#40; minticks &#41;;<br /><br />    fTicksUntilNextSample -= minticks;<br />    if&#40; fTicksUntilNextSample &lt;= 0 &#41;<br />    &#123;<br />      fTicksUntilNextSample += fTicksPerSample;<br /><br />      soundout = 0;<br />      soundout += GetSquare1Output&#40;&#41;;<br /><br />      //clip at 8-bits<br />      if&#40;soundout &lt; -128&#41;  soundout = -128;<br />      if&#40;soundout &gt;  127&#41;  soundout =  127;<br /><br />      //convert to 8-bit unsigned &#40;instead of signed&#41;<br />      soundout ^= 0x80;<br /><br />      OutputSample&#40; soundout &#41;;<br />    &#125;<br />  &#125;<br />&#125;<br /></div><br /><br />fTicksPerSample would be that CPU_CLOCK / SAMPLERATE value (~40.58  @ 44100 Hz).  fTicksUntilNextSample is a counter which, as the name implies, tracks how many cycles need to pass before you output another sample.  For this example to work decently these would probably have to be floating point to avoid roundoff (you don't want to round off to 40 or 41... since that might bend the pitch of the sound).  There are ways to do things without using any floating point vars (which would provide a better performance)... but the concept is easiest to show this way.<br /><br />ClockSquare1() would be the function that does your emulation for Square 1.  Like... clocking the Programmable Timer and updating the Duty Cycle and all that jazz.  The actual output of the channel is represented here by GetSquare1Output()... which would return the output.  OutputSample() would be where you'd buffer the generated sample (and send to waveOut or whatever).<br /><br />Note this method isn't really optimized but it should provide you with a concept to help you get things working.  Also note that this example leaves out the APU frame thingamajig (which clocks the Sweep Units, Length Counters, Decay Units, etc)... but I wouldn't worry about that stuff until after you get the main sound working.<br /><br />Also... the ~40.58 cycle thing is only if you're outputting at 44100 Hz.  If you try this and the sound is still way offkey... doublecheck your samplerate and make sure it's 44100 Hz.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=33">Disch</a> — Sat Jan 15, 2005 2:52 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Anes]]></name></author>
+<updated>2005-01-15T13:50:05-07:00</updated>
+<published>2005-01-15T13:50:05-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=146&amp;p=924#p924</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=146&amp;p=924#p924"/>
+<title type="html"><![CDATA[not accurate]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=146&amp;p=924#p924"><![CDATA[
+my apu its still not accurate. maybe i missunderstad what you explain me.<br />I re-writed complety the code to emulate squareone, well its was very simple in the emulation loop i call "CheckAPUReg" to check if there is a write to $4000, then i AND the value with 1111 (bits), i get the evelope, and if its equal to "0" i load a global envelope variable with 080H (middle point of PCM, that means NO sound). If envelope is != 0 i load the enveloope variable with the current envelope value (i know maybe this value is not correct, since the envelope not only depends of $4000).<br /><br />On the same emulate loop func. i call "PlaySquareOneDac", which plays what ever its in the global Envelope variable. So "CheckApuReg" and "PlaySquareOneDac" are continously called.<br /><br />Doing this again i can hear the "rithm" ok, but not the "tones". I have been trying diferent methods, like take care of play every 40 cpu cycles, nearly the value that you calculated, buffering, etc. and still cant hear some nearly accurate sound<br /><br />Well, i want to mean with all this that im complety lost.<br />If you can help me to "order" on how to emulate the APU, althought Square One, it will appreciate it.<br /><br />Thanks in advance<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=72">Anes</a> — Sat Jan 15, 2005 1:50 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Anes]]></name></author>
+<updated>2005-01-14T18:13:22-07:00</updated>
+<published>2005-01-14T18:13:22-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=146&amp;p=920#p920</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=146&amp;p=920#p920"/>
+<title type="html"><![CDATA[apu]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=146&amp;p=920#p920"><![CDATA[
+thanks man, that helped me a lot<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=72">Anes</a> — Fri Jan 14, 2005 6:13 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Disch]]></name></author>
+<updated>2005-01-14T17:50:42-07:00</updated>
+<published>2005-01-14T17:50:42-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=146&amp;p=919#p919</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=146&amp;p=919#p919"/>
+<title type="html"><![CDATA[apu dac conversion]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=146&amp;p=919#p919"><![CDATA[
+waveOut will probably give you a higher latency than you'd like... trying to go low latency will result in crackling and pops.  Higher latency will sound like the sound is delayed -- like for example, when mario jumps, you wouldn't hear the sound effect until some time later.  But for testing purposes I suppose it's good (it's certainly easier to work with than DirectSound)<br /><br />Anyway... are you downsampling properly?  The NES outputs ~1789772 samples a second... whereas PCs typically only do 44100 (assuming 44KHz output).  You essentially have to combine the output for several cycles into one sample.<br /><br />The simplest way to do this (but very very low quality way) is to only take the output every X cycles:<br /><br />X = CPU_CLOCK / SAMPLERATE<br /><br />On NTSC, the CPU_CLOCK is 1789772.7272<br />If you're doing 44100 samples per second... SAMPLERATE is 44100<br />So in this situation... you'd only take output once every ~40.58 CPU (or pAPU) cycles.<br /><br />A higher quality way is to combine all the output for ~40.58 cycles and output the average (aka linear interpolation).  This is also easy to do and makes a much higher quality sound.<br /><br />Even better sounds can come from other methods... like applying a FIR filter, or using the Band-limited synth techniques blargg covers on his page (  <!-- m --><a class="postlink" href="http://www.slack.net/~ant/bl-synth/">http://www.slack.net/~ant/bl-synth/</a><!-- m -->  )<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=33">Disch</a> — Fri Jan 14, 2005 5:50 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Anes]]></name></author>
+<updated>2005-01-14T14:21:09-07:00</updated>
+<published>2005-01-14T14:21:09-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=146&amp;p=918#p918</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=146&amp;p=918#p918"/>
+<title type="html"><![CDATA[dac]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=146&amp;p=918#p918"><![CDATA[
+im still confused, maybe it could be that the code of my apu is not right. Im using the api "waveOutWrite" 8 bit mono and the value that send it to play is the actual value "recived" in NES dac. I run smario and it seem the music "rithm" is ok, but the tones aren't.<br /><br />What could it be? <img src="http://forums.nesdev.com/images/smilies/icon_confused.gif" alt=":?" title="Confused" /><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=72">Anes</a> — Fri Jan 14, 2005 2:21 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Disch]]></name></author>
+<updated>2005-01-14T11:19:57-07:00</updated>
+<published>2005-01-14T11:19:57-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=146&amp;p=917#p917</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=146&amp;p=917#p917"/>
+<title type="html"><![CDATA[apu dac conversion]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=146&amp;p=917#p917"><![CDATA[
+To my knowledge the DAC is what converts the digital data to an actual analog sound wave.  PCs themselves have DACs that do the same thing... so you don't have to worry about this conversion.<br /><br />In short... whatever gets passed to the DAC... that's what you output when outputting wavs in Windows.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=33">Disch</a> — Fri Jan 14, 2005 11:19 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Anes]]></name></author>
+<updated>2005-01-14T10:23:29-07:00</updated>
+<published>2005-01-14T10:23:29-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=146&amp;p=916#p916</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=146&amp;p=916#p916"/>
+<title type="html"><![CDATA[apu dac conversion]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=146&amp;p=916#p916"><![CDATA[
+im trying to emulate the apu, well only square 1 by now. And i have a few questions. i dont know how exactly works a 4 bit DAC, and i dont know how to convert 4 bit dac input to windows PCM.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=72">Anes</a> — Fri Jan 14, 2005 10:23 am</p><hr />
+]]></content>
+</entry>
+</feed>

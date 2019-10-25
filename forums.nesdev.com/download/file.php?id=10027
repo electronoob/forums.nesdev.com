@@ -1,0 +1,267 @@
+#include	"..\DLL\d_iNES.h"
+
+#define IRQ_CYCLES 341
+
+namespace
+{
+uint8 IRQenabled, IRQcounter;
+uint8_n IRQlatch;
+int16 IRQcycles;
+uint8 PRGswap;
+uint8 PRG[2];
+uint16 CHR[8];
+uint8 Mirror;
+uint8 Latch;
+FCPURead _Read6;
+
+struct VRCInfo {
+	TCHAR *name; uint8 bit[4]; uint8 CHRshift; uint8 VRC4;
+};
+
+static struct VRCInfo *vrc;
+
+static struct VRCInfo VRC2b = {L"Submapper: VRC2b"         , 0, 1,99,99, 0, 0}; // Mapper 23 submapper 3
+static struct VRCInfo VRC4f = {L"Submapper: VRC4f"         , 0, 1,99,99, 0, 1}; // Mapper 23 Submapper 1
+
+static struct VRCInfo VRC2c = {L"Submapper: VRC2c"         , 1, 0,99,99, 0, 0}; // Mapper 25 submapper 3
+static struct VRCInfo VRC4b = {L"Submapper: VRC4b"         , 1, 0,99,99, 0, 1}; // Mapper 25 submapper 1
+
+static struct VRCInfo VRC2a = {L"VRC2a"                    , 1, 0,99,99, 1, 0}; // Mapper 22 submapper 0
+
+static struct VRCInfo VRC4a = {L"Submapper: VRC4a"         , 1, 2,99,99, 0, 1}; // Mapper 21 submapper 1
+static struct VRCInfo VRC4c = {L"Submapper: VRC4c"         , 6, 7,99,99, 0, 1}; // Mapper 21 submapper 2
+static struct VRCInfo VRC4d = {L"Submapper: VRC4d"         , 3, 2,99,99, 0, 1}; // Mapper 25 submapper 2
+static struct VRCInfo VRC4e = {L"Submapper: VRC4e"         , 2, 3,99,99, 0, 1}; // Mapper 23 Submapper 2
+
+static struct VRCInfo Map21 = {L"No submapper: VRC4a/4c"   , 1, 2, 6, 7, 0, 1}; // Mapper 21 submapper 0
+static struct VRCInfo Map23 = {L"No submapper: VRC2b/4e/4f", 0, 1, 2, 3, 0, 1}; // Mapper 23 submapper 0
+static struct VRCInfo Map25 = {L"No submapper: VRC2c/4b/4d", 1, 0, 3, 2, 0, 1}; // Mapper 25 submapper 0
+
+void	Sync (void) {
+	if (ROM->INES_Version <2 || ROM->INES2_PRGRAM >0) EMU->SetPRG_RAM8(0x6, 0);
+	EMU->SetPRG_ROM8(0x8, PRGswap ? 0x1E : PRG[0]);
+	EMU->SetPRG_ROM8(0xA, PRG[1]);
+	EMU->SetPRG_ROM8(0xC, PRGswap ? PRG[0] : 0x1E);
+	EMU->SetPRG_ROM8(0xE, 0x1F);
+	for (int i = 0; i < 8; i++)
+		EMU->SetCHR_ROM1(i, CHR[i] >> vrc->CHRshift);
+	switch (Mirror & 3)
+	{
+	case 0:	EMU->Mirror_V();	break;
+	case 1:	EMU->Mirror_H();	break;
+	case 2:	EMU->Mirror_S0();	break;
+	case 3:	EMU->Mirror_S1();	break;
+	}
+}
+
+int	MAPINT	SaveLoad (STATE_TYPE mode, int offset, unsigned char *data)
+{
+	SAVELOAD_BYTE(mode, offset, data, IRQenabled);
+	SAVELOAD_BYTE(mode, offset, data, IRQcounter);
+	SAVELOAD_BYTE(mode, offset, data, IRQlatch.b0);
+	SAVELOAD_WORD(mode, offset, data, IRQcycles);
+	SAVELOAD_BYTE(mode, offset, data, PRGswap);
+	for (int i = 0; i < 2; i++)
+		SAVELOAD_BYTE(mode, offset, data, PRG[i]);
+	for (int i = 0; i < 8; i++)
+		SAVELOAD_WORD(mode, offset, data, CHR[i]);
+	SAVELOAD_BYTE(mode, offset, data, Mirror);
+	if (mode == STATE_LOAD)
+		Sync();
+	return offset;
+}
+
+void	MAPINT	CPUCycle (void)
+{
+	if ((IRQenabled & 2) && ((IRQenabled & 4) || ((IRQcycles -= 3) <= 0)))
+	{
+		if (!(IRQenabled & 4))
+			IRQcycles += IRQ_CYCLES;
+		if (IRQcounter == 0xFF)
+		{
+			IRQcounter = IRQlatch.b0;
+			EMU->SetIRQ(0);
+		}
+		else	IRQcounter++;
+	}
+}
+
+int	GetAddr(int Addr) {
+	int result =0;
+	for (int i=0; i<4; i++) if (vrc->bit[i] !=99) result |= ((Addr >>vrc->bit[i]) &1) << (i&1);
+	return result;
+}
+
+int	MAPINT	Read6(int Bank, int Addr)
+{
+	return (_Read6(Bank, Addr) &0xFE) | Latch;
+}
+void	MAPINT	Write6 (int Bank, int Addr, int Val)
+{
+	Latch = Val & 1;
+}
+void	MAPINT	Write8 (int Bank, int Addr, int Val)
+{
+	Addr = GetAddr(Addr);
+	PRG[0] = Val & 0x1F;
+	Sync();
+}
+void	MAPINT	Write9 (int Bank, int Addr, int Val)
+{
+	Addr = GetAddr(Addr);
+	if (Addr & 0x2 && vrc->VRC4)
+		PRGswap = Val & 0x2;
+	else {
+		if (ROM->INES2_SubMapper ==0 && Val ==0xFF) return; // Prevent single-screen mirroring on Wai Wai World 1 without submapper specification
+		Mirror = vrc->VRC4? Val &0x3: Val &0x1;
+	}
+	Sync();
+}
+void	MAPINT	WriteA (int Bank, int Addr, int Val)
+{
+	Addr = GetAddr(Addr);
+	PRG[1] = Val & 0x1F;
+	Sync();
+}
+
+void	MAPINT  WriteCHR (int Bank, int Addr, int Val) {
+	Addr = GetAddr(Addr);
+	int Reg = (Bank -0xB)<<1;
+	if (Addr &2) Reg++;
+	if (Addr &1)
+		CHR[Reg] = (CHR[Reg] & 0x00F) | (Val <<4);
+	else
+		CHR[Reg] = (CHR[Reg] & 0xFF0) | (Val &0xF);
+	Sync();	
+}
+void	MAPINT	WriteIRQ (int Bank, int Addr, int Val)
+{
+	Addr = GetAddr(Addr);
+	switch (Addr & 0x3)
+	{
+	case 0:	IRQlatch.n0 = Val & 0xF;	break;
+	case 1:	IRQlatch.n1 = Val & 0xF;	break;
+	case 2:	IRQenabled = Val & 0x7;
+		if (IRQenabled & 0x2)
+		{
+			IRQcounter = IRQlatch.b0;
+			IRQcycles = IRQ_CYCLES;
+		}
+		EMU->SetIRQ(1);			break;
+	case 3:	if (IRQenabled & 0x1)
+			IRQenabled |= 0x2;
+		else	IRQenabled &= ~0x2;
+		EMU->SetIRQ(1);			break;
+	}
+}
+
+BOOL	MAPINT	Load (void)
+{
+	iNES_SetSRAM();
+	if (ROM->INES_MapperNum ==21 && ROM->INES2_SubMapper ==1) vrc = &VRC4a; else
+	if (ROM->INES_MapperNum ==21 && ROM->INES2_SubMapper ==2) vrc = &VRC4c; else
+	if (ROM->INES_MapperNum ==23 && ROM->INES2_SubMapper ==1) vrc = &VRC4f; else
+	if (ROM->INES_MapperNum ==23 && ROM->INES2_SubMapper ==2) vrc = &VRC4e; else
+	if (ROM->INES_MapperNum ==23 && ROM->INES2_SubMapper ==3) vrc = &VRC2b; else
+	if (ROM->INES_MapperNum ==25 && ROM->INES2_SubMapper ==1) vrc = &VRC4b; else
+	if (ROM->INES_MapperNum ==25 && ROM->INES2_SubMapper ==2) vrc = &VRC4d; else
+	if (ROM->INES_MapperNum ==25 && ROM->INES2_SubMapper ==3) vrc = &VRC2c; else
+	if (ROM->INES_MapperNum ==21                            ) vrc = &Map21; else
+	if (ROM->INES_MapperNum ==22                            ) vrc = &VRC2a; else
+	if (ROM->INES_MapperNum ==23                            ) vrc = &Map23; else
+	if (ROM->INES_MapperNum ==25                            ) vrc = &Map25;
+	EMU->DbgOut(vrc->name);
+	return TRUE;
+}
+void	MAPINT	Reset (RESET_TYPE ResetType)
+{
+	if (ROM->INES_Version == 2) if (ROM->INES2_PRGRAM == 0) { 
+		/* Unused EEPROM interface, used as a simple latch */
+		_Read6 = EMU->GetCPUReadHandler(0x6);
+		EMU->SetCPUReadHandler(0x6, Read6);
+		EMU->SetCPUWriteHandler(0x6, Write6);
+	}
+	EMU->SetCPUWriteHandler(0x8, Write8);
+	EMU->SetCPUWriteHandler(0x9, Write9);
+	EMU->SetCPUWriteHandler(0xA, WriteA);
+	EMU->SetCPUWriteHandler(0xB, WriteCHR);
+	EMU->SetCPUWriteHandler(0xC, WriteCHR);
+	EMU->SetCPUWriteHandler(0xD, WriteCHR);
+	EMU->SetCPUWriteHandler(0xE, WriteCHR);
+	if (vrc->VRC4) EMU->SetCPUWriteHandler(0xF, WriteIRQ);
+
+	if (ResetType == RESET_HARD)
+	{
+		IRQenabled = IRQcounter = IRQlatch.b0 = 0;
+		IRQcycles = 0;
+		PRGswap = 0;
+		PRG[0] = 0;
+		PRG[1] = 1;
+		for (int i = 0; i < 8; i++)
+			CHR[i] = i;
+	}
+
+	Sync();
+}
+
+uint16 MapperNum21 = 21;
+uint16 MapperNum22 = 22;
+uint16 MapperNum23 = 23;
+uint16 MapperNum25 = 25;
+} // namespace
+
+const MapperInfo MapperInfo_021 = {
+	&MapperNum21,
+	_T("Konami VRC4a/VRC4c"),
+	COMPAT_FULL,
+	Load,
+	Reset,
+	NULL,
+	CPUCycle,
+	NULL,
+	SaveLoad,
+	NULL,
+	NULL
+};
+
+const MapperInfo MapperInfo_022 = {
+	&MapperNum22,
+	_T("Konami VRC2a"),
+	COMPAT_FULL,
+	Load,
+	Reset,
+	NULL,
+	CPUCycle,
+	NULL,
+	SaveLoad,
+	NULL,
+	NULL
+};
+
+const MapperInfo MapperInfo_023 = {
+	&MapperNum23,
+	_T("Konami VRC2b/VRC4e/VRC4f"),
+	COMPAT_FULL,
+	Load,
+	Reset,
+	NULL,
+	CPUCycle,
+	NULL,
+	SaveLoad,
+	NULL,
+	NULL
+};
+
+const MapperInfo MapperInfo_025 = {
+	&MapperNum25,
+	_T("Konami VRC2c/VRC4b/VRC4d"),
+	COMPAT_FULL,
+	Load,
+	Reset,
+	NULL,
+	CPUCycle,
+	NULL,
+	SaveLoad,
+	NULL,
+	NULL
+};

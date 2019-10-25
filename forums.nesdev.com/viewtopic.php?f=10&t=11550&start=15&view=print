@@ -1,0 +1,417 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Questions about implementing samples into DPCM</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Questions about implementing samples into DPCM</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=10&amp;t=11550">http://forums.nesdev.com/viewtopic.php?f=10&amp;t=11550</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>2</strong> of <strong>3</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Thu Sep 04, 2014 4:51 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Questions about implementing samples into DPCM</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />.org behaves differently depending on the assembler, and .bank is very specific to NESASM.<br /><br />You can read this in usage.txt that comes with NESASM:<br /><div class="quotetitle">usage.txt wrote:</div><div class="quotecontent">        BANK    - Select a 8KB ROM bank (0-127) and reset the location<br />                  counter to the latest known position in this bank.<br /><br />        ORG     - Set the location of the program counter. The thirteen<br />                  lower bits of the address inform the assembler about<br />                  the offset in the ROM bank and the third upper bits<br />                  represent the page index.<br /></div><br /><br />NESASM divides code into 8k banks. This isn't really a natural requirement of the NES, but it is how NESASM organizes the data it is going to output in the .NES file. From the iNES header settings, if you have <em>N</em> banks of CHR, the last <em>N</em> banks in your NESASM assembly file will go to the PPU. For the mapper you are using (mapper 0, NROM) there is only one 8k CHR page, so it is always just the last .bank.<br /><br />When you write .org in NESASM it means that it will pad the bank with blank data up to that position, and then what follows will begin at the .org position. It does not have to be a multiple of $1000, it will just add 0s to get up to the location specified. The padding is about its position within the bank, so imagine the position in the bank for .org $XXXX is $XXXX &amp; $1FFF. The higher bits matter to the NES CPU, this is where the bank is expected to end up mapped in the NES' memory, which is different than where they end up in the file (and depends on which mapper you are using).<br /><br />For iNES mapper 0 (NROM), you will either need 2 8k .banks (mapped at $C000 and $E000) or 4 8k .banks (mapped at $8000, $A000, $C000, $E000), depending on whether you have 1 or 2 16k PRG pages. Any .org directive used within one of these .banks should be within its intended range. In your case, an .org in .bank 0 should be in the range of $C000 to $DFFF.<br /><br /><br />There are other assemblers that can have a customized banking scheme that is matched to the mapper/NES more naturally than NESASM. I don't know if you'd want to consider using something else for this project, but there are other options, if you're curious.<br /><br />My advice would be to get a very minimal thing working first, like even just turning the screen a solid colour or something, then add to this in small increments. It's easier to figure out what isn't working when you do it one tiny piece at a time and test it, than if you try to build a whole program at once and then not know which of a thousand parts is broken.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>raydempsey</b> [ Sat Sep 06, 2014 10:42 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Questions about implementing samples into DPCM</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />My game is only missing the music from the DPCM channel and a simple save feature so it is almost done. Here's what confuses me now:<br /><br />My program is set up like this:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">.inesprg 1&nbsp; &nbsp;; 1x 16KB PRG code<br />.ineschr 1&nbsp; &nbsp;; 1x&nbsp; 8KB CHR data<br />.inesmap 0&nbsp; &nbsp;; mapper 0 = NROM, no bank swapping<br />.inesmir 3&nbsp; &nbsp;; background mirroring<br /><br />.bank 0<br />.org $C000</div><br />*Part where the main program lies*<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">.bank 1<br />.org $E000</div><br />*Part where the .db info lies*<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">.bank 0<br />.org $D000<br />.incbin &quot;soundsample.dmc&quot;<br />.bank 2<br />.org $0000<br />.incbin &quot;tiles.chr&quot;</div><br />*end*<br /><br />This seems to work fine with the order of the banks in the program being 0, 1, 0, 2 as seen above. But when I put the bank numbers as 0, 1, 2, 3 in that order like above, the PPU has some weird crap in it and $D000 doesn't have the soundsample information. If I set .ineschr to 1, then doesn't that mean that the last .bank (bank 3) would be the only one written to the PPU? There must be something very basic about banks that I'm misunderstanding.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Sat Sep 06, 2014 11:09 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Questions about implementing samples into DPCM</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />NROM-128 with CHR ROM doesn't have a bank 3. It uses banks 0 and 1 for PRG and bank 2 for CHR.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Sat Sep 06, 2014 11:19 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Questions about implementing samples into DPCM</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="codetitle"><b>Code:</b></div><div class="codecontent">.inesprg 1<br />.inesmap 0</div><br />In this case there are 3 banks. The only valid value for .ineschr is 1, banks 0/1 go at $C000/$E000, and bank 2 is CHR.<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">.inesprg 2<br />.inesmap 0</div><br />In this case there are 5 banks. Again, the only valid value for .ineschr is 1, banks 0/1/2/3 go at $8000/$A000/$C000/$E000, and bank 4 is CHR.<br /><br />Understanding banking and mappers on the NES is confusing, because every mapper does it differently. NESASM has the additional problem that it internally uses 8k banks, which adds another layer of confusion.<br /><br />The number in .inesprg determines the size of PRG. There are 2x as many PRG banks as the number in the .inesprg directive.<br />The number in .ineschr determines the size of CHR. There are 1x as many CHR banks as the number in the .ineschr directive.<br />The PRG banks have the lowest numbers, the CHR banks are numbered starting directly after the last PRG bank.<br /><br />e.g. if .inesprg is 4, banks 0-7 are PRG, banks 8+ are CHR.<br /><br />There are also restrictions based on the mapper (.inesmap) used. I've told you two valid configurations for mapper 0 above, but it's different for each mapper. It's straightforward if you're already well versed in it all, but unfortunately I don't think there's a comprehensive guide on how mappers and banks work with NESASM.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Sat Sep 06, 2014 11:31 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Questions about implementing samples into DPCM</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />NROM-128, CHR RAM:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">.inesmap 0<br />.inesprg 1<br />.ineschr 0</div><br />Banks 0-1 are PRG ROM at $C000 and $E000.<br /><br />NROM-256, CHR RAM:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">.inesmap 0<br />.inesprg 2<br />.ineschr 0</div><br />Banks 0-3 are PRG ROM at $8000, $A000, $C000, and $E000.<br /><br />NROM-128, CHR ROM:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">.inesmap 0<br />.inesprg 1<br />.ineschr 1</div><br />Banks 0-1 are PRG ROM at $C000 and $E000. Bank 2 is CHR ROM.<br /><br />NROM-256, CHR ROM:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">.inesmap 0<br />.inesprg 2<br />.ineschr 1</div><br />Banks 0-3 are PRG ROM at $8000, $A000, $C000, and $E000. Bank 4 is CHR ROM.<br /><br />CNROM: 8 KiB CHR banks<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">.inesmap 3<br />.inesprg 2<br />.ineschr 4</div><br />Banks 0-3 are PRG ROM, as with NROM-256. Banks 4-7 are CHR ROM. Writing a number <em>n</em> over a matching number in PRG ROM swaps bank <em>n</em> + 4 into CHR space (PPU $0000-$1FFF).<br /><br />UNROM: 16 KiB PRG banks<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">.inesmap 2<br />.inesprg 8<br />.ineschr 0</div><br />Banks 14 and 15 are always available at $C000 and $E000. Banks 0-13 are PRG ROM, even banks mapped at $8000, odd banks mapped at $A000. Writing a number <em>n</em> over a matching number in PRG ROM $C000-$FFFF swaps a pair of banks into $8000-$BFFF: bank 2 * <em>n</em> into $8000 and the following bank into $A000. So writing 5 will put bank 10 in $8000 and bank 11 in $A000.<br /><br />MMC1, SGROM/SNROM: 16 KiB PRG banks<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">.inesmap 1<br />.inesprg 8<br />.ineschr 0</div><br />Similar to UNROM, except bank numbers are written serially to $E000, one bit at a time LSB first for 5 bits, instead of in parallel to a matching ROM value as with UNROM. Serial registers at $8000 and $A000 also need to be initialized when the program starts.<br /><br />NESASM's bank numbering is really geared more toward the MMC3 and FME-7 with their 8 KiB windows, or toward the TurboGrafx-16 whose CPU has a built-in mapper with 8 KiB windows.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>raydempsey</b> [ Sat Sep 06, 2014 8:11 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Questions about implementing samples into DPCM</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I'm looking for the best mapper for my following needs:<br />The code part of the program requires less than 4K<br />The .db part of the program requires less than 4K<br />As for CHR ROM, I would like to swap out 2K pieces so (128 sprite tiles) at a time. I would like to have at least 6 of these 2K pieces ready to swap out. So, the original 8K of CHR data, and 6 of the 2K pieces ready to bank switch so at least 20K for CHR ROM. I can also swap out the full 8K pieces at a time and have a few of those if needed.<br />Also, I would like to have as many 4K banks as possible so I can include as many 4K DPCM samples as possible. (hopefully at least 8 but as many as possible would be great)<br /><br />Any suggestions? Thanks everybody.<br /><br />Also, I have successfully got a test program to play a sample I imported. It was saved as sample.dmc and I used a .incbin &quot;sample.dmc&quot; statement. After importing it, I notice that I would like to trim the beginning and end of the sample to get rid of silence. I know that the silence is there because I looked at the hex values where I imported it and noticed the empty space. How can I trim the .dmc file? Is there a way I can look at it as a series of hex values like the hex editor in FCEUX and be able to edit it?<br /><br />What 4K address range do you typically reserve for your current DPCM sample? Do you bank switch it out every time you need a new one?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Sat Sep 06, 2014 9:10 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Questions about implementing samples into DPCM</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">raydempsey wrote:</div><div class="quotecontent">I'm looking for the best mapper for my following needs:<br />The code part of the program requires less than 4K<br />The .db part of the program requires less than 4K<br />As for CHR ROM, I would like to swap out 2K pieces so (128 sprite tiles) at a time. I would like to have at least 6 of these 2K pieces ready to swap out. So, the original 8K of CHR data, and 6 of the 2K pieces ready to bank switch so at least 20K for CHR ROM. I can also swap out the full 8K pieces at a time and have a few of those if needed.<br />Also, I would like to have as many 4K banks as possible so I can include as many 4K DPCM samples as possible. (hopefully at least 8 but as many as possible would be great)</div><br />MMC3 would probably be your best bet. It fixes $8000-$9FFF and $E000-$FFFF to the last two 8K banks in the PRG ROM, leaving two switchable windows: $C000-$DFFF (current 8K sample) and $A000-$BFFF (other data). There are six CHR ROM windows: $0000-$07FF (2K), $0800-$0FFF (2K), $1000-$13FF (1K), $1400-$17FF (1K), $1800-$1BFF (1K), and $1C00-$1FFF (1K).<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">I know that the silence is there because I looked at the hex values where I imported it and noticed the empty space.</div><br />Silence should look like repeating 55 or AA bytes.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">How can I trim the .dmc file? Is there a way I can look at it as a series of hex values like the hex editor in FCEUX and be able to edit it?</div><br />You can use an ordinary &quot;hex editor&quot; application. Or you can trim off the silence in Audacity and convert it again.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">What 4K address range do you typically reserve for your current DPCM sample? Do you bank switch it out every time you need a new one?</div><br />$C000-$DFFF is commonly used with MMC3 and FME-7.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Sun Sep 07, 2014 7:18 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Questions about implementing samples into DPCM</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">raydempsey wrote:</div><div class="quotecontent">I'm looking for the best mapper for my following needs:<br />The code part of the program requires less than 4K<br />The .db part of the program requires less than 4K<br />As for CHR ROM, I would like to swap out 2K pieces so (128 sprite tiles) at a time. I would like to have at least 6 of these 2K pieces ready to swap out. So, the original 8K of CHR data, and 6 of the 2K pieces ready to bank switch so at least 20K for CHR ROM. I can also swap out the full 8K pieces at a time and have a few of those if needed.<br />Also, I would like to have as many 4K banks as possible so I can include as many 4K DPCM samples as possible. (hopefully at least 8 but as many as possible would be great)</div><br />Tepples' suggestion of MMC3 is probably the best one to fit all your requests.<br /><br />If you can relax your requirements a little, there are some simpler options, if you care about keeping the mapper hardware simple.<br /><br />If your CHR needs to switch immediately (i.e. mid-screen) you will need bankable ROM, but if you can pause gameplay for 1 or 2 frames to do the switch, CHR-RAM can be just as good. You can fill blocks of CHR-RAM at any granularity you like, and even put compression on the tile data. Of course, the tile data needs to be stored in PRG-ROM for this.<br /><br />Since it does look like you have significant PRG space free, if you can fit all your DPCM into the $C000-FFFF range (equivalent to 4 x 4k banks), consider that NROM-256 or the recent variant <a href="http://wiki.nesdev.com/w/index.php/NROM-368" class="postlink">NROM-368</a> with CHR-RAM might fit all your needs with a rather simple mapper, instead of the heavyweight MMC3.<br /><br /><div class="quotetitle">raydempsey wrote:</div><div class="quotecontent">Also, I have successfully got a test program to play a sample I imported. It was saved as sample.dmc and I used a .incbin &quot;sample.dmc&quot; statement. After importing it, I notice that I would like to trim the beginning and end of the sample to get rid of silence. I know that the silence is there because I looked at the hex values where I imported it and noticed the empty space. How can I trim the .dmc file? Is there a way I can look at it as a series of hex values like the hex editor in FCEUX and be able to edit it?</div><br />Silence at the beginning you should ideally trim from your WAV before importing. You can just delete bytes with a hex editor very easily, but remember that DPCM samples need to be padded out at the end to make a length that fits the N*16+1 size used.<br /><br /><div class="quotetitle">raydempsey wrote:</div><div class="quotecontent">What 4K address range do you typically reserve for your current DPCM sample? Do you bank switch it out every time you need a new one?</div><br />The 8k block at $C000-DFFF is usually preferred because the vector table at the end of $E000-FFFF tends to make it appropriate to store code there. The majority of DPCM using games keep all their DPCM samples resident at once and do not bankswitch them. The few that do usually use an FME-7 or MMC3 mapper, like Gimmick, which has two 8k banks of samples mapped to $C000-DFFF. There aren't really any NES mappers that bank 4k, the usual smallest granularity is 8k. The NSF music specification, however, does 4k banks, and there is a recently constructed mapper by myself and infiniteneslives based on NSF, geared toward music cartridges, which also does 4k banks.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>raydempsey</b> [ Sun Sep 07, 2014 2:06 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Questions about implementing samples into DPCM</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Since your suggestions, I've been looking at the following page that describes things about MMC3 (iNES mapper 004):<br /><a href="http://wiki.nesdev.com/w/index.php/MMC3" class="postlink">http://wiki.nesdev.com/w/index.php/MMC3</a><br /><br />256 KB of PRG ROM with the ability to bank switch 8K pieces seems plenty.<br />  ...does this mean that there will be 32K of PRG ROM ($8000-$FFFF) plus 28 different 8K bankable pieces waiting in the wings? I only need 8 different 8K pieces to bank switch so I can include my DPCM samples only when I need them.<br /><br />256 KB of CHR ROM is more than enough with the ability to bank switch 2K pieces. (I only need to bank switch 4 different 2K pieces into PPU $0800-$0FFF)<br /><br />Does MMC3 have the ability to enable battery-backed saving? I will need that.<br /><br />I'm hoping to accomplish this (or something similar):<br />$8000-$9999 be where the main program is stored and read from the start.<br />$C000-$DFFF be where I bank switch DPCM samples<br /><br />...so what should my iNES header be?<br /><br />  .inesmap 4   ; mapper 4 = MMC3<br />  .inesprg ?<br />  .ineschr ?<br />  .inesmir 3   ; background mirroring<br /><br />Also, if my iNES header settings were:<br />  .inesmap 0   ; mapper 0 = NROM, no bank swapping<br />  .inesprg 2   ; 1x 16KB PRG code<br />  .ineschr 1   ; 1x  8KB CHR data<br />  .inesmir 3   ; background mirroring<br /><br />then I was expecting banks 0-3 to be $8000, $A000, $C000, $E000 and bank 4 to be CHR ROM at PPU $0000<br />When I tested my program out with these settings, after the header I set it up as follows:<br />  .bank 0<br />  .org $8000<br /><br />  (main program)<br /><br />  .bank 1<br />  .org $A000<br /><br />  (.db info)<br /><br />  .bank 4<br />  .org $0000<br />  .incbin &quot;tiles.chr&quot;<br /><br />But when I use these settings, the screen is grey and does nothing. The only thing different from my usual settings is that I increased the .inesprg from 1 to 2. How come it didn't work? Is the emulator not starting to read the program from $8000 like I instructed it instead of starting from $C000?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Sun Sep 07, 2014 4:07 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Questions about implementing samples into DPCM</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">raydempsey wrote:</div><div class="quotecontent">does this mean that there will be 32K of PRG ROM ($8000-$FFFF) plus 28 different 8K bankable pieces waiting in the wings?</div><br />Pretty much. The bank at $A000 can be changed, and the bank at $C000 can be changed. But bank bank 30 is at $8000-$9FFF and bank 31 at $E000-$FFFF.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Does MMC3 have the ability to enable battery-backed saving?</div><br />Yes, as seen in <em>Kirby's Adventure</em>.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">I'm hoping to accomplish this (or something similar):<br />$8000-$9999 be where the main program is stored and read from the start.<br />$C000-$DFFF be where I bank switch DPCM samples</div><br />Pretty much. But with MMC3, the code that initializes the mapper must be placed in $E000-$FFFF.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">...so what should my iNES header be?<br /><br />  .inesmap 4   ; mapper 4 = MMC3<br />  .inesprg ?<br />  .ineschr ?<br />  .inesmir 3   ; background mirroring</div><br />For PRG, if you need one fixed bank and 8 variable banks, you need <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">.inesprg 8</tt>. Your fixed bank at $8000 will be bank 14, and your fixed bank at $E000 will be bank 15.<br /><br />For CHR, if you need one fixed 2K bank at $0000 and one switchable window at $0800, <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">.ineschr 2</tt> should be fine.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent"><br />Also, if my iNES header settings were:<br />  .inesmap 0   ; mapper 0 = NROM, no bank swapping<br />  .inesprg 2   ; 1x 16KB PRG code<br />  .ineschr 1   ; 1x  8KB CHR data<br />  .inesmir 3   ; background mirroring<br /><br />then I was expecting banks 0-3 to be $8000, $A000, $C000, $E000 and bank 4 to be CHR ROM at PPU $0000<br />When I tested my program out with these settings, after the header I set it up as follows:<br />  .bank 0<br />  .org $8000<br /><br />  (main program)<br /><br />  .bank 1<br />  .org $A000<br /><br />  (.db info)<br /><br />  .bank 4<br />  .org $0000<br />  .incbin &quot;tiles.chr&quot;<br /><br />But when I use these settings, the screen is grey and does nothing. The only thing different from my usual settings is that I increased the .inesprg from 1 to 2. How come it didn't work? Is the emulator not starting to read the program from $8000 like I instructed it</div><br />The emulator starts to read the program from whatever address is in $FFFC. It starts from $8000 only if the bytes at $FFFC are 00 80. So you will need at least the vectors in bank 3.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>raydempsey</b> [ Sun Sep 07, 2014 6:58 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Questions about implementing samples into DPCM</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />According to what everyone is saying, it sounds like my iNES header should be:<br /><br />  .inesmap 4   ; mapper 4 = MMC3<br />  .inesprg 8<br />  .ineschr 4<br />  .inesmir 3<br /><br />But the only way I can get my code to run with mapper 004 is under these settings:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; .inesmap 4&nbsp; &nbsp;; mapper 4 = MMC3<br />&nbsp; .inesprg 1&nbsp; &nbsp;; 1x 16KB PRG code<br />&nbsp; .ineschr 1&nbsp; &nbsp;; 1x&nbsp; 8KB CHR data<br />&nbsp; .inesmir 3&nbsp; &nbsp;; background mirroring</div><br />my code is then:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; .bank 0<br />&nbsp; .org $C000</div><br />(main program)<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; .bank 1<br />&nbsp; .org $E000</div><br />(.db info)<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; .org $FFFA&nbsp; &nbsp; &nbsp;;first of the three vectors starts here<br />&nbsp; .dw NMI&nbsp; &nbsp; &nbsp; &nbsp; ;when an NMI happens (once per frame if enabled) the processor will jump to the label NMI<br />&nbsp; .dw RESET&nbsp; &nbsp; &nbsp; ;when the processor first turns on or is reset, it will jump to the label RESET<br />&nbsp; .dw 0&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ;external interrupt IRQ is not used in this tutorial<br /><br />&nbsp; .bank 0<br />&nbsp; .org $D000<br />&nbsp; .incbin &quot;sample.dmc&quot;<br /><br />&nbsp; .bank 2<br />&nbsp; .org $0000<br />&nbsp; .incbin &quot;tiles.chr&quot; </div><br /><br />Under these settings, the game is running but these are not the settings I want to use. I want to use the iNES header as seen at the top of this post with .inesprg 8 etc. Currently, my main program is in $C000 but I want it in $8000 and the game to run from $8000 from the start. I want my .db info at $9000 instead of $E000, and i want my samples in $C000-DFFF. I do not know what I need to change or what write I need to perform to get the game to start running from address $8000.<br /><br />What changes do I need to make to achieve my goal? I have a feeling that I'm really close. I need to accomplish this so I can set up a system where I bank switch $C000-DFFF a bunch for my DPCM channel samples.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Sun Sep 07, 2014 7:33 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Questions about implementing samples into DPCM</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />The MMC3, similar to almost all other mappers, only guarantees one thing:<br />The last NESASM bank of the PRG (in your case, 7) will be mapped from $E000-$FFFF.<br />Nothing else is guaranteed; you'll have to initialize the MMC3 first by writing to $8000 and $8001.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>raydempsey</b> [ Sun Sep 07, 2014 8:03 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Questions about implementing samples into DPCM</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">lidnariq wrote:</div><div class="quotecontent">you'll have to initialize the MMC3 first by writing to $8000 and $8001.</div><br />What am I writing to these addresses? I can see that the following link has info related to what you're talking about MMC3:<br /><a href="http://wiki.nesdev.com/w/index.php/INES_Mapper_004" class="postlink">http://wiki.nesdev.com/w/index.php/INES_Mapper_004</a><br />Problem is, I can't understand it, especially the parts labeled &quot;Registers:&quot;, &quot;CHR Setup:&quot; and &quot;PRG Setup:&quot;<br />When should I make these writes to $8000, $8001? Right after the iNES header? Obviously I haven't altered the header or mappers before.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Sun Sep 07, 2014 8:06 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Questions about implementing samples into DPCM</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />You'll need to make at least the writes to regs 6 and 7 from within bank 15, which needs to be .org $E000. Until you set up regs 6 and 7, you can't use $8000-$DFFF for anything.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>raydempsey</b> [ Mon Sep 08, 2014 1:54 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Questions about implementing samples into DPCM</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tepples wrote:</div><div class="quotecontent">You'll need to make at least the writes to regs 6 and 7 from within bank 15, which needs to be .org $E000</div><br />I don't understand what that means. You'll have to dumb it down for me as I am a beginner. What is registers 6 and 7 from within bank 15? Is that like writing to some value to bit 6 and bit 7 in some address? I understand that if I set .inesprg to 8 in the iNES header, I was informed that there will be 16 different 8K program banks to work with, bank 14 fixed at $8000 and bank 15 is apparently fixed at $E000. Keep in mind, I have not successfully got the MMC3 even initialized.<br /><br />My goal is still to initialize the MMC3 mapper, to get the main program code to run from $8000 (bank 14), and have the main program to run from $8000 from the very start. If I can accomplish that, I can move to my next objective.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>2</strong> of <strong>3</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

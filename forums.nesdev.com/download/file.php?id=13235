@@ -1,0 +1,383 @@
+Dragon Skill Bytecode System
+Documentation
+
+Introduction :
+
+The goal of the Bytecode System is to allow to store parts of a computer program in a way that uses less ROM space than 6502 assembly does, for the video game project Dragon Skill. In addition to this, the goal is to be able to store program in both PRG-ROM and CHR-ROM interchangably when CHR-ROM is free to access (i.e. no graphics are displayed on the screen).
+
+The system is inspirated by the SWEET-16 system designed by Steve Woźniak. However, SWEET-16 did not fill our needs for the following reasons:
+- Lack of many instruction such as logical operations and shift operations
+- Lack of 8-bit operations (only 16-bit operations are available)
+- Syntax is unfriendly with assembler macro
+
+The bytecode system uses the same concept as SWEET-16, but is improved in many ways, and has with very different instructions and syntax. The register set is only 8 registers (instead of 16), the concept of "status flags" is dropped, and neither the PC nor the stack pointer are accessible as registers (they could be made accessible, but that would cost one or two registers, which was not worth it in our case). All instructions are implemented as assembler macro, making them possible to merge with assembly code. Macro exist for assembly code and bytecode code to call eachother with a single instruction, similar how to ARM and THUMB code can be intermixed in ARM-processor systems.
+
+The instruction set is encoded in 8-bit as 16 non-registers instructions (byte codes $00-$0f) and 31 register instructions (byte codes $10-$ff, the low 3 bis are the register number 0-7). (Not all those instructions are actually implemented.)
+
+=== The interpreter ===
+
+The bytecode is interpreted by a piece of 6502 code, which consist in a small loop and two jump tables. The interpreter itself is designed to be as small as possible, and the code for both instruction groups (register and non-register), are designed so that the jump table can be reduced to only one byte wide, the high byte of the jump adress being constant.
+
+The interpreter can fetch data both from PRG-ROM (normal adressing range) and from CHR-ROM (PPU adressing range). The adress are decoded as following:
+$0000-$1fff : CHR-ROM bank #0
+$2000-$3fff : CHR-ROM bank #1
+$4000-$5fff : CHR-ROM bank #2
+$6000-$7fff : CHR-ROM bank #3
+$8000-$ffff : PRG-ROM
+
+It is therefore not possible to execute byte code from RAM (i.e. not possible to write self-modifying bytecode). This way of decoding adress is only for executable code - for memory read/write operations, VRAM and RAM are adressed separately with separate instructions.
+
+It is the programmer's responsability not to execute from CHR-ROM when graphics display is enabled. Since the code is interpreted, executing a bytecode program is much slower than executing a 6502 assembly equivalent, each byte code instruction is interpreted in aprox. 100-175 cycles (as opposed to 2-7 cycles for bare 6502 programs) but less instructions are required to do the same task as bare 6502 assembly, than a comparison in speed is difficult. The slowdown factor is probably in the 10x-20x range.
+
+=== The registers ===
+
+All 8 registers, named R0 to R7, are 16-bit wide. In some situations however, only their low 8-bits are used and their upper 8-bits are discarded, in those situations, they act as 8-bit registers. R0 is a bit special and has more functionality than other registers. It can thus be considered as an "accumulator".
+
+The stack pointer, although not accessible in bytecode, is the same as the stack pointer in 6502 mode, and the stack is the same. The interpreter could be modified to make the stack pointer accessible, however, that would cost a register, which is not desirable compared to the small gain that a directly accessible stack pointer would be. Bytecode program thus can access the stack, but have no access to the stack pointer whatsoever.
+
+When transitioning from assembly to bytecode and vice-versa, there is a correspondance between A, X, Y and R0, R1 and R2. The upper 8 bits of (R0, R1, R2) are set to 0 when transfered from (A, X, Y), and they are discared when transfereed to (A, X, Y). In some cases, there is also a correspondance between the carry flag C and R3.
+
+================================================
+=== Calling bytecode code from assembly mode ===
+================================================
+
+To call a section of bytecode, use the BYTECODE macro. The macro consists in a "jsr intepreter" followed by the 16-bit adress of the bytecode to be called, so this consist in a 5-byte jsr instruction. The return adress is automatically adjusted within the interpreter. For technical optimisation reasons, the argument is stored with a -1 byte offset.
+
+The call is made with the following correspondance:
+
+R0 <= A (high 8 bits filled with 0s)
+R1 <= X (high 8 bits filled with 0s)
+R2 <= Y (high 8 bits filled with 0s)
+R3 <= C (high 15 bits filled with 0s)
+R4-R7 undefined
+
+Registers (A, X and Y) are preserved if and only if the called bytecode function preserves R0, R1 or R2 respecively. Status flags are destroyed.
+
+============================
+=== Control instructions ===
+============================
+
+-----------------
+$00: STZP (Store to zero page location)
+Size : 2 bytes
+
+Store R0 (low 8 bits only) to a fixed zero page location
+
+------------------
+$01: LDZP (Load from zero page location)
+Size : 2 bytes
+
+Copy a fixed zero page location to R0. The upper 8-bits are filled with 0s.
+
+-----------------
+$02: CALL (Call bytecode subroutine)
+Size : 3 bytes
+
+Calls a bytecode subroutine at specified 16-bit adress. SP is decremented by 4
+Note: For technical optimisation reasons, the argument is stored with a -1 byte offset.
+
+----------------
+$03: CASM (Call assembly subroutine)
+Size : 3 bytes
+
+Calls a assembly subroutine at specified adress.
+Note: For technical optimisation reasons, the argument is stored with a -1 byte offset.
+
+SP is decremented by 4. The call is made with following transfers:
+
+A <= low 8 bits of R0
+X <= low 8 bits of R1
+Y <= low 8 bits of R2
+C <= low bit of R3
+
+When returning from the assembly subroutine, a normal "rts" instruction will return automatically to the interpeter without needing to modify the assembly code in any way. The return is made with the following transfers:
+
+R0 <= A (high bits filled with 0)
+R1 <= X (high bits filled with 0)
+R2 <= Y (high bits filled with 0)
+
+An assembly call preserves R3-R7, unless the assembly code calls another bytecode subprogram. The low bits of (R0, R1, R2) are preserved if and only if the assembly subroutine itself preserves (A, X, Y) respectively - the high bits are always destroyed.
+Notice: It is *not* possible to use C output after CASM
+
+----------------------
+$04: RETN (Returns to the caller)
+Size : 1 byte
+
+It doesn't matter if the caller is a bytecode or a 6502 program, everything is handled automatically.
+SP is incremented by 2 when the caller is a 6502 program, and by 4 when the caller is a bytecode program. Return to assembly is done with the following transfers:
+
+A <= low 8 bits of R0
+X <= low 8 bits of R1
+Y <= low 8 bits of R2
+C <= low bit of R3
+
+----------------------
+$05: JUMP
+Size : 3 bytes
+
+Unconditionally jumps to arbitrary adress and continue to interpret bytecode at that place.
+Note: For technical optimisation reasons, the argument is stored with a -1 byte offset.
+
+** There is 2 unused slots for control instructions. $06 and $07 are thus INVLAID opcodes and will crash the program **
+
+=============================
+=== Register instructions ===
+=============================
+
+Notice: In all cases (except the shift instructions), the low 3-bits specify the register R0-R7, which is called Rx here.
+Some instructions are "invalid" for R0, yet they are unhandled for simplicity.
+
+----------------------
+$08-$0f: CLER Rx  (Clear Rx)
+Size: 1 byte
+
+Rx := 0
+
+---------------------
+$10-$17: LDMW Rx  (Load memory word)
+Size: 1 byte
+
+R0 := (Rx)
+Rx += 2
+
+----------------------
+$18-$1f: LDVB Rx   (Load VRAM byte)
+Size: 1 byte
+
+R0 := Vram(Rx)     (high bits filled with '0')
+Rx += 1
+
+-----------------------
+$20-$27: LDMB Rx   (Load memory byte)
+Size: 1 byte
+
+R0 := (Rx)         (high bits filled with '0')
+Rx += 1
+
+----------------------
+$28-$2f: STVB Rx   (Store VRAM byte)
+Size: 1 byte
+
+Vram(Rx) := R0     (low 8-bits only)
+Rx += 1
+
+----------------------
+$30-$37: STMW Rx   (Store memory word)
+Size : 1 byte
+
+(Rx) := R0
+Rx += 2
+
+----------------------
+$38-$3f: STMB Rx   (Store memory byte)
+Size : 1 byte
+
+(Rx) := R0  (low 8-bits only)
+Rx += 1
+
+-----------------------
+$40-$47: LDIB Rx, imm8 (Load immediate byte)
+Size : 2 bytes
+
+Rx := argument   (high bits filled with '0')
+
+------------------------
+$48-$4f: LDIW Rx, imm16 (Load immediate word)
+Size: 3 bytes
+
+Rx := argument
+
+------------------------
+$50-$5f: MOVE Rx, Ry
+Size: 1 byte
+
+Rx := Ry
+
+If Rx and Ry are both different to R0, then this automatically becomes a pseudo instruction for:
+PUSH Rx
+PULL Ry
+and it takes 2 bytes instead of just 1.
+
+--------------------------
+$60-$67: INCR Rx
+Size: 1 byte
+
+Rx += 1
+
+-------------------------
+$68-$6f: DECR Rx
+Size: 1 byte
+
+Rx -= 1
+
+-------------------------
+$70-$77: SHFL x  (Shift left by x positions)
+Size: 1 byte
+
+R0 << x
+
+Even though this is encoded as a register instruction, the x value
+is actually the shift amount (1..8)
+
+-------------------------
+$78-$7f: SHFR x  (Shift right by x positions)
+Size: 1 byte
+
+R0 >> x
+
+Even though this is encoded as a register instruction, the x value
+is actually the shift amount (1..8)
+
+------------------------
+$80-$87: LIOR Rx    (Logical inclusive OR)
+Size: 1 byte
+
+Rx |= R0
+
+-------------------------
+$88-$8f: LAND Rx    (Logical AND)
+Size: 1 byte
+
+Rx &= R0
+
+-------------------------
+REMOVED: LXOR Rx     (Logical exclusive OR)
+Size: 1 byte
+
+Rx ^= R0
+
+NOTE : This instruction has been removed because it wasn't used
+
+-------------------------
+$90-$97: ADDD Rx      (Add to Rx)
+Size: 1 byte
+
+Rx += R0
+
+--------------------------
+$98-$9f: ADDI Rx, imm8  (Add immediate to Rx)
+Size: 2 bytes
+
+Rx += argument
+
+If argument >$80, it is considered as a negative value
+
+NOTE : This instruction is a candidate for refactoring.
+(Use of 16-bit arguments ? But then byte code takes more space...)
+
+---------------------------
+$a0-$a7: NEGA  (Negate Rx)
+Size: 1 byte
+
+Rx := ~Rx
+
+NOTE : This instruction is a candidate for refactoring
+(one or two's complement, that's the question)
+
+---------------------------
+$a8-$af: PUSH Rx
+Size: 1 byte
+
+Pushes Rx on the stack.
+SP -= 2
+
+---------------------------
+$b0-$b7: PULL Rx
+Size: 1 byte
+
+Transfer value on top of the stack to Rx
+SP += 2
+
+=======================================
+=== Conditional branch instructions ===
+=======================================
+
+Encoded the same as register instructions
+ALL Relative branches works exactly like in 6502 assembly, with -128...+127 bytes jump range
+
+---------------------------
+$b8-$bf: DJNZ Rx  (Decrement and jump if non-zero)
+Size: 2 byte
+
+Rx -= 1;
+if (Rx != 0)  (PC += argument)
+
+Useful combo  to create FOR-loops.
+
+---------------------------
+$c0-$c7: BRNZ Rx  (Branch if non zero)
+Size: 2 bytes
+
+if(Rx != 0) (PC += argument)
+
+-----------------------------
+$c8-$cf: BRZE Rx   (Branch if zero)
+Size: 2 bytes
+
+if(Rx == 0) (PC += argument)
+
+-----------------------------
+$d0-$d7: BRPL Rx    (Branch if Rx is plus)
+Size: 2 bytes
+
+if(Rx >= 0) (PC += argument)
+
+-----------------------------
+$d8-$df: BRMI Rx    (Branch if Rx is minus)
+Size: 2 bytes
+
+if(Rx < 0) (PC += argument)
+
+Note: This instruction is a candidate for removal, as it is seldom used
+
+-----------------------------
+$e0-$e7: BRNE Rx     (Branch if Rx is not equal to R0)
+Size: 2 bytes
+
+if(Rx != R0) (PC += argument)
+
+-----------------------------
+$e8-$ef: BREQ Rx     (Branch if Rx is equal to R0)
+Size: 2 bytes
+
+if(Rx == R0) (PC += argument)
+
+Note: This instruction is a candidate for removal, as it is seldom used
+
+------------------------------
+REMOVED: BRGE Rx      (Branch if Rx greater or equal to R0)
+Size: 2 bytes
+
+if(Rx >= R0) (PC += argument)
+
+Note: This instruction has been removed, as it wasn't used
+------------------------------
+REMOVED: BRSM Rx      (Branch if Rx smaller than R0)
+Size: 2 bytes
+
+if(Rx >= R0) (PC += argument)
+
+Note: This instruction has been removed, as it wasn't used
+
+** Note there is 2 unused slots for register instructions, $f0-$ff are thus INVALID opcodes and will crash the program **
+
+===============  FAQ  ===============
+
+1) When to use Bytecode and when to use 6502 assembly?
+
+Bytecode can create smaller code ** in some cases **. Cases where bytecode performs great:
+- Dealing with 16-bit values
+- Dealing with pointers
+- Dealing with VRAM reads or writes
+- Dealing with algorithms based on logic
+- Reading structures sequentially
+
+Where it performs poorly (unless new instructions are implemented !):
+- Random acess within tables (there's only one single adressing mode, and it cannot do this)
+- Working with many different memory locations simultaneously (each pointer takes a register)
+
+2) How to debug bytecode programs?
+
+Even though debuging bytecode can be a little puzzling, it is still possible and relatively straightforward.
+There is a need to use two breakpoints. First, break on reads for the program that needs to be debugged.
+Then, remove this breakpoint and replace it with a breakpoint on execution of the interpreter loop. Each "run until breakpoint" then acts as exactly a "step instruction".

@@ -1,0 +1,420 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - DMG Sound Implementation - Kind of working but broken</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">DMG Sound Implementation - Kind of working but broken</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=20&amp;t=16936">http://forums.nesdev.com/viewtopic.php?f=20&amp;t=16936</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>IndyBonez</b> [ Sat Jan 13, 2018 5:37 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>DMG Sound Implementation - Kind of working but broken</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Hi Guys,<br /><br />So over the Xmas period I took the plunge to try my hand at an emulator and like a lot of people chose the Gameboy as my first.<br /><br />I have managed to implement quite an accurate emulator so far (built as a C# class library to run in many different engines like XNA, Monogame &amp; Unity) and it passes more tests then a lot of other C# implementations out there. All the CPU, Memory and GPU side of things came easy to me and I had no real problems getting stuff going.<br /><br />But audio has been a whole different ball game! I'm struggling to find documentation that goes into enough depth and I feel like I'm missing something! I spent about 2 weeks on the the rest of the emulator and have now spent about 3 week just researching and trying to get my head around the audio side of things. Other open source projects I have been looking at do things in wildly different ways and are never commented/documented well enough for me to fill in the gaps in my knowledge.<br /><br />So I have done my best to get where I am now which is having a barely working Square Wave Generator for Channel 1. Compared to other emulators I seem to have got the timings correct but the sound coming out is just pops and cracks versus something correct. A saving grace I think is that the pops/cracks play at the right time so I can hear a resemblance to the correct tunes, so there must just be something wrong with how I'm converting the final bytes into the required audio formats (I'm hoping).<br /><br />Eventually as mentioned I'm hoping to have this running in multiple game engines so I want my implementation to be generic enough that the sound output can be adapted to different sound libraries ie Unity sound or NAudio.<br /><br />Any help trying to get me first to a working implementation with NAudio would be amazing and then I can try and adapt it for Unity later on.<br /><br />Below are my WIP implementations of the APU and the SquareWaveGenerator plus info on how I'm interfacing with NAudio:<br /><br />APU: <br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">using System;<br /><br />namespace GBZEmuLibrary<br />{<br />&nbsp; &nbsp; internal class APU<br />&nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; private const int FRAME_SEQUENCER_UPDATE_THRESHOLD = Sound.SAMPLE_RATE / APUSchema.FRAME_SEQUENCER_RATE;<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; private readonly byte&#91;&#93; _memory = new byte&#91;MemorySchema.APU_REGISTERS_END - MemorySchema.APU_REGISTERS_START&#93;;<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; private readonly SquareWaveGenerator _channel1;<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; private bool _powered = true;<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; private readonly int _maxCyclesPerSample;<br />&nbsp; &nbsp; &nbsp; &nbsp; private int _cycleCounter;<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; private int _frameSequenceTimer;<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; private byte&#91;&#93; _buffer = new byte&#91;(Sound.SAMPLE_RATE / GameBoySchema.TARGET_FRAMERATE) * 2&#93;;<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; private int _currentByte = 0;<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; public APU()<br />&nbsp; &nbsp; &nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; _maxCyclesPerSample = GameBoySchema.MAX_DMG_CLOCK_CYCLES / Sound.SAMPLE_RATE;<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; _channel1 = new SquareWaveGenerator();<br />&nbsp; &nbsp; &nbsp; &nbsp; }<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; public byte&#91;&#93; GetSoundSamples()<br />&nbsp; &nbsp; &nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; //TODO may need to reset buffer<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; _currentByte = 0;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return _buffer;<br />&nbsp; &nbsp; &nbsp; &nbsp; }<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; public void Reset()<br />&nbsp; &nbsp; &nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; WriteByte(0x80, 0xFF10);<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; WriteByte(0xBF, 0xFF11);<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; WriteByte(0xF3, 0xFF12);<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; WriteByte(0xBF, 0xFF14);<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; WriteByte(0x3F, 0xFF16);<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; WriteByte(0x00, 0xFF17);<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; WriteByte(0xBF, 0xFF19);<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; WriteByte(0x7F, 0xFF1A);<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; WriteByte(0xFF, 0xFF1B);<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; WriteByte(0x9F, 0xFF1C);<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; WriteByte(0xBF, 0xFF1E);<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; WriteByte(0xFF, 0xFF20);<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; WriteByte(0x00, 0xFF21);<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; WriteByte(0x00, 0xFF22);<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; WriteByte(0xBF, 0xFF23);<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; WriteByte(0x77, 0xFF24);<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; WriteByte(0xF3, 0xFF25);<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; WriteByte(0xF1, 0xFF26);<br />&nbsp; &nbsp; &nbsp; &nbsp; }<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; public void WriteByte(byte data, int address)<br />&nbsp; &nbsp; &nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; int freqLowerBits, freqHighBits;<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; switch (address)<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; case APUSchema.SQUARE_1_SWEEP_PERIOD:<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; // Register Format -PPP NSSS Sweep period, negate, shift<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; _channel1.SetSweep(data);<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; break;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; case APUSchema.SQUARE_1_DUTY_LENGTH_LOAD:<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; // Register Format DDLL LLLL Duty, Length load (64-L)<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; _channel1.SetLength(data);<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; _channel1.SetDutyCycle(data);<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; break;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; case APUSchema.SQUARE_1_VOLUME_ENVELOPE:<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; // Register Format VVVV APPP Starting volume, Envelope add mode, period<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; _channel1.SetEnvelope(data);<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; break;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; case APUSchema.SQUARE_1_FREQUENCY_LSB:<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; // Register Format FFFF FFFF Frequency LSB<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; freqLowerBits = data;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; freqHighBits = Helpers.GetBits(ReadByte(APUSchema.SQUARE_1_FREQUENCY_MSB), 3) &lt;&lt; 8;<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; _channel1.SetFrequency(freqHighBits + freqLowerBits);<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; break;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; case APUSchema.SQUARE_1_FREQUENCY_MSB:<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; // Register Format TL-- -FFF Trigger, Length enable, Frequency MSB<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; freqLowerBits = ReadByte(APUSchema.SQUARE_1_FREQUENCY_LSB);<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; freqHighBits&nbsp; = Helpers.GetBits(data, 3) &lt;&lt; 8;<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; _channel1.SetFrequency(freqHighBits + freqLowerBits);<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (!Helpers.TestBit(data, 6))<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; _channel1.SetLength(0);<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; //Trigger Enabled<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (Helpers.TestBit(data, 7))<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; _channel1.Inited = true;<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; //TODO handle trigger<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (_channel1.Length == 0)<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; _channel1.SetLength(64);<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; _channel1.SetVolume(_channel1.InitialVolume);<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; break;<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; case APUSchema.SQUARE_2_DUTY_LENGTH_LOAD:<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; break;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; case APUSchema.SQUARE_2_VOLUME_ENVELOPE:<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; break;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; case APUSchema.SQUARE_2_FREQUENCY_LSB:<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; break;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; case APUSchema.SQUARE_2_FREQUENCY_MSB:<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; break;<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; case APUSchema.VIN_VOL_CONTROL:<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; // Register Format ALLL BRRR Vin L enable, Left vol, Vin R enable, Right vol<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; break;<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; case APUSchema.STEREO_SELECT:<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; // Register Format 8 bits <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; // Lower 4 bits represent Right Channel for Channels 1-4<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; // Higher 4 bits represent Left Channel for Channels 1-4<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; StereoSelect(data);<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; break;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; case APUSchema.SOUND_ENABLED:<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; HandlePowerToggle(Helpers.TestBit(data, 7));<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; break;<br />&nbsp; &nbsp; }<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; _memory&#91;address - MemorySchema.APU_REGISTERS_START&#93; = data;<br />&nbsp; &nbsp; &nbsp; &nbsp; }<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; public byte ReadByte(int address)<br />&nbsp; &nbsp; &nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; // TODO NRx3 &amp; NRx4 return 0 upon reading<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return _memory&#91;address - MemorySchema.APU_REGISTERS_START&#93;;<br />&nbsp; &nbsp; &nbsp; &nbsp; }<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; public void Update(int cycles)<br />&nbsp; &nbsp; &nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (!_powered)<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; _cycleCounter += cycles;<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; //Check if ready to get sample<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (_cycleCounter &lt; _maxCyclesPerSample)<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; _cycleCounter -= _maxCyclesPerSample;<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; _frameSequenceTimer++;<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (_frameSequenceTimer &gt;= FRAME_SEQUENCER_UPDATE_THRESHOLD)<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; _channel1.Update();<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; byte leftChannel = 0;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; byte rightChannel = 0;<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (_channel1.Enabled)<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; var sample = _channel1.GetCurrentSample();<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if ((_channel1.ChannelState &amp; APUSchema.CHANNEL_LEFT) != 0)<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; leftChannel += sample;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if ((_channel1.ChannelState &amp; APUSchema.CHANNEL_RIGHT) != 0)<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; rightChannel += sample;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; //TODO need to determine best way to handle overflow<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (_currentByte * 2 &lt; _buffer.Length - 1)<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; _buffer&#91;_currentByte * 2&#93;&nbsp; &nbsp; &nbsp;= (byte)(leftChannel);<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; _buffer&#91;_currentByte * 2 + 1&#93; = (byte)(rightChannel);<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; _currentByte++;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />&nbsp; &nbsp; &nbsp; &nbsp; }<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; private void StereoSelect(byte val)<br />&nbsp; &nbsp; &nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; _channel1.ChannelState = GetChannelState(val, 1);<br />&nbsp; &nbsp; &nbsp; &nbsp; }<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; private int GetChannelState(byte val, int channel)<br />&nbsp; &nbsp; &nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; var channelState = 0;<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; // Testing bits 0-3 <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (Helpers.TestBit(val, channel - 1)) <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; channelState |= APUSchema.CHANNEL_RIGHT;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; // Testing bits 4-7<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (Helpers.TestBit(val, channel + 3))<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; channelState |= APUSchema.CHANNEL_LEFT;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return channelState;<br />&nbsp; &nbsp; &nbsp; &nbsp; }<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; private void HandlePowerToggle(bool newState)<br />&nbsp; &nbsp; &nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (!newState &amp;&amp; _powered)<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; //Reset registers (except length counters on DMG)<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; else if (newState &amp;&amp; !_powered)<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; //Reset frame sequencer<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />&nbsp; &nbsp; &nbsp; &nbsp; }<br />&nbsp; &nbsp; }<br />}<br /></div><br /><br />SquareWaveGenerator:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">using System;<br /><br />namespace GBZEmuLibrary<br />{<br />&nbsp; &nbsp; // Ref 1 - https://emu-docs.org/Game%20Boy/gb_sound.txt<br /><br />&nbsp; &nbsp; internal class SquareWaveGenerator : IGenerator<br />&nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; private const int MAX_11_BIT_VALUE = 2048; //2^11<br />&nbsp; &nbsp; &nbsp; &nbsp; private const int MAX_4_BIT_VALUE = 16; //2^4<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; public int Length =&gt; _totalLength;<br />&nbsp; &nbsp; &nbsp; &nbsp; public int InitialVolume =&gt; _initialVolume;<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; public bool Inited { get; set; }<br />&nbsp; &nbsp; &nbsp; &nbsp; public bool Enabled =&gt; _totalLength &gt; 0 &amp;&amp; Inited;<br />&nbsp; &nbsp; &nbsp; &nbsp; public int ChannelState { get; set; }<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; private int _initialSweepPeriod;<br />&nbsp; &nbsp; &nbsp; &nbsp; private int _sweepPeriod;<br />&nbsp; &nbsp; &nbsp; &nbsp; private int _shiftSweep;<br />&nbsp; &nbsp; &nbsp; &nbsp; private bool _negateSweep;<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; private int _totalLength;<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; private float _dutyCycle;<br />&nbsp; &nbsp; &nbsp; &nbsp; private bool _dutyState;<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; private int _initialVolume;<br />&nbsp; &nbsp; &nbsp; &nbsp; private int _volume;<br />&nbsp; &nbsp; &nbsp; &nbsp; private int _envelopePeriod;<br />&nbsp; &nbsp; &nbsp; &nbsp; private int _initialEnvelopePeriod;<br />&nbsp; &nbsp; &nbsp; &nbsp; private bool _addEnvelope;<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; private int _originalFrequency;<br />&nbsp; &nbsp; &nbsp; &nbsp; private int _frequency;<br />&nbsp; &nbsp; &nbsp; &nbsp; private int _frequencyCount;<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; private int _sequenceTimer;<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; public void Update()<br />&nbsp; &nbsp; &nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; //256Hz<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (_sequenceTimer % 2 == 0)<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; _totalLength = Math.Max(0, _totalLength - 1);<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; //128Hz<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if ((_sequenceTimer + 2) % 4 == 0)<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; _sweepPeriod--;<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (_shiftSweep != 0 &amp;&amp; _sweepPeriod == 0)<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; _sweepPeriod = _initialSweepPeriod;<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; var sweepFreq = _originalFrequency + (_negateSweep ? -1 : 1) * (_originalFrequency &gt;&gt; _shiftSweep);<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (sweepFreq &gt;= MAX_11_BIT_VALUE)<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; //TODO may need an actual enabled flag<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; _totalLength = 0;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; else if (sweepFreq &gt; 0)<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; SetFrequency(sweepFreq);<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; //64Hz<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (_sequenceTimer % 7 == 0)<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; _envelopePeriod--;<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (_envelopePeriod == 0)<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; _envelopePeriod = _initialEnvelopePeriod;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; _volume += _addEnvelope ? 1 : -1;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; _volume = Math.Max(_volume, 0);<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; _volume = Math.Min(_volume, MAX_4_BIT_VALUE - 1);<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; _sequenceTimer = (_sequenceTimer + 1) % 8;<br />&nbsp; &nbsp; &nbsp; &nbsp; }<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; public byte GetCurrentSample()<br />&nbsp; &nbsp; &nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; byte sample = 0;<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; _frequencyCount++;<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (_frequencyCount &gt; _frequency * (_dutyState ? _dutyCycle : 1 - _dutyCycle))<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; _frequencyCount = 0;<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; sample = (byte)(_dutyState ? _volume : -_volume);<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; _dutyState = !_dutyState;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return sample;<br />&nbsp; &nbsp; &nbsp; &nbsp; }<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; public void SetSweep(byte data)<br />&nbsp; &nbsp; &nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; // Val Format -PPP NSSS<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; _shiftSweep = Helpers.GetBitsIsolated(data, 0, 3);<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; _negateSweep = Helpers.TestBit(data, 4);<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; _initialSweepPeriod = Helpers.GetBitsIsolated(data, 4, 3);<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; _sweepPeriod = _initialSweepPeriod;<br />&nbsp; &nbsp; &nbsp; &nbsp; }<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; public void SetLength(byte data)<br />&nbsp; &nbsp; &nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; // Val Format --LL LLLL<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; _totalLength = 64 - Helpers.GetBits(data, 6);<br />&nbsp; &nbsp; &nbsp; &nbsp; }<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; public void SetLength(int length)<br />&nbsp; &nbsp; &nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; _totalLength = length;<br />&nbsp; &nbsp; &nbsp; &nbsp; }<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; public void SetDutyCycle(byte data)<br />&nbsp; &nbsp; &nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; // Val Format DD-- ----<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; _dutyCycle = Helpers.GetBitsIsolated(data, 6, 2) * 0.25f;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; _dutyCycle = Math.Max(0.125f, _dutyCycle);<br />&nbsp; &nbsp; &nbsp; &nbsp; }<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; public void SetEnvelope(byte data)<br />&nbsp; &nbsp; &nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; // Val Format VVVV APPP<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; _initialEnvelopePeriod = Helpers.GetBits(data, 3);<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; _envelopePeriod = _initialEnvelopePeriod;<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; _addEnvelope = Helpers.TestBit(data, 3);<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; _initialVolume = Helpers.GetBitsIsolated(data, 4, 4);<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; SetVolume(_initialVolume);<br />&nbsp; &nbsp; &nbsp; &nbsp; }<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; public void SetVolume(int volume)<br />&nbsp; &nbsp; &nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; _volume = volume;<br />&nbsp; &nbsp; &nbsp; &nbsp; }<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; public void SetFrequency(int freq)<br />&nbsp; &nbsp; &nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; _originalFrequency = freq;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; _frequency = Sound.SAMPLE_RATE / (GameBoySchema.MAX_DMG_CLOCK_CYCLES / ((MAX_11_BIT_VALUE - (freq % MAX_11_BIT_VALUE)) &lt;&lt; 5));<br />&nbsp; &nbsp; &nbsp; &nbsp; }<br />&nbsp; &nbsp; }<br />}<br /></div><br /><br />NAudio Integration:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">_bufferedWaveProvider = new BufferedWaveProvider(new WaveFormat(Sound.SAMPLE_RATE, 16, 1));<br /><br />_waveOut = new WaveOut();<br />_waveOut.Init(_bufferedWaveProvider);<br />_waveOut.Play(); //TODO sound may need to be delayed</div><br /><br />So basically I call GetSoundSamples() at 60 FPS which returns a byte array that I pass to NAudio like so:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">var buffer = _emulator.GetSoundSamples();<br /><br />_bufferedWaveProvider.AddSamples(buffer, 0, buffer.Length);</div><br /><br />Constants:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">public class Sound<br />{<br />&nbsp; &nbsp; public const int SAMPLE_RATE = 44100;<br />}<br /><br />internal class APUSchema<br />{<br />&nbsp; &nbsp; public const int CHANNEL_LEFT&nbsp; = 1;<br />&nbsp; &nbsp; public const int CHANNEL_RIGHT = 2;<br />&nbsp; &nbsp; public const int CHANNEL_MONO&nbsp; = 4;<br /><br />&nbsp; &nbsp; public const int FRAME_SEQUENCER_RATE = 512;<br />&nbsp; &nbsp; public const int LENGTH_RATE&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; = 256;<br /><br />&nbsp; &nbsp; public const int SQUARE_1_SWEEP_PERIOD&nbsp; &nbsp; &nbsp;= 0xFF10;<br />&nbsp; &nbsp; public const int SQUARE_1_DUTY_LENGTH_LOAD = 0xFF11;<br />&nbsp; &nbsp; public const int SQUARE_1_VOLUME_ENVELOPE&nbsp; = 0xFF12;<br />&nbsp; &nbsp; public const int SQUARE_1_FREQUENCY_LSB&nbsp; &nbsp; = 0xFF13;<br />&nbsp; &nbsp; public const int SQUARE_1_FREQUENCY_MSB&nbsp; &nbsp; = 0xFF14;<br /><br />&nbsp; &nbsp; public const int SQUARE_2_DUTY_LENGTH_LOAD = 0xFF16;<br />&nbsp; &nbsp; public const int SQUARE_2_VOLUME_ENVELOPE&nbsp; = 0xFF17;<br />&nbsp; &nbsp; public const int SQUARE_2_FREQUENCY_LSB&nbsp; &nbsp; = 0xFF18;<br />&nbsp; &nbsp; public const int SQUARE_2_FREQUENCY_MSB&nbsp; &nbsp; = 0xFF19;<br /><br />&nbsp; &nbsp; public const int VIN_VOL_CONTROL = 0xFF24;<br />&nbsp; &nbsp; public const int STEREO_SELECT&nbsp; &nbsp;= 0xFF25;<br />&nbsp; &nbsp; public const int SOUND_ENABLED&nbsp; &nbsp;= 0xFF26;<br />}</div><br /><br />The APU gets updated about every 4 CPU ticks along with the GPU, timer etc<br /><br />As part of my implementation I'm trying to make the code as readable as possible so other can follow along after me as well, so If you need the values of any of the constants that I haven't provided just let me know<br /><br />I look forward to hearing you guys thoughts
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Sat Jan 13, 2018 12:32 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: DMG Sound Implementation - Kind of working but broken</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">IndyBonez wrote:</div><div class="quotecontent"><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp; &nbsp; &nbsp; public byte&#91;&#93; GetSoundSamples()&nbsp; &nbsp; &nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; //TODO may need to reset buffer<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; _currentByte = 0;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return _buffer;<br />&nbsp; &nbsp; &nbsp; &nbsp; }<br />&#91;...&#93;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; //TODO need to determine best way to handle overflow<br /></div></div>By having separate methods for &quot;calculate samples&quot; and &quot;fetch samples&quot;, you're inviting stuttering and other problems with desynchronization. Instead, just have a single method that calculates the buffer and returns it; then you can't overflow.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent"><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; //Check if ready to get sample<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (_cycleCounter &lt; _maxCyclesPerSample)<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br />&#91;...&#93;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; var sample = _channel1.GetCurrentSample();<br /></div></div>Here's your problem: you only update the status of your output channels once when it's time to emit a new sample, but the GetCurrentSample method itself expects to be called for every CPU cycle.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>IndyBonez</b> [ Sat Jan 13, 2018 1:00 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: DMG Sound Implementation - Kind of working but broken</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Hi lidnariq,<br /><br />Thank you very much for the fast reply! Forgive me if I'm asking a lot of questions just trying to get my head around things<br /><br />So my understanding of how the sound libraries are expecting data is that they are expecting 44100 (as an example of the rate mine is running at the moment) samples a second. My main loop runs at 60FPS and every frame it requests new data to feed to the waveout. Which would mean 44100 / 60 samples every frame. Any more then that and I'm not sure how the sound library would react? So that is what I'm attempting to do here generate as many samples as the library can handle in sync with the CPU. I have seen implementations as you suggested where  it only generates the buffer when requested but I don't quite understand how this stays in sync with the CPU if its not being timed off that?<br /><br />Anyway in terms of the actual issue just so I have it clear in my head, when you talk about GetCurrentSample being called every CPU cycles do you mean I shouldn't be calling it 44100 times a second? And instead be calling it 4194304 times a second? Wouldn't that generate quite a number of samples? And I guess to support that I need to change how I time my frequency in the channel?<br /><br />Thanks for the help its very much appreciated!
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Sat Jan 13, 2018 1:42 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: DMG Sound Implementation - Kind of working but broken</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">IndyBonez wrote:</div><div class="quotecontent">Which would mean 44100 / 60 samples every frame. Any more then that and I'm not sure how the sound library would react? So that is what I'm attempting to do here generate as many samples as the library can handle in sync with the CPU. I have seen implementations as you suggested where  it only generates the buffer when requested but I don't quite understand how this stays in sync with the CPU if its not being timed off that?<br /></div>It's messy, as you're guessing.<br /><br />In the original DMG, there's a single clock source, at 2²² Hz, and everything operates off that. Sound is generated as sample rates per channel ranging from 2²¹ Hz (channel 3 / wave) to 2¹⁹ (channel 4 / noise). The frame rate is exactly 2²² Hz ÷ 456 ÷ 154 ≈ 59.7275... Hz.<br /><br />In contrast, the PC probably has separate clock sources for audio and video <span style="font-size: 67%; line-height: normal">(exception: using same HDMI channel for audio and video)</span>. These will differ from each other by a small amount—probably a few hundred ppm—and any system will either have to deal with inaccurate emulation, audio dropout, latency, detuned audio, skipped video frames, duplicated video frames, tearing, or some combination of all of the above.<br /><br />We've had people in the forum here write NES emulators that are video-locked (and audio just suffers for it), audio-locked (and video suffers), and one person who's written an emulator that dynamically adjusts the audio resampling method to keep the two matching.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Anyway in terms of the actual issue just so I have it clear in my head, when you talk about GetCurrentSample being called every CPU cycles do you mean I shouldn't be calling it 44100 times a second? And instead be calling it 4194304 times a second? Wouldn't that generate quite a number of samples? And I guess to support that I need to change how I time my frequency in the channel?<br /></div>It looks to me like that implementation of GetCurrentSample, only for channel 1, expects to be called at 2²⁰ Hz. You'll note that it's not GetCurrentSample that enqueues the result of its arithmetic; you could just get away with calling it N times during each update. (Where N oscillates between two different numbers)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>IndyBonez</b> [ Sat Jan 13, 2018 2:35 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: DMG Sound Implementation - Kind of working but broken</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Thank you again for the reply.<br /><br />I tried what you suggested but there was no noticeable change unfortunately, though while looking at GetCurrentSample I noticed a mistake in that I was only every returning data when the duty changed and at no other time so that meant that sounds were playing for a lot less time then they should of. I fixed it with this change<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp; &nbsp; &nbsp; public byte GetCurrentSample()<br />&nbsp; &nbsp; &nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; _frequencyCount++;<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; if (_frequencyCount &gt; _frequency * (_dutyState ? _dutyCycle : 1 - _dutyCycle))<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; _frequencyCount = 0;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; _dutyState = !_dutyState;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; return (byte)(_dutyState ? _volume : -_volume);<br />&nbsp; &nbsp; &nbsp; &nbsp; }</div><br /><br />This has resulted in fuller and louder sounds but they still seemed to be poppy/crackly in nature, I have attached a WAV file with the result in the hopes it might help point us in the right direction
+
+		
+			<br clear="all" /><br />
+
+			<table class="tablebg" width="100%" cellspacing="1">
+			<tr>
+				<td><b class="genmed">Attachments: </b></td>
+			</tr>
+			
+				<tr>
+					<td>
+			<span class="gensmall"><b>File comment:</b> Poppy audio from Tetris</span><br />
+		
+			<span class="genmed">
+				<img src="./styles/subsilver2/imageset/icon_topic_attach.gif" width="14" height="18" alt="" title="" /> 
+				<a href="./download/file.php?id=11559">Tetris.mp3</a> [496.2 KiB]
+			</span><br />
+			<span class="gensmall">Downloaded 48 times</span>
+		
+
+		<br />
+	</td>
+				</tr>
+			
+			</table>
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Sat Jan 13, 2018 4:22 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: DMG Sound Implementation - Kind of working but broken</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />MP3 is really bad for this kind of analysis, because it destroys phase information and can cause erroneous echo / preecho.<br /><br />But my best guess given the recording is that something is causing the waveform to play through exactly twice (one positive and one negative edge) and then isn't resetting phase.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>IndyBonez</b> [ Sun Jan 14, 2018 11:18 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: DMG Sound Implementation - Kind of working but broken</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I do have a WAV file version of it but the forum wouldn't let me upload it maybe in a zip? If having that would be useful? <br /><br />Anyway I have found a similar implementation to mine using the same audio library NAudio and its is pretty much using the library the same way as me but it doesn't have any problems with the audio except for stuttering etc, so I think there is a problem in the emulation of the sound channels somewhere I just can't seem to pinpoint it. Here is the other implementation for reference <a href="https://github.com/CidVonHighwind/GameBoyMono/blob/master/GameBoyMono/GameBoyMono/Sound.cs" class="postlink">https://github.com/CidVonHighwind/GameBoyMono/blob/master/GameBoyMono/GameBoyMono/Sound.cs</a>.<br /><br />I may have to resort to maybe dumping the buffer from that and comparing the output, though I'm hoping a second set of eyes can help my get to the bottom of the issue
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>MegaBoyEXE</b> [ Sun Jan 14, 2018 1:14 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: DMG Sound Implementation - Kind of working but broken</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I'm implementing my emulator in C# too, currently inside Unity3D, but the core code is separated from Unity3D dependency and can converted to a lib.<br />I'm trying to document most of my findings on APU and all channels, and I can now pass almost all tests from dmg_sound tests, missing a few details with sweep tests and the wave pattern r/w tests.<br /><br />I'm working with audio in a separate branch while I do tests, but here they are<br />The APU code: <a href="https://github.com/fattard/xFF/blob/gb/emu-snd/unity3D_proj/Assets/source/EmuCores/GB/HW/APU.cs" class="postlink">https://github.com/fattard/xFF/blob/gb/emu-snd/unity3D_proj/Assets/source/EmuCores/GB/HW/APU.cs</a><br />And channels: <a href="https://github.com/fattard/xFF/tree/gb/emu-snd/unity3D_proj/Assets/source/EmuCores/GB/HW/audio" class="postlink">https://github.com/fattard/xFF/tree/gb/emu-snd/unity3D_proj/Assets/source/EmuCores/GB/HW/audio</a>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>IndyBonez</b> [ Sun Jan 14, 2018 1:27 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: DMG Sound Implementation - Kind of working but broken</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">MegaBoyEXE wrote:</div><div class="quotecontent">I'm working with audio in a separate branch while I do tests, but here they are</div><br /><br />Great thank you very much for this reference I will see if I can try and track down any discrepancies in my own code
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>MegaBoyEXE</b> [ Sun Jan 14, 2018 1:32 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: DMG Sound Implementation - Kind of working but broken</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />The APU has too many quirks that are hard to follow and implement.<br />I would recommend you to start with a simpler channel, like channel 2 or 3.<br />Channel 3 is quite simple, just update pos in waveform table and outputs the shifted volume.<br />Channel 2 is also simple, just need volume envelope implementation.<br />Channel 1 is the same as channel 2, but the sweep operations have many exceptions you need to follow carefully.<br />I've started with channel 3, than went to 2, then 1, and finally 4.<br /><br />As lidnariq mentioned, the problem is your update method.<br />You need to update APU internals the same way you do with Timer, Video, etc: process at every elapsed cycle (or multiples of 4, depends on you using Machine-Cycle or clock-Cycles).<br />The different concept that enters here is that you just don't output sound every cycle. Instead, you have your sampling rate of (4194304 / 44100) cycles.<br />At each ~95 cycles, you output 1 sample, but you need to update all channels each cycle. Think this as frame skip: you process rendering routine EVERY cycle, but just draw to screen at every few cycles, skipping some.<br /><br />Then comes the output buffer concept.<br />I have seen 2 ways so far, depending on the audio lib<br /><br />1- You are responsible to feed the audio buffer: SDL works this way. You fill a buffer of 44100/60 samples per frame, and sends to the audio lib when it's filled. Some people fills like 1024 samples. This is adjustable, depends on how much process time you have. From the code above, at each 95 cycles, you fill 1 sample in the buffer, so you need to fill all the remaining samples before sending to audio lib;<br />2- The audio lib requests when it needs more samples. Unity3D works this way. You will still be filling a buffer if 44100/60 samples per frame, but another thread will call a callback on your code where you pass your filled buffer). You will need to have this ready for the time it's requested, otherwise gaps will occur.<br /><br />I was having stuttering too, but I calculated how many samples I was generating in my APU per frame (~735), and the requested buffer was 1024. I changed the audio lib config to request a buffer of 735 instead of 1024, so I just do a copy of my internal buffer to the audio buffer, and stuttering stopped.<br /><br />Those are my tips for now.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>IndyBonez</b> [ Tue Jan 16, 2018 2:17 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: DMG Sound Implementation - Kind of working but broken</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Cool thanks for the advice. I haven't had a chance to look much into it yet though I updated my timing methods as what you suggested made a lot of sense updating most things off the clock cycles, that alone didn't help so i still suspect something else is wrong. I'll get to the bottom of it eventually I imagine. Though if anyone manages to figure out what else might be the issue in the posted code I would love to hear your thoughts otherwise I'll update here once I have found a solution so other intrepid explorers can use my findings as a learning.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>IndyBonez</b> [ Sun Jan 21, 2018 5:06 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: DMG Sound Implementation - Kind of working but broken</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />So I managed to get channel 1 to work yay! It was a silly I had done in the end where I wasn't resetting the frame sequence counter when it went over the threshold!<br /><br />So now I'm moving onto Channel 2 which is also a SquareWaveGenerator minus the sweep and it doesn't work at all! And its using the exact same class <img src="./images/smilies/icon_sad.gif" alt=":(" title="Sad" /> is there anything I need to be aware of with channel 2? As long as I ensure the sweep isn't enabled it should just be the exact same right?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>IndyBonez</b> [ Sun Jan 21, 2018 5:09 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: DMG Sound Implementation - Kind of working but broken</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Okay actually its something to do with have I'm setting the left/right channel state for the second channel, prob just my maths wrong
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>IndyBonez</b> [ Sun Jan 21, 2018 5:28 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: DMG Sound Implementation - Kind of working but broken</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Nope tracked it down to NAudio only playing sound from the right channel and not the left! Anyone here have experience with NAudio and can maybe help me figure out what I'm doing wrong with setting out the left/right channels?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

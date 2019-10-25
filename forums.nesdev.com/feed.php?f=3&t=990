@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=3&amp;t=990" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2006-01-31T05:11:45-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=3&amp;t=990</id>
+<entry>
+<author><name><![CDATA[blargg]]></name></author>
+<updated>2006-01-31T05:11:45-07:00</updated>
+<published>2006-01-31T05:11:45-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=990&amp;p=8834#p8834</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=990&amp;p=8834#p8834"/>
+<title type="html"><![CDATA[64K not-onboard?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=990&amp;p=8834#p8834"><![CDATA[
+This discussion got me thinking about whether a function pointer table was really faster, so I gathered some hard data. First off, I restricted this to things that actually need generalized read/write emulation (<a href="http://nesdev.com/bbs/viewtopic.php?t=516" class="postlink">discussed previously</a> and <a href="http://www.slack.net/~ant/nes-emu/6502.html" class="postlink">covered on the web</a>). Many things don't: zero-page, stack, and opcode/operand reads. These aren't included.<br /><br />I found that most data memory accesses based on an absolute address (i.e. absolute, absolute,y, indirect,y, etc.) accessed the PPU or unmirrored low-memory. This means that it's probably more efficient to use a couple of conditionals to check for these cases, then fall back on a function pointer table. For older games which poll $2002, from 20% to 75% of all data memory accesses are to $2002. I further broke accesses down by opcode and found that BIT abs ($2C) was the most common for polling $2002. If one's CPU emulator is implemented as a switch statement, optimization can be applied to particular instructions.<br /><br />I'm still trying CPU emulation ideas based on this data. As best as I can tell, optimizing data memory accesses doesn't have a large impact because they don't occur that often. I profiled a few games and found that there was one data memory access for every three instructions (again, only covering accesses that require generalized emulation).<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=17">blargg</a> — Tue Jan 31, 2006 5:11 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Nessie]]></name></author>
+<updated>2006-01-28T05:37:44-07:00</updated>
+<published>2006-01-28T05:37:44-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=990&amp;p=8721#p8721</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=990&amp;p=8721#p8721"/>
+<title type="html"><![CDATA[64K not-onboard?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=990&amp;p=8721#p8721"><![CDATA[
+<div class="quotetitle">blargg wrote:</div><div class="quotecontent"><br />It also lends itself well to modularity by allowing run-time registration of read/write handlers for arbitrary portions of memory.<br /></div><br />Yep, that's what's so great. Take Game Genie codes for example - to add a "compare" Game Genie code, just add an intercepting function to the function table that first calls the old function pointer, and then decides whether to return that value or the Game Genie everride value.<br /><br />I thought about dynamically changing the table during emulation, eg if some mapper has a "WRAM writable" flag, you could just change the function pointers for WRAM to nonWritable() or writable() when that flag is toggled. Same thing could be done with some mapper regs if IRQs are enabled/disabled. But I gave up on that cause it felt like one of those "clever algorithms" that would just make things worse. <img src="http://forums.nesdev.com/images/smilies/icon_wink.gif" alt=";)" title="Wink" /><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=12">Nessie</a> — Sat Jan 28, 2006 5:37 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[blargg]]></name></author>
+<updated>2006-01-28T01:30:54-07:00</updated>
+<published>2006-01-28T01:30:54-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=990&amp;p=8719#p8719</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=990&amp;p=8719#p8719"/>
+<title type="html"><![CDATA[64K not-onboard?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=990&amp;p=8719#p8719"><![CDATA[
+<div class="quotetitle"><b>Quote:</b></div><div class="quotecontent"><br />But if you find yourself mapping everything to one function most of the time, youre probably better off without function pointers.<br /></div><br /><br />You'd rarely map the <em>entire</em> address space to a single function. You might map the entire upper half of the CPU address space writes to a single mapper function, but this doesn't make a table of function pointers worse since you still have at least four distinct lower areas: RAM, PPU, APU, and WRAM. For me, the point of using a table of function pointers is CPU emulation efficiency. No matter how many different distinct areas of memory you have, the cost of determining how to handle an access is the same. It also lends itself well to modularity by allowing run-time registration of read/write handlers for arbitrary portions of memory. Since it's easy to adjust the granularity, the table size can be kept small if you don't need byte-level accuracy; in fact, you can even treat the non-function-pointer approach as simply having a single-entry table.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=17">blargg</a> — Sat Jan 28, 2006 1:30 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Nessie]]></name></author>
+<updated>2006-01-27T18:59:44-07:00</updated>
+<published>2006-01-27T18:59:44-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=990&amp;p=8704#p8704</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=990&amp;p=8704#p8704"/>
+<title type="html"><![CDATA[64K not-onboard?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=990&amp;p=8704#p8704"><![CDATA[
+You can still map all writes in the prg area to the same function and use the regular switch there if you come across cases where you feel that is more appropriate. I remember I did this for some multicart mappers that used certain bits from the address line to select bank numbers - otherwise I would've had to write one function for each address! <img src="http://forums.nesdev.com/images/smilies/icon_smile.gif" alt=":)" title="Smile" /> I did the same with MMC1, for the reason you just gave.<br />But if you find yourself mapping everything to one function most of the time, youre probably better off without function pointers.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=12">Nessie</a> — Fri Jan 27, 2006 6:59 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Anonymous]]></name></author>
+<updated>2006-01-27T17:48:14-07:00</updated>
+<published>2006-01-27T17:48:14-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=990&amp;p=8703#p8703</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=990&amp;p=8703#p8703"/>
+<title type="html"><![CDATA[64K not-onboard?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=990&amp;p=8703#p8703"><![CDATA[
+<div class="quotetitle">Nessie wrote:</div><div class="quotecontent"><br />Well, the value of function pointers in this case is not increased performance, but that it greatly simplifies your mapper code.<br />Perhaps it's merely a matter of preference.<br /></div><br /><br />I find all the mapper reg write code in 1 function to be simpler.  Since you can recycle tidbits that are common to several registers.<br /><br />MMC1 is a good example of this.  Every register is the same until the 5th write, yet if you split all 4 regs up to their own function, you either have to have them all call another common function, or copy/paste the same code 4 times.<br /><br />I find multiple functions to be far more complicated than a simple switch().  But yeah -- I guess it's a matter of preference.<p>Statistics: Posted by Guest — Fri Jan 27, 2006 5:48 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Nessie]]></name></author>
+<updated>2006-01-27T17:29:28-07:00</updated>
+<published>2006-01-27T17:29:28-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=990&amp;p=8701#p8701</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=990&amp;p=8701#p8701"/>
+<title type="html"><![CDATA[64K not-onboard?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=990&amp;p=8701#p8701"><![CDATA[
+Well, the value of function pointers in this case is not increased performance, but that it greatly simplifies your mapper code.<br />Perhaps it's merely a matter of preference.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=12">Nessie</a> — Fri Jan 27, 2006 5:29 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[blargg]]></name></author>
+<updated>2006-01-27T17:07:30-07:00</updated>
+<published>2006-01-27T17:07:30-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=990&amp;p=8700#p8700</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=990&amp;p=8700#p8700"/>
+<title type="html"><![CDATA[64K not-onboard?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=990&amp;p=8700#p8700"><![CDATA[
+baisoku, thanks for your reality-inspired rant. I think superstitions run wild in programming.<br /><br /><div class="quotetitle">baisoku wrote:</div><div class="quotecontent"><br />Spending time writing clever algorithms usually lands you in a world of thankless debugging in the future, when you could have replaced a bad algorithm with one tuned for the problem at hand.<br /></div><br /><br />"Debugging is twice as hard as writing code in the first place. Therefore, if you write the code as cleverly as possible, you are, by definition, not smart enough to debug it." - <a href="http://en.wikipedia.org/wiki/Brian_Kernighan" class="postlink">Brian Kernighan</a><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=17">blargg</a> — Fri Jan 27, 2006 5:07 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[baisoku]]></name></author>
+<updated>2006-01-27T01:25:30-07:00</updated>
+<published>2006-01-27T01:25:30-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=990&amp;p=8669#p8669</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=990&amp;p=8669#p8669"/>
+<title type="html"><![CDATA[64K not-onboard?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=990&amp;p=8669#p8669"><![CDATA[
+Ugh, function pointers per hardware address.<br /><br />I've found that the two driving factors for program design which take priority when i'm designing systems tend to be:<br /><br /> 1) Elegance/simplicity in implementation<br /> 2) Reflection of the real world<br /><br />1) You want your solutions to be elegant, simple, lean, and robust. This way, they can be easily optimized, easily replaced/rewritten, and easily representative of the underlying algorithms. Programmers are notorious for incorrectly guessing where performance bottlenecks will be. Compilers are smarter when you think they are naive, and vice versa. Spending time writing clever algorithms usually lands you in a world of thankless debugging in the future, when you could have replaced a bad algorithm with one tuned for the problem at hand.<br /><br />2) When you mimic the real world, you isolate the problem domain, and make it easier to achieve goal #1. If the NES easily addresses pages of N bytes, build your architecture around that. If communication between I/O devices shares one bus, create a Bus architecture, that even if it seems like an extra layer of code and abstraction, will more naturally allow you to structure your execution and code architecture like the Real Thing.<br /><br />Plus, if you optimize for a certain architecture, some system behavior, when the next generation comes out and all our assumptions are invalid, you will be locked into your previous faulty assumptions.<br /><br />But that's just a rant. If you're optimizing for something and it works good-like, just ignore me. <img src="http://forums.nesdev.com/images/smilies/icon_smile.gif" alt=":)" title="Smile" /><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=35">baisoku</a> — Fri Jan 27, 2006 1:25 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[danimal]]></name></author>
+<updated>2006-01-27T00:42:59-07:00</updated>
+<published>2006-01-27T00:42:59-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=990&amp;p=8666#p8666</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=990&amp;p=8666#p8666"/>
+<title type="html"><![CDATA[64K not-onboard?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=990&amp;p=8666#p8666"><![CDATA[
+<div class="quotetitle">Nessie wrote:</div><div class="quotecontent"><br />Hmm, that sounds like an enormous performance hit. It would be nice if there was a simpler way to make Java use a function pointer table. Do you have an idea on what the resulting machine code looks like after that object array has been compiled by the JVM? I would think invoking one of those methods means more than a simple "call" instruction. <img src="http://forums.nesdev.com/images/smilies/icon_wink.gif" alt=";)" title="Wink" /><br /></div><br /><br />I haven't completed it yet, school is getting in the way I have to stay employed with my other free time.  I do expect a performance hit but its just the cost of an extra overridden method.  Also with a just-in-time compilier some of the difficulty can be overcome.  Java is limited in pointers, it does not use them for primitives.  Object variables are stored as references, i don't believe there is a way to do any indirection (C/C++ style pointers) with them without a major linked list hack.  Java is naturally slow however 1.5 (aka 5.0) is much better than previous releases.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=241">danimal</a> — Fri Jan 27, 2006 12:42 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Anonymous]]></name></author>
+<updated>2006-01-25T17:59:05-07:00</updated>
+<published>2006-01-25T17:59:05-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=990&amp;p=8594#p8594</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=990&amp;p=8594#p8594"/>
+<title type="html"><![CDATA[64K not-onboard?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=990&amp;p=8594#p8594"><![CDATA[
+Later versions of Festalon( <!-- m --><a class="postlink" href="http://projects.raphnet.net/festalon/festalon-0.5.5.tar.bz2">http://projects.raphnet.net/festalon/fe ... .5.tar.bz2</a><!-- m --> ) emulate the 2A03 in a thread-safe OO manner by keeping track of a data pointer for each address read and write function pointer.<p>Statistics: Posted by Guest — Wed Jan 25, 2006 5:59 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Nessie]]></name></author>
+<updated>2006-01-25T15:50:50-07:00</updated>
+<published>2006-01-25T15:50:50-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=990&amp;p=8589#p8589</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=990&amp;p=8589#p8589"/>
+<title type="html"><![CDATA[64K not-onboard?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=990&amp;p=8589#p8589"><![CDATA[
+<div class="quotetitle">danimal wrote:</div><div class="quotecontent"><br />My Java based emu uses a simlar idea on the instructions but since we're talking about memory... I have an array of objects that are a decendant of a standard RAM class so they can call an implementation of an abstract read or write memory function.  Each memory space gets registered in the array.  Then within each object the value is stored or returned to the data bus.  Yes it is an extra layer of abstraction. It uses an ocean of memory but its Java so it will always use an ocean.<br /></div><br /><br />Hmm, that sounds like an enormous performance hit. It would be nice if there was a simpler way to make Java use a function pointer table. Do you have an idea on what the resulting machine code looks like after that object array has been compiled by the JVM? I would think invoking one of those methods means more than a simple "call" instruction. <img src="http://forums.nesdev.com/images/smilies/icon_wink.gif" alt=";)" title="Wink" /><br /><br /><br />I've thought about the possibility of producing something closer to a true jump table for memory accesses, perhaps it could be done with jasmine or some byte code lib. I believe the definition of Java's "table switch" has some size limits, so you can't really use it to switch over 0x10000 different cases. <img src="http://forums.nesdev.com/images/smilies/icon_smile.gif" alt=":)" title="Smile" /><br /><br />If you'd be willing to share the source for that emu, please send a copy to me - <!-- e --><a href="mailto:nessie@nessiehome.cjb.net">nessie@nessiehome.cjb.net</a><!-- e -->. Thanks.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=12">Nessie</a> — Wed Jan 25, 2006 3:50 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[danimal]]></name></author>
+<updated>2006-01-25T13:40:26-07:00</updated>
+<published>2006-01-25T13:40:26-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=990&amp;p=8585#p8585</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=990&amp;p=8585#p8585"/>
+<title type="html"><![CDATA[64K not-onboard?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=990&amp;p=8585#p8585"><![CDATA[
+<div class="quotetitle">Nessie wrote:</div><div class="quotecontent"><br />With an OO approach however, I believe you'll have to store an object pointer together with each function pointer, wasting even more ram. <img src="http://forums.nesdev.com/images/smilies/icon_smile.gif" alt=":)" title="Smile" /><br /></div><br /><br />If your functions are in the same object you don't have to worry about it or you could do an explicit typecast to get over this hurdle.<br /><br />I had partially developed an 6502 emu in C++ using function pointers for each instruction cycle in a 2-D array.  I wasn't really happy with the performance but it made the cycle loop easy. (I was using gcc at the time but when I tried vc++ it ran alot faster.)<br /><br />My Java based emu uses a simlar idea on the instructions but since we're talking about memory... I have an array of objects that are a decendant of a standard RAM class so they can call an implementation of an abstract read or write memory function.  Each memory space gets registered in the array.  Then within each object the value is stored or returned to the data bus.  Yes it is an extra layer of abstraction. It uses an ocean of memory but its Java so it will always use an ocean.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=241">danimal</a> — Wed Jan 25, 2006 1:40 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Nessie]]></name></author>
+<updated>2006-01-25T12:56:10-07:00</updated>
+<published>2006-01-25T12:56:10-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=990&amp;p=8581#p8581</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=990&amp;p=8581#p8581"/>
+<title type="html"><![CDATA[64K not-onboard?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=990&amp;p=8581#p8581"><![CDATA[
+The function pointer approach only needs a single instruction (call) instead of a series of branches and bitmasks. But yeah, it does feel wasteful with regards to memory. I haven't really compared performance between the two, perhaps the waste of ram really messes up the cache and makes it all slower in the end.<br /><br />Bitmasks are even easier with a function table. A function such as<br />setCpuMask(0x8000, 0xFFFF, 0xE001); // MMC3<br />could simply copy the pointer for 0x8000 to 0x8002, 0x8004, etc.<br /><br />With an OO approach however, I believe you'll have to store an object pointer together with each function pointer, wasting even more ram. <img src="http://forums.nesdev.com/images/smilies/icon_smile.gif" alt=":)" title="Smile" /><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=12">Nessie</a> — Wed Jan 25, 2006 12:56 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Zepper]]></name></author>
+<updated>2006-01-25T06:37:00-07:00</updated>
+<published>2006-01-25T06:37:00-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=990&amp;p=8558#p8558</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=990&amp;p=8558#p8558"/>
+<title type="html"><![CDATA[64K not-onboard?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=990&amp;p=8558#p8558"><![CDATA[
+I meant PPU registers, mirrored every 8. Sorry.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=39">Zepper</a> — Wed Jan 25, 2006 6:37 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Disch]]></name></author>
+<updated>2006-01-24T23:17:51-07:00</updated>
+<published>2006-01-24T23:17:51-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=990&amp;p=8549#p8549</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=990&amp;p=8549#p8549"/>
+<title type="html"><![CDATA[64K not-onboard?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=990&amp;p=8549#p8549"><![CDATA[
+I think he meant switch(a &amp; 7) for PPU reg writes instead of switch(a &amp; 0x2007).  I actually do use &amp; 7 in my emu currently -- but I don't see what difference it would make really.  &amp; 0x2007 lets you have more easily recognizable case labels which is why I mentioned it (ie... "case 0x2005" for $2005 instead of "case 5")<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=33">Disch</a> — Tue Jan 24, 2006 11:17 pm</p><hr />
+]]></content>
+</entry>
+</feed>

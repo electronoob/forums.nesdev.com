@@ -1,0 +1,325 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Extending the Action 53 mapper</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Extending the Action 53 mapper</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=9&amp;t=16710">http://forums.nesdev.com/viewtopic.php?f=9&amp;t=16710</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Wed Nov 15, 2017 7:22 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Extending the Action 53 mapper</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />The <a href="https://wiki.nesdev.com/w/index.php/Action_53_mapper" class="postlink">Action 53 mapper</a> is an ASIC mapper of roughly MMC1-class complexity, implemented on CPLD cartridges sold by Infinite NES Lives. It was originally designed for making multicarts of games using common discrete mappers (NROM, CNROM, UNROM, ANROM, BNROM). It can also be used by a single game that takes full control of the mapper to switch both PRG ROM and CHR RAM banks at runtime by changing register select at CPU $5000. Its division of register numbers into &quot;supervisor&quot; and &quot;user&quot; registers anticipated games using full control, but with one caveat: switching between horizontal and vertical mirroring requires a supervisor write, as does initialization at startup.<br /><br />But now people want to make games using its advanced features <em>and</em> get them included on a multicart. This is possible with a 1-byte patch so long as the game never changes the outer bank register ($81) after startup and always writes the correct log(prgsize/32768) value to bits 5-4 of the mode register ($80).<br /><br />In <a href="https://forums.nesdev.com/viewtopic.php?p=207950#p207950" class="postlink">this post</a>, INL suggested developing an extended discrete mapper that allows switching PRG, CHR, and mirroring without having to write to supervisor registers $80 and $81 or even to register select. I proposed basing it on <a href="https://wiki.nesdev.com/w/index.php/INES_Mapper_078" class="postlink">mapper 78</a>, variants of which are used by IREM's <em>Holy Diver</em> (78.3) and <em>Uchuusen: Cosmo Carrier</em> (78.1), and making it tweakable using the mode register to resemble <a href="https://wiki.nesdev.com/w/index.php/INES_Mapper_011" class="postlink">mapper 11</a> used by Color Dreams games. Thus an additional user mode of an expanded Action 53 mapper would have this layout at $8000-$FFFF:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">7654 3210<br />&nbsp; CC MPPP<br />&nbsp; || |+++- Set low 3 bits of PRG inner bank<br />&nbsp; || +---- Set mirroring mode bit 0 (inverted: 1 writes 0; 0 writes 1)<br />&nbsp; ++------ Set CHR bank<br /></div><br />The inversion is there because the sense of bit 3 on the Holy Diver board is like that of the iNES header (0=PA11, 1=PA10), which is inverted compared to that of FDS, MMC1-4, VRC2/4/7, FME-7, and both Action 52 and Action 53 (0=PA10, 1=PA11).<br /><br />How this would work:<br /><br /><ul><li><strong>32K PRG banks</strong><br />Similar to mapper 11, except with mapper-controlled mirroring (either H/V or 1-screen) instead of CIC stun control. (<a href="http://bootgod.dyndns.org:7777/search.php?ines=11&amp;mirroring=Horizontal" class="postlink">Only two commercial-era games using this mapper</a> have horizontal mirroring; the rest have vertical mirroring.) This allows accessing all four CHR RAM banks and the entirety of a 256 KiB outer bank.</li><li><strong>16K PRG banks, game up to 128 KiB</strong><br />This behaves like either variant of mapper 78, except CHR RAM is limited to 32 KiB.</li><li><strong>16K PRG banks, 256 KiB</strong><br />Because there are only three PRG ROM bank select bits, a game needs to select UNROM (write $01 to $5000), change bit 3 of the inner bank number, and select mapper 78 again. But as long as the game doesn't need to change between 16K and 32K modes or between H/V and 1-screen mirroring, this eliminates the need to write to supervisor registers after startup.</li></ul><br />INL's counterproposal was to add a mode equivalent to MMC3. He pointed out that the cost of doing so is negligible given all the 5.0 V to 3.3 V level shifting needed to use a PRG ROM larger than 4 Mbit (512Kx8). This would behave similarly to TGROM (<em>Mega Man 4</em>; <em>Mega Man 6</em>; <em>Ninja Crusaders</em>) and the expanded TGROM used by <em>The Curse of Possum Hollow</em>, which would in theory let Retrotainment submit the demo of <em>Curse</em> as a free-for-all in volume 4.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Myask</b> [ Sun Nov 19, 2017 1:08 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Extending the Action 53 mapper</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tepples wrote:</div><div class="quotecontent">But now people want to make games using its advanced features and get them included on a multicart. This is possible with a 1-byte patch so long as the game never changes the outer bank register ($81) after startup and always writes the correct log(prgsize/32768) value to bits 5-4 of the mode register ($80).</div>In the general case, that would be 1 byte patched per 32KiB of PRG used. [Worse if inefficiently-coded, of course, but that would be preventable by having official subroutines for bankswitch and modeswitch.]
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>infiniteneslives</b> [ Sun Nov 19, 2017 2:42 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Extending the Action 53 mapper</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />While I think your proposal would work Tepples, the thing it appears to lack is ability to change between 16KB and 32KB PRG-ROM bankswitching.  I don't see how it helps basing directly off the other mappers when emulators don't support CHR-RAM for mapper 11.<br /><br />There are a couple problems that we're looking to solve here:<br />1- Allow compo entries access extra hardware available on cartridge.  At a minimum this includes bank switched 32KB CHR-RAM, and selectable mirroring.<br />2- Simplify the mapper requirement for the compo beyond 'mapper 28' compatible, which is hard to translate to entrant's mapper choices.<br /><br />My first proposal of a new discrete mapper similar to Tepples' proposal is an option, but it then creates a new problem that development tools (emulators) don't support this new mapper.  Sure support could be added to FCEUX, but it's unlikely to be a fast nor simple process.<br /><br />Last compo we exceeded 4mbit of data which is the threshold for which 5v parallel memory can be purchased cost effectively.  Going past 4mbit makes 3v memory the only viable solution, and once we've done that, we've now unlocked a 3v CPLD/mapper with ~200 cells.  Doing that, allows the compo mapper access to MMC3 scale logic at no additional cost.  The added cost was paid when we jumped from 4mbit to 8mbit rom.<br /><br />So with that, perhaps the best solution is we simply add MMC3 to the list of available mappers for compo entrants.  Any emulator that supports nes 2.0 will allow development with 32KB CHR-RAM.  Altenatively CHR-ROM could be utilized which is supported by nearly all emus.  This also provides significantly more mapper features to entries, I'm not sure if this would be good or not.  Some may feel they didn't adequately make use of available hardware, or that things aren't on quite the same level playing field between entries that do and don't utilize the MMC3.<br /><br />I don't know how this proposal would affect the menu's responsiblity/challenges.  Initially I expected use of MMC3 might promote less efficient use of rom.  But MMC3's increased bank granulatity might actually help keep entries condensed.<br /><br />So I'm still not sure what the best answer is exactly.  Maybe the current setup is best, and we're proposing repairs to something that's not broken after all.  Curious what compo entrants think about all this...
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Sun Nov 19, 2017 5:11 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Extending the Action 53 mapper</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">infiniteneslives wrote:</div><div class="quotecontent">While I think your proposal would work Tepples, the thing it appears to lack is ability to change between 16KB and 32KB PRG-ROM bankswitching.</div><br />I was under the impression that the banking style would remain constant throughout a game.<br /><br /><ul><li>32K: Use mapper 11. This is BNROM with CHR RAM banking; it does not support mapper-controlled mirroring or switching to 16K.</li><li>16K: Use mapper 78.1 for 1-screen mirroring or mapper 78.3 for mapper-switchable H/V mirroring. It doesn't support switching between H/V on the one hand and 1-screen on the other or switching to 32K.</li></ul><br /><div class="quotetitle">infiniteneslives wrote:</div><div class="quotecontent">emulators don't support CHR-RAM for mapper 11.</div><br />I'll take that as a feature request for adding mapper 11 to <a href="https://forums.nesdev.com/viewtopic.php?p=120164#p120164" class="postlink">that test ROM you commissioned</a>, which already supported mapper 78.3 from the start. This way someone with  a soldering iron, a Color Dreams cartridge, a spare flash or UV EPROM, spare 32Kx8 SRAM (e.g. 62256), and a CIC modded NES could flash Holy Mapperel and verify that the combination of 64K of PRG ROM, 32K of CHR ROM, and mapper 11 is valid. (The CIC modification is necessary because my demo would lack a charge pump control routine. It wouldn't be needed for a <em>Sunday Funday</em> reprint donor.) Then we <a href="https://github.com/SourMesen/Mesen/issues" class="postlink">should</a> know <a href="https://sourceforge.net/p/nintendulator/bugs/" class="postlink">whom</a> to <a href="https://sourceforge.net/p/fceultra/bugs/" class="postlink">bug</a>.<br /><br />I grant that both a brand new discrete mapper and support for CHR RAM in mappers 11 and 78 would require changes to at least one emulator. But I conjecture that support for CHR RAM in mappers 11 and 78 requires smaller changes to fewer emulators than a brand new discrete mapper.<br /><br /><div class="quotetitle">infiniteneslives wrote:</div><div class="quotecontent">Going past 4mbit makes 3v memory the only viable solution, and once we've done that, we've now unlocked a 3v CPLD/mapper with ~200 cells.  Doing that, allows the compo mapper access to MMC3 scale logic at no additional cost.  The added cost was paid when we jumped from 4mbit to 8mbit rom.</div><br />That'd require a bit of thinking to figure out how to best handle both discretes and full MMC3.<br /><br /><div class="quotetitle">infiniteneslives wrote:</div><div class="quotecontent">So with that, perhaps the best solution is we simply add MMC3 to the list of available mappers for compo entrants.  Any emulator that supports nes 2.0 will allow development with 32KB CHR-RAM.</div><br />And any emulator that doesn't support MMC3 + NES 2.0 can't run a demo of <em>The Curse of Possum Hollow</em> should Retrotainment release one. But it's one thing to make an emulator support MMC3 and NES 2.0; it's quite another to make it support a multicart mapper covering both MMC3 and the discretes. Or is there a suitable ready-made MMC3+discrete mapper in one of the pirate multis?<br /><br /><div class="quotetitle">infiniteneslives wrote:</div><div class="quotecontent">This also provides significantly more mapper features to entries, I'm not sure if this would be good or not.  Some may feel they didn't adequately make use of available hardware, or that things aren't on quite the same level playing field between entries that do and don't utilize the MMC3.</div><br />You might level this by slightly modifying the prize structure to include both a discrete winner and an MMC3 winner.<br /><br /><div class="quotetitle">infiniteneslives wrote:</div><div class="quotecontent">I don't know how this proposal would affect the menu's responsiblity/challenges.  Initially I expected use of MMC3 might promote less efficient use of rom.  But MMC3's increased bank granulatity might actually help keep entries condensed.</div><br />As long as the mapper can switch between MMC3 and discrete modes, there wouldn't be much of a need for that. Currently it runs in the same oversize BNROM mode it ran in since before mapper 28 existed, only switching to the particular game's preferred mode before jumping to it. The menu would just need some flag to tell which games are MMC3.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Sun Nov 19, 2017 5:19 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Extending the Action 53 mapper</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tepples wrote:</div><div class="quotecontent">Or is there a suitable ready-made MMC3+discrete mapper in one of the pirate multis?<br /></div>COOLBOY, for one.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>infiniteneslives</b> [ Sun Nov 19, 2017 5:50 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Extending the Action 53 mapper</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tepples wrote:</div><div class="quotecontent"><div class="quotetitle">infiniteneslives wrote:</div><div class="quotecontent">While I think your proposal would work Tepples, the thing it appears to lack is ability to change between 16KB and 32KB PRG-ROM bankswitching.</div><br />I was under the impression that the banking style would remain constant throughout a game.<br /><br /><ul><li>32K: Use mapper 11. This is BNROM with CHR RAM banking; it does not support mapper-controlled mirroring or switching to 16K.</li><li>16K: Use mapper 78.1 for 1-screen mirroring or mapper 78.3 for mapper-switchable H/V mirroring. It doesn't support switching between H/V on the one hand and 1-screen on the other or switching to 32K.</li></ul><br /></div><br />Yes it likely would remain constant.  But again, emulators already don't support your proposed configs.  My original idea was that since emulator support would have to be written in, we would make one concise mapper definition that met feature goals, and gave one mapper number for the compo rules to point to.  It should be clear if an emulator support this brand new mapper or not, instead of some non-standard extension off mapper #11 etc.  To permit both 16KB and 32KB banking it could simply be built into the new single mapper definition (similar to MMC1).<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">I grant that both a brand new discrete mapper and support for CHR RAM in mappers 11 and 78 would require changes to at least one emulator. But I conjecture that support for CHR RAM in mappers 11 and 78 requires smaller changes to fewer emulators than a brand new discrete mapper.</div> Yeah IDK, the whole idea is becoming a bit of a mess.  Starting to think entries simply need to wrap their head around mapper28 supervisor registers if they want these features.  I'm not the one that would be modifing emulators, so I have no real authority on what's best other than it's often best to avoid creating new mappers if possible.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent"><div class="quotetitle">infiniteneslives wrote:</div><div class="quotecontent">So with that, perhaps the best solution is we simply add MMC3 to the list of available mappers for compo entrants.  Any emulator that supports nes 2.0 will allow development with 32KB CHR-RAM.</div><br />And any emulator that doesn't support MMC3 + NES 2.0 can't run a demo of <em>The Curse of Possum Hollow</em> should Retrotainment release one. But it's one thing to make an emulator support MMC3 and NES 2.0; it's quite another to make it support a multicart mapper covering both MMC3 and the discretes. Or is there a suitable ready-made MMC3+discrete mapper in one of the pirate multis?</div>Good point, I hadn't thought about that.  Even more reason to axe the MMC3 idea.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">You might level this by slightly modifying the prize structure to include both a discrete winner and an MMC3 winner.</div>Maybe, but we've found that separate categories doesn't work so well in the past.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Sun Nov 19, 2017 7:26 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Extending the Action 53 mapper</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">infiniteneslives wrote:</div><div class="quotecontent"><div class="quotetitle">tepples wrote:</div><div class="quotecontent"><ul><li>32K: Use mapper 11. This is BNROM with CHR RAM banking; it does not support mapper-controlled mirroring or switching to 16K.</li><li>16K: Use mapper 78.1 for 1-screen mirroring or mapper 78.3 for mapper-switchable H/V mirroring. It doesn't support switching between H/V on the one hand and 1-screen on the other or switching to 32K.</li></ul></div><br />Yes it likely would remain constant.  But again, emulators already don't support your proposed configs.</div><br />Which don't?<br /><div class="attachtitle">Attachment:</div><div class="attachcontent">
+			<img src="./download/file.php?id=10827" alt="Holy11RAM.png" /><br />
+			<span class="gensmall">Holy11RAM.png [ 4.97 KiB | Viewed 1089 times ]</span>
+		
+
+		<br />
+	</div><br /><div class="attachtitle">Attachment:</div><div class="attachcontent">
+			<a href="./download/file.php?id=10828&amp;mode=view"><img src="./download/file.php?id=10828&amp;t=1" alt="Holy11RAM_PowerPak.jpg" /></a><br />
+			<span class="gensmall">Holy11RAM_PowerPak.jpg [ 51.61 KiB | Viewed 1089 times ]</span>
+		
+
+		<br />
+	</div><br />The test ROM, built from the latest commit to Holy Mapperel, is attached.<br /><br />I'm currently seeing a problem with 78.3 in FCEUX, but it appears to be unrelated.
+
+		
+			<br clear="all" /><br />
+
+			<table class="tablebg" width="100%" cellspacing="1">
+			<tr>
+				<td><b class="genmed">Attachments: </b></td>
+			</tr>
+			
+				<tr>
+					<td>
+			<span class="genmed">
+				<img src="./styles/subsilver2/imageset/icon_topic_attach.gif" width="14" height="18" alt="" title="" /> 
+				<a href="./download/file.php?id=10829">M11_P64K_CR32K_V.nes.zip</a> [4.91 KiB]
+			</span><br />
+			<span class="gensmall">Downloaded 34 times</span>
+		
+
+		<br />
+	</td>
+				</tr>
+			
+			</table>
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>infiniteneslives</b> [ Mon Nov 20, 2017 11:34 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Extending the Action 53 mapper</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />oh!  my bad, I shouldn't have assumed they didn't support mapper 11 with banked CHR-RAM.  I take it, mapper 78 with CHR-RAM is supported as well?<br /><br />In that case, sounds like I'm making a big deal about nothing then.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Mon Nov 20, 2017 11:52 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Extending the Action 53 mapper</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">infiniteneslives wrote:</div><div class="quotecontent">oh!  my bad, I shouldn't have assumed they didn't support mapper 11 with banked CHR-RAM.  I take it, mapper 78 with CHR-RAM is supported as well?</div><br />I'll test for that once I finish bugging emulator authors about <a href="https://forums.nesdev.com/viewtopic.php?p=208395#p208395" class="postlink">another mapper 78-related issue</a>.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

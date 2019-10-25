@@ -1,0 +1,456 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - SMB1 + SMB2J SRAM Plus (FDS hack)</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">SMB1 + SMB2J SRAM Plus (FDS hack)</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=22&amp;t=11576">http://forums.nesdev.com/viewtopic.php?f=22&amp;t=11576</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>5</strong> of <strong>12</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ShaneM</b> [ Fri Nov 28, 2014 12:05 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: SMB1 + SMB2J SRAM Plus (FDS hack)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />More info about the contest prize: <a href="http://acmlm.kafuka.org/board/thread.php?pid=159079#159079" class="postlink">http://acmlm.kafuka.org/board/thread.php?pid=159079#159079</a>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ShaneM</b> [ Sat Dec 06, 2014 10:28 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: SMB1 + SMB2J SRAM Plus (FDS hack)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Most of you have probably read my previous posts concerning the SMB promotion over at Board 2. Well, I fixed some more things up in it. One I will share, with code exclusively I'm sharing here (since I'm probably the only one at Board 2 that is fluent in 6502 ASM). It has to do with an obscure glitch that I recently discovered with platform code (more info here: <a href="http://themushroomkingdom.net/bugs/10" class="postlink">http://themushroomkingdom.net/bugs/10</a> and here <a href="http://themushroomkingdom.net/bugs/56" class="postlink">http://themushroomkingdom.net/bugs/56</a>).<br /><br />This fucker was a real son of a bitch to fix, let me tell you. It took me 6-7 hours to trace code. Initially, I didn't have the slightest clue on what caused this. The fully labeled SMB2J disassembly really didn't help much; the balance lift code is HUMONGOUS. I mean, about 200 lines or so of code just for this, branching off to many subs. I tested this glitch out on Side A SMB1, on level 3-3. Before I hit the debugger, I hit the built-in FCEUX hex editor and looked at $18 and $19, where the enemy slots are stored for these enemies. They have an ID of $24 after being buffered in VRAM. Whatever platform I stood on (the one falling), would get cleared after going under $03 on the screen Y position and go to $00, while the other one would stay at $24. So, the first thing I noted was that the <em>opposite</em> platform was the one not being cleared. Which is why there is still collision where it stood. The next thing I did before setting Writes in the debugger was looked at the &quot;jmp EraseEnemyObject&quot; in the main routine &quot;BalancePlatform:&quot;. I found that this was responsible for clearing the OAM object enemy (yeah, platforms are all considered enemies in SMB1/2J). It cleared what was in A plus X offset. I then hit the debugger, setting Write breakpoints to $18; next I stepped into the code. This is what I found: $95d1 was responsible for clearing the object. It was only clearing what was stored in X, while the opposite platform is always Y. So, whenever X was below $03's Y position on the screen, it would clear the object, but Y (the opposite platform) wasn't. Well, not the collision, anyway. SO I came up with a simple fix:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">BalancePlatform:<br />&nbsp; &nbsp; &nbsp; &nbsp; lda Enemy_Y_HighPos,x&nbsp; &nbsp; &nbsp; &nbsp;;check high byte of vertical position<br />&nbsp; &nbsp; &nbsp; &nbsp; cmp #$03<br />&nbsp; &nbsp; &nbsp; &nbsp; bne DoBPl<br />&nbsp; &nbsp; &nbsp; &nbsp;;;;;;; jmp EraseEnemyObject&nbsp; &nbsp; &nbsp; &nbsp; ;if far below screen, kill the object<br />&nbsp; &nbsp; &nbsp; JMP freespace&nbsp; &nbsp;;my custom code<br /><br />freespace:<br />JSR EraseEnemyObject<br />TYA<br />TAX<br />JMP EraseEnemyObject<br /></div><br /><br />It worked...for some platforms but not others. This was obviously the issue but I didn't understand why it was working half of the time and not other times. Then I tried replacing the &quot;lda Enemy_Y_HighPos,x&quot; with a &quot;lda Enemy_Y_HighPos,y&quot; and bingo! It worked. (What this does is make sure the opposite platform or &quot;Y&quot; is cleared FIRST, thereby clearing X, since Y fell after X (the one the player is on.)) Ever had one of those situations where when you fixed a glitch you caused another? Well, that's here. I fixed the invisible platform but caused something strange to happen. Well, not directly caused by my fix. Whenever the platforms fell, it would clear the objects completely, but then some strange collision was created by the rope of the pulleys when they fell. Also, now if the player was standing too close to the rope, they would be pushes away! Sort of like the Wind effect, except more brutal. So much so that the player could barely cross the lifts. (I checked and the lifts were indeed cleared from $18 and $19 or whatever enemy slot they were loaded from.)<br /><br />The rope code seems stable and I'm sure this code is the issue, not sure what was going on. Lifts would fall randomly on 4-3, other enemies disappeared from the screen randomly (no fixed pattern and sometimes they didn't disappear at all). I thought to myself and came to the conclusion that the platform code is so fucked up that it's a lost cause. So what did I do? After all, I fixed every other glitch I ever came across, I probably broke a record for optimizing SMB code and fixing glitches etc. I recoded the main portion of the troubled code for the platforms! I now made it to the platforms not falling off at all. I made it VERY realistic. The player is no longer awarded 1000 points when getting the platform off because that's now impossible (plus, I wrote over that code). I made it so that when the player stands on the platform and it gets to a certain point, it ceases to move, that is, until you jump onto the other platform. Sort of like a seesaw. But, I made it realistic, so if the platform ceases on one end and you jump up directly above it a certain amount, it drops slightly. Like in real life if a platform stops and a heavy person jumps on the ceased platform. Though it never falls off, with a hundred or so jumps you can get it visibly a little lower. This was HARD. Here is my code, as promised:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">balance_no_possessed: <br />lda #$2F&nbsp; ;;;;are we at a certain point where the screws are at the top of the balance lift on the opposite ;;platform?<br />cmp Enemy_Y_Position,y ;;;;;has the opposite platform reached a certain point close to the top of the lift? <br />;;If so, time keep em' stopped and then RTS. <br />bcc $04&nbsp; ;;;;;; yea boi!<br />jsr StopPlatforms&nbsp; &nbsp;;;;;;;cease and desist!<br />rts&nbsp; &nbsp;;;;;;;return from whence ye came<br />lda #$20&nbsp; &nbsp;;;;;;;;the movement force<br />jsr $A1D2 ;;;;;;store em' over speed and moveforce in RAM, I did a JSR here instead of having to write out ;;the STA $xx,y and STA $xxxx,y addresses. It's redundant and a waste of space.<br />pla&nbsp; ;;;;;;get the contents of X back<br />tax&nbsp; ;;;;;I'm back!<br />rts&nbsp; ;;;;;um...yep. Pretty self-explanatory<br /></div><br /><br />This code is actually called twice, so I made two JSRs to it. If you borrow it, CREDIT me or else I will know it's my code. <br /><br />I may share my Luigi code (pics on Board 2 from the last post) where I gave Luigi his proper Fiery form colors by doing a palette swap routine. (Getting his regular non-fiery palette was easy, just a simple hex change. Though, the fiery code was shared by Mario and Luigi and I had to create a routine to separate them.)    --ShaneM, Master of ASM
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ShaneM</b> [ Mon Dec 08, 2014 11:59 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: SMB1 + SMB2J SRAM Plus (FDS hack)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Fixed the double-jump glitch that I recently found: <a href="http://www.mariowiki.com/List_of_Super_Mario_Bros._glitches#Jumping_in_Midair" class="postlink">http://www.mariowiki.com/List_of_Super_Mario_Bros._glitches#Jumping_in_Midair</a><br /><br />Even more reason to participate in the giveaway. Here's my code; I don't always play nice and share my code but I'll share this one, cuz it took one line of code to fix and it took me less than 5 minutes to figure out (I must be getting better at this...if that's even possible at this point):<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">PlayerChangeSize:<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;lda TimerControl&nbsp; &nbsp; ;check master timer control<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;cmp #$f8&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ;for specific moment in time<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;bne EndChgSize&nbsp; &nbsp; &nbsp; ;branch if before or after that point<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;JSR DisJoyp&nbsp; &nbsp; &nbsp; &nbsp; ;ShaneM's fix<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;jmp InitChangeSize&nbsp; ;otherwise run code to get growing/shrinking going<br /></div><br /><br />Is there any glitch too hard for me? The labels borrowed from doppleganger's SMB2J disassembly. I'll try to see if there's any more glitches on the worldwide web that I missed before Jan. 05th, the due date for this special build. Too bad, if time passes and I don't get deadline videos by then, nobody will get this special build.   <br /><br />I've already fixed all glitches found on Mariowiki, TheMushroomKingdom and many YT videos. (Excluding ones like &quot;Disappearing Power-Ups&quot; and &quot;Disappearing Trampolines&quot; which aren't glitches but are programmed that way to erase them because there can only be so much OAM buffered at once [but the trampoline one was programmed different in SMB2J to just not load at all instead of trapping the player but I optimized this some], but those reports were probably written by someone without ASM knowledge or knowledge of SMB1 mechanics.) --ShaneM, Master of ASM
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ShaneM</b> [ Wed Dec 10, 2014 12:30 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: SMB1 + SMB2J SRAM Plus (FDS hack)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Alright; I'm going to share how I fixed the fireball glitch (<a href="http://themushroomkingdom.net/bugs/12" class="postlink">http://themushroomkingdom.net/bugs/12</a>). Took me about 5 minutes to fix. There are two ways to fix this.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">ProcFireball_Bubble:&nbsp; &nbsp;;original routine<br />lda PlayerStatus&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;;check player's status<br />cmp #$02<br />bcc ProcAirBubbles&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;;if not fiery, branch<br /><br />;...some ways down you find<br />lda CrouchingFlag&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ;if player crouching, branch<br />bne ProcFireballs<br /><br /></div><br /><br />Method #1 (my choice) = Simply NOP the LDA CrouchingFlag and BNE following it. That way, the player can now crouch and still shoot fireballs, thereby adding a feature as well as &quot;fixing&quot; the glitch.<br /><br />Method #2 (hardcore/precise) = This merely fixes the glitch instead of letting the player crouch and shoot fireballs. I didn't choose this road because I like the idea of crouching and shooting fireballs.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">ProcFireball_Bubble: <br />;new code found where the old &quot;lda CrouchingFlag&quot; was<br />lda Areatype&nbsp; &nbsp; ;if water type level ($00), then branch. ShaneM's code<br />beq ANDing&nbsp; &nbsp; &nbsp;;ShaneM's code<br />lda CrouchingFlag&nbsp; &nbsp; ;original code<br />bne ProcFireballs&nbsp; &nbsp; &nbsp;;original code<br /><br />Fix: ;... some ways down, where the original code &quot;lda #Sfx_Fireball&quot; is located<br />lda #Sfx_Fireball ;etc...the rest of the routine and so on. I just created a label here<br /><br />ANDing: ;found wayyy at the end of this routine, entirely. ShaneM's code<br />lda SavedJoypad1Bits<br />and %00000100<br />beq fix<br />rts<br /></div><br /><br />--ShaneM, Master of ASM
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ShaneM</b> [ Wed Dec 10, 2014 10:50 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: SMB1 + SMB2J SRAM Plus (FDS hack)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />So I've fixed every known glitch found in formal sites. But, I found one today on YT that was unmarked on any formal site: <a href="https://www.youtube.com/watch?v=CGk3emjoh8I&amp;list=PL576CDD8E4A2E5A07&amp;index=7" class="postlink">https://www.youtube.com/watch?v=CGk3emjoh8I&amp;list=PL576CDD8E4A2E5A07&amp;index=7</a>. Look at 15 seconds into the video. Notice that he went through the pipe there? That's a glitch having to do with the BG collision of invisible blocks. That happens to any and all invisible blocks, whether they be 1UPs, Invisible Coin, Powerup or Poison Mushroom. This has now been fixed. I tried to get it to emulate the SMAS SNES fix. But this is 6502 and I had to recode it myself. Here is my fix, it will be available only on the version on Board 2 of whomever submits to me entries in the contest giveaway. CREDIT ME IF USED!!!<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">RetYC: <br />and #%00001111&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ;and mask out high nybble/ORIGINAL CODE<br />sta $04&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;;store masked out result here/ORIGINAL CODE<br />lda Player_X_Scroll&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;;;;;;Is the player horizontally moving? SHANEM's CODE<br />beq new_label&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;;;;;;if not, branch SHANEM's CODE<br />lda $03&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;;;;;;SHANEM's CODE<br />cmp #$5E&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ;;;;;any object less than the invisible coin, branch. SHANEM's CODE<br />bcc new_label&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ;;;;;SHANEM's CODE<br />cmp #$62&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ;;;;;any object greater than invisible powerup, branch SHANEM's CODE<br />bcs new_label&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ;;;;;SHANEM's CODE<br />lda #$00&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ;;;;;clear block buffer collision if player moving horizontally otherwise attribute collsion, ;;;;;SHANEM's CODE<br />sta $03&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;;;;;;SHANEM's CODE<br />new_label:&nbsp; &nbsp; &nbsp;lda $03&nbsp; &nbsp; &nbsp;;get saved content of block buffer/ORIGINAL CODE<br />rts&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ;ORIGINAL CODE<br /><br /><br />;notes<br />;$5E = invisible coin<br />;$5F = invisible 1-UP<br />;$60 = invisible Poison Mushroom<br />;$61 = invisible powerup<br /></div><br /><br />tepples or any other person who somewhat knows SMB1/2J, are there any other glitches on the the worldwide web that I'm missing?    --ShaneM, Master of ASM
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ShaneM</b> [ Sun Dec 14, 2014 12:03 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: SMB1 + SMB2J SRAM Plus (FDS hack)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I've decided as a present before X-mas to share my glitch fixes, in which I fix every single glitch in the promo giveaway on Board 2. I know I don't get much acknowledgment for this work, cuz SMB1/SMB2J aren't very popular. But to me, they trumph SMB3 or any other SMB game. So these fixes are a HUGE deal to me. I'll space them out and share them some at a time. Remember, Jan. 05th 2014 are the video contest deadlines. <br /><br />Here, I fix this glitch, dealing with player-to-enemy collision: <a href="http://www.mariowiki.com/File:SMB_W1-1_Glitch2.ogg" class="postlink">http://www.mariowiki.com/File:SMB_W1-1_Glitch2.ogg</a> (Look at 1:38 into the video; and yeah, I fix the other glitches it presents, too.)<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">PlayerEnemyCollision:<br />;...Some ways down in the routine we find<br />lda Enemy_State,x<br />;;;;;and #%00100000&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ;if enemy state has d5 set, branch to leave<br />and #%00100001&nbsp; &nbsp;;SHANEM FIX; what we want to do is also branch if d0 is set<br />bne NoPECol<br />;...Some more ways down<br />NoPECol: rts<br /><br />;notes<br />;the LSBs we are checking if set are d5<br />;which is if the enemy is in a defeated state against $1E plus X offset<br />;or d0, if the enemy is in a falling state<br />;if either are true and therefore set, collision between enemy and player are void<br /></div><br /><br />Thanks for those bothering to even read this. I'll try to post some of my code each day, but I've fixed probably over 60 glitched in total. So I may not be able to post them all. Oh yeah, and as a bonus, here is my code in which I separate fiery Mario and Luigi and give them their own, proper palettes. Credit me if used, please. Here are pics at the bottom, too. (Luigi's colors based on their current official palettes. Only fiery forms depicted, though I corrected Luigi's standard palettes, too; those were simple data changes, though.)<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">PlayerColors:&nbsp; &nbsp; &nbsp;;original shit, here<br />&nbsp; &nbsp; &nbsp; .db $22, $16, $27, $18 ;player's normal colors, may be overwritten<br />&nbsp; &nbsp; &nbsp; .db $22, $37, $27, $16 ;player's colors after grabbing fire flower<br /><br />ClrGetLoop:&nbsp; &nbsp; <br />lda selectedplayer ;SHANEM's CODE; is Mario or Luigi playing?<br />bne Luigi ; SHANEM's CODE; if Mario, branch<br />lda $1a&nbsp; &nbsp;;SHANEM's CODE; otherwise, load Luigi's shade of green<br />sta PlayerColors+8 ;SHANEM's CODE; write over the $16 stored at PlayerColors+8 to the offset<br />bne VRAM ;SHANEM's CODE unconditional branch<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; <br />Luigi: <br />lda $16 ;ShaneM's CODE; fetch the shade of red used by Mario<br />sta PlayerColors+8&nbsp; &nbsp; ;SHANEM's CODE; store it at PlayersColors+8 to the offset<br /><br />VRAM: <br />lda PlayerColors,y&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ;original code<br />sta VRAM_Buffer1+3,x&nbsp; &nbsp; &nbsp;;this too is original code...continue the routine as normal<br /><br /><br />;notes<br />;the label &quot;VRAM&quot; is actually the start of the original routine, &quot;ClrGetLoop&quot;<br />;I just added it for the unconditional branch after loading Luigi's colors<br />;it may seem redundant that I created code to 'reload' Mario if by default<br />;Mario's palette is used<br />;the issue is, if you play as Luigi and choose Quit after a Game Over, then<br />;choose Mario, Luigi's colors would still be used until a hard reset<br />;this way palette gets properly swapped no matter which character is playing<br /></div><br /><br />Fiery Mario<br /><img src="http://i1302.photobucket.com/albums/ag140/Shane_Mohammed/SuperMarioBros1amp2SRAMPlusJapan_005_zpscce3b4d0.png" alt="Image" /><br /><br />Fiery Luigi<br /><img src="http://i1302.photobucket.com/albums/ag140/Shane_Mohammed/SuperMarioBros1amp2SRAMPlucsJapan-Copy_001_zps012d0fba.png" alt="Image" /><br /><br />Some pics of Luigi's regular proper colors, too. These I matched to the SMB Deluxe colors, though that's Z80 and VRAM renders big-endian addressing for each palette instead of single bytes, which it uses 4 palettes just like the FDS does.<br /><br /><img src="http://i1302.photobucket.com/albums/ag140/Shane_Mohammed/SuperMarioBros1amp2SRAMPlusJapan_009_zps5378d949.png" alt="Image" /><br /><br /><img src="http://i1302.photobucket.com/albums/ag140/Shane_Mohammed/SuperMarioBros1amp2SRAMPlucsJapan-Copy_003_zpsddc102c6.png" alt="Image" /><br /><br /><img src="http://i1302.photobucket.com/albums/ag140/Shane_Mohammed/SuperMarioBros1amp2SRAMPlucsJapan-Copy_004_zps984a5850.png" alt="Image" /><br /><br />SO participate for your chance to win this cool prize. Also, you can see the VC rip of the 25th anniversary blocks I mentioned using, something currently undumped, straight from the source! Also, you can see the  star from SMB Special and the ANNSMB mics used, too. Hurry, time's almost up! <img src="./images/smilies/icon_wink.gif" alt=";)" title="Wink" />  --ShaneM, the Master of ASM.<br /><br />EDIT: One more pic showing off the promotional sprites; SMB2J still on Side B with all these fixes, present (minus the promotional sprites).<br /><br /><img src="http://i1302.photobucket.com/albums/ag140/Shane_Mohammed/SuperMarioBros1amp2SRAMPlusJapan_008_zpsbfb6a084.png" alt="Image" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ShaneM</b> [ Tue Dec 16, 2014 11:25 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: SMB1 + SMB2J SRAM Plus (FDS hack)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />So, how could I make this special version of SMB1 and SMB2J extra special? By adding a level from SMB Special!!! Originally released in Japan for the PC88 as a special version of SMB, I've remade 6-2 of this game's level and have replaced the old A-1 secret stage on Side B with it (the secret Warp to this level is still found on A-1 as before)! SMB2J's A-1 is left intact, there is just a secret Warp to this, now. Originally it was a remake of SMB1's 1-1. But now, for the first time, an SMB Special level has been remade for the FDS! That lucky contest winner will sure get to enjoy the fruits of their labor with this prize. Faithful to it's original PC88 version; with SMB2J features, too. Here is a map of the level: <a href="http://www.mariouniverse.com/images/maps/x1/smb/6-2.png" class="postlink">http://www.mariouniverse.com/images/maps/x1/smb/6-2.png</a><br /><br />That's a total of over 22 Worlds; 89 levels! Hours upon hours of fun and excitement while reliving classics to their fullest. Sublime to any other official Nintendo version as I've fixed all the glitches.<br /><br /><br />Here are some in-game pics of this level:<br /><br /><img src="http://i1302.photobucket.com/albums/ag140/Shane_Mohammed/SuperMarioBros1amp2SRAMPlusJapan_011_zps3735112c.png" alt="Image" /><br /><br /><img src="http://i1302.photobucket.com/albums/ag140/Shane_Mohammed/SuperMarioBros1amp2SRAMPlusJapan_013_zps6a40b547.png" alt="Image" /><br /><br /><img src="http://i1302.photobucket.com/albums/ag140/Shane_Mohammed/SuperMarioBros1amp2SRAMPlusJapan_012_zpsd0fb69c4.png" alt="Image" /><br /><br /><img src="http://i1302.photobucket.com/albums/ag140/Shane_Mohammed/SuperMarioBros1amp2SRAMPlusJapan_014_zpseca1e970.png" alt="Image" /><br /><br /><img src="http://i1302.photobucket.com/albums/ag140/Shane_Mohammed/SuperMarioBros1amp2SRAMPlusJapan_015_zps477e7ed7.png" alt="Image" /><br /><br />Production on this promotional game has been completed. I await entries until Jan.05th.    --ShaneM
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ShaneM</b> [ Wed Dec 17, 2014 12:25 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: SMB1 + SMB2J SRAM Plus (FDS hack)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">ShaneM wrote:</div><div class="quotecontent"><div class="codetitle"><b>Code:</b></div><div class="codecontent">PlayerEnemyCollision:<br />;...Some ways down in the routine we find<br />lda Enemy_State,x<br />;;;;;and #%00100000&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ;if enemy state has d5 set, branch to leave<br />and #%00100001&nbsp; &nbsp;;SHANEM FIX; what we want to do is also branch if d0 is set<br />bne NoPECol<br />;...Some more ways down<br />NoPECol: rts<br /><br />;notes<br />;the LSBs we are checking if set are d5<br />;which is if the enemy is in a defeated state against $1E plus X offset<br />;or d0, if the enemy is in a falling state<br />;if either are true and therefore set, collision between enemy and player are void<br /></div><br /><br /></div><br /><br />I didn't take into account that d0 was masked out to take care of upside down shell to player collision. So I had to come up with a new fix. Here it is: <br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">PlayerEnemyCollision:<br />;...Some ways down in the routine we find<br />lda Enemy_State,x&nbsp; ;ORIGINAL CODE<br />and #%00100000&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ;if enemy state has d5 set, branch to leave ORIGINAL CODE<br />bne NoPECol&nbsp; &nbsp;;ORIGINAL CODE<br />lda Player_Y_Position&nbsp; &nbsp;;SHANEM's CODE<br />cmp $b1&nbsp; &nbsp; &nbsp; ;SHANEM's CODE is the player vertically one pixel below the ground? <br />bcs NoPECol ;SHANEM's CODE if so, then void collision<br />;...Some more ways down<br />NoPECol: rts&nbsp; &nbsp; ;ORIGINAL CODE<br /></div><br /><br />Code of the day: Glitch fix #999 Timer glitch: <a href="http://www.mariowiki.com/List_of_glitches_in_Super_Mario_Bros.:_The_Lost_Levels#999_Timer" class="postlink">http://www.mariowiki.com/List_of_glitches_in_Super_Mario_Bros.:_The_Lost_Levels#999_Timer</a><br /><br />Fix:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">EndCastleAward:<br />&nbsp;;Some ways down we find:<br />&nbsp;;;;; jsr AwardTimerCastle&nbsp; &nbsp;;original code<br />&nbsp;;Replace that jsr with this one:<br />&nbsp;jsr AwardGameTimerPoints ;SHANEM's CODE<br /></div><br /><br />Stay tuned for more as I've conquered them all.  --ShaneM
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ShaneM</b> [ Wed Dec 24, 2014 12:54 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: SMB1 + SMB2J SRAM Plus (FDS hack)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I've made a couple more fixes...Seriously, I'm done this time. Remember, the contest ends in about 11 days. What I fixed:<br /><br />-Added collision between fireballs and powerups...I don't know why I did this, probably because I made collision for everything else. Though the fireballs do not defeat powerups, they just mark collision.<br />-Fixed the <a href="http://themushroomkingdom.net/bugs/55" class="postlink">Powerful_Wind</a> glitch. I thought this was caused by an NES limitation, but it wasn't! This was a real bitch to fix. I mean this has got to be the hardest thing in the world to fix in the world of NES. I had to create a specific routine for when the windflag was set. Wind would CLC then ADC #$01 to player_x_position, causing horizontal scroll $6FF to increment and decrement between nanoseconds. I was REALLY REALLY tight on space. It took me 7 hours to do but I did it! I traced code and created a new subroutine for &quot;ChkPBtm:&quot;, the root of the issue. Did I mention that this was HARD? <img src="./images/smilies/icon_razz.gif" alt=":P" title="Razz" /><br />-Fixed an issue with Piranha Plant collision being buffered in d6 of the enemy slot. All Piranha Plants issues are now fixed and 100% stable collision with shells/fireballs/enemies, now.
+
+		
+			<br clear="all" /><br />
+
+			<table class="tablebg" width="100%" cellspacing="1">
+			<tr>
+				<td><b class="genmed">Attachments: </b></td>
+			</tr>
+			
+				<tr>
+					<td>
+			<img src="./download/file.php?id=2328" alt="Super Mario Bros. 1&amp;2 SRAM Plus (Japan) - Copy_003.png" /><br />
+			<span class="gensmall">Super Mario Bros. 1&amp;2 SRAM Plus (Japan) - Copy_003.png [ 3.78 KiB | Viewed 3216 times ]</span>
+		
+
+		<br />
+	</td>
+				</tr>
+			
+				<tr>
+					<td>
+			<img src="./download/file.php?id=2327" alt="Super Mario Bros. 1&amp;2 SRAM Plus (Japan)_016.png" /><br />
+			<span class="gensmall">Super Mario Bros. 1&amp;2 SRAM Plus (Japan)_016.png [ 2.58 KiB | Viewed 3216 times ]</span>
+		
+
+		<br />
+	</td>
+				</tr>
+			
+				<tr>
+					<td>
+			<img src="./download/file.php?id=2326" alt="Super Mario Bros. 1&amp;2 SRAM Plus (Japan)_017.png" /><br />
+			<span class="gensmall">Super Mario Bros. 1&amp;2 SRAM Plus (Japan)_017.png [ 2.64 KiB | Viewed 3216 times ]</span>
+		
+
+		<br />
+	</td>
+				</tr>
+			
+			</table>
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ShaneM</b> [ Fri Dec 26, 2014 1:54 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: SMB1 + SMB2J SRAM Plus (FDS hack)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />In an earlier post,<br /><br /><div class="quotetitle">ShaneM wrote:</div><div class="quotecontent"><div class="codetitle"><b>Code:</b></div><div class="codecontent">RetYC: <br />and #%00001111&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ;and mask out high nybble/ORIGINAL CODE<br />sta $04&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;;store masked out result here/ORIGINAL CODE<br />lda Player_X_Scroll&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;;;;;;Is the player horizontally moving? SHANEM's CODE<br />beq new_label&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;;;;;;if not, branch SHANEM's CODE<br />lda $03&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;;;;;;SHANEM's CODE<br />cmp #$5E&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ;;;;;any object less than the invisible coin, branch. SHANEM's CODE<br />bcc new_label&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ;;;;;SHANEM's CODE<br />cmp #$62&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ;;;;;any object greater than invisible powerup, branch SHANEM's CODE<br />bcs new_label&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ;;;;;SHANEM's CODE<br />lda #$00&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ;;;;;clear block buffer collision if player moving horizontally otherwise attribute ;;;;;collsion, SHANEM's CODE<br />sta $03&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;;;;;;SHANEM's CODE<br />new_label:&nbsp; &nbsp; &nbsp;lda $03&nbsp; &nbsp; &nbsp;;get saved content of block buffer/ORIGINAL CODE<br />rts&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ;ORIGINAL CODE<br /><br /><br />;notes<br />;$5E = invisible coin<br />;$5F = invisible 1-UP<br />;$60 = invisible Poison Mushroom<br />;$61 = invisible powerup<br /></div><br /><br /></div><br /><br />Today, I've made a discovery. &quot;Player_X_Scroll&quot;, or RAM $6FF did a check for if the player is horizontally moving, which includes horicontally moving when vertically inclined. This caused an issue when jumping too hard vertically as it registered as horizontal movement. There wasn't an address to do what I wanted it to do. The SNES version seems to use RAM $E4 for this purpose of this fix which is unused in the FDS version. I didn't have room to create an extra flag. None of the addresses doppleganger listed in his SMB2J disassembly helped for this specific need. I have discovered an address in use by the CPU which is not labeled by doppleganger. It is RAM $089F. It seems that this is purely for vertical movement and is negative (#$FF-#$FD) when the player is ascending but goes to #$04 when the player is descending and finally back to #$00 when the player is standing/running on something solid. This is a more proper register to use for this fix. So, here is the proper fix:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">;replace<br />lda Player_X_Scroll&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;;;;;;Is the player horizontally moving? SHANEM's CODE<br />beq new_label&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;;;;;;if not, branch SHANEM's CODE<br /><br />;with this<br />lda $089F&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ;SHANEM's CODE, a register I discovered to fix this<br />bmi new_label&nbsp; &nbsp;;if player is jumping (ascending), then branch to initiate block buffer collision for <br />;invisible objects. SHANEM's CODE<br /><br /></div><br /><br />--ShaneM, the Master of ASM
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Hamtaro126</b> [ Fri Dec 26, 2014 5:59 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: SMB1 + SMB2J SRAM Plus (FDS hack)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Anything using $0800-0FFF, $1000-17FF, and $1800-1FFF will equal to $0000-$07FF, As they are mirrored in the NES's internal RAM... Therefore $089F equals $009F, or simply $9F in zero page, which equals to both ''SprObject_Y_Speed'' and ''Player_Y_Speed'' in the original disassemblies.<br /><br />Also, If you have the disassembled the shell animations from SNES SMB1, I would like to see it in your hacks, if not... I could add it to mine and credit you.<br /><br />EDIT - I deleted my second message, I misunderstood at first about tepples' message, Giving it a second look reveals that he said the SNES equivelent to the mirroring problem.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Fri Dec 26, 2014 6:02 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: SMB1 + SMB2J SRAM Plus (FDS hack)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />On the Super NES (&quot;The Lost Levels&quot; in <em>Super Mario All-Stars</em>), they mirror to $7E009F and $7E089F.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ShaneM</b> [ Fri Dec 26, 2014 6:28 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: SMB1 + SMB2J SRAM Plus (FDS hack)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tepples wrote:</div><div class="quotecontent">On the Super NES (&quot;The Lost Levels&quot; in <em>Super Mario All-Stars</em>), they mirror to $7E009F and $7E089F.</div><br /><br /><br />Right, for RAM. When I said $E4 earlier as the address created for this fix on the SNES, I meant $7E00E4. I forgot that Geiger's debugger gives the ROM, RAM, SRAM etc. in hex mode, too. Anyway, my fix does not do the same thing as on the SNES, which bases its fix on horizontal acceleration while I make use of vertical. Because $06FF was the closest one that I originally had but that didn't quite fix this. So if anyone borrows my fix, credit me and replace the $06FF from earlier with $089F, and change the BEQ to BMI; everything else is the same to correct this glitch with invisible blocks.  --ShaneM<br /><br />@hamtaro<br />65c816 is similar to 6502. Use Geiger's SNES9x build to find what you want. I never studied 65c816 but since I'm fluent at 6502 I was able to trace the code and see how the SNES fixed it. Basically, use dopplerganger's disassembly when tracing code to the SNES because it's the same, for the most part.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Hamtaro126</b> [ Fri Dec 26, 2014 6:37 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: SMB1 + SMB2J SRAM Plus (FDS hack)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">ShaneM wrote:</div><div class="quotecontent">So if anyone borrows my fix, credit me<br /></div><br /><br />Always!<br /><br /><div class="quotetitle">ShaneM wrote:</div><div class="quotecontent">65c816 is similar to 6502. Use Geiger's SNES9x build to find what you want. I never studied 65c816 but since I'm fluent at 6502 I was able to trace the code and see how the SNES fixed it. Basically, use dopplerganger's disassembly when tracing code to the SNES because it's the same, for the most part.</div><br /><br />Actually, I never got to edit SMAS successfully due to Lunar Address (FuSoYa's SNES address decoder) acting up on my ROM, only exception is SMW, And your advice here may be what I need, at least for the RAM!
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ShaneM</b> [ Fri Dec 26, 2014 6:40 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: SMB1 + SMB2J SRAM Plus (FDS hack)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />EDIT: You know, I just realized, all the fixes I made to my FDS games could be applied to the SNES versions. That's what I did when I started my SNES project on this. I'll list some more fixes later on this week; I'll eventually get around to sharing them all and maybe they could go on some sort of Mariowiki for all hackers to have access to. I think I got about 50 original glitches fixed.<br /><br />Here's one more for today (I think I shared a handful of them last week). How to fix these: <a href="http://themushroomkingdom.net/bugs/2" class="postlink">Small_and_Fiery</a> and <a href="http://themushroomkingdom.net/bugs/13" class="postlink">Thank_You_Dead_Mario</a> (Same code corrects both glitches.)<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">HandleAxeMetatile:<br />&nbsp; &nbsp; &nbsp; &nbsp;lda #$00&nbsp; &nbsp; &nbsp;;ORIGINAL CODE<br />&nbsp; &nbsp; &nbsp; &nbsp;sta OperMode_Task&nbsp; &nbsp;;ORIGINAL CODE<br />&nbsp; &nbsp; &nbsp; &nbsp;lda #$02&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ;ORIGINAL CODE<br />&nbsp; &nbsp; &nbsp; &nbsp;sta OperMode&nbsp; &nbsp; &nbsp; &nbsp; ;ORIGINAL CODE<br />&nbsp; &nbsp; &nbsp; &nbsp;LSR&nbsp; &nbsp; &nbsp; &nbsp; ;SHANEM's CODE. Divide the #$02 loaded in A to get #$01<br />&nbsp; &nbsp; &nbsp; &nbsp;STA&nbsp; InjuryTimer&nbsp; &nbsp; &nbsp; ;SHANEM's CODE. Set $079E to #$01 to impose temporary invincibility for whenever <br />;the player touches the axe object metatile <br />&nbsp; &nbsp; &nbsp; &nbsp;jsr LoadMarioPhysics&nbsp; &nbsp;;ORIGINAL CODE<br />&nbsp; &nbsp; &nbsp; &nbsp;lda #$18&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ;ORIGINAL CODE<br />&nbsp; &nbsp; &nbsp; &nbsp;sta Player_X_Speed&nbsp; ;ORIGINAL CODE<br /></div><br /><br />EDIT: My bad; I edited my post to correct the links I listed...
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>5</strong> of <strong>12</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

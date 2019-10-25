@@ -1,0 +1,512 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - ASM6 question -- silent addressing mode shifts?</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">ASM6 question -- silent addressing mode shifts?</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=6164">http://forums.nesdev.com/viewtopic.php?f=2&amp;t=6164</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>cpow</b> [ Sat Mar 13, 2010 8:47 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>ASM6 question -- silent addressing mode shifts?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="codetitle"><b>Code:</b></div><div class="codecontent">.org $8000<br />.enum $80<br />ZPVal .byte 0<br />.ende<br />.enum $800<br />NonZPVal .byte 0<br />.ende<br />lda &#40;ZPV&#41;,y&nbsp; ; *********<br />lda &#40;NZPV&#41;,y ; **********<br /></div>
+<br />
+<br />I am trying to decide how to handle disambiguation in my assembler. Specifically, above is the case of what to do when I encounter what appears to be an intended "post-indexed indirect" LDA on the lines marked with asterisks [intent discerned by presence of ()'s].  Obviously anyone can look at the second one and call me an idiot, because there's no way the programmer could have MEANT to try to use a non-zeropage address in an indexed indirect addressing mode.  Furthermore a programmer should be well-within rights to put as many parenthesis as his paranoid mind requires, without having it cause a headache.  
+<br />
+<br />However, from the point-of-view of the assembler the instruction addressing mode of the marked lines is not determinable.  I decided to run a test with ASM6.  Sure enough, the program above assembles without error.  It turns out ASM6 has decided for me that I <strong>really meant</strong> absolute indexed-by-y addressing mode for the second LDA, not post-indexed indirect as I may [or may not...I may just be a paranoid parenthesizer] have actually intended.  Conversely I may have intended for absolute indexed-by-y addressing mode in the first LDA, but I get post-indexed indirect emitted without as much as a whif of confusion.
+<br />
+<br />I bring this up because I want to make sure I am sane [not with regard to parenthesis emittance].  I am thinking that I will emit a "warning" that such promotions/demotions [I refer to zp-to-non-zp addressing mode shifts like this as demotions, non-zp-to-zp shifts as promotions] are occurring.  Then let the user figure out whether or not this is an error in their code [ie. the value NZPV really SHOULD be a zeropage value] or just an assembler being as helpful as possible.  In the case where the programmer intent is for absolute indexed-by-y addressing mode and the removal of the ()'s is not possible, perhaps a warning-supression flag or directive of some kind would be useful too.
+<br />
+<br />I know there's at least one assembler out there that forces []'s upon the programmer to disambiguate this situation, but I would <strong>hate</strong> to go there.
+<br />
+<br />Loopy?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>loopy</b> [ Sat Mar 13, 2010 11:22 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />ASM6 tries all addressing modes, ordered by (what I've deemed) most restrictive to least restrictive.  The first one that works, it uses.  By "works", I mean it must match a template (begins/ends with characters for that addressing mode like "( .. ),Y" ) and the address must fit (addr &lt; 256 for ZP instructions).  For LDA, it tries (indirect),Y before absolute,Y.
+<br />
+<br />With your examples:
+<br />
+<br />lda (ZPV),y : It sees "( ... ),Y" so it tries to make it indirect,Y, which it can.
+<br />
+<br />lda (NZPV),y:
+<br />It also sees "( ... ),Y" so it tries to make an indirect,Y instruction.  The address is too big so it tries absolute,Y.  That works, so that's what it uses.
+<br />
+<br />What's the right solution?  I'm not sure.  Warnings sound like a good idea, but I think they would get out of control.  Every "lda (..),Y" could be interpreted as ABS,Y so do you want to throw a warning all the time?  That would REALLY annoy me.
+<br />
+<br />I think what I would do is give the programmer a way to disambiguate,  and if they don't want to then the assembler will just make its best guess without complaining.  Perhaps something like INSTR.MODE
+<br />
+<br />lda.abs (blah),y     ;use absolute,y
+<br />lda.ind (blah),y     ;use (ind),y
+<br />
+<br />Good question... and not an easy one to answer.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Sun Mar 14, 2010 12:30 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I thought about this too way back when I was kicking around the idea of writing an assembler.
+<br />
+<br />IMO:
+<br />
+<br />- [] should not be used to replace parenthesis because they're used for long indirection on other 65xx systems (65c816)
+<br />
+<br />- (foo),Y should not evaluate to Absolute,Y <em>EVER</em>, no matter what 'foo' is.  No expression will ever need to be fully encased in parenthesis.  The only reason to encase an expression in parenthesis would be to indicate you want indirection.
+<br />
+<br />Consider the following situations:
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">; obvious examples<br />lda foo,Y&nbsp; ; clearly Abs,Y<br />lda &#40;foo&#41;,Y&nbsp; ; clearly Ind,Y<br />lda foo+1,Y&nbsp; ; clearly Abs,Y<br /><br />; more obfuscated<br />lda &#40;foo+1&#41;,Y&nbsp; ; Ind,Y &#40;fully encased in parenthesis&#41;<br />lda &#40;foo&#41;+1,Y&nbsp; ; Abs,Y &#40;not fully encased&#41;<br />lda &#40;&#40;foo+3&#41;*4&#41;,Y&nbsp; ; Ind,Y<br />lda &#40;foo+3&#41;*4,Y&nbsp; ; Abs,Y<br /></div><br /><br />Having (foo),Y evaluate to Ind,Y opens up some potential problems:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">foo = $100<br /><br />; ...<br /><br />LDA &#40;foo&#41;,Y<br /></div>
+<br />
+<br />That's clearly intended to be Indirect,Y, yet ASM6 (if I understand the logic properly) will assemble it as Absolute,Y.  What's worse it will do it <em>silently</em> without an error or anything.  That's going to be one really tough bug to find.
+<br />
+<br />- In the case of "lda (NZPV),Y", I'd think the best course of action would be either:
+<br /> --  give an error and refuse to assemble
+<br />or
+<br /> --  assemble as truncated (take low byte only) and give a warning that the value was truncated
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Sun Mar 14, 2010 8:39 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Disch wrote:</div><div class="quotecontent">- (foo),Y should not evaluate to Absolute,Y <em>EVER</em>, no matter what 'foo' is.  No expression will ever need to be fully encased in parenthesis.</div>
+<br />What you say is true of assemblers that don't apply C-style preprocessing. In C preprocessor, it is common to defensively parenthesize any macro using an operator in #define statements so that the operators' precedences don't interact in unexpected ways. A toy example to prove the point:
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">#define SIX 1+5<br />int twelve = 2*SIX;&nbsp; // expands to 2*1+5, which is 7 not 12<br /><br />#define SEVEN &#40;1+6&#41;<br />int fourteen = 2*SEVEN;&nbsp; // expands to 2*&#40;1+6&#41;, which is in fact 14<br /></div><br />Some assembler toolchains, such as GNU as, supports preprocessing with the C preprocessor. Pretend for a moment that GNU as supported 6502 as a target.<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">#define SEVEN &#40;1+6&#41;<br />go:<br />&nbsp; lda SEVEN,y</div><br />Would this assemble to lda $07,y or lda ($07,y)?<br /><br />Another line of code to consider:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">go:<br />&nbsp; lda &#40;4&#41;+&#40;5&#41;,y</div>
+<br />If you parse this using the naive glob pattern "lda (*),y", you'll get 4)+(5 as the argument.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Sun Mar 14, 2010 10:23 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />The fundamental problem is that the crreators of 65xx assembler syntax made a poor choice. They gave special meaning to something that had a meaning already. A programmer could easily parenthesize something for clarity but not realize that he happened to fall into this special syntax. If an assembler is to accept parenthesis for grouping as well as indirection, and minimize accidental errors, it should maximize the "distance" between the two valid forms, and give an optional warning for the forms between. But given that (addr),y is the common way to express indirect addressing, it's pretty hard to give a useful warning that won't be disabled by most users. One approach I've taken as a user to disambiguate is to add zero outside the parenthesis:
+<br />
+<br />lda (addr),y ; indirect, regardless of value of addr
+<br />lda (addr)+0,y ; absolute
+<br />lda 0+(addr),y ; absolute
+<br />lda +(addr),y ; absolute (if assembler supports <a href="http://en.wikipedia.org/wiki/Unary_operation#Unary_negative_and_positive" class="postlink">unary + operator</a>)
+<br />
+<br />You could even name zero in some common include file, to better document the above:
+<br />
+<br />ABS = 0
+<br />lda (addr)+ABS,y
+<br />lda ABS+(addr),y
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Sun Mar 14, 2010 10:31 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tepples wrote:</div><div class="quotecontent">What you say is true of assemblers that don't apply C-style preprocessing. In C preprocessor, it is common to defensively parenthesize any macro using an operator in #define statements so that the operators' precedences don't interact in unexpected ways. A toy example to prove the point:</div><br /><br />But C style preprocessing sucks for things like this, is known to cause these kinds of screw ups when used this way, and is therefore ill advised.<br /><br />Besides in an assembler, macros and constants are defined totally differently.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">; bad<br />#define ACONST 5<br />#define AMACRO&#40;&#41; lda ACONST,Y<br /><br />; good<br />ACONST = 5<br />ACONST = &#40;5&#41;&nbsp; ; or even this would be fine and quirk-free<br /><br />.beginmacro AMACRO<br />lda ACONST,Y<br />.endmacro<br /></div><br /><br />Problem solved.<br /><br />Things to note:<br /><br />- constants are evaluated once, rather than #defines which are glorified copy/pastes.  So the ACONST = (5) would not cause AMACRO to become indirect like the #define version would.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Some assembler toolchains, such as GNU as, supports preprocessing with the C preprocessor.</div><br /><br />But does asm6?  I don't think it necessarily should, but if it does, then it should do things like like #define does them (ie:  all the quirks and whatnot)<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Pretend for a moment that GNU as supported 6502 as a target.<br />[snip]Would this assemble to lda $07,y or lda ($07,y)?</div><br /><br />The latter.  But again this would be because #defines are a horrible way to define constants, not because this parenthesis approach is flawed.<br /><br />In fact, the parenthesis in the #define <em>might be intentional</em> because the user might want it to make it indirect.  What about this:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">#define foo &#40;5&#41;,Y<br /><br />lda foo ; absolute?&nbsp; or Ind,Y?<br /></div><br /><br />Logically this should be Indirect,Y.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Another line of code to consider:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">go:<br />&nbsp; lda &#40;4&#41;+&#40;5&#41;,y</div><br />If you parse this using the naive glob pattern "lda (*),y", you'll get 4)+(5 as the argument.</div>
+<br />
+<br />Well that would be a dumb way to parse it then  =P  That wouldn't be a problem with this apporoach, it'd be a bug in the assembler.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>cpow</b> [ Sun Mar 14, 2010 10:42 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Disch wrote:</div><div class="quotecontent">- [] should not be used to replace parenthesis because they're used for long indirection on other 65xx systems (65c816)<br /></div><br />I completely agree, which is why I raised the concern.<br /><br /><div class="quotetitle">Disch wrote:</div><div class="quotecontent">- (foo),Y should not evaluate to Absolute,Y <em>EVER</em>, no matter what 'foo' is.  No expression will ever need to be fully encased in parenthesis.  The only reason to encase an expression in parenthesis would be to indicate you want indirection.<br /></div><br />No expression will ever <strong>need</strong> to, no.  But no programmer can be expected <strong>never</strong> to break this rule either on purpose or by mistake.  On purpose rule breaking is okay but the unintended rule break can lead to a potentially difficult-to-debug situation.<br /><br /><div class="quotetitle">Disch wrote:</div><div class="quotecontent"><div class="codetitle"><b>Code:</b></div><div class="codecontent">foo = $100<br /><br />; ...<br /><br />LDA &#40;foo&#41;,Y<br /></div><br /><br />That's clearly intended to be Indirect,Y, yet ASM6 (if I understand the logic properly) will assemble it as Absolute,Y.  What's worse it will do it <em>silently</em> without an error or anything.  That's going to be one really tough bug to find.<br /></div><br />Exactly the reason I brought this up...ASM6 <strong>is</strong> doing that.<br /><br /><div class="quotetitle">Disch wrote:</div><div class="quotecontent">- In the case of "lda (NZPV),Y", I'd think the best course of action would be either:<br /> --  give an error and refuse to assemble<br />or<br /> --  assemble as truncated (take low byte only) and give a warning that the value was truncated</div>
+<br />I have opted for the warning/truncation route.  I think I will further opt for the disambiguation directives suggested by loopy.  These make sense.  That way you will be warned that the assembler may be doing something you don't want it to do and you have a couple of options to resolve it.  Either a)remove the parenthesis or b)disambiguate by addition of the appropriate disambiguation directive to the offending opcode.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>loopy</b> [ Sun Mar 14, 2010 10:53 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />asm6 allows both types of defines.
+<br />
+<br />foo equ blah ;this is like #define
+<br />foo = blah  ;blah is evaluated first, and foo is assigned that value
+<br />
+<br />This is explained in the documentation. I think both styles are useful.  Assembly macros don't work like in C, they are an entirely different beast and don't belong in this discussion.
+<br />
+<br />I've decided I agree with Disch, if something is enclosed in paretheses it should always be considered indirect.
+<br />
+<br />
+<br /><div class="quotetitle">Disch wrote:</div><div class="quotecontent"><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Another line of code to consider:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">go:<br />&nbsp; lda &#40;4&#41;+&#40;5&#41;,y</div><br />If you parse this using the naive glob pattern "lda (*),y", you'll get 4)+(5 as the argument.</div><br /><br />Well that would be a dumb way to parse it then  =P  That wouldn't be a problem with this apporoach, it'd be a bug in the assembler.</div>
+<br />
+<br />Dumb to a human maybe.  The syntax should be made more clear, from "anything in between paretheses", to "a full expresion should be surrounded by paretheses".
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>loopy</b> [ Sun Mar 14, 2010 10:59 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Disch wrote:</div><div class="quotecontent">- In the case of "lda (NZPV),Y", I'd think the best course of action would be either:<br /> --  give an error and refuse to assemble<br />or<br /> --  assemble as truncated (take low byte only) and give a warning that the value was truncated</div>
+<br />I would argue that truncating an address will ALWAYS give you the wrong thing, so it should be an error, not a warning.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>cpow</b> [ Sun Mar 14, 2010 11:01 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">loopy wrote:</div><div class="quotecontent"><div class="quotetitle">Disch wrote:</div><div class="quotecontent">- In the case of "lda (NZPV),Y", I'd think the best course of action would be either:<br /> --  give an error and refuse to assemble<br />or<br /> --  assemble as truncated (take low byte only) and give a warning that the value was truncated</div><br />I would argue that truncating an address will ALWAYS give you the wrong thing, so it should be an error, not a warning.</div>
+<br />
+<br />Good point.  Great discussion.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>koitsu</b> [ Sun Mar 14, 2010 11:22 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I agree with Disch and loopy, mostly.  :-)  In the case of the "lda (NZPV),Y" line, an error should be thrown by the 6502 assembler.  Be glad you're not having to deal with 65816, otherwise this "debate" (note quotes) could go on for years.
+<br />
+<br />The bottom line is that "it depends" on the assembler.  As someone who has a history of doing 65c02 and 65816 on both the Apple IIE and IIGS, I've worked with 3 different major assemblers over the years: Merlin, Merlin 16, and ORCA/M.  Each of them have different syntax quirks, especially with regards to what we're discussing here.
+<br />
+<br />If you really wanted label or macro expansion to trump addressing mode assumptions, using braces (e.g. {}) works quite well, as it's not a pair of characters which is used by any 65xxx series CPU.
+<br />
+<br />Otherwise, some of the assemblers I mentioned used to treat double-parens (e.g. (( )) ) special, while others simply required you write the equivalent of what Disch outlined in his macro.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Sun Mar 14, 2010 2:14 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Not sure whether my reply got hidden in the shuffle, but I posted a disambiguation syntax that should already work on all assemblers:
+<br />
+<br />lda (NZPV)+0,y ; abs,y
+<br />lda 0+(NZPV),y ; abs,y (alternate syntax)
+<br />
+<br />With this "syntax", you can treat lda (NZPV),y as illegal (since NZPV&gt;$FF).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Sun Mar 14, 2010 2:24 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Disch wrote:</div><div class="quotecontent"><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Some assembler toolchains, such as GNU as, supports preprocessing with the C preprocessor.</div><br />But does asm6?</div><br />I have never used asm6, so I wouldn't know. I'm more familiar with ca65, which <a href="http://www.cc65.org/doc/ca65-12.html#macros" class="postlink">supports both</a> C-style macros (.define) and structured macros (.macro/.endmacro). There are things that C-style macros can do that structured macros can't, and vice versa.<br /><br /><div class="quotetitle">loopy wrote:</div><div class="quotecontent">I would argue that truncating an address will ALWAYS give you the wrong thing</div>
+<br />This is true on 6502, but on 65C816, as I understand it, it's OK in some cases to truncate a 24-bit far address to a 16-bit near address provided the data segment register is set correctly (PHA PLB).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>loopy</b> [ Sun Mar 14, 2010 2:48 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tepples wrote:</div><div class="quotecontent"><div class="quotetitle">loopy wrote:</div><div class="quotecontent">I would argue that truncating an address will ALWAYS give you the wrong thing</div><br />This is true on 6502, but on 65C816, as I understand it, it's OK in some cases to truncate a 24-bit far address to a 16-bit near address provided the data segment register is set correctly (PHA PLB).</div>
+<br />
+<br />Noted.  We are discussing 6502 assemblers though, so I'm not sure what your point is.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>cpow</b> [ Sun Mar 14, 2010 5:13 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">blargg wrote:</div><div class="quotecontent">Not sure whether my reply got hidden in the shuffle, but I posted a disambiguation syntax that should already work on all assemblers:<br /><br />lda (NZPV)+0,y ; abs,y<br />lda 0+(NZPV),y ; abs,y (alternate syntax)<br /><br />With this "syntax", you can treat lda (NZPV),y as illegal (since NZPV&gt;$FF).</div>
+<br />
+<br />You are correct, this is a plausible disambiguation syntax.  And, as you state, it does work.  What I wonder, though, someone looking through the code "a long long time from now" might be like "wtf are all these silly +0's doing?  They'll remove them and have something that completely crashes on their hands.  If they're smart enough they'll disassemble the different file and realize what is going on, but then they'll think "well why on earth didn't the assembler SAY something?"
+<br />
+<br />That was my main reason for bringing this up at all...to make sure it wasn't just me who thought it was strange that the assembler we talk about the most [at least from my experience here], ASM6, doesn't at least say "ehh, is this what you meant?"
+<br />
+<br />I think I will still pursue the disambiguation qualifiers as a really obvious way of stating intent in an otherwise ambiguous situation.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

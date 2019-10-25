@@ -1,0 +1,291 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - My map compression scheme.</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">My map compression scheme.</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=9375">http://forums.nesdev.com/viewtopic.php?f=2&amp;t=9375</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Denine</b> [ Sun Oct 07, 2012 2:20 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>My map compression scheme.</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Hi.<br />I was thinking about a map compression for my game. Every map is 0xE0 bytes long in it's uncompressed state.<br />We'll be unpacking it to RAM(for various reasons). Also, keep in mind that number of meta tiles I use is 0x1D.<br />So here it is:<br /><br />Game assumes that map is all 0x00 at start. Also, we assume that our first Metatile number to unpack is 0x01.<br /><br />Byte0: Coordinates<br /> bit7-bit4 are used as Y coordinate.<br /> bit0-bit3 are used as X coordinate.<br />    *note* If this byte is FF, then it is end of map unpacking routine.<br />    *note* If this byte is EF, then next byte will not be a &quot;Size&quot; byte, but a &quot;Control&quot; byte.<br /><br />Byte1: Size.<br /> bit7-bit4 number of Metatiles to unpack vertically<br /> bit0-bit3 number of Metatiles to unpack horizontally<br /><br />Byte2: Control Byte. Do not appear unless called by Byte0.<br /> bit7:Used as end of current Metatile ID. Uses AND on control byte (So we get rid of bit7) to draw the next Metatile ID number. Max metatile number is 0x7F.<br /> bit6:Repeat last &quot;Size&quot; byte. AND Control byte and use bits 4-0 as number of repetition. Max number of repetition is 0x1F<br /> bit5:Use vocabulary. AND and use bits 4-0 as X to read a small array from vocabulary. Max number of vocabulary entries is 0x1F.(more than enough, to be honest).<br /> <br /> bits 4-0:Multi purpose bits.<br /> <br />Example:<br /> Coordinate byte: 0xA0. Size byte: 0x3F.<br /> Coordinate byte: 0xEF. Control Byte: 0x81<br /> Coordinate byte: 0xA2. Size byte: 0x38<br /> Coordinate byte: 0xEF. Control Byte: 0x82<br /> Coordinate byte: 0xA5. Size Byte: 0x32<br /> Coordinate byte: 0xAB. Size Byte: 0x32<br /> Coordinate byte: 0xEF. Control Byte: 0x92<br /> Coordinate byte: 0x91. Size Byte: 0x00<br /> Coordinate byte: 0xEF. Control Byte: 0x86<br /> Coordinate byte: 0x9E. Size Byte: 0x00<br /><br />Will result in this:<br /><img src="http://imageshack.us/a/img210/6380/nesdevcompression.png" alt="Image" /><br /><br />So, results are like this:<br /><br />Uncompressed: 0xE0 bytes.<br />RLE: 0x48 bytes.<br />My scheme: 0x14 bytes.<br /><br />Yeah, results will vary from map to map.<br />The reason I'm writing this is that maybe can someone give me a hand with improving this...&quot;compression&quot; method?<br />It's unconventional to use &quot;repetition flag&quot; 'cause I'll need to call control byte for second time for example.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Sun Oct 07, 2012 2:30 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: My map compression scheme.</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />It reminds me of the object based encoding of SMB1/SMB3/SMW. Have you ever played with Lunar Magic?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Denine</b> [ Sun Oct 07, 2012 2:33 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: My map compression scheme.</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Nope. So SMB1 do familiar thing? I'll take a look into Lunar Magic, maybe there's something interesting.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>CareerOfEvil</b> [ Sun Oct 07, 2012 8:38 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: My map compression scheme.</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I noticed you never called FF for byte 0. Does that mean this is not necessary, or that it wasn't done unpacking yet?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Dwedit</b> [ Sun Oct 07, 2012 8:58 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: My map compression scheme.</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />How about boxes with 'patterns' in them?  You can specify a box, then include 1 bit for each tile in the box, indicating whether it gets drawn or not.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Sik</b> [ Sun Oct 07, 2012 10:42 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: My map compression scheme.</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />One thing that I this reminds me is that Ecco uses... a weird format for the metatiles. Instead of being a raw tilemap, it has metatiles of varying sizes and tells the game where to draw them. In many cases it uses a bunch of large metatiles for the overall shape then uses smaller metatiles overlapping them to add extra detail.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Denine</b> [ Mon Oct 08, 2012 7:11 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: My map compression scheme.</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">CareerOfEvil wrote:</div><div class="quotecontent">I noticed you never called FF for byte 0. Does that mean this is not necessary, or that it wasn't done unpacking yet?</div><br />Ah, you are right. I forgot to end the buffer in my example. There should be an 0xFF at the end.<br /><br /><div class="quotetitle">Dwedit wrote:</div><div class="quotecontent">How about boxes with 'patterns' in them?  You can specify a box, then include 1 bit for each tile in the box, indicating whether it gets drawn or not.</div><br />That's interesting approach, but you still need to point the box coordinates, next byte would be a ID number for box. and then, third byte is required for bits. Not to mention that you can have only 8 Metatiles in a box, unless you use fourth byte, so you can specify next 4 metatiles....<br />In this example I could, but actually never did, use the vocabulary bit in Control Byte for bottom middle Metatiles.<br />The entry in vocabulary would be:<br /> .db $05                                  ;Lenght of this vocabulary entry<br /> .db $01,$01,$01,$02,$02,$02     ;the contents of this vocabulary entry.<br /><br />Combined with Size byte, I need not to set 0x02 Metatiles twice....<br />But still, it's uneffective in this case-it'll use the same number of bytes as without using dictonary.<br /><br /><div class="quotetitle">Sik wrote:</div><div class="quotecontent">In many cases it uses a bunch of large metatiles for the overall shape then uses smaller metatiles overlapping them to add extra detail.</div><br />I see, I might make use of this technique, if I'll ever learn to make good art <img src="./images/smilies/icon_wink.gif" alt=";)" title="Wink" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Mon Oct 08, 2012 7:22 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: My map compression scheme.</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Sik wrote:</div><div class="quotecontent">[Ecco the Dolphin] uses a bunch of large metatiles for the overall shape then uses smaller metatiles overlapping them to add extra detail.</div><br />SMW does the same thing to put berries on bushes and the like.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Denine</b> [ Wed Oct 10, 2012 6:07 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: My map compression scheme.</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />It just hit me.<br />Coordinate byte never will be 0xF0-0xFF so...I'll get rid of Control byte and reconfigure Coordinate byte to support control byte's functions.<br />This is so simple that I'm surprised why I have'nt thought about it earlier.Here's my new opcodes:<br /><br />0xF0:Change Metatile ID number.Next byte after this is MT ID.<br />0xF1:Use vocabulary. Next byte after this is Number of vocabulary entry.<br />0xF2:Repeat next size 2 times. Next byte is Size byte, then two coordinate bytes that uses the same size byte.<br />0xF3-0xFA: Same as 0xF2 but one more repetition cycle with every next opecode number.(eg.0xF5 is 5 repetition number, 0xF8 is <img src="./images/smilies/icon_cool.gif" alt="8)" title="Cool" /><br />0xFB:Custom number of repetition. Next byte after this is number of the repetitions.<br />0xFC-0xFE: unused.<br />0xFF: End of buffer.<br /><br />And this is it. It will not decrease map's size very much:<br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Coordinate byte: 0xA0. Size byte: 0x3F.    ;Place a 4x16 square made of MetaTile 0<br /><br />Coordinate byte: 0xF0. Data byte: 0x01 ;Change MetaTile ID<br /><br />Coordinate byte: 0xA2. Size byte: 0x38    ;Place a 4x9 square made of MetaTile 1<br /><br />Coordinate byte: 0xF0. Data Byte: 0x02;Change MetaTile ID<br /><br />Coordinate byte: 0xF2                        ;Set repetition number to 2<br /><br />Size Byte: 0x32. Coordinate Byte: 0xA5. Coordinate byte: 0xAB.    ;Set two squares.<br /><br />Coordinate byte: 0xF0. Data Byte: 0x12 ;Change MetaTile ID<br />Coordinate byte: 0x91. Size byte: 0x00 ;Place doors<br /><br />Coordinate byte: 0xF0. Data Byte: 0x06 ;Change MetaTile ID<br />Coordinate byte: 0x9E. Size Byte: 0x00 ;Place The Key.<br /><br />Coordinate byte: 0xFF   ;End of Map.<br /></div><br />But will dispose of limits. (previous scheme had limit in control bytes, like only 1F vocabulary entries.)<br />There's 3 opecodes (FC, FD, FE) free. Anyone have an idea how can I use it effectively?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

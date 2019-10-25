@@ -1,0 +1,394 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - PPU shifting and associated timings</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">PPU shifting and associated timings</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=3&amp;t=10348">http://forums.nesdev.com/viewtopic.php?f=3&amp;t=10348</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>sronsse</b> [ Mon Aug 05, 2013 9:49 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>PPU shifting and associated timings</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Hi everyone,<br /><br />Like many here, I am developing an NES emulator and I am now going forward with my PPU implementation (only BG for now). First of all, I would like to thank the <br /><br />nesdev wiki contributors for the excellent work!<br /><br />From my understanding, there are two 16-bit registers and two 8-bit shift registers used during background rendering:<br />1) One 16-bit reg which contains only high BG tile information with lower 8 bits to be rendered first<br />2) One 16-bit reg which contains only low BG tile information with lower 8 bits to be render first<br />3) One 8-bit shift reg containing the attributes of the first tile to be rendered<br />4) One 8-bit shift reg containing the attributes of the second tile to be rendered<br />I am not sure whether the above description is correct and would like some feedback.<br /><br />Also, I am having trouble with some PPU timings, and I would like to check if my understanding is correct. I am following this great diagram as a reference:<br /><!-- m --><a class="postlink" href="http://wiki.nesdev.com/w/images/d/d1/Ntsc_timing.png">http://wiki.nesdev.com/w/images/d/d1/Ntsc_timing.png</a><!-- m --><br /><br />For the first tile, here's what happens:<br />- At cycle 321, an NT byte is placed in an internal latch<br />- At cycle 323, an AT byte is placed in an internal latch<br />- At cycle 325, low BG tile byte is placed in an internal latch<br />- At cycle 327, high BG tile byte is placed in an internal latch<br />- At cycle 329 (8 cycles later than first NT fetch), the AT byte and both low and high BG tiles are placed in corresponding shift registers (<strong>higher 8 bits for BG data</strong>).<br />While all this is happening, the existing contents of shift registers are shifted by one every cycle. Please correct me if I'm wrong.<br /><br />Now the process continues for the second tile:<br />- Still at cycle 329, an NT byte is placed in an internal latch<br />- At cycle 331, an AT byte is placed in an internal latch<br />- At cycle 333, low BG tile byte is placed in an internal latch<br />- At cycle 335, high BG tile byte is placed in an internal latch<br />- At cycle 337 (8 cycles later than NT fetch), the AT byte and both low and high BG tiles are placed in corresponding shift registers (<strong>higher 8 bits for BG data</strong>).<br />As the first tile has been entirely shifted by then, <strong>the contents for the first tile are now present in the lower byte of the 16-bit register</strong>, and contents for the second one are placed on the higher bytes of these 16-bit registers. Again, I would like to verify if this is correct or not.<br /><br />We now have data corresponding to the two first tiles to be drawn first on the next scanline. Do the shift registers STOP shifting at that point? As there are two unused fetches happening right after, I would assume they stop otherwise on-screen pixel data would be lost. Are the shifters only &quot;shifting&quot; between cycle 2 and cycle 256? Are they even shifting during cycles 321-336 or are the shift registers purely loaded during that time frame? The wiki (<!-- m --><a class="postlink" href="http://wiki.nesdev.com/w/index.php/PPU_rendering">http://wiki.nesdev.com/w/index.php/PPU_rendering</a><!-- m -->) mentions that every cycle, a bit is fetched from the 4 background shift registers in order to create a pixel on screen. The wiki also says that afterwards, the shift registers are shifted once, to the data for the next pixel. Every 8 cycles/shifts, new data is loaded into these registers. This information is a bit misleading to me, and I assume that shifting is not happening all the time, but I would like somebody to confirm when shifting exactly happens. I'm generally pretty confused also as to why the two 8-bit AT registers are shift register in the first place - are these also shifted by 1 bit every cycle? The diagram at the beginning of the PPU rendering wiki page is not perfectly straight-forward to me.<br /><br />Now, regarding drawing - why would &quot;4 background shift registers&quot; (mentioned in the wiki) be needed for drawing one pixel? I assume only three would be needed (low BG, high BG, and one AT byte corresponding to the tile pixel you are rendering). Is this correct?<br /><br />I think that's all the questions I have for now! I'm sorry for the long post, I just want to make sure I follow the original design as close as I can. Looking forward to your replies.<br /><br />Regards,<br />Sebastien
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Mon Aug 05, 2013 10:03 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: PPU shifting and associated timings</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">sronsse wrote:</div><div class="quotecontent">why would &quot;4 background shift registers&quot; (mentioned in the wiki) be needed for drawing one pixel? I assume only three would be needed (low BG, high BG, and one AT byte corresponding to the tile pixel you are rendering).</div><br />The attribute is two bits deep. These shift registers are used to delay bit 1 and bit 0 of the attribute by 0-7 pixels depending on the scroll value.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>sronsse</b> [ Mon Aug 05, 2013 11:21 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: PPU shifting and associated timings</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Hi tepples,<br /><br />The part I didn't understand was the fact that the 8 bit registers do not contain the AT byte but actually palette information per pixel (the AT info has been processed already).<br /><br />Thank you for your answer, I understand this part now. Any insights on some of my other questions?<br /><br />Regards,<br />Sebastien
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>sronsse</b> [ Mon Aug 05, 2013 11:49 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: PPU shifting and associated timings</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Hi tepples,<br /><br />Actually there is still one part I don't quite get. As the palette attribute shift registers are only 8-bit wide, they can only contain information to render 8 pixels, correct? But the BG data shift regs can contain data for 2 tiles, meaning 16 pixels. Does that mean that there are actually two internal latches for storing two different AT bytes? When is the 8-bit register pair loaded with tile 0 palette attributes, and with tile 1?<br /><br />Regards,<br />Sebastien
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Quietust</b> [ Tue Aug 06, 2013 6:36 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: PPU shifting and associated timings</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />At the beginning of a tile, the 8-bit attribute shift registers contain the attribute bits for that tile, while the next tile's attribute bits are simply connected to the shift registers' <strong>inputs</strong> - since it's all the same bit, the result is the same as if the shift registers were 16 bits wide with the upper 8 bits being set to the next tile's value. The actual attribute byte for the next tile is stored in a nearby 8-bit latch, and VRAM address bits A1 and A6 are fed into 4-to-1 multiplexers to select which bits go into the shift register inputs.<br /><br />If you want to see the actual circuitry, you can load up Visual2C02 and search for node 10251 - it's right in the middle of the logic you're implementing.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ulfalizer</b> [ Tue Aug 06, 2013 9:05 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: PPU shifting and associated timings</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">sronsse wrote:</div><div class="quotecontent">Hi everyone,<br /><br />Like many here, I am developing an NES emulator and I am now going forward with my PPU implementation (only BG for now). First of all, I would like to thank the <br /><br />nesdev wiki contributors for the excellent work!<br /><br />From my understanding, there are two 16-bit registers and two 8-bit shift registers used during background rendering:<br />1) One 16-bit reg which contains only high BG tile information with lower 8 bits to be rendered first<br />2) One 16-bit reg which contains only low BG tile information with lower 8 bits to be render first<br />3) One 8-bit shift reg containing the attributes of the first tile to be rendered<br />4) One 8-bit shift reg containing the attributes of the second tile to be rendered<br />I am not sure whether the above description is correct and would like some feedback.</div><br /><br />Almost, but the two 8-bit attribute shift registers both hold attribute bits for the <em>same</em> tile, not different tiles (one holds the high attribute bit, the other the low attribute bit).<br /><br /><div class="quotetitle">sronsse wrote:</div><div class="quotecontent">Also, I am having trouble with some PPU timings, and I would like to check if my understanding is correct. I am following this great diagram as a reference:<br /><!-- m --><a class="postlink" href="http://wiki.nesdev.com/w/images/d/d1/Ntsc_timing.png">http://wiki.nesdev.com/w/images/d/d1/Ntsc_timing.png</a><!-- m --><br /><br />For the first tile, here's what happens:<br />- At cycle 321, an NT byte is placed in an internal latch<br />- At cycle 323, an AT byte is placed in an internal latch<br />- At cycle 325, low BG tile byte is placed in an internal latch<br />- At cycle 327, high BG tile byte is placed in an internal latch<br />- At cycle 329 (8 cycles later than first NT fetch), the AT byte and both low and high BG tiles are placed in corresponding shift registers (<strong>higher 8 bits for BG data</strong>).<br />While all this is happening, the existing contents of shift registers are shifted by one every cycle. Please correct me if I'm wrong.</div><br /><br />Sounds right. Glad you like the diagram. <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" /><br /><br /><div class="quotetitle">sronsse wrote:</div><div class="quotecontent">Now the process continues for the second tile:<br />- Still at cycle 329, an NT byte is placed in an internal latch<br />- At cycle 331, an AT byte is placed in an internal latch<br />- At cycle 333, low BG tile byte is placed in an internal latch<br />- At cycle 335, high BG tile byte is placed in an internal latch<br />- At cycle 337 (8 cycles later than NT fetch), the AT byte and both low and high BG tiles are placed in corresponding shift registers (<strong>higher 8 bits for BG data</strong>).<br />As the first tile has been entirely shifted by then, <strong>the contents for the first tile are now present in the lower byte of the 16-bit register</strong>, and contents for the second one are placed on the higher bytes of these 16-bit registers. Again, I would like to verify if this is correct or not.</div><br /><br />Sounds right.<br /><br /><div class="quotetitle">sronsse wrote:</div><div class="quotecontent">We now have data corresponding to the two first tiles to be drawn first on the next scanline. Do the shift registers STOP shifting at that point? As there are two unused fetches happening right after, I would assume they stop otherwise on-screen pixel data would be lost. Are the shifters only &quot;shifting&quot; between cycle 2 and cycle 256? Are they even shifting during cycles 321-336 or are the shift registers purely loaded during that time frame? The wiki (<!-- m --><a class="postlink" href="http://wiki.nesdev.com/w/index.php/PPU_rendering">http://wiki.nesdev.com/w/index.php/PPU_rendering</a><!-- m -->) mentions that every cycle, a bit is fetched from the 4 background shift registers in order to create a pixel on screen. The wiki also says that afterwards, the shift registers are shifted once, to the data for the next pixel. Every 8 cycles/shifts, new data is loaded into these registers. This information is a bit misleading to me, and I assume that shifting is not happening all the time, but I would like somebody to confirm when shifting exactly happens. I'm generally pretty confused also as to why the two 8-bit AT registers are shift register in the first place - are these also shifted by 1 bit every cycle? The diagram at the beginning of the PPU rendering wiki page is not perfectly straight-forward to me.</div><br /><br />The shifters seem to shift between dots 2...257 and dots 322...337 (inclusive, with a shift on each of those dots). You're right that it wouldn't make sense for it to keep shifting after it fetches the second tile at the end of the line, since data for the first tile would be shifted out and lost then. It also seems the shifts before the first tile load at 329 are useless. Should add this to the wiki...<br /><br />16-bit tile regs are needed to accommodate fine x scrolling, which works by selecting a bit from the lower 8 bits of the shift register. If fine x is placed on bit 7 (counting from 0), it must be possible to shift 8 times without running out of bits, and that requires 16 bits. For attribute bits you can get away with just 8 bits + 1 bit, since the bit shifted in from the &quot;upper&quot; part is always the same for the entire tile.<br /><br /><div class="quotetitle">sronsse wrote:</div><div class="quotecontent">Now, regarding drawing - why would &quot;4 background shift registers&quot; (mentioned in the wiki) be needed for drawing one pixel? I assume only three would be needed (low BG, high BG, and one AT byte corresponding to the tile pixel you are rendering). Is this correct?</div><br /><br />It probably turned out to be simpler to split the two AT bits into their own shift regs like for the tile data. Makes sense with how fine x works.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>sronsse</b> [ Tue Aug 06, 2013 9:47 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: PPU shifting and associated timings</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Hi tepples, Quietust, ulfalizer,<br /><br />Thank you for your responses, everything is clear now! This will allow me to start coding away now.<br /><br />Regards,<br />Sebastien
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ulfalizer</b> [ Tue Aug 06, 2013 10:29 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: PPU shifting and associated timings</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Updated the diagram to be clearer about the shift and reload locations.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>sronsse</b> [ Thu Aug 08, 2013 11:28 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: PPU shifting and associated timings</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Hi ulfalizer,<br /><br />I decided to go ahead and start implementing cycle-correct PPU events and in the process realized that the code I was producing was pretty hard to read (basically a lot of if statements, switch/case etc.). I changed my strategy to have a static array defined during initialization with a list of all events which happen per your diagram. Every cycle I  can just look up this table and figure out which events to process (NT fetch, VBLANK clear, etc.), and this also easily allows me to sleep until the next action (in case there are some idle cycles within that array). I am not sure if anyone on these forums took that approach before, but it's a pretty good technique to be able to easily have cycle-correct emulation and keep things fast as well.<br /><br />I attached a visual representation of all these events using a similar color scheme as your diagram, and they do look pretty similar <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" /> I wanted to thank you for your time producing this diagram - I don't think I would have been able to come up with clean code without it.<br /><br />Regards,<br />Sebastien
+
+		
+			<br clear="all" /><br />
+
+			<table class="tablebg" width="100%" cellspacing="1">
+			<tr>
+				<td><b class="genmed">Attachments: </b></td>
+			</tr>
+			
+				<tr>
+					<td>
+			<img src="./download/file.php?id=768" alt="emux.png" /><br />
+			<span class="gensmall">emux.png [ 4.5 KiB | Viewed 909 times ]</span>
+		
+
+		<br />
+	</td>
+				</tr>
+			
+			</table>
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ulfalizer</b> [ Thu Aug 08, 2013 11:51 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: PPU shifting and associated timings</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">sronsse wrote:</div><div class="quotecontent">Hi ulfalizer,<br /><br />I decided to go ahead and start implementing cycle-correct PPU events and in the process realized that the code I was producing was pretty hard to read (basically a lot of if statements, switch/case etc.). I changed my strategy to have a static array defined during initialization with a list of all events which happen per your diagram. Every cycle I  can just look up this table and figure out which events to process (NT fetch, VBLANK clear, etc.), and this also easily allows me to sleep until the next action (in case there are some idle cycles within that array). I am not sure if anyone on these forums took that approach before, but it's a pretty good technique to be able to easily have cycle-correct emulation and keep things fast as well.<br /><br />I attached a visual representation of all these events using a similar color scheme as your diagram, and they do look pretty similar <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" /> I wanted to thank you for your time producing this diagram - I don't think I would have been able to come up with clean code without it.<br /><br />Regards,<br />Sebastien</div><br /><br />I do something similar, though it's still switches in my code.<br /><br />For a table of events it's probably a good idea to have separate arrays for lines and dots, since the events are the same on many of the lines. With one huge array you risk running out of cache as you scan through the table each frame.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>sronsse</b> [ Fri Aug 09, 2013 12:56 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: PPU shifting and associated timings</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Hi ulfalizer,<br /><br />You're right regarding potential cache issues, and I originally only had 4 arrays for different scanlines. I would either need to add special cases (flags for instance), or extra arrays for this. I will see what works/looks best.<br /><br />Regards,<br />Sebastien
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>sronsse</b> [ Sat Aug 10, 2013 3:39 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: PPU shifting and associated timings</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Hello again,<br /><br />Quick question: when palette attributes shift registers are reloaded, how does the PPU know which bits to grab from the AT byte? Does it actually do some arithmetic based on the lower 2 bits of coarse X scroll and lower 2 bits of coarse Y scroll?<br /><br />Regards,<br />Sebastien
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Sat Aug 10, 2013 3:58 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: PPU shifting and associated timings</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">sronsse wrote:</div><div class="quotecontent">Does it actually do some arithmetic based on the lower 2 bits of coarse X scroll and lower 2 bits of coarse Y scroll?</div><br />Yes. When the attribute byte comes back, the PPU feeds the bits through a multiplexer selected by coarse Y bit 1 and coarse X bit 1.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

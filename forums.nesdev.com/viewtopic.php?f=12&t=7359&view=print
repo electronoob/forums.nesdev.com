@@ -1,0 +1,207 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Help with small macro implementation</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Help with small macro implementation</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=12&amp;t=7359">http://forums.nesdev.com/viewtopic.php?f=12&amp;t=7359</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>gompertz</b> [ Wed Jan 05, 2011 3:53 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Help with small macro implementation</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Hi All,
+<br />
+<br />I'm stumped at the best approach for the following situation:
+<br />
+<br />I've created a non-scrolling level of 32x28 8x8tiles to fill the screen, and I have stored the existence of a platform tile as a 00000001 or a 00000000 for each of these 896 tiles starting at address 0xa00. (Yes, big waste of memory using a whole byte on each tile, but trying to keep it simple for now).
+<br />
+<br />Anyways, my sprite has its x and y position stored at $0900 and $0901 respectively and am trying to implement the below macro:
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">.macro BoolDown<br />; Input: X and Y co-ordinates<br />; Output: Result if legal move stored in $0902<br />; Purpose: Given X and Y position, if there is a platform tile below <br />;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;the current position then $0902 is 1, otherwise 0.<br />ldx $0900 ; load x position<br />ldy $0901 ; load y position <br />lda #&#40;????&#41;<br />cmp #%00000001<br />bne +<br />lda #1<br />sta $0902<br />+<br />lda #0<br />sta $0902<br />.endm</div>
+<br />
+<br />My first instinct to locate in memory the address of the tile below me is along the lines of the following
+<br />   If ($0901+1)*32+$0900+0xa00 is 1 then $0902 set to 0; o/w 1.
+<br />
+<br />I've added 1 to $0901 so that we're talking one tile "row" down from my current position.
+<br />
+<br />However I am stumped on how to implement this in asm without tons of complicated asl sort of deals.
+<br />
+<br />Alas, Is this style even acceptable for collision detection?
+<br />
+<br />Any help is appreciated!
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Dwedit</b> [ Wed Jan 05, 2011 5:11 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Something like this?
+<br />#define Locate(xx,yy)  lda #((xx) + (yy) * 32) &amp; $FF \ sta PPUADDR \ lda #((xx) + (yy)*32) / 256 \ sta PPUADDR
+<br />
+<br />This is for TASM, change your syntax accordingly.
+<br />Edit: that's just for constants unfortunately.
+<br />
+<br />
+<br />To multiply by 32 easily in 6502 asm:
+<br />lda YPos
+<br />sta temp
+<br />lda #0
+<br />ror temp
+<br />ror a
+<br />ror temp
+<br />ror a
+<br />ror temp
+<br />ror a
+<br />;a = xxx.....
+<br />;temp = ...xxxxx
+<br />Then you use 'temp' as your high byte, and add X to A as your low byte.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>gompertz</b> [ Wed Jan 05, 2011 8:19 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Thanks I'll fiddle with your suggestions tomorrow when back on the devcomp <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" />
+<br />
+<br />It also dawned on me afterwards I need to convert the raw x and y positions into x-tile and y-tile positions by doing modulus 8 on x and y (my sprite is 8x8).  And THEN do the whole multiplying by 32 etc etc.
+<br />
+<br />I really wonder if I'm going about this collision detection the right way however and am curious how it was really done way back when.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

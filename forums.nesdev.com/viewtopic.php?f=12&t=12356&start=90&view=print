@@ -1,0 +1,435 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Main principles of creating an &quot;object&quot;</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Main principles of creating an &quot;object&quot;</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=12&amp;t=12356">http://forums.nesdev.com/viewtopic.php?f=12&amp;t=12356</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>7</strong> of <strong>8</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Fri Feb 20, 2015 10:35 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Main principles of creating an &quot;object&quot;</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Espozo wrote:</div><div class="quotecontent">I had the empty handler option in mind, but I'll fix it.</div><br />The empty handler is fine, I just wanted to make sure you weren't forgetting about the empty slots.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">The day I understand what  <br />  pha<br />  phx<br />  phy<br />  php         ; Save P (A/X/Y sizes)<br />means is the day I die.</div><br />You really shouldn't be using things you don't understand.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">I thought that meant you pushed variables onto the stack, but why are you doing this?</div><br />The main reason to do this is so you can restore all the flags as they were before an interrupt. By definition, an interrupt interrupts the code that is currently running, so you have to back up all the registers before modifying them and restore them before returning from the interrupt, so that the code that was interrupted can continue as if nothing happened.<br /><br />I don't see many reasons to do this inside a routine you'll be calling yourself at predictable times, because you know for sure that the registers will be modified. So unless the code that calls this routine expects registers to be preserved, you probably don't need to back them up at all. And even if they do need to be preserved, it would make more sense for the calling code to back up only what's necessary before calling the routine, and restore them afterwards.<br /><br />The 65816 has the added complication (when compared to the 6502) of register sizes. Like koitsu said, you might want to back up and restore those settings inside a routine that will be called from different places, since the registers might be configured differently.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">What does the second p in php even stand for?</div><br />&quot;P&quot; is the processor status register. It contains several flags, such as C, N and Z, among others.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Edit: This <em>should</em> be good.</div><br />I'm no SNES expert but this should work, provided you initialize ObjectIdentifierCounter to 0 before calling this function for the first time. Like I said before, I find it a little weird that you're preparing this variable for the next frame, like you need to preserve its value outside the routine. You don't, it always starts as 0, so I'd seriously consider removing that <strong>stz ObjectIdentifierCounter</strong> and putting a <strong>sty ObjectIdentifierCounter</strong> right before calling the object handler.<br /><br />The main advantage of doing this is that the routine will become more self contained, since it won't need any sort of external initialization. Also, with the variable properly sync'ed to the Y register, you'll be giving the object freedom to do whatever it wants with that register, because it can easily know its slot by reading ObjectIdentifierCounter back.<br /><br />And there are a couple of optimizations you can make, like checking for the end of the loop at the bottom. You can use the branch in this decision to loop back (<strong>bne object_identifier_loop</strong>) and get rid of the <strong>bra</strong>.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Espozo</b> [ Fri Feb 20, 2015 10:59 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Main principles of creating an &quot;object&quot;</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tokumaru wrote:</div><div class="quotecontent">And there are a couple of optimizations you can make, like checking for the end of the loop at the bottom. You can use the branch in this decision to loop back (bne object_identifier_loop) and get rid of the bra.</div><br />I just fixed that now.<br /><br /><div class="quotetitle">tokumaru wrote:</div><div class="quotecontent">I don't see many reasons to do this inside a routine you'll be calling yourself at predictable times, because you know for sure that the registers will be modified. So unless the code that calls this routine expects registers to be preserved, you probably don't need to back them up at all. And even if they do need to be preserved, it would make more sense for the calling code to back up only what's necessary before calling the routine, and restore them afterwards.</div><br />In other words, get rid of<br />pha<br /> phx<br /> phy<br /> php ; Save P (A/X/Y sizes)?<br /><br /><div class="quotetitle">tokumaru wrote:</div><div class="quotecontent">Like I said before, I find it a little weird that you're preparing this variable for the next frame, like you need to preserve its value outside the routine. You don't, it always starts as 0, so I'd seriously consider removing that stz ObjectIdentifierCounter and putting a sty ObjectIdentifierCounter right before calling the object handler.</div><br />??? I need to set ObjectIdentifierCounter to 0 every frame so that it doesn't leave the object table. Otherwise, it will look way farther ahead in ram and it will result in a mess. This code is the only place where ObjectIdentifierCounter will be bothered with. Are you saying you want me to set it to 0 before I start the routine instead of after?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>psycopathicteen</b> [ Sat Feb 21, 2015 9:38 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Main principles of creating an &quot;object&quot;</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />What data bank is this using?  If the data bank is $00, then you only have 8kB of ram to work with and part of that is already taken up with &quot;local variables&quot; and stack.  If the data bank is $7e, you can use the entire RAM.  If you want to access the entire RAM, but want to stay in bank $00, you can switch index Y with index X, because you can index 24-bit addresses with X, but not with Y.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Espozo</b> [ Sat Feb 21, 2015 11:15 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Main principles of creating an &quot;object&quot;</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">psycopathicteen wrote:</div><div class="quotecontent">What data bank is this using?</div><br />Bank $00.<br /><br /><div class="quotetitle">psycopathicteen wrote:</div><div class="quotecontent">If the data bank is $00, then you only have 8kB of ram to work with and part of that is already taken up with &quot;local variables&quot; and stack.  If the data bank is $7e, you can use the entire RAM.  If you want to access the entire RAM, but want to stay in bank $00, you can switch index Y with index X, because you can index 24-bit addresses with X, but not with Y.</div>\<br />What exactly? I'm already using x to say where to jump to, but I guess I could keep storing x and loading x to replace y if it comes down to it. I tried putting this: (I already know that the player 1 code does not take advantage of the fact that I'm using objects because I pretty much just cut and pasted it)<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">;===============================================================================<br />; start_object_identifier<br />;====================================================================================<br /><br />.proc start_object_identifier<br />&nbsp; rep #$30&nbsp; &nbsp; ; A=16, X/Y=16<br />&nbsp; ldy #$0000<br />&nbsp; sty ObjectIdentifierCount<br /><br />object_identifier_loop:<br />&nbsp; lda ObjectTable,y&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;;load the object identification byte of the object we're currently on<br />&nbsp; beq next_object<br />&nbsp; tax&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;;put the result in x so we can offset the object identification table to see what the object is<br />&nbsp; jsr (ObjectIdentificationTable-2,x)&nbsp; &nbsp;;jump to the code that corresponds with the object<br />&nbsp; rep #$30&nbsp; &nbsp; ; A=16, X/Y=16<br />next_object:<br />&nbsp; lda ObjectIdentifierCount&nbsp; &nbsp;&nbsp; &nbsp;;says how many objects have been identified<br />&nbsp; adc #$0040&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;;add 64 to look at the next object<br />&nbsp; sta ObjectIdentifierCount&nbsp; &nbsp;&nbsp; &nbsp;;store the result for the next time we go through the loop<br />&nbsp; tay&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;;transfer the accumulator to y for &quot;cpy #8192&quot; and &quot;lda ObjectTable,y&quot;<br />&nbsp; cpy #8192&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;;sees if all 128 objects have been identified (each object is 128 bytes)<br />&nbsp; bne object_identifier_loop&nbsp; &nbsp;&nbsp; &nbsp;;if so, quit searching<br />&nbsp; rts<br /><br />.endproc<br /><br />;====================================================================================<br />; ObjectIdentificationTable<br />;====================================================================================<br /><br />ObjectIdentificationTable:<br />&nbsp; .word player1<br /><br />;====================================================================================<br />; Objects<br />;====================================================================================<br /><br /><br /><br />.proc player1<br />&nbsp; rep #$30&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; A=16, X/Y=16<br /><br />&nbsp; lda MetaspriteTableSize&nbsp; &nbsp;; Load number of Metasprites<br />&nbsp; sta MetaspriteCount&nbsp; &nbsp; &nbsp; &nbsp;; ...and store it in MetaspriteCount<br /><br />&nbsp; ldx #MetaspriteTable&nbsp; &nbsp; &nbsp; ; Offset into MetaspriteTable<br />&nbsp; stx MetaspriteTableOffset<br /><br />&nbsp; lda ObjectXPosition<br />&nbsp; sta MetaspriteXPosition<br />&nbsp; lda ObjectYPosition<br />&nbsp; sta MetaspriteYPosition<br /><br />&nbsp; jsr start_metasprite&nbsp; &nbsp; &nbsp; ; jump to start_metasprite to build metasprites<br />&nbsp; sep #$20&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; A=8<br /><br /><br />_up:<br />&nbsp; lda Joy1Data+1<br />&nbsp; and #$08<br />&nbsp; beq _down<br /><br />&nbsp; lda ObjectYPosition<br />&nbsp; sec<br />&nbsp; sbc #$02<br />&nbsp; sta ObjectYPosition<br /><br />_down:<br />&nbsp; lda Joy1Data+1<br />&nbsp; and #$04<br />&nbsp; beq _left<br /><br />&nbsp; lda ObjectYPosition<br />&nbsp; clc<br />&nbsp; adc #$02<br />&nbsp; sta ObjectYPosition<br /><br />_left:<br />&nbsp; lda Joy1Data+1<br />&nbsp; and #$02<br />&nbsp; beq _right<br /><br />&nbsp; rep #$20<br />&nbsp; dec MapX<br />&nbsp; lda ObjectXPosition<br />&nbsp; sec<br />&nbsp; sbc #$02<br />&nbsp; sta ObjectXPosition<br />&nbsp; sep #$20<br /><br />_right:<br />&nbsp; lda Joy1Data+1<br />&nbsp; and #$01<br />&nbsp; beq _done<br /><br />&nbsp; rep #$20<br />&nbsp; inc MapX<br />&nbsp; lda ObjectXPosition<br />&nbsp; clc<br />&nbsp; adc #$02<br />&nbsp; sta ObjectXPosition<br /><br />_done:<br />&nbsp; rts<br /><br />.endproc</div><br />in the rest of my code, but the game bugs out and the screen flashes. It's even effecting my the rest of my code because it stops my oam clearing routine from ever happening. If you want to look at it, go right ahead...<br /><br /><div class="attachtitle">Attachment:</div><div class="attachcontent">
+			<span class="genmed">
+				<img src="./styles/subsilver2/imageset/icon_topic_attach.gif" width="14" height="18" alt="" title="" /> 
+				<a href="./download/file.php?id=2710">MetaspriteDemoKoitsu.rar</a> [287.16 KiB]
+			</span><br />
+			<span class="gensmall">Downloaded 6 times</span>
+		
+
+		<br />
+	</div><br />This is the original one that does not jump to the code and works.<br /><br /><div class="attachtitle">Attachment:</div><div class="attachcontent">
+			<span class="genmed">
+				<img src="./styles/subsilver2/imageset/icon_topic_attach.gif" width="14" height="18" alt="" title="" /> 
+				<a href="./download/file.php?id=2711">MetaspriteDemoKoitsu Working.rar</a> [291.03 KiB]
+			</span><br />
+			<span class="gensmall">Downloaded 7 times</span>
+		
+
+		<br />
+	</div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>psycopathicteen</b> [ Sat Feb 21, 2015 12:55 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Main principles of creating an &quot;object&quot;</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">What exactly? I'm already using x to say where to jump to, but I guess I could keep storing x and loading x to replace y if it comes down to it. I tried putting this: (I already know that the player 1 code does not take advantage of the fact that I'm using objects because I pretty much just cut and pasted it)</div><br /><br />Okay, that is a good point.  I tried reducing your object table to 96 objects in order to fit into the bank $00, but WLA has some convoluted way of managing addresses.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Espozo</b> [ Sat Feb 21, 2015 1:20 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Main principles of creating an &quot;object&quot;</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">psycopathicteen wrote:</div><div class="quotecontent">but WLA has some convoluted way of managing addresses.</div><br />I'm using ca65 now. To assemble the file, go to the command line and just type build. (I forgot to mention that. <img src="./images/smilies/icon_redface.gif" alt=":oops:" title="Embarassed" /> )
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>psycopathicteen</b> [ Sat Feb 21, 2015 5:34 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Main principles of creating an &quot;object&quot;</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I figured out how to get this to work.<br /><br />1) Move object table to BSS segment.<br />2) Reduce object table to 6144 bytes (96 objects)<br />3) There needs to be a &quot;clc&quot; before you add 64 to the object pointer.<br />4) Player 1 should have an object routine number of 2, because addresses are 2 bytes.<br />5) Replace the jmp with a jsr, when jumping to the object routine.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Espozo</b> [ Sat Feb 21, 2015 6:19 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Main principles of creating an &quot;object&quot;</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">psycopathicteen wrote:</div><div class="quotecontent">1) Move object table to BSS segment.</div><br />What is a &quot;BSS segment&quot;?<br /><br />Edit: Never mind, I got you.<br /><br /><div class="quotetitle">psycopathicteen wrote:</div><div class="quotecontent">2) Reduce object table to 6144 bytes (96 objects)</div><br />Would it truly be impossible to look through 128 objects, because I would rather each object have 48 bytes instead of 64 and have 128 objects total. The table would be the exact same size as if you did it your way.<br /><br /><div class="quotetitle">psycopathicteen wrote:</div><div class="quotecontent">4) Player 1 should have an object routine number of 2, because addresses are 2 bytes.</div><br />??? If you are saying that I should have an empty space for the first objects in the &quot;ObjectIdentificationTable&quot;, notice how I wrote &quot;jsr (ObjectIdentificationTable-2,x)&quot; instead of &quot;jsr (ObjectIdentificationTable,x)&quot;.<br /><br /><div class="quotetitle">psycopathicteen wrote:</div><div class="quotecontent">5) Replace the jmp with a jsr, when jumping to the object routine.</div><br />That's probably what's jacking it up the most. I really didn't see how the glitch result I got was even related to the object code. I know this is weird, but I get jsr and jmp mixed up sometimes.<br /><br />I greatly appreciate you taking the time to help me.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>psycopathicteen</b> [ Sat Feb 21, 2015 9:58 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Main principles of creating an &quot;object&quot;</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Espozo wrote:</div><div class="quotecontent"><div class="quotetitle">psycopathicteen wrote:</div><div class="quotecontent">2) Reduce object table to 6144 bytes (96 objects)</div><br />Would it truly be impossible to look through 128 objects, because I would rather each object have 48 bytes instead of 64 and have 128 objects total. The table would be the exact same size as if you did it your way.</div><br />That sounds good.  I also thought of a way around the memory limitation.  Instead of using a pointer to a table of object routines, you can just store the jump address in the object table, and use jsr (ObjectTable,x) to jump to the object routine, that is pointed to by X.  Then if you run out of memory for objects, you could have a second object table of the same size somewhere in the $7E2000-$7EFFFF range.<br /><br /><div class="quotetitle">Espozo wrote:</div><div class="quotecontent"><div class="quotetitle">psycopathicteen wrote:</div><div class="quotecontent">4) Player 1 should have an object routine number of 2, because addresses are 2 bytes.</div><br />??? If you are saying that I should have an empty space for the first objects in the &quot;ObjectIdentificationTable&quot;, notice how I wrote &quot;jsr (ObjectIdentificationTable-2,x)&quot; instead of &quot;jsr (ObjectIdentificationTable,x)&quot;.</div><br />You're subtracting 2 from ObjectIdentificationTable.<br /><br /><div class="quotetitle">Espozo wrote:</div><div class="quotecontent">I greatly appreciate you taking the time to help me.</div><br />Thanks!
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Sun Feb 22, 2015 7:01 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Main principles of creating an &quot;object&quot;</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />An approach I started to use in my NES projects is to store the address of the object handler in the object slot, as opposed to storing the object IDs. This way you get to do some advanced state management with the objects. It kinda allows you to have &quot;sub handlers&quot;, like a routine for walking, another for attacking, and so on. All you have to do is change the pointer in the object slot. To do this, I have made a routine that saves the current PC before returning from the handler, that objects only call when they enter a new state.<br /><br />This eliminates the need to create codes for each state, and to decide where to jump to every time the handler starts.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Espozo</b> [ Sun Feb 22, 2015 8:40 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Main principles of creating an &quot;object&quot;</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I got the object routine to work finally (I haven't started trying to increase the object table yet though) and it works fine for one object, but when you try to put two down, it uses the same registers as the first one, resulting in the objects adding twice and moving twice as fast. Is this wrong? (Look at ObjectOffset.) I had this working fine when I said ObjectTable,y, but I want to free up y. I think the problem is that it is looking at the address of where ObjectOffset is instead of the value it holds, but how do I fix this?<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">.segment &quot;CODE&quot;<br /><br />;====================================================================================<br />; start_object_identifier<br />;====================================================================================<br /><br />.proc start_object_identifier<br />&nbsp; rep #$30&nbsp; &nbsp; ; A=16, X/Y=16<br />&nbsp; ldy #$0000<br />&nbsp; sty ObjectIdentifierCount<br /><br />object_identifier_loop:<br />&nbsp; lda ObjectTable,y&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;;load the object identification byte of the object we're currently on<br />&nbsp; beq next_object<br />&nbsp; sta ObjectOffset<br />&nbsp; tax&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;;put the result in x so we can offset the object identification table to see what the object is<br />&nbsp; jsr (ObjectIdentificationTable-2,x)&nbsp; &nbsp;;jump to the code that corresponds with the object<br />&nbsp; rep #$30&nbsp; &nbsp; ; A=16, X/Y=16<br />next_object:<br />&nbsp; lda ObjectIdentifierCount&nbsp; &nbsp;&nbsp; &nbsp;;says how many objects have been identified<br />&nbsp; clc<br />&nbsp; adc #$0030&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;;add 48 to look at the next object<br />&nbsp; sta ObjectIdentifierCount&nbsp; &nbsp;&nbsp; &nbsp;;store the result for the next time we go through the loop<br />&nbsp; tay&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;;transfer the accumulator to y for &quot;cpy #8192&quot; and &quot;lda ObjectTable,y&quot;<br />&nbsp; cpy #6144&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;;sees if all 128 objects have been identified (each object is 128 bytes)<br />&nbsp; bne object_identifier_loop&nbsp; &nbsp;&nbsp; &nbsp;;if so, quit searching<br />&nbsp; rts<br /><br />.endproc<br /><br />;====================================================================================<br />; ObjectIdentificationTable<br />;====================================================================================<br /><br />ObjectIdentificationTable:<br />&nbsp; .word player1<br /><br />;====================================================================================<br />; Objects<br />;====================================================================================<br /><br />.proc player1<br />&nbsp; rep #$30&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; A=16, X/Y=16<br /><br />&nbsp; lda MetaspriteTableSize&nbsp; &nbsp;; Load number of Metasprites<br />&nbsp; sta MetaspriteCount&nbsp; &nbsp; &nbsp; &nbsp;; ...and store it in MetaspriteCount<br /><br />&nbsp; ldx #MetaspriteTable&nbsp; &nbsp; &nbsp; ; Offset into MetaspriteTable<br />&nbsp; stx MetaspriteTableOffset<br /><br />&nbsp; lda ObjectOffset+2<br />&nbsp; sta MetaspriteXPosition<br />&nbsp; lda ObjectOffset+4<br />&nbsp; sta MetaspriteYPosition<br /><br />&nbsp; jsr start_metasprite&nbsp; &nbsp; &nbsp; ; jump to start_metasprite to build metasprites<br />&nbsp; sep #$20&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; A=8<br /><br />_up:<br />&nbsp; lda Joy1Data+1<br />&nbsp; and #$08<br />&nbsp; beq _down<br /><br />&nbsp; lda ObjectOffset+4<br />&nbsp; sec<br />&nbsp; sbc #$02<br />&nbsp; sta ObjectOffset+4<br /><br />_down:<br />&nbsp; lda Joy1Data+1<br />&nbsp; and #$04<br />&nbsp; beq _left<br /><br />&nbsp; lda ObjectOffset+4<br />&nbsp; clc<br />&nbsp; adc #$02<br />&nbsp; sta ObjectOffset+4<br /><br />_left:<br />&nbsp; lda Joy1Data+1<br />&nbsp; and #$02<br />&nbsp; beq _right<br /><br />&nbsp; rep #$20<br />&nbsp; dec MapX<br />&nbsp; lda ObjectOffset+2<br />&nbsp; sec<br />&nbsp; sbc #$02<br />&nbsp; sta ObjectOffset+2<br />&nbsp; sep #$20<br /><br />_right:<br />&nbsp; lda Joy1Data+1<br />&nbsp; and #$01<br />&nbsp; beq _done<br /><br />&nbsp; rep #$20<br />&nbsp; inc MapX<br />&nbsp; lda ObjectOffset+2<br />&nbsp; clc<br />&nbsp; adc #$02<br />&nbsp; sta ObjectOffset+2<br /><br />_done:<br />&nbsp; rts<br /><br />.endproc</div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Sun Feb 22, 2015 9:05 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Main principles of creating an &quot;object&quot;</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />The problem is you set aside 48 bytes of RAM for each instanciated object but you're not using them for anything besides the object ID. This will cause all instances of the same type of object to use the same global variables, while in fact you should be using the RAM you set aside for each instance.<br /><br />The variables used by the objects should live inside the object slot. You can do this by assigning an offset to each property. For example, you can create a symbol &quot;ObjectOffset&quot; that equals 8 (i.e. the 9th byte within the object slot). Then you can access it like this:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">lda ObjectTable+ObjectOffset, y</div><br />...assuming Y is pointing to the current object slot. I don't know if this is the same on the 65816, but on the 6502, the amount of operations you can perform using Y indexing is very limited... if this is the case you should consider using X instead of Y to point to the object slots.<br />For multi-byte properties, you can keep using &quot;+1&quot;, &quot;+2&quot;, and so on.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Sun Feb 22, 2015 9:17 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Main principles of creating an &quot;object&quot;</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Just adding to what I wrote above: Using a block of RAM for each object instance also means that each object handler must initialize the slots they're gonna use.<br /><br />Each time an object is loaded, its handler should initialize all the properties to their default values, before the object can start &quot;living&quot;. This is another reason why it might be interesting to remember each object's PC instead of its type: you won't have to skip the initialization every frame before doing what the object is supposed to be doing, since you can just save the PC after the initialization.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>psycopathicteen</b> [ Sun Feb 22, 2015 12:26 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Main principles of creating an &quot;object&quot;</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Does Espozo know how to use direct page?  I always used direct page for object slots, so I didn't have to keep juggling index registers.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Sun Feb 22, 2015 12:34 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Main principles of creating an &quot;object&quot;</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />That's beyond my knowledge, so maybe if you show some sample code he'll prefer that.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>7</strong> of <strong>8</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

@@ -1,0 +1,491 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Partial Scrolling</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Partial Scrolling</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=761">http://forums.nesdev.com/viewtopic.php?f=2&amp;t=761</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>4</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Celius</b> [ Tue Nov 15, 2005 7:53 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Partial Scrolling</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I really didn't get how to scroll for PART of a name table, it didn't really make sense to me. I know it's possible, as I can see from many games/tech demos: CMC 80's, Cosmic Epsilon, 3D battles of world runner. But I'm not trying 3D stuff yet, that's at the, well, bottom of my list of things I need to learn how to do. Way to complicated for me now. Anyways, I am going to put together a technical demo of partiall scrolling, and I need to well, know how to do it! What I want is the half of the middle row to scroll slowly, the other half will be still, and I want the rest to move faster. How would I do such a thing? I don't even know where to start. Please help. Thanks. <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Tue Nov 15, 2005 9:11 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />You can accomplish this by changing the PPU scroll values mid-frame (ideally, in HBlank between scanlines).  Say you break the screen into 3 sections:
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">----------<br /><br />Top section, no scroll<br />&#40;height: 60 scanlines&#41;<br /><br />----------<br /><br />Mid section, half scroll<br />&#40;height: 60 scanlines&#41;<br /><br />----------<br /><br />Bottom section, full scroll<br />&#40;height: remaining &#40;240-60-60 = 120&#41; scanlines&#41;<br /><br />----------<br /></div>
+<br />
+<br />As you probably, know, each scanline is 113.66667 CPU cycles on an NTSC system, so you can count the number of cycles that need to pass  from NMI to know when the PPU is rendering the scanline you want.
+<br />
+<br />To create simple <em>HORIZONTAL</em> scroll effects, a la Excitebike, SMB, all you need to do is perform the first write to $2005 (second $2005 couldn't hurt, but it doesn't really have any effect) -- and also $2000.0 (for the nametable).  You perform these writes at the proper time in the frame to split the screen.
+<br />
+<br />Note that vertical scroll effects are far more difficult and usually require crafty alternating $2006/$2005 writes.
+<br />
+<br />For the above example... say if the screen is supposed to be scrolled 80 pixels... you'd set the scroll to 0 in VBlank... then after 60 scanlines, change the scroll to 40... then after 60 more scanlines, set the scroll to 80.
+<br />
+<br />Splitting the screen in this fashion is most easily done with the support of mapper IRQs (like MMC3's scanline counter).  Without any mapper IRQ, the next easiest thing to do is to set up Sprite 0 so it'll hit at a certain time in the frame... then watch $2002 and wait for the Sprite 0 flag to raise.  Or... if you have a LOT of free CPU time, you could have a big timed loop which counts the cycles (actually... Balloon fight does this for the Balloon Trip mode -- it doesn't use Sprite 0 hit at all I don't think... it just times it).
+<br />
+<br />Wanting to split the screen TWICE per my previous example would be difficult (or CPU time consuming) without the aid of mapper IRQs... since you can only use Sprite 0 once in the frame.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Tue Nov 15, 2005 9:39 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><a href="http://en.wikipedia.org/wiki/Parallax_scrolling" class="postlink">Parallax scrolling</a>
+<br />
+<br />First use sprite 0 to determine where you are on the raster, by waiting for a bit in $2002 that indicates whether an opaque part of sprite 0 has been drawn overlapping the an opaque part of background (or vice versa). Then use timed writes to $2005 and $2006 (you can get away with a much simpler $2005-only loop if you only want to scroll horizontally).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Celius</b> [ Tue Nov 15, 2005 9:50 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Okay, this may seem dumb, but when you say 113.666667 CPU cycles per scanline, do you mean per vblank? Okay, I don't think you do, I may sound stupid, because I know what I'm talking about more than it seems, but! I did a short test with the hello world program I made, and! I stored 0 in vbl_count before my endless loop. In my code I said this:
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp; &nbsp; lda #$00<br />&nbsp; &nbsp; &nbsp; sta vbl_count<br />loop:<br />&nbsp; &nbsp; &nbsp; lda vbl_count<br />&nbsp; &nbsp; &nbsp; cmp #0<br />&nbsp; &nbsp; &nbsp; beq keepinc<br />&nbsp; &nbsp; &nbsp; jmp loop<br /><br />keepinc:<br />&nbsp; &nbsp; &nbsp; inc stuff<br />&nbsp; &nbsp; &nbsp; jmp loop<br /></div>
+<br />
+<br />and stuff ended up being #$72, which is 114! Which is most likely the number you're refering to: 113.666667, just the NES rounds it up because it doesn't do precise decimal things. But am I right about what I said? I think I am, I may be stupid, I don't know.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Quietust</b> [ Tue Nov 15, 2005 10:13 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />No, he meant 113+2/3 CPU cycles PER SCANLINE.
+<br />If you want the number of cycles per VBLANK, that'd be 2273+1/3.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Celius</b> [ Tue Nov 15, 2005 10:22 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Okay, this is really dumb, but how are there 2273.33333 scanlines per vblank? Oh man, I sound dumb, but I don't know that much about CPU speeds. It never said in like nestech or anything, so I wouldn't know. Please don't be hard on me, just nicely direct me to the document where this information is present. Thanks....<img src="./images/smilies/icon_sad.gif" alt=":(" title="Sad" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Quietust</b> [ Tue Nov 15, 2005 10:33 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Celius wrote:</div><div class="quotecontent">Okay, this is really dumb, but how are there 2273.33333 scanlines per vblank?</div>
+<br />
+<br />There aren't - I made a typo; that should be <strong>cycles</strong> per VBLANK.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Tue Nov 15, 2005 10:44 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />1 scanline = 1 row of rendered pixels.
+<br />
+<br />also:
+<br />1 scanline = 341 PPU cycles
+<br />3 PPU cycles = 1 NTSC CPU cycle
+<br />therefore:
+<br />1 scanline = (341/3)=113.666667 CPU cycles
+<br />
+<br />One NTSC frame consists of 262 scanlines.  Constructed in the following manner:
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">------------<br />20 scanlines of VBlank<br /><br />------------<br />1 &quot;pre-render&quot; scanline<br />------------<br />240 rendered scanlines<br /><br /><br />------------<br />1 idle scanline<br />------------<br /></div>
+<br />
+<br />NMI starts right at the start of VBlank.  If you start counting from NMI, and if you want to split the screen in half (after 120 scanlines have rendered), you would have to change the scroll 16027 cycles after NMI:
+<br />
+<br />20 (VBlank) + 1 (pre-render) + 120 (half the rendered screen) = 141 scanlines
+<br />
+<br />141 * 113.666667 = ~16027 CPU cycles
+<br />
+<br />
+<br />Of course if you can't count that many cycles (if your CPU is busy doing stuff), you can put sprite 0 so it'll hit on scanline 120 and wait for the Sprite-0 flag to raise.  When it does, you'll know the PPU is rendering scanline 120 and you can change the scroll so the next scanline will have a different scroll value.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Celius</b> [ Tue Nov 15, 2005 10:56 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Oh, so you're saying in 341 PPU cycles, 1 scanline is made? I guess the PPU travles at like a million miles an hour. So (this may be stupid) in 170.5 PPU cycles, a half scanline is made? I sound really dumb, don't I. Okay, I need to study sprite 0 hits and hblank and vblank and stuff a little more. Am I really dumb sounding about this whole thing? <img src="./images/smilies/icon_sad.gif" alt=":(" title="Sad" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Tue Nov 15, 2005 11:10 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />To put it roughly:
+<br />
+<br />the first 256 cycles are the PPU rendering pixels
+<br />the last (341-256) 85 cycles are HBlank
+<br />
+<br />It's not quite that cut-and-dry, but that's basically the setup.  One pixel is rendered on screen for each of the first 256 PPU cycles that pass.  After that the PPU loads sprite stuff for the next scanline (your HBlank time), and then loads some tiles for the next scanline.
+<br />
+<br />And no, you don't sound dumb ;P  we all had to learn this stuff at some point.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Celius</b> [ Wed Nov 16, 2005 5:28 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Okay, this is really bad, but I JUST want to make sure. Okay, now this really is a little bit dumb. So when you say CPU cycle, you mean like say, you increment a variable in your endless loop. Everytime it increases, is that a CPU cycle? If not, I am not sure what you mean! And it is very important that I learn! Help!
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Wed Nov 16, 2005 5:43 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><!-- m --><a class="postlink" href="http://www.obelisk.demon.co.uk/6502/reference.html">http://www.obelisk.demon.co.uk/6502/reference.html</a><!-- m -->
+<br />
+<br />
+<br />NOP takes 2 cycles
+<br />LDA immediate takes 2 cycles
+<br />LDA zero page takes 3 cycles
+<br />etc
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Celius</b> [ Wed Nov 16, 2005 7:27 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Okay, I just made a demo, it doesn't have to do with my partiall scrolling, unfortunately, but I made an interesting demo here, it's on my site, which I have a link to in my signature. Go to tech demos, and download "hello1.zip", because it has a very interesting demo that I was kind of proud of, even though I didn't try to do it, I made something cool happen. I should submit it to pdroms tech demos. Maybe not. I don't know. See for yourself. Tell me if it's cool. Okay so I am going to create my complete full fledged partial scrolling demo later. Right now, I want the top and the bottom of the screen to scroll different ways. So my screen says "Hello, World!" twice. It says it once on the bottom row of the top half of the screen, then it says it once on the top row of the bottom half of the screen. Yeah, I want to say put sprite 0 on the scanline where the bottom "Hello, World!" text is, and then I'd say, dec scrollx, and :
+<br />
+<br />stuff:
+<br />      lda $2002
+<br />      and #%01000000
+<br />      bne lada
+<br />      inc scrollx
+<br />      lda scrollx
+<br />      sta $2005
+<br />      rts
+<br />
+<br />lada:
+<br />     rts
+<br />
+<br />But that's what I used in my NMI routine, to get my sprite collide with color demo. Wow, I'm even more proud of that demo than I thought. I could really manipulate that effect to my own good. Okay, but I think I'm getting close, I just need a little more help here. Thank you, this is very helpful! <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Guest</b> [ Wed Nov 16, 2005 8:09 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Just checking sprite 0 flag once won't do -- you'll have to constantly check it and wait for the flag to raise.  Additionally... once the Sprite 0 flag is set in the frame... it will remain set until the next vblank is over!  So what you'll probably want to do is wait for the sprite 0 flag to go down... then wait for it to go back up.  When it goes back up -- that's when sprite 0 hit, and then you can split your screen.
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">nmi:<br />&nbsp; ; sprite DMA, set initial scroll, turn on the screen<br />&nbsp; ;&nbsp; all the typical NMI stuff -- do it here<br /><br />wait_spr0_clear:<br />&nbsp; bit $2002&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; sprite 0 flag gets put in the V flag<br />&nbsp; bvs wait_spr0_clear&nbsp; ; if the flag is set, loop until it's clear<br /><br />wait_spr0_hit:<br />&nbsp; bit $2002<br />&nbsp; bvc wait_spr0_hit&nbsp; &nbsp; ; if flag is clear, loop until it's set<br /><br />&nbsp; ; here, sprite 0 has been hit.&nbsp; set your new scroll<br /></div>
+<br />
+<br />I use BIT+BVC instead of LDA+AND+BNE since it's a little faster and does more or less the same job.
+<br />
+<br />Also note that if sprite-0 never hits (like if you place it wrong) -- you may end up in an infinite loop, waiting for sprite-0 to hit when it never will.  Remember that to make sprite-0 hit, a non-transparent sprite-0 pixel must be drawn on a non-transparent BG pixel.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Wed Nov 16, 2005 8:41 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />that was me -- I got logged out for some reason
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>4</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

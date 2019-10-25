@@ -1,0 +1,312 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Abusing WRAM bankswitching for fun and non-profit</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Abusing WRAM bankswitching for fun and non-profit</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=17064">http://forums.nesdev.com/viewtopic.php?f=2&amp;t=17064</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Drakim</b> [ Fri Feb 16, 2018 4:14 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Abusing WRAM bankswitching for fun and non-profit</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Disclaimer: I've only tested this on mapper MMC5, but it should work with any mapper that has some manner of WRAM bankswitching.<br /><br />So, I've found a neat little technique, which I'm sure isn't new or anything, but I haven't seen much discussion about it. I figured I'd post it here for comments and just to gather my thoughts on the matter. The TLDR explanation of this technique is that you use WRAM bankswitching to create a sort of pseudo hardware-accelerated array, saving cycles and freeing up registers. Just be aware, this technique has some limitations, so it's not necessarily something you want to use for everything.<br /><br />the MMC5 can have up to 64K of WRAM, divided into 8K pages. Since 64/8 = 8, I'll be working on the assumption that we have 8 separate WRAM banks we can utilize. The technique becomes weaker the fewer banks we have.<br /><br />The most straightforward way to utilize this might be to organize your gameobjects/entities. Now, to compare, the traditional way to do gameobjects is usually to dedicate some RAM to them, like so &quot;<span style="color: #FFBFFF">Object_Health: DBS 8</span>&quot;, organized as in the shape of a whole bunch of parallel arrays. Then, we use indexed absolute access, like so &quot;<span style="color: #FFBFFF">LDA Object_Health,X</span>&quot; to read/write the various values that makes up the gameobject, where register X decides which of the 8 gameobjects we want to access (by being a value from 0 to 7).<br /><br />But what we do instead is only allocate one byte of RAM &quot;<span style="color: #FFBFFF">Object_Health: DBS 1</span>&quot; but make sure that it's identically allocated across all 8 WRAM banks, in the same exact location. Then, to switch between accessing the health of the 8 different gameobjects, we bankswitch the WRAM bank from 0 to 7 in lieu of using the X register, and use a vanilla &quot;<span style="color: #FFBFFF">LDA Object_Health</span>&quot; to load out the health value. That should give you the idea of how this works and why.<br /><br />Now, at this point the technique might seem like overkill, why go though so much trouble? So, let's dig into the advantages!<br /><br /><ul><li>When updating, animating, and moving a gameobject, you frequently access that gameobject's values. You'll probably be accessing values like Object_XPosition,X, Object_YPosition,X, Object_Width,X, Object_Height,X, Object_XVelocity,X, Object_YVelocity,X, Object_Attributes,X, Object_Direction,X, and you'll probably be accessing them quite a lot. Normally to do this, you have to either ensure that X stays unmolested as the object index, or you have to copy out all those values to the Zero Page RAM before working on them. But, with the WRAM bankswitching you free up the X register, as the currently active WRAM Bank takes up the role of being your &quot;index&quot;. That means you are free to write better and faster code utilizing the A, X and Y registers freely. <br /> <br /> </li><li>A common technique for gameobject behavior is to have pointers/addresses to subroutines stored in RAM, ready to be called regularly or under certain conditions. For instance, you might have &quot;<span style="color: #FFBFFF">Object_DeathAddress: DSW 8</span>&quot; that you use the Indirect Jumping or the Reverse RTS trick to call when the object dies. Or you might have one for &quot;update&quot; that you call every frame. With the WRAM bankswitching, you can do it a lot more efficiently. Just call &quot;<span style="color: #FFBFFF">JSR Object_DeathAddress</span>&quot; and you are done. Since we don't need to use absolute indexed mode (which JSR lacks) we don't need to jump though all those hoops to call the subroutine.<br /> <br /> </li><li> While switching RAM banks to select between gameobjects might sound annoying and inefficient, you actually do this a lot less than you'd think. When looping over and updating the 8 gameobjects every frame, we start by switching the RAM bank at the top of the loop, and that's it. We can now invoke all manner of code, for moving the object, checking object collisions against tiles, drawing out sprites, and all of the code simply assumes that the various Object_* labels are pointing to the one object they should be working on. It actually makes your code a lot more clean and straightforward.<br /> <br />  </li><li> One thing you might get hung up on is when two gameobjects need to interact, for example to check collision. There are a number of easy ways to solve this. If your mapper allows for more than one place to bankswitch WRAM (like MMC5 does) simply bankswitch in two banks of WRAM in at the same time in two separate locations. You can have gameobject 1 at $6000-$7FFF and gameobject 2 at $8000-$DFFF, to easily compare them. You haven't seen a fast and clean collision check routine until you have seen one that doesn't need register X for gameobject 1 and register Y for gameobject 2. If your mapper can only bankswitch WRAM in one location, you can quickly copy gameobject 2's values temporarily into Zero Page RAM for the same experience.<br /> <br /> </li><li> With &quot;<span style="color: #FFBFFF">LDA MyAddress,X</span>&quot; you can access 256 bytes indexed by X. Sometimes 256 is clearly not enough though, such as the tiledata for your level. In cases like that, you gotta use some other trick like &quot;<span style="color: #FFBFFF">LDA (CalculatedAddress),Y</span>&quot; Indirect addressing, which is expensive and clunky to setup for each access. However, with WRAM bankswitching, you can stack the 256 bytes in WRAM parallel for up to 256*8 = 2048 bytes while still using &quot;<span style="color: #FFBFFF">LDA MyAddress,X</span>&quot;, almost at the same cost. It's not enough for everything but it's still neat.<br />  <br />  </li><li> In Super Mario Bros 3, the tiledata buffer is 6480 bytes (27 rows * 16 columns * 15 screens). Let's imagine that for whatever reason, we need to increase the data size of each tile from 1 byte to 2 bytes, so that each tile has an additional byte of metadata. That's going to be extremely hard, even if we adjust all our code so that the tile calculations takes this new double offset into account, the fact is that we don't have 12960 continuous WRAM bytes. But you guessed it, just put up two 6480 tiledata buffers in WRAM parallel so that to access the second metadata byte we just switch the bank after accessing the first byte.</li></ul><br />Now, for the disadvantages!<br /><br /><ul><li> Obviously, this doesn't work on most mappers. Therefore, it's always going to be a niche technique.<br /> <br /> </li><li> While absolute indexed LDA can index up to 256 different gameobjects, this technique can only do 8. That might not be enough for your needs. Super Mario Bros 3 only allows for 4 enemies onscreen at once, but it obviously depends on each individual project. Luckily you can do the trick more than once, and have 8 important gameobjects, 8 projectile objects, 8 sfx objects, etc.<br /> <br /> </li><li> Maybe you have other important things in WRAM that you need to switch occasionally to, such as tiledata. In such cases you have to back up which gameobject was currently &quot;active&quot; in your code (akin to how you'd back up register X in the vanilla setup).</li></ul>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Fri Feb 16, 2018 8:08 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Abusing WRAM bankswitching for fun and non-profit</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />This reminds me of the trick on some 8080/Z80/LR35902 machines (ZX Spectrum, MSX, Game Boy, and Master System/Game Gear, but not ColecoVision/SG-1000) to treat RAM as a 2D array, with the array index in H, the field offset in L, and different arrays using non-overlapping field offset ranges of the same pages. But I don't see it as quite as useful on 6502 because zero page access is only one cycle slower than transfers in and out of X and Y.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>FrankenGraphics</b> [ Fri Feb 16, 2018 8:14 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Abusing WRAM bankswitching for fun and non-profit</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />It seems this technique would be especially useful with a smaller window, if any mapper would support it. Ie with a 2kB granularity, you'd be able to shift 32 banks on a 64kB wram.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Fri Feb 16, 2018 9:15 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Abusing WRAM bankswitching for fun and non-profit</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />The 8 object limit sounds very restrictive to me... And having different sets of 8 objects separated by type isn't a very good solution because several subroutines have to work with all types of objects (sprite drawing, collision checking, etc.), so you'd end up needing multiple copies/variations of those routines for each type, and for each combination of types that can interact, not to mention the extra logic to pick the right copy/variation to use in each case.<br /><br />A smaller window to increase the total number of objects, like FrankenGraphics said, would be much more useful. That would also solve the object interaction issue, since an 8KB range would fit up to 4 2KB objects at a time.<br /><br />As it is now, with only 8 objects, out of which only one is accessible at any given time, I consider this technique worthless. Sure you save a few cycles here and there, but end up wasting those cycles elsewhere, basically negating any performance gains, and at the expense of extra hardware in your cartridge.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">When updating, animating, and moving a gameobject, you frequently access that gameobject's values. You'll probably be accessing values like Object_XPosition,X, Object_YPosition,X, Object_Width,X, Object_Height,X, Object_XVelocity,X, Object_YVelocity,X, Object_Attributes,X, Object_Direction,X, and you'll probably be accessing them quite a lot. Normally to do this, you have to either ensure that X stays unmolested as the object index, or you have to copy out all those values to the Zero Page RAM before working on them. But, with the WRAM bankswitching you free up the X register, as the currently active WRAM Bank takes up the role of being your &quot;index&quot;. That means you are free to write better and faster code utilizing the A, X and Y registers freely.</div><br />You can save X in a &quot;CurrentObject&quot; variable in ZP right before calling the object's code, so that if you do need the X register for something else, you can quickly restore it by loading from that variable. If you design your code well, you may not need to do this very often.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">A common technique for gameobject behavior is to have pointers/addresses to subroutines stored in RAM, ready to be called regularly or under certain conditions. For instance, you might have &quot;<span style="color: #FFBFFF">Object_DeathAddress: DSW 8</span>&quot; that you use the Indirect Jumping or the Reverse RTS trick to call when the object dies. Or you might have one for &quot;update&quot; that you call every frame. With the WRAM bankswitching, you can do it a lot more efficiently. Just call &quot;<span style="color: #FFBFFF">JSR Object_DeathAddress</span>&quot; and you are done. Since we don't need to use absolute indexed mode (which JSR lacks) we don't need to jump though all those hoops to call the subroutine.</div><br />I don't think it's common for an object's subroutines to be accessed from the outside, so JSR'ing in one object's logic to a subroutine in the same object is not a problem. Object communication is better done via a messaging system (&quot;hey object 17, you've been hit by the player's sword - deal with it&quot;), rather than by direct modification of another object's state.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">While switching RAM banks to select between gameobjects might sound annoying and inefficient, you actually do this a lot less than you'd think. When looping over and updating the 8 gameobjects every frame, we start by switching the RAM bank at the top of the loop, and that's it. We can now invoke all manner of code, for moving the object, checking object collisions against tiles, drawing out sprites, and all of the code simply assumes that the various Object_* labels are pointing to the one object they should be working on. It actually makes your code a lot more clean and straightforward.</div><br />If you need more than 8 objects though, you'll still be doing a lot of extra checks and indexing in order to access the different groups of 8 objects.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">One thing you might get hung up on is when two gameobjects need to interact, for example to check collision. There are a number of easy ways to solve this. If your mapper allows for more than one place to bankswitch WRAM (like MMC5 does) simply bankswitch in two banks of WRAM in at the same time in two separate locations. You can have gameobject 1 at $6000-$7FFF and gameobject 2 at $8000-$DFFF, to easily compare them. You haven't seen a fast and clean collision check routine until you have seen one that doesn't need register X for gameobject 1 and register Y for gameobject 2. If your mapper can only bankswitch WRAM in one location, you can quickly copy gameobject 2's values temporarily into Zero Page RAM for the same experience.</div><br />Not being able to see more than one object at a time is completely unacceptable. Copying the values of one of the objects to RAM completely negates the benefits of not using indexing, IMO.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">With &quot;<span style="color: #FFBFFF">LDA MyAddress,X</span>&quot; you can access 256 bytes indexed by X. Sometimes 256 is clearly not enough though, such as the tiledata for your level. In cases like that, you gotta use some other trick like &quot;<span style="color: #FFBFFF">LDA (CalculatedAddress),Y</span>&quot; Indirect addressing, which is expensive and clunky to setup for each access. However, with WRAM bankswitching, you can stack the 256 bytes in WRAM parallel for up to 256*8 = 2048 bytes while still using &quot;<span style="color: #FFBFFF">LDA MyAddress,X</span>&quot;, almost at the same cost. It's not enough for everything but it's still neat.</div><br />You can do that with partially unrolled code, without the overhead of switching banks.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">In Super Mario Bros 3, the tiledata buffer is 6480 bytes (27 rows * 16 columns * 15 screens). Let's imagine that for whatever reason, we need to increase the data size of each tile from 1 byte to 2 bytes, so that each tile has an additional byte of metadata. That's going to be extremely hard, even if we adjust all our code so that the tile calculations takes this new double offset into account, the fact is that we don't have 12960 continuous WRAM bytes. But you guessed it, just put up two 6480 tiledata buffers in WRAM parallel so that to access the second metadata byte we just switch the bank after accessing the first byte.</div><br />If you need 12960 bytes of tile data in an NES game, you're probably doing it wrong. Also, having to switch banks twice for every entry you need access is a hell of an overhead! But if you are in fact managing a large dynamic world (e.g. Sim City), then yeah, there's no way around using bank switchable RAM.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Drakim</b> [ Fri Feb 16, 2018 10:09 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Abusing WRAM bankswitching for fun and non-profit</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Thanks for the brutally honest reply. I much prefer honestly over &quot;good job kiddo&quot;  <img src="./images/smilies/icon_mrgreen.gif" alt=":mrgreen:" title="Mr. Green" /> <br /><br /><div class="quotetitle">tokumaru wrote:</div><div class="quotecontent">The 8 object limit sounds very restrictive to me... And having different sets of 8 objects separated by type isn't a very good solution because several subroutines have to work with all types of objects (sprite drawing, collision checking, etc.), so you'd end up needing multiple copies/variations of those routines for each type, and for each combination of types that can interact, not to mention the extra logic to pick the right copy/variation to use in each case.</div><br /><br />I agree, if you want more than 8 objects I'd not use this technique. The separate stuff was more about how you can use this technique for separate systems, for instance, if you have tiny particle objects, you can have a separate array of 8 of them, as opposed to using gameobjects to do tiny dust particles and pain stars, since they wouldn't be sharing any subroutines anyways.<br /><br /><div class="quotetitle">tokumaru wrote:</div><div class="quotecontent">You can save X in a &quot;CurrentObject&quot; variable in ZP right before calling the object's code, so that if you do need the X register for something else, you can quickly restore it by loading from that variable. If you design your code well, you may not need to do this very often.</div><br /><br />Sure, but sometimes you'll find yourself in an annoying situation where you want to use both the X and Y register for something in a loop, and you'll be forced to constantly restore X from your CurrentObject variable in each iteration. It's just a neat little bonus, nothing groundbreaking. After switching from X indexing to bank indexing I managed to shave off a few cycles here and there and was happy with that.<br /><br /><div class="quotetitle">tokumaru wrote:</div><div class="quotecontent">I don't think it's common for an object's subroutines to be accessed from the outside, so JSR'ing in one object's logic to a subroutine in the same object is not a problem. Object communication is better done via a messaging system (&quot;hey object 17, you've been hit by the player's sword - deal with it&quot;), rather than by direct modification of another object's state.</div><br /><br />There are a few things that gets accessed from the outside, the general purpose &quot;update object&quot; subroutine being the most obvious one. JSR Object_Update costs 6 cycles. Unless I'm mistaken, to execute a jumptable jump and while returning to our current location costs 21 cycles fully optimized. With 8 game objects, that's 120 cycles saved.<br /><br />The messaging system would also save a little, but it's not as important as it doesn't happen every frame.<br /><br /><div class="quotetitle">tokumaru wrote:</div><div class="quotecontent">If you need more than 8 objects though, you'll still be doing a lot of extra checks and indexing in order to access the different groups of 8 objects.</div><br /><br />Yeah, agreed. As I mentioned, if you need more than 8 objects, I just wouldn't go for this technique at all. But a lot of games simply don't. SMB3 can have 4 enemies, and I can't recall ever seeing a Megaman, Ducktales or Castlevania game with more than 8 enemies. Contra would definitely run into trouble though!<br /><br />Usually, on a platform like the NES, you don't make stuff like special effects and bullets the same kind of object as the enemy or the player. Code reuse isn't that great when their roles are so utterly different.<br /><br /><div class="quotetitle">tokumaru wrote:</div><div class="quotecontent">Not being able to see more than one object at a time is completely unacceptable. Copying the values of one of the objects to RAM completely negates the benefits of not using indexing, IMO.</div><br /><br />To be fair, you would only need to copy the values relevant for the collision test. I wouldn't be surprised if a lot of developers already do that to free up one of the registers when constantly comparing gameobject 1 with gameobject 2.<br /><br />But with the MMC5, you can &quot;see more than one object&quot;, you can load your WRAM into the pages you'd usually have PRG ROM. That means I get to compare Object_XPosition with Object2_XPosition, which is clean, fast, and straightforward.<br /><br /><div class="quotetitle">tokumaru wrote:</div><div class="quotecontent">You can do that with partially unrolled code, without the overhead of switching banks.</div><br /><br />Oh, tell me! I want to know how.  <img src="./images/smilies/Mfr_icon_homebrew.png" alt=":beer:" title="Beer" /> <br /><br /><div class="quotetitle">tokumaru wrote:</div><div class="quotecontent">If you need 12960 bytes of tile data in an NES game, you're probably doing it wrong.</div><br /><br />I mean, sure, it's a lot, but it's the exact amount of bytes SMB3 uses for tile data, times two. Is that really so forbidden? Is SMB3 just on the borderline of legality? If you want SMB3 levels but with some extra metadata for tiles you go right to jail, don't collect 200$ if you pass go?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Fri Feb 16, 2018 10:15 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Abusing WRAM bankswitching for fun and non-profit</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tokumaru wrote:</div><div class="quotecontent">I don't think it's common for an object's subroutines to be accessed from the outside, so JSR'ing in one object's logic to a subroutine in the same object is not a problem. Object communication is better done via a messaging system (&quot;hey object 17, you've been hit by the player's sword - deal with it&quot;), rather than by direct modification of another object's state.</div><br />The Smalltalk programming language <a href="https://medium.com/smalltalk-talk/getting-the-message-667d77ff78d" class="postlink">uses the word &quot;message&quot; to mean a virtual method call</a>, and <a href="https://developer.apple.com/library/content/documentation/Cocoa/Conceptual/ProgrammingWithObjectiveC/WorkingwithObjects/WorkingwithObjects.html" class="postlink">so does Objective-C</a> because it shoehorns a lot of approximations of Smalltalk concepts into C. The 6502 equivalent of this sort of messaging would involve pushing the object index of the sender, loading the object index of the receiver into X, calling the receiver's method, and restoring the sender's object index.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">; Untested<br />send_hit_message_to_object_y:<br />&nbsp; txa&nbsp; ; Save the sender's object index<br />&nbsp; pha<br />&nbsp; tya&nbsp; ; Set the object index to that of the receiver<br />&nbsp; tax<br />&nbsp; jsr @message_dispatch<br />&nbsp; pla&nbsp; ; Restore the sender's object index<br />&nbsp; tax<br />&nbsp; rts<br />@message_dispatch:<br />&nbsp; ldy object_class,x&nbsp; ; Look up how this class handles this message<br />&nbsp; lda object_hit_handlers+1,x<br />&nbsp; pha<br />&nbsp; lda object_hit_handlers,x<br />&nbsp; pha<br />&nbsp; rts<br />.endproc<br /></div><br /><br />Or did you mean to associate a queue of asynchronously handled messages with each object? If so, you'll need storage for that queue and some sort of handling for when an object's queue of incoming messages fills. How do you propose to arrange that storage?<br /><br />As for the 12960 byte map issue, if your map is that big, it's probably much more dynamic than that of <em>Super Mario Bros. 3</em>. That's the world data size I'd more often expect to see associated with something like <em>Animal Crossing</em>, where any of a few thousand objects can be left in any outdoor or indoor grid space. And yes, it's beyond the capability of an unmodified MMC3, though I've in the past proposed an extension to MMC3 to put a WRAM bank number in the unused bits of $A001.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Drakim</b> [ Fri Feb 16, 2018 10:26 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Abusing WRAM bankswitching for fun and non-profit</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />That's an interesting concept. I've mostly been relying on having a few standard &quot;public&quot; subroutines that gameobjects expose to the outside, like update, collide, hurt, and death. My game engine calls them when the conditions are right (or every frame for update) along with some additional parameters about the situation.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Fri Feb 16, 2018 11:04 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Abusing WRAM bankswitching for fun and non-profit</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Drakim wrote:</div><div class="quotecontent">Thanks for the brutally honest reply. I much prefer honestly over &quot;good job kiddo&quot;  <img src="./images/smilies/icon_mrgreen.gif" alt=":mrgreen:" title="Mr. Green" /></div><br />I didn't mean to be rude, sorry if went too far! Anyway, I was judging this as a general solution for handling objects, and considering the need for not so common/cheap hardware configurations and all the other cons, I didn't consider the pros significant enough to justify this. But if you feel like your own game is benefiting from this setup, that's great, and it's nice of you to share the idea in case others find it useful for them as well.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">sometimes you'll find yourself in an annoying situation where you want to use both the X and Y register for something in a loop, and you'll be forced to constantly restore X from your CurrentObject variable in each iteration. It's just a neat little bonus, nothing groundbreaking. After switching from X indexing to bank indexing I managed to shave off a few cycles here and there and was happy with that.</div><br />Yeah, I guess. In the end it will depend on which order and how frequently you interleave complex object logic with object attribute manipulation.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">There are a few things that gets accessed from the outside, the general purpose &quot;update object&quot; subroutine being the most obvious one. JSR Object_Update costs 6 cycles. Unless I'm mistaken, to execute a jumptable jump and while returning to our current location costs 21 cycles fully optimized. With 8 game objects, that's 120 cycles saved.</div><br />Yeah, you can save a bit of time, but there are cases where you'd want to have the update address to be dynamic (i.e. different update addresses depending on the state of the object), in which case you'd want to use an indirect JMP or RTS trick anyway, so again, it depends on how you do things.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Yeah, agreed. As I mentioned, if you need more than 8 objects, I just wouldn't go for this technique at all. But a lot of games simply don't. SMB3 can have 4 enemies, and I can't recall ever seeing a Megaman, Ducktales or Castlevania game with more than 8 enemies. Contra would definitely run into trouble though!</div><br />NES should target a low number of on screen objects for obvious reasons, but there's the fact that objects live a little bit outside of the screen too, maybe even in both axes depending on the type of scrolling you have. And there may also be invisible objects for special purposes, such as triggers for changing palettes, paths, patterns, etc., that could add up to the number of active objects even if they don't have any visual representation on the screen.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Code reuse isn't that great when their roles are so utterly different.</div><br />Not logic code, but collision checking and drawing for example are supposed to work the same across all object types.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">To be fair, you would only need to copy the values relevant for the collision test. I wouldn't be surprised if a lot of developers already do that to free up one of the registers when constantly comparing gameobject 1 with gameobject 2.</div><br />I'll have to check my own collision code to be sure, but if I'm not mistaken, I came up with a pretty fast collision system using X and Y to point to the two objects.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">But with the MMC5, you can &quot;see more than one object&quot;, you can load your WRAM into the pages you'd usually have PRG ROM. That means I get to compare Object_XPosition with Object2_XPosition, which is clean, fast, and straightforward.</div><br />That's much better, the only problem is that the MMC5 is not a very accessible mapper.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Oh, tell me! I want to know how.  <img src="./images/smilies/Mfr_icon_homebrew.png" alt=":beer:" title="Beer" /> </div><br />It's nothing fancy, you just access data in chunks of a few bytes each loop interaction instead of a single byte. For example:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; ldx #$00<br />CopyNameTable:<br />&nbsp; lda NameTablePart0, x<br />&nbsp; sta $2007<br />&nbsp; lda NameTablePart1, x<br />&nbsp; sta $2007<br />&nbsp; lda NameTablePart2, x<br />&nbsp; sta $2007<br />&nbsp; lda NameTablePart3, x<br />&nbsp; sta $2007<br />&nbsp; inx<br />&nbsp; bne CopyNameTable</div><br />The Separate tables are analogous to the separate banks.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Is SMB3 just on the borderline of legality? If you want SMB3 levels but with some extra metadata for tiles you go right to jail, don't collect 200$ if you pass go?</div><br />I personally consider SMB3 very wasteful of RAM, and often defend that very similar, if not identical, level layouts and destructibility could be achieved with just the 2KB of built-in RAM.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>FrankenGraphics</b> [ Fri Feb 16, 2018 11:22 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Abusing WRAM bankswitching for fun and non-profit</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tokumaru wrote:</div><div class="quotecontent">I personally consider SMB3 very wasteful of RAM, and often defend that very similar, if not identical, level layouts and destructibility could be achieved with just the 2KB of built-in RAM.</div><br /><br />This is probably a case where commercial &quot;rules&quot; of development stepped in and they figured that they could get the job done quick and help the project fit the budget, or get the job done elegantly (slower) and risk blowing the budget. If other design decisions pointed towards justifying the use of mmc3, they might aswell...<br /><br />In homebrew, the stakes are a little different. It's more about if your game will see a release this year or not and how good you are at enduring progress (or visual evidence thereof) being slow. Then again, if blowing up proportions of RAM requirements invents new problems to solve, that's no good.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Fri Feb 16, 2018 11:44 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Abusing WRAM bankswitching for fun and non-profit</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Yeah, I agree. I don't have a problem with SMB3 or homebrews or any other game using lots of RAM for level maps, my gripe is with people saying that this is the ONLY way to pull off SMB3-like levels.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

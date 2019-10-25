@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=10&amp;t=13949" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2016-03-12T13:40:11-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=10&amp;t=13949</id>
+<entry>
+<author><name><![CDATA[zzo38]]></name></author>
+<updated>2016-03-12T13:40:11-07:00</updated>
+<published>2016-03-12T13:40:11-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=13949&amp;p=166113#p166113</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=13949&amp;p=166113#p166113"/>
+<title type="html"><![CDATA[Re: ASM6 Illegal Instruction?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=13949&amp;p=166113#p166113"><![CDATA[
+I wrote a program called &quot;utftovlq&quot; which is capable of removing Unicode BOM (as well as doing other things). For example, the command <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">utftovlq u1b</tt> will convert UTF-16-LE with BOM to UTF-8 without BOM.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">/*<br />  UTF-to-VLQ<br />  Public domain<br />*/<br /><br />#include &lt;stdio.h&gt;<br />#include &lt;stdlib.h&gt;<br /><br />#ifdef _WIN32<br />#include &lt;fcntl.h&gt;<br />#endif<br /><br />typedef unsigned char byte;<br />typedef unsigned long long ULL;<br /><br />typedef ULL(*in_func_t)(void);<br />typedef void(*out_func_t)(ULL);<br /><br />static char in_mode;<br />static char out_mode;<br />static int options&#91;128&#93;;<br />static ULL translation&#91;256&#93;;<br />static ULL mem;<br /><br />#define conv_lf options&#91;'L'&#93;<br />#define conv_cr options&#91;'c'&#93;<br />#define bom_in options&#91;'b'&#93;<br />#define bom_out options&#91;'B'&#93;<br />#define trans_le options&#91;'t'&#93;<br /><br />static byte getb(void) {<br />  int x=fgetc(stdin);<br />  if(x==EOF) exit(0);<br />  return x;<br />}<br /><br />static inline ULL sign_extend(ULL x,int y) {<br />  return x|((x&amp;(1LL&lt;&lt;y))?-1LL&lt;&lt;y:0);<br />}<br /><br />static ULL read_8bit_raw(void) {<br />  return getb();<br />}<br /><br />static ULL read_16bit_le_raw(void) {<br />  ULL x=getb();<br />  return x|(getb()&lt;&lt;8);<br />}<br /><br />static ULL read_16bit_be_raw(void) {<br />  ULL x=getb()&lt;&lt;8;<br />  return x|getb();<br />}<br /><br />static ULL read_32bit_le_raw(void) {<br />  ULL x=getb();<br />  x|=getb()&lt;&lt;8;<br />  x|=getb()&lt;&lt;16;<br />  return x|(getb()&lt;&lt;24);<br />}<br /><br />static ULL read_32bit_be_raw(void) {<br />  ULL x=getb()&lt;&lt;24;<br />  x|=getb()&lt;&lt;16;<br />  x|=getb()&lt;&lt;8;<br />  return x|getb();<br />}<br /><br />static ULL read_64bit_le_raw(void) {<br />  ULL x=getb();<br />  x|=getb()&lt;&lt;8;<br />  x|=getb()&lt;&lt;16;<br />  x|=((ULL)getb())&lt;&lt;24;<br />  x|=((ULL)getb())&lt;&lt;32;<br />  x|=((ULL)getb())&lt;&lt;40;<br />  x|=((ULL)getb())&lt;&lt;48;<br />  x|=((ULL)getb())&lt;&lt;56;<br />  return x;<br />}<br /><br />static ULL read_64bit_be_raw(void) {<br />  ULL x=((ULL)getb())&lt;&lt;56;<br />  x|=((ULL)getb())&lt;&lt;48;<br />  x|=((ULL)getb())&lt;&lt;40;<br />  x|=((ULL)getb())&lt;&lt;32;<br />  x|=((ULL)getb())&lt;&lt;24;<br />  x|=getb()&lt;&lt;16;<br />  x|=getb()&lt;&lt;8;<br />  return x;<br />}<br /><br />static ULL read_utf8(void) {<br />  ULL x=getb();<br />  if((x&amp;0xE0)==0xC0) {<br />    x=((x&amp;0x1F)&lt;&lt;6)|(getb()&amp;0x3F);<br />  } else if((x&amp;0xF0)==0xE0) {<br />    x=((x&amp;0x0F)&lt;&lt;6)|(getb()&amp;0x3F);<br />    x=(x&lt;&lt;6)|(getb()&amp;0x3F);<br />  } else if((x&amp;0xF8)==0xF0) {<br />    x=((x&amp;0x07)&lt;&lt;6)|(getb()&amp;0x3F);<br />    x=(x&lt;&lt;6)|(getb()&amp;0x3F);<br />    x=(x&lt;&lt;6)|(getb()&amp;0x3F);<br />  } else if((x&amp;0xFC)==0xF8) {<br />    x=((x&amp;0x03)&lt;&lt;6)|(getb()&amp;0x3F);<br />    x=(x&lt;&lt;6)|(getb()&amp;0x3F);<br />    x=(x&lt;&lt;6)|(getb()&amp;0x3F);<br />    x=(x&lt;&lt;6)|(getb()&amp;0x3F);<br />  } else if((x&amp;0xFE)==0xFC) {<br />    x=((x&amp;0x01)&lt;&lt;6)|(getb()&amp;0x3F);<br />    x=(x&lt;&lt;6)|(getb()&amp;0x3F);<br />    x=(x&lt;&lt;6)|(getb()&amp;0x3F);<br />    x=(x&lt;&lt;6)|(getb()&amp;0x3F);<br />    x=(x&lt;&lt;6)|(getb()&amp;0x3F);<br />  } else if(x==0xFE || x==0xFF) {<br />    x=((x&amp;0x01)&lt;&lt;6)|(getb()&amp;0x3F);<br />    x=(x&lt;&lt;6)|(getb()&amp;0x3F);<br />    x=(x&lt;&lt;6)|(getb()&amp;0x3F);<br />    x=(x&lt;&lt;6)|(getb()&amp;0x3F);<br />    x=(x&lt;&lt;6)|(getb()&amp;0x3F);<br />    x=(x&lt;&lt;6)|(getb()&amp;0x3F);<br />  }<br />  return x;<br />}<br /><br />static ULL read_vlq8(void) {<br />  byte x=getb();<br />  ULL r=0;<br />  while(x&amp;0x80) {<br />    r=(r&lt;&lt;7)|(x&amp;0x7F);<br />    x=getb();<br />  }<br />  return r|x;<br />}<br /><br />static ULL read_leb128(void) {<br />  byte x=getb();<br />  int i=0;<br />  ULL r=0;<br />  while(x&amp;0x80) {<br />    r|=(x&amp;0x7F)&lt;&lt;(7*(i++));<br />    x=getb();<br />  }<br />  return r|(x&lt;&lt;(7*i));<br />}<br /><br />static ULL read_utf16_le(void) {<br />  ULL r;<br />  if(mem) {<br />    r=mem;<br />    mem=0;<br />    return r;<br />  }<br />  r=getb();<br />  r|=getb()&lt;&lt;8;<br />  if(r&gt;=0xD800 &amp;&amp; r&lt;0xDC00) {<br />    int x=fgetc(stdin);<br />    if(x==EOF) return r;<br />    x|=getb()&lt;&lt;8;<br />    if(x&gt;=0xDC00 &amp;&amp; x&lt;0xE000) return (((r&amp;0x3FF)&lt;&lt;10)|(x&amp;0x3FF))+0x10000ULL;<br />    mem=x;<br />  }<br />  return r;<br />}<br /><br />static ULL read_utf16_be(void) {<br />  ULL r;<br />  if(mem) {<br />    r=mem;<br />    mem=0;<br />    return r;<br />  }<br />  r=getb()&lt;&lt;8;<br />  r|=getb();<br />  if(r&gt;=0xD800 &amp;&amp; r&lt;0xDC00) {<br />    int x=fgetc(stdin);<br />    if(x==EOF) return r;<br />    x=(x&lt;&lt;8)|getb();<br />    if(x&gt;=0xDC00 &amp;&amp; x&lt;0xE000) return (((r&amp;0x3FF)&lt;&lt;10)|(x&amp;0x3FF))+0x10000ULL;<br />    mem=x;<br />  }<br />  return r;<br />}<br /><br />static ULL read_translate(void) {<br />  return translation&#91;getb()&#93;;<br />}<br /><br />static ULL read_hex(void) {<br />  char a,b;<br />  do a=getb(); while(a&lt;=' ');<br />  do b=getb(); while(b&lt;=' ');<br />  return (((a&amp;15)+(a&gt;='A'?9:0))&lt;&lt;4)|((b&amp;15)+(b&gt;='A'?9:0));<br />}<br /><br />static void write_8bit_raw(ULL x) {<br />  putchar(x);<br />}<br /><br />static void write_16bit_le_raw(ULL x) {<br />  putchar(x&amp;255);<br />  putchar(x&gt;&gt;8);<br />}<br /><br />static void write_16bit_be_raw(ULL x) {<br />  putchar(x&gt;&gt;8);<br />  putchar(x&amp;255);<br />}<br /><br />static void write_32bit_le_raw(ULL x) {<br />  putchar(x&amp;255);<br />  putchar(x&gt;&gt;8);<br />  putchar(x&gt;&gt;16);<br />  putchar(x&gt;&gt;24);<br />}<br /><br />static void write_32bit_be_raw(ULL x) {<br />  putchar(x&gt;&gt;24);<br />  putchar(x&gt;&gt;16);<br />  putchar(x&gt;&gt;8);<br />  putchar(x&amp;255);<br />}<br /><br />static void write_64bit_le_raw(ULL x) {<br />  putchar(x&amp;255);<br />  putchar(x&gt;&gt;8);<br />  putchar(x&gt;&gt;16);<br />  putchar(x&gt;&gt;24);<br />  putchar(x&gt;&gt;32);<br />  putchar(x&gt;&gt;40);<br />  putchar(x&gt;&gt;48);<br />  putchar(x&gt;&gt;56);<br />}<br /><br />static void write_64bit_be_raw(ULL x) {<br />  putchar(x&gt;&gt;56);<br />  putchar(x&gt;&gt;48);<br />  putchar(x&gt;&gt;40);<br />  putchar(x&gt;&gt;32);<br />  putchar(x&gt;&gt;24);<br />  putchar(x&gt;&gt;16);<br />  putchar(x&gt;&gt;8);<br />  putchar(x&amp;255);<br />}<br /><br />static void write_utf8(ULL x) {<br />  if(out_mode=='0' &amp;&amp; !x) {<br />    putchar(0xC0);<br />    putchar(0x80);<br />  } else if(x&lt;0x80ULL) {<br />    putchar(x);<br />  } else if(x&lt;0x800ULL) {<br />    putchar(0xC0|(x&gt;&gt;6));<br />    putchar(0x80|(x)&amp;0xBF);<br />  } else if(x&lt;0x10000ULL) {<br />    putchar(0xE0|(x&gt;&gt;12));<br />    putchar(0x80|(x&gt;&gt;6)&amp;0xBF);<br />    putchar(0x80|(x)&amp;0xBF);<br />  } else if(x&lt;0x200000ULL) {<br />    putchar(0xF0|(x&gt;&gt;18));<br />    putchar(0x80|(x&gt;&gt;12)&amp;0xBF);<br />    putchar(0x80|(x&gt;&gt;6)&amp;0xBF);<br />    putchar(0x80|(x)&amp;0xBF);<br />  } else if(x&lt;0x4000000ULL) {<br />    putchar(0xF8|(x&gt;&gt;24));<br />    putchar(0x80|(x&gt;&gt;18)&amp;0xBF);<br />    putchar(0x80|(x&gt;&gt;12)&amp;0xBF);<br />    putchar(0x80|(x&gt;&gt;6)&amp;0xBF);<br />    putchar(0x80|(x)&amp;0xBF);<br />  } else if(x&lt;0x80000000ULL) {<br />    putchar(0xFC|(x&gt;&gt;30));<br />    putchar(0x80|(x&gt;&gt;24)&amp;0xBF);<br />    putchar(0x80|(x&gt;&gt;18)&amp;0xBF);<br />    putchar(0x80|(x&gt;&gt;12)&amp;0xBF);<br />    putchar(0x80|(x&gt;&gt;6)&amp;0xBF);<br />    putchar(0x80|(x)&amp;0xBF);<br />  } else if(x&lt;0x1000000000ULL) {<br />    putchar(0xFE|(x&gt;&gt;36));<br />    putchar(0x80|(x&gt;&gt;30)&amp;0xBF);<br />    putchar(0x80|(x&gt;&gt;24)&amp;0xBF);<br />    putchar(0x80|(x&gt;&gt;18)&amp;0xBF);<br />    putchar(0x80|(x&gt;&gt;12)&amp;0xBF);<br />    putchar(0x80|(x&gt;&gt;6)&amp;0xBF);<br />    putchar(0x80|(x)&amp;0xBF);<br />  } else {<br />    exit(1);<br />  }<br />}<br /><br />static void write_vlq8(ULL x) {<br />  int i;<br />  for(i=63;i;i-=7) if(x&amp;-(1LL&lt;&lt;i)) putchar(0x80|(x&gt;&gt;i)&amp;0xFF);<br />  putchar(x&amp;0x7F);<br />}<br /><br />static void write_leb128(ULL x) {<br />  while(x&amp;~0x7FULL) {<br />    putchar(0x80|x&amp;0xFF);<br />    x&gt;&gt;=7;<br />  }<br />  putchar(x);<br />}<br /><br />static void write_utf16_le(ULL x) {<br />  if(x&gt;0x10FFFFULL) exit(1);<br />  if(x&amp;0x1F0000ULL) {<br />    x-=0x10000ULL;<br />    write_16bit_le_raw((x&gt;&gt;10)|0xD800);<br />    write_16bit_le_raw((x&amp;0x3FF)|0xDC00);<br />  } else {<br />    write_16bit_le_raw(x);<br />  }<br />}<br /><br />static void write_utf16_be(ULL x) {<br />  if(x&gt;0x10FFFFULL) exit(1);<br />  if(x&amp;0x1F0000ULL) {<br />    x-=0x10000ULL;<br />    write_16bit_be_raw((x&gt;&gt;10)|0xD800);<br />    write_16bit_be_raw((x&amp;0x3FF)|0xDC00);<br />  } else {<br />    write_16bit_be_raw(x);<br />  }<br />}<br /><br />static void write_translate(ULL x) {<br />  int i;<br />  for(i=0;i&lt;256;i++) if(translation&#91;i&#93;==x) { putchar(i); return; }<br />  exit(1);<br />}<br /><br />static void write_hex(ULL x) {<br />  printf(&quot;%02X&quot;,(int)x);<br />}<br /><br />static void write_unpack_ascii(ULL x) {<br />  while(x) {<br />    if(x&amp;127) putchar(x&amp;127);<br />    x&gt;&gt;=7;<br />  }<br />}<br /><br />static const in_func_t in_func&#91;128&#93;={<br />  &#91;'8'&#93;=read_8bit_raw,<br />  &#91;'w'&#93;=read_16bit_le_raw,<br />  &#91;'W'&#93;=read_16bit_be_raw,<br />  &#91;'d'&#93;=read_32bit_le_raw,<br />  &#91;'D'&#93;=read_32bit_be_raw,<br />  &#91;'q'&#93;=read_64bit_le_raw,<br />  &#91;'Q'&#93;=read_64bit_be_raw,<br />  &#91;'1'&#93;=read_utf8,<br />  &#91;'0'&#93;=read_utf8,<br />  &#91;'V'&#93;=read_vlq8,<br />  &#91;'v'&#93;=read_leb128,<br />  &#91;'u'&#93;=read_utf16_le,<br />  &#91;'U'&#93;=read_utf16_be,<br />  &#91;'T'&#93;=read_translate,<br />  &#91;'4'&#93;=read_hex,<br />  &#91;0&#93;=0<br />};<br /><br />static const out_func_t out_func&#91;128&#93;={<br />  &#91;'8'&#93;=write_8bit_raw,<br />  &#91;'w'&#93;=write_16bit_le_raw,<br />  &#91;'W'&#93;=write_16bit_be_raw,<br />  &#91;'d'&#93;=write_32bit_le_raw,<br />  &#91;'D'&#93;=write_32bit_be_raw,<br />  &#91;'q'&#93;=write_64bit_le_raw,<br />  &#91;'Q'&#93;=write_64bit_be_raw,<br />  &#91;'1'&#93;=write_utf8,<br />  &#91;'0'&#93;=write_utf8,<br />  &#91;'V'&#93;=write_vlq8,<br />  &#91;'v'&#93;=write_leb128,<br />  &#91;'u'&#93;=write_utf16_le,<br />  &#91;'U'&#93;=write_utf16_be,<br />  &#91;'T'&#93;=write_translate,<br />  &#91;'4'&#93;=write_hex,<br />  &#91;'a'&#93;=write_unpack_ascii,<br />  &#91;0&#93;=0<br />};<br /><br />int main(int argc,char**argv) {<br />  int b;<br />  int is_lf=0;<br />  ULL x;<br />#ifdef _WIN32<br />  _setmode(_fileno(stdin),_O_BINARY);<br />  _setmode(_fileno(stdout),_O_BINARY);<br />#endif<br />  if(argc&lt;2 || !argv&#91;1&#93;&#91;0&#93; || !in_func&#91;argv&#91;1&#93;&#91;0&#93;&#93; || !out_func&#91;argv&#91;1&#93;&#91;1&#93;&#93;) return 1;<br />  in_mode=argv&#91;1&#93;&#91;0&#93;;<br />  out_mode=argv&#91;1&#93;&#91;1&#93;;<br />  for(b=2;argv&#91;1&#93;&#91;b&#93;;b++) options&#91;argv&#91;1&#93;&#91;b&#93;&amp;127&#93;=1;<br />  if(argc&gt;2) {<br />    FILE*fp=fopen(argv&#91;2&#93;,&quot;rb&quot;);<br />    int i;<br />    if(!fp) return 1;<br />    fseek(fp,0,SEEK_END);<br />    b=ftell(fp)&gt;&gt;8;<br />    rewind(fp);<br />    for(i=0;i&lt;255;i++) {<br />      translation&#91;i&#93;=fgetc(fp);<br />      if(b&gt;1) translation&#91;i&#93;=trans_le?(translation&#91;i&#93;|((ULL)fgetc(fp)&lt;&lt;8)):((translation&#91;i&#93;&lt;&lt;8)|fgetc(fp));<br />      if(b&gt;2) translation&#91;i&#93;=trans_le?(translation&#91;i&#93;|((ULL)fgetc(fp)&lt;&lt;16)):((translation&#91;i&#93;&lt;&lt;8)|fgetc(fp));<br />      if(b&gt;3) translation&#91;i&#93;=trans_le?(translation&#91;i&#93;|((ULL)fgetc(fp)&lt;&lt;24)):((translation&#91;i&#93;&lt;&lt;8)|fgetc(fp));<br />      if(b&gt;4) translation&#91;i&#93;=trans_le?(translation&#91;i&#93;|((ULL)fgetc(fp)&lt;&lt;32)):((translation&#91;i&#93;&lt;&lt;8)|fgetc(fp));<br />      if(b&gt;5) translation&#91;i&#93;=trans_le?(translation&#91;i&#93;|((ULL)fgetc(fp)&lt;&lt;40)):((translation&#91;i&#93;&lt;&lt;8)|fgetc(fp));<br />      if(b&gt;6) translation&#91;i&#93;=trans_le?(translation&#91;i&#93;|((ULL)fgetc(fp)&lt;&lt;48)):((translation&#91;i&#93;&lt;&lt;8)|fgetc(fp));<br />      if(b&gt;7) translation&#91;i&#93;=trans_le?(translation&#91;i&#93;|((ULL)fgetc(fp)&lt;&lt;56)):((translation&#91;i&#93;&lt;&lt;8)|fgetc(fp));<br />    }<br />    fclose(fp);<br />  }<br />  if(bom_out) out_func&#91;out_mode&amp;127&#93;(0xFEFF);<br />  while(!feof(stdin)) {<br />    x=in_func&#91;in_mode&amp;127&#93;();<br />    if(bom_in &amp;&amp; x!=0xFEFF) return 1;<br />    if(is_lf &amp;&amp; x==10) {<br />      is_lf=0;<br />      continue;<br />    }<br />    if(is_lf=(conv_lf &amp;&amp; x==13)) x=10;<br />    if(conv_cr &amp;&amp; x==10) out_func&#91;out_mode&amp;127&#93;(13);<br />    if(!bom_in) out_func&#91;out_mode&amp;127&#93;(x);<br />    bom_in=0;<br />  }<br />  return 0;<br />}</div><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4734">zzo38</a> — Sat Mar 12, 2016 1:40 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tokumaru]]></name></author>
+<updated>2016-03-12T06:28:11-07:00</updated>
+<published>2016-03-12T06:28:11-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=13949&amp;p=166097#p166097</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=13949&amp;p=166097#p166097"/>
+<title type="html"><![CDATA[Re: ASM6 Illegal Instruction?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=13949&amp;p=166097#p166097"><![CDATA[
+Had a similar problem with PHP includes a while back, because the other programmer was saving UTF-8 files with BOM, so weird characters would show up in several places and screw up the CSS, generate invalid documents, and so on.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=95">tokumaru</a> — Sat Mar 12, 2016 6:28 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[thefox]]></name></author>
+<updated>2016-03-12T05:37:24-07:00</updated>
+<published>2016-03-12T05:37:24-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=13949&amp;p=166095#p166095</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=13949&amp;p=166095#p166095"/>
+<title type="html"><![CDATA[Re: ASM6 Illegal Instruction?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=13949&amp;p=166095#p166095"><![CDATA[
+The assembler might choke on <a href="https://en.wikipedia.org/wiki/Byte_order_mark" class="postlink">BOM</a> at the start of the file if the encoding is set to &quot;UTF-8 with BOM&quot; (this and CR/LF problems are often easiest to check in a hex editor).<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=80">thefox</a> — Sat Mar 12, 2016 5:37 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[za909]]></name></author>
+<updated>2016-03-12T03:43:18-07:00</updated>
+<published>2016-03-12T03:43:18-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=13949&amp;p=166093#p166093</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=13949&amp;p=166093#p166093"/>
+<title type="html"><![CDATA[Re: ASM6 Illegal Instruction?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=13949&amp;p=166093#p166093"><![CDATA[
+Yeah, looks like it, because sometimes I took out the basic windows notepad to make quick modifications instead of having to run Notepad++ for everything and the encoding has changed... So I'll just have to re-save those source files and that's it. Thank you!<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6362">za909</a> — Sat Mar 12, 2016 3:43 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[koitsu]]></name></author>
+<updated>2016-03-12T03:32:03-07:00</updated>
+<published>2016-03-12T03:32:03-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=13949&amp;p=166092#p166092</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=13949&amp;p=166092#p166092"/>
+<title type="html"><![CDATA[Re: ASM6 Illegal Instruction?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=13949&amp;p=166092#p166092"><![CDATA[
+UNIX (LF-only) vs. DOS (CR+LF) line endings perhaps?  Unicode (UTF-16)-encoded file?<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3">koitsu</a> — Sat Mar 12, 2016 3:32 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[lazigamer]]></name></author>
+<updated>2016-03-12T03:13:55-07:00</updated>
+<published>2016-03-12T03:13:55-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=13949&amp;p=166091#p166091</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=13949&amp;p=166091#p166091"/>
+<title type="html"><![CDATA[Re: ASM6 Illegal Instruction?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=13949&amp;p=166091#p166091"><![CDATA[
+Looking at the error it is sayin that the first line of the PRGMain.asm file is something the assembler doesn't understand. What is on the first line of that file?<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=5036">lazigamer</a> — Sat Mar 12, 2016 3:13 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[za909]]></name></author>
+<updated>2016-03-12T03:09:32-07:00</updated>
+<published>2016-03-12T03:09:32-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=13949&amp;p=166090#p166090</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=13949&amp;p=166090#p166090"/>
+<title type="html"><![CDATA[Re: ASM6 Illegal Instruction?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=13949&amp;p=166090#p166090"><![CDATA[
+I tried it but nothing changed. The funny thing is that I have another 32k bank which is included in the exact same way and has the same intro comments, and it doesn't give me an error by itself if I comment out this first one.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6362">za909</a> — Sat Mar 12, 2016 3:09 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[lazigamer]]></name></author>
+<updated>2016-03-12T03:03:26-07:00</updated>
+<published>2016-03-12T03:03:26-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=13949&amp;p=166089#p166089</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=13949&amp;p=166089#p166089"/>
+<title type="html"><![CDATA[Re: ASM6 Illegal Instruction?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=13949&amp;p=166089#p166089"><![CDATA[
+You need to put double quotes around the name of the file. <br />.include &quot;PRGMain.asm&quot;<br />Like that.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=5036">lazigamer</a> — Sat Mar 12, 2016 3:03 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[za909]]></name></author>
+<updated>2016-03-12T02:53:43-07:00</updated>
+<published>2016-03-12T02:53:43-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=13949&amp;p=166088#p166088</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=13949&amp;p=166088#p166088"/>
+<title type="html"><![CDATA[ASM6 Illegal Instruction?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=13949&amp;p=166088#p166088"><![CDATA[
+I've decided to upgrade from NROM to a 1-bit BNROM in order to have all my core routines organized into a separate bank. However, a weird error popped up out of nowhere:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">08000                           ;----------------------------------------------------------------<br />08000                           ; 64kB PRG-ROM<br />08000                           ;----------------------------------------------------------------<br />08000                           ; Bank 0<br />08000                           ;----------------------------------------------------------------<br />08000                              .include PRGMain.asm<br />08000                           ﻿; Main PRG Source<br />*** Illegal instruction.<br />08000                           ; Bank 0<br />08000                           ; -----------------------------<br />08000                           ; Fixed routines for BOTH banks!!!<br />08000                           ;*****************************<br />08000                           ;~~~~~~~~~~~~~~~~~~~~~~~~~~~~~<br />08000                           ;-----------------------------</div><br /><br />Whatever I do, I get this illegal instruction error, even if I just give it a completely empty source file, it still says that PRGMain.asm&lt;1&gt; has an illegal instruction. I even tried putting an instruction there, and it is not interpreted as a ninstruction at all (The internal PC isn't incremented either). However, if I actually paste the contents of that source file in there to replace the .include, there is no error. I really didn't want to come here with such trivialities but I'm out of ideas.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6362">za909</a> — Sat Mar 12, 2016 2:53 am</p><hr />
+]]></content>
+</entry>
+</feed>

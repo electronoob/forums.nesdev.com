@@ -1,0 +1,475 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - asm6 assumes little-endian host [not anymore!]</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">asm6 assumes little-endian host [not anymore!]</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=6545">http://forums.nesdev.com/viewtopic.php?f=2&amp;t=6545</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Tue Jun 29, 2010 4:56 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>asm6 assumes little-endian host [not anymore!]</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I was trying to get asm6 working on my machine, but all the data values were outputting as zero. I finally traced it down to it assuming that the host is little-endian, where it essentially does in many places:
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">int i = ...;<br />write_bytes_to_output&#40; &amp;i, 1 &#41;; // for byte output<br />write_bytes_to_output&#40; &amp;i, 2 &#41;; // for 16-bit word output</div><br />rather than the much more portable<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">int i = ...;<br />unsigned char c = i;<br />write_bytes_to_output&#40; &amp;c, 1 &#41;;<br />unsigned char word &#91;2&#93; = &#123; i, i &gt;&gt; 8 &#125;;<br />write_bytes_to_output&#40; word, 2 &#41;;</div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>koitsu</b> [ Tue Jun 29, 2010 1:44 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Doing this for every single write_bytes_to_output() call is wasteful.
+<br />
+<br />The source code should be modified to either:
+<br />a) have an appropriate #ifdef to define little or big endian (most people use LITTLE_ENDIAN and BIG_ENDIAN), or,
+<br />b) have a detection subroutine that runs *once* that detects+defines endian state and modify write_bytes_to_output() to utilise said state.
+<br />
+<br />(a) is more efficient (and is more common) but requires the user have to rebuild the binary from source if they change architectures (fairly common anyway), while (b) doesn't require this.
+<br />
+<br />Detection is easy:
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">#define LITTLE_ENDIAN 0<br />#define BIG_ENDIAN&nbsp; &nbsp; 1<br /><br />/* Prototype declaration */<br />int test_endian&#40;void&#41;;<br /><br />/* Function declaration */<br />int test_endian&#40;void&#41; &#123;<br />&nbsp; int i = 1;<br />&nbsp; char *p = &#40;char *&#41;&amp;i;<br /><br />&nbsp; if &#40;p&#91;0&#93; == 1&#41; &#123; return LITTLE_ENDIAN; &#125;<br />&nbsp; return BIG_ENDIAN;<br />&#125;<br /></div>
+<br />
+<br />Again, you'd only need to call this once.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Tue Jun 29, 2010 3:00 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I found more endian-dependence. In places it does *(short*)char_ptr = '=' for example, instead of the portable strcpy( char_ptr, "=" ). Or similarly, if ( *(short*)char_ptr == '=' instead of !strcmp( char_ptr, "=" ).
+<br />
+<br />And then there are the pointer casts, that I haven't figured out yet. Some of them use pointers as booleans, doing char_ptr = (char*) 1 for true, rather than the portable static char true_sentinel; char_ptr = &amp;true_sentinel.
+<br />
+<br />The twisted nature of these optimizations makes it a kind of interesting project to consider making portable, especially doing so while making minimal modifications.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>koitsu</b> [ Tue Jun 29, 2010 3:22 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I'm not sure I'd call those "optimisations" (no offence intended, loopy).  The most recent examples look like an accident waiting to happen; ouch.
+<br />
+<br />Regarding the pseudo-boolean stuff: depending on how the code works and what its intention is, it might make more overall sense to make it adhere to C99 (which officially offers the "bool" type).
+<br />
+<br />The ASM6 parser isn't really very... well, I guess I shouldn't go there.  I think the original point was that loopy wrote it for his own use, release it into the wild for others to use, yadda yadda.  This is probably one of those "it works except when it doesn't" situations.  :-)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Tue Jun 29, 2010 3:41 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Yeah, I partly just wanted to warn anyone considering compiling this on a big-endian machine, and perhaps post a portable version. I was impressed with the simplicity of the memory model. It was clearly made to just assemble and work, without arcane segments and other things used by other assemblers. I mainly just wanted to have it around so I could see how difficult it was to modify code I release to work with it.
+<br />
+<br />The thing with the pointers is that it's also using them as normal pointers. So it's a sort of bool/char* union, but without having to use a union. It may even use this as the type flag, so if the pointer is (char*)1, then it's a bool with the value true. If it's NULL, then it's a bool with the value false. If it's neither, then it's a normal char* pointing at something.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>byuu</b> [ Tue Jun 29, 2010 7:11 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Again, you'd only need to call this once.</div><br /><br />Of course, the problem with such a test function is that it can only be accomplished at run-time. Thus, any time you were to actually use a big or little endian specific function, you'd had to go through a function pointer or conditional test. Or go really evil and rely on self-modifying code :)<br /><br />Best bet is to try and detect the platform based on compiler-specific #defines, and fall back on letting the user manually choose endianness. And finally, create a run-time assertion on startup to ensure the correct endian was chosen.<br /><br />Still, for an NES assembler, is it really worth the speed benefit for all the extra hassle; when you can use the same code on all platforms? I can't imagine writing more than 1MB of data this way. Surely the added overhead isn't even close to 1ms.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">I was impressed with the simplicity of the memory model. It was clearly made to just assemble and work, without arcane segments and other things used by other assemblers.</div><br /><br />I've been trying to convince people of that approach for over a decade now. That kind of flexible magic can be there, just only require it when it is really required.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">So it's a sort of bool/char* union, but without having to use a union. It may even use this as the type flag, so if the pointer is (char*)1, then it's a bool with the value true. If it's NULL, then it's a bool with the value false. If it's neither, then it's a normal char* pointing at something.</div>
+<br />
+<br />So then, I assume a value of (char*)2 represents a file not found condition?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Dwedit</b> [ Tue Jun 29, 2010 7:13 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">byuu wrote:</div><div class="quotecontent">So then, I assume a value of (char*)2 represents a file not found condition?</div>
+<br />
+<br />I wonder how many people here do <strong>not</strong> read The Daily WTF.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>cpow</b> [ Tue Jun 29, 2010 8:13 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">blargg wrote:</div><div class="quotecontent">Yeah, I partly just wanted to warn anyone considering compiling this on a big-endian machine</div>
+<br />Hey Blargg, ANY chance I can get you to try compiling/using PASM on a big-endian machine?
+<br />
+<br />It requires flex/bison.  On Windows I use cygwin but it also compiles in Linux and OSX.  It compiles both a library (static, included in NESICIDE) and an executable (for me to test it externally from NESICIDE).
+<br />
+<br />It is written to be ASM6 syntax compatible.
+<br />
+<br />Source for it is here:
+<br />
+<br /><a href="http://www.gitorious.org/nesicide/nesicide2-master/trees/master/compiler" class="postlink">http://www.gitorious.org/nesicide/nesicide2-master/trees/master/compiler</a>
+<br />
+<br />(the makefile and the files prefixed with pasm_)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>loopy</b> [ Tue Jun 29, 2010 8:42 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I would definitely not look to asm6 as an example of good code.  In some places, it's quite atrocious.  Understand that it was originally written for an audience of one (myself), to be run on exactly one computer.  Very much a "just make it work" mentality.  At the time, I had no knowledge of how a parser should be written, I was figuring things out as I went along.
+<br />
+<br /><div class="quotetitle">blargg wrote:</div><div class="quotecontent">The twisted nature of these optimizations makes it a kind of interesting project to consider making portable, especially doing so while making minimal modifications.<br /></div>
+<br />
+<br />I'm glad you're finding it interesting, at least.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Wed Jun 30, 2010 5:16 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I just want to apologize for somewhat making an example of asm6. I was kind of annoyed that what could have worked fine (no OS-specific crap, for example) was marred by endian-dependence. I understand your goals for it (audience: one) and it goes way beyond meeting that. That *(short*) stuff to compare/set one-character strings is pretty clever, even if it isn't portable. Personally I think little-endian is correct way to go, for many reasons. Seems PowerPC is one of the last holdouts (I know it has a little-endian mode, but I am pretty sure that causes extra overhead in some cases as compared to big-endian mode, like for unaligned accesses). For one, the 6502 would have taken an extra cycle all the time on absolute indexed instructions if it were big-endian, unless it threw extra hardware to compensate. The only downside is viewing in hex, but that is easily remedied by displaying from right-to-left. That way 78 56 34 12 gets displayed as 12 34 56 78.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Wed Jun 30, 2010 5:33 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">blargg wrote:</div><div class="quotecontent">The only downside is viewing in hex, but that is easily remedied by displaying from right-to-left.</div>
+<br />But then that would take the "om" out of "homebrew".
+<br />
+<br />But seriously, this sort of union-between-pointers-and-result-codes reminds me of techniques used in dynamically typed languages such as PHP and Python. If I were writing an assembler today, I'd probably do it in Python.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Wed Jun 30, 2010 12:03 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Dynamic typing takes all the fun out of it. It's more fun if you are able to pack a type field into a char*, without using any more bits than normal. Just hope your platform's malloc never returns (char*)1 as a valid memory block...
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>byuu</b> [ Wed Jun 30, 2010 9:10 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">blargg wrote:</div><div class="quotecontent">Just hope your platform's malloc never returns (char*)1 as a valid memory block...</div>
+<br />
+<br />You know the sad part is that, thanks to programming and/or emulation, I actually <em>would</em> worry about exactly that. "Hmm, there's a one in four billion chance that malloc could return an address of one. Meh, unacceptable. The risks are just too great."
+<br />
+<br />You have to wonder about what kind of effects such a perfectionist mentality has on the rest of our lives :P
+<br />
+<br />So, workaround time:
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">static const intptr_t False = NULL;<br />static const intptr_t True = &amp;False;</div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Thu Jul 01, 2010 4:35 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />intptr_t just complicates it. Use void* and it works much more smoothly (in C, due to implicit void* conversion), and fully portably:
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">static void* false_ptr = NULL;<br />static void* true_ptr = &amp;true_ptr;<br />static void* po_ptr = &amp;po_ptr;<br /><br />const char* ptr;<br />ptr = false_ptr;<br />assert&#40; !ptr &#41;;<br /><br />ptr = true_ptr;<br />assert&#40; ptr &amp;&amp; ptr == true_ptr &#41;;<br /><br />ptr = &quot;str&quot;;<br />assert&#40; ptr != false_ptr &amp;&amp; ptr != true_ptr &#41;;</div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Thu Jul 01, 2010 4:51 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">byuu wrote:</div><div class="quotecontent">Hmm, there's a one in four billion chance that malloc could return an address of one.</div>
+<br />Some platforms' ABIs specify that malloc() can't ever return a 1 in the three low order bits. For example, glibc <a href="http://www.delorie.com/gnu/docs/glibc/libc_31.html" class="postlink">guarantees 8-byte alignment</a>. And with int being at least 2 bytes long on CHAR_BIT==8 machines like those that run the vast majority of emulators, I'd wager that every platform worth caring about aligns all pointers from malloc() to two bytes.
+<br />
+<br />Yes, I just assumed that CHAR_BIT==8, but I can document that assumption in a compile-time assertion: code that results in declaring a negative-size array if it is false.
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">extern int CTASSERT_eight_bit_bytes&#91;&#40;CHAR_BIT == 8&#41; ? 1 : -1&#93;;</div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

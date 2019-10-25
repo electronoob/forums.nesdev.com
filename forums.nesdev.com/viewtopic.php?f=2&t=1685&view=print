@@ -1,0 +1,413 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - What's the best sound engine handling : Frame IRQ or NMI ?</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">What's the best sound engine handling : Frame IRQ or NMI ?</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=1685">http://forums.nesdev.com/viewtopic.php?f=2&amp;t=1685</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Fri Jun 23, 2006 1:09 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>What's the best sound engine handling : Frame IRQ or NMI ?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Frame IRQ :
+<br />- It's a use of that damn IRQ label you have to put somewhere if you don't use it by anything else
+<br />- It is (almost ?) the same frequencey on NTSC and PAL systems, and you will never suffer to have music plaiyng slower on PAL nor having to compensate this by software by changing tempo values, wich can cause sound bugs in some games (aka Megaman 3's protoman whistle).
+<br />
+<br />Against frame IRQ :
+<br />- Your main code will get interrupted (so timing code isn't possible during the frame).
+<br />- If you have anyother use of the IRQ vector, it may be annoying to have to detect from where did the interrupt come from, and can loose time in timing critical IRQs
+<br />- Need of more flags/temporary variables in init-code related stuff ?
+<br />
+<br />So what's the best ?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Fri Jun 23, 2006 1:55 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: What's the best sound engine handling : Frame IRQ or NMI</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Bregalad wrote:</div><div class="quotecontent">- It's a use of that damn IRQ label you have to put somewhere if you don't use it by anything else</div><br /><br />That's a pretty lame pro.  It's not hard to just have your IRQ vector share the Reset label or something similar.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">- It is (almost ?) the same frequencey on NTSC and PAL systems, and you will never suffer to have music plaiyng slower on PAL nor having to compensate this by software by changing tempo values,</div><br /><br />Games will have to compensate for PAL mode if they want to be compatible anyway.  Not just the tempo, but tone pitch changes, so even if you use Frame IRQs to drive the music engine, you'll still need to make adjustments to be PAL friendly.<br /><br />If you design your music engine with PAL support in mind from the start, compatibility isn't that hard at all.  You could even do a mock-up PAL tempo support with something as simple as:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">PAL_music_play:<br />&nbsp; JSR NTSC_music_play<br />&nbsp; DEC pal_tempo_adj<br />&nbsp; BNE :+<br />&nbsp; &nbsp; JSR NTSC_music_play<br />&nbsp; &nbsp; LDA #$05<br />&nbsp; &nbsp; STA pal_tempo_adj<br />: RTS<br /></div><br /><br />That will call the normal (NTSC) play routine 1 extra time every 5 frames, effectivily making the music 1.2x faster (changing ~50Hz to ~60Hz)<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent"> wich can cause sound bugs in some games (aka Megaman 3's protoman whistle).</div><br /><br />Was there even a PAL version of Megaman 3?  If so was it ever dumped?  I only have (U) dumps in my collection (all NTSC).  This sounds like it's more of a problem with Megaman 3 not being adjusted <em>at all</em> for PAL.    Which doesn't have anything at all to do with APU IRQs vs. NMI.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">- Your main code will get interrupted (so timing code isn't possible during the frame).</div><br /><br />This is a big turnoff, for me (but there's a bigger one I mention later).  All the other game logic already is driven by NMI rates, so why complicate things by having two different logic regulators running at the same time?<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">If you have anyother use of the IRQ vector, it may be annoying to have to detect from where did the interrupt come from, and can loose time in timing critical IRQs</div><br /><br />Not really -- Reading $4015.6 will tell you whether or not your IRQ is caused by APU frame IRQs, so differentiating between mapper and frame IRQs is as simple as:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">IRQ:<br />&nbsp; BIT $4015<br />&nbsp; BVS apu_frame_irq<br />&nbsp; JMP mapper_irq<br /></div>
+<br />
+<br />
+<br />The REAL downside to using APU frame IRQs to regulate the music is that it borks split screen effects.  APU Frame IRQs can (and will) occur at any point in the frame -- and the music driver will eat quite a substantial amount of time.
+<br />
+<br />Even with the aid of mapper IRQs things will get screwed up real fast if you're not careful.  Say you have your mapper IRQ set to trip on a scanline where you want to split the screen.  Now what happens when your APU IRQ trips 10 cycles before your mapper IRQ would trip?  You're essentially screwed, as the music driver code will run first, postponing your split-screen code until you RTI (which will take several scanlines).
+<br />
+<br />One solution to this is to acknowledge the APU frame IRQ and then CLI right away so that another IRQ can interrupt your APU IRQ code.  This could work, but the extra latency of going through an second IRQ will really make it harder to time a hit to HBlank.
+<br />
+<br />
+<br />Personally -- I would just stick with NMIs.  KISS.  There's no real benefit for using APU frame IRQs in this fashion and it adds a world of unnecessary complication.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Fri Jun 23, 2006 2:18 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Well, if you use mapper IRQ for split screen, you can do cli just after the bit $4015 stuff, so it will not cause so much problems. However, if you're reling on $2002 polls to do split screens, this will cause more problems.
+<br />However, if you code say an RPG, you'll have no reason to do any split effects during the frame.
+<br />Overall, I just think the frame IRQ hardware has been basically designed for sound engine purposes, and then it becomes useless if not used as it, because it cannot be used for split stuff either (this has been discussed just before).
+<br />
+<br />Yes, there is a PAL version of MegaMan 3, and I don't know if it has been dumped, but I have it. On the real PAL console with the real MM3 card, when protoman whistle, you hear the sequel to the whistle song that you're supposed to hear only in the enging - because the music was fixed to play faster in the NES's viewpoint to compensate the fact that the NES runs slower, but the timer that acts in gameplay seems to not have been touched. This wouldn't happen if the music engine was running at 60Hz, because the tempo wouldn't have to be changed.
+<br />And doing the trick you shown to correct would be bad, because it would remove linearity in the sound causing pitch and volume effects to have gaps, and additionnaly it will consumme more time one frame out of six wich isn't very good.
+<br />Correct pitch is MUCH easier than correct timing, just change the values in your pitch table (assuming you have a pitch table, but I don't think how you could code a sound engine without).
+<br />
+<br />BTW Megaman 3 PAL has a ton of glitches with MMC3's IRQ. On the second to last battle, where I think IRQ is normally used to scroll Wily's machine separatly from the ground the whole screen flicker. If I remember correctly, when the menu is oppen it flickers (because it is also done via MMC3 IRQ) and isn't usable. That way, the doctor Wily is totally unbeatable on the PAL version, unless it's just me. Surprising I've never head anyone about that bug, that is much more annoying than the protoman's whistle bug-
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Fri Jun 23, 2006 3:00 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: What's the best sound engine handling : Frame IRQ or NMI</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Disch wrote:</div><div class="quotecontent">Games will have to compensate for PAL mode if they want to be compatible anyway.  Not just the tempo, but tone pitch changes</div><br />By almost exactly a semitone, which can be set as a global transposition by the init code.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">so even if you use Frame IRQs to drive the music engine, you'll still need to make adjustments to be PAL friendly.</div><br />But at least an IRQ driven arpeggio will the sound the same on both systems if the pitch table is adjusted by a semitone in PAL mode.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">If you design your music engine with PAL support in mind from the start, compatibility isn't that hard at all.  You could even do a mock-up PAL tempo support with something as simple as:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">PAL_music_play:<br />&nbsp; JSR NTSC_music_play<br />&nbsp; DEC pal_tempo_adj<br />&nbsp; BNE :+<br />&nbsp; &nbsp; JSR NTSC_music_play<br />&nbsp; &nbsp; LDA #$05<br />&nbsp; &nbsp; STA pal_tempo_adj<br />: RTS<br /></div></div>
+<br />NT2's playback code does the exact opposite (skipping calls every 6th frame when run on NTSC). It causes artifacts on arpeggios, sharp volume envelopes, and similar effects.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Fri Jun 23, 2006 3:09 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Bregalad wrote:</div><div class="quotecontent">Well, if you use mapper IRQ for split screen, you can do cli just after the bit $4015 stuff, so it will not cause so much problems.</div><br /><br />Yeah I hinted at that in my post.  But still.  IRQ+BIT $4015+CLI  is 13 cycles.  When you consider that HBlank is only about 21 cycles (even less on PAL) -- that extra bit of latency just makes it that much harder to time your writes so they fall on HBlank.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">However, if you're reling on $2002 polls to do split screens, this will cause more problems.</div><br /><br />I don't see any way it'd be possible without the aid of DMC IRQs or something.  Unless you periodically poll $2002 in your music driver code or something -- but that's just silly.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">However, if you code say an RPG, you'll have no reason to do any split effects during the frame.</div><br /><br />I'm sure I could find ways to.  FF3 did some status bar scrolling in its battles, if memory serves.  Maybe you'd want to make it so some char stats are visible on the map screen via a status bar or something.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">then it becomes useless if not used</div><br /><br />So you would comprimise your game and make things harder for yourself just so you could give use to specific feature of a system?  That's nonsense.<br /><br />So what if APU IRQs become useless?  Why would that matter?<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">And doing the trick you shown to correct would be bad, because it would remove linearity in the sound causing pitch and volume effects to have gaps,</div><br /><br />Yeah, that's why I called it "mock-up" PAL support.  It's rather hackish, but can be easily slapped into a setup that wasn't built to support PAL.  But like I said initially -- if you keep PAL in mind when developing your music engine, supporting it isn't really that hard at all.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">and additionnaly it will consumme more time one frame out of six wich isn't very good.</div><br /><br />considering the inflated VBlank time you're given on PAL -- I don't think that'd be much of an issue -- but you're right.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Correct pitch is MUCH easier than correct timing, just change the values in your pitch table (assuming you have a pitch table, but I don't think how you could code a sound engine without).</div>
+<br />
+<br />And what makes correct timing more difficult?  You could just as easily have a length table just like you have a pitch table.
+<br />
+<br />
+<br />
+<br />The bottom line is, using Frame IRQs inhibits you.  It makes it harder to do things, and even prevents you from doing some things.  Instead of asking yourself "why not use Frame IRQs?" and then finding ways to work around the problems Frame IRQs cause -- you should be asking yourself "why bother with Frame IRQs?"  I mean really -- the only pro I've heard so far is that it makes tempo adjustment for PAL support a little easier -- but really, that's not much of an issue if you plan ahead for it.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Fri Jun 23, 2006 6:41 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I'm with Disch on this; I don't see how there can be any significant discussion of using the APU's frame IRQ. Run your sound code at the end of your NMI handler, after all time-critical stuff is done. If you're advocating any other approach, you first have to show some significant advantages, not just show how the problems can be worked around.
+<br />
+<br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">The bottom line is, using Frame IRQs inhibits you.</div>
+<br />
+<br />Is that just in Soviet Russia?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>-_pentium5.1_-</b> [ Fri Jun 23, 2006 10:39 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Bregalad wrote:</div><div class="quotecontent">Yes, there is a PAL version of MegaMan 3, and I don't know if it has been dumped, but I have it.</div>
+<br />I'm pretty sure it's undumped as of GoodNES 2.01. Not sure about the upcoming GoodNES 3.00.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Fri Jun 23, 2006 11:45 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Overall, frame IRQ has one single advantage on NMI hanlding : It has the same frequencey on both systems.
+<br />My sound driver does have a lenght table but it's sort of different : Each note is x "ticks" long, and the ticks are done by incrementing a tempo variable by the song's tempo constant every frame. If there is overflow, then the frame is a "tick" (the song logic advance), else it is not (only volume and pitch effects are done, but not the song logic).
+<br />I think the lenght table wouldn't be changed, but the tempo constant for each tune would. This would cause problems only when the main gameplay is in syncronous with the music or sound effects, but I think this is a smaller problems than problems with IRQ stuff, so definitely, frame IRQ are useless and NMI hanling is better.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bananmos</b> [ Sat Jun 24, 2006 8:32 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />From where did you get the information that frame IRQ is 60 Hz on PAL systems? All the tests I have performed on the frame IRQ show that it's appr. 50 Hz, and has a slightly longer phase than the NMI. This makes it a completely useless interrupt IMO. The only reason for using it that I can see is if you would build your own simplified NSF-player using just the CPU without the PPU.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Sat Jun 24, 2006 8:42 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />If it's around ~55 or ~56 Hz that would make a lot of sense.
+<br />
+<br />Since the CPU clock rate is slower on PAL, the APU frame sequencer will run slightly slower as well.  If the APU hardware is the same on both systems, then APU frame IRQs will probably run about 56 Hz:
+<br />
+<br />PAL_CPU / (NTSC_CPU / NTSC_irq_rate) = PAL_irq_rate
+<br />
+<br />1662607 / (1789772 / 60)  =  ~56
+<br />
+<br />
+<br />
+<br />But from what you're saying it's slower than that?  Closer to 50?  Perhaps the APU frame sequencer steps are closer together on PAL.  We may need some in-depth testing and documentation on this one.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Memblers</b> [ Sat Jun 24, 2006 10:15 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I never thought of any use for frame IRQ.  It would trigger sometimes during vblank, wouldn't it?  No way anyone would want that interrupted.  So for music you'd end up with little pauses in the music playback (very brief ones, but I can't imagine it helping anything).
+<br />
+<br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">That will call the normal (NTSC) play routine 1 extra time every 5 frames, effectivily making the music 1.2x faster (changing ~50Hz to ~60Hz) </div>
+<br />
+<br />That burns up CPU cycles though.  In the worst case, the sound frames that take longer to process than the others will get called twice.
+<br />
+<br />A better way, I think would be to use fixed-point counts for the tempo.  Then it would be pretty trivial to adjust it for NTSC/PAL and still run the code once per frame, just adjust some equations.  Same thing applies to the rest of a game too, just that it becomes less trivial to cover everything.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Sat Jun 24, 2006 10:27 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />If frame IRQ isn't even about the same speed in NTSC and PAL, I think it really is useless.
+<br />
+<br />VBlank woudln't interrupt, unless you have a "cli" opcode in your NMI code, wich would be a bad idea.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

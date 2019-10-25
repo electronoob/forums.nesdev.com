@@ -1,0 +1,451 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Scrolling large sprites off the screen using only 8-bit x/y</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Scrolling large sprites off the screen using only 8-bit x/y</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=10&amp;t=7781">http://forums.nesdev.com/viewtopic.php?f=10&amp;t=7781</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>UncleSporky</b> [ Sun May 22, 2011 7:19 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Scrolling large sprites off the screen using only 8-bit x/y</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I was going to ask a question about implementing this, but the solution turned out to be much easier than I'd thought.  I'm going to go ahead and post this anyway, since the concept could prove useful for some people.
+<br />
+<br />My sprite drawing routine takes in 16 bit x and y values for a metasprite and calculates which parts of it to draw and which to hide.  In other words, if a 32 pixel wide sprite has an x of -16, the routine will hide the left two sprites and draw the remaining part at the edge of the screen.  Most people probably draw sprites this way, it's something that needs to be solved early in many NES games' development.
+<br />
+<br />What I've decided to do is save on valuable RAM space by only using 8 bit x and y values for simple or unimportant objects, then convert these 8 bit values to 16 bit for the drawing routine, adjusted so that when x = 0 the entire sprite is off screen.
+<br />
+<br />I like illustrating things, so here's a visual:
+<br />
+<br /><img src="http://img.photobucket.com/albums/v164/UncleSporky/nesquestion.png" alt="Image" />
+<br />
+<br />The idea is to have a whole screen full of clouds like this that scroll smoothly across and off the screen, but only use up two coordinate bytes instead of four.  The sprite will be moving slightly faster than you tell it to, in order to account for its own width.
+<br />
+<br />What you have to do is this:
+<br />
+<br />sprite's 16-bit x for drawing = sprite's x - (((sprite's x eor $FF) * sprite's width) / 256)
+<br />
+<br />As an example, say you have a 24 pixel wide sprite with an x value of 45.  You eor with $FF to invert it, resulting in 210.  210 * 24 = 5040 / 256 = 19.6875.  Subtracting 19 from the sprite's x value of 45, we find that this sprite should actually be drawn at an x of 26.
+<br />
+<br />This turns out to be quite easy to do in assembly.  Use a 16-bit multiplication routine, like this one I found elsewhere on this forum:
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">; routine originally created by frantik<br /><br />; val1 = first 8-bit number to multiply<br />; val2 = second 8-bit number to multiply &#40;cannot be zero&#41;<br />; tmp16x = 16-bit result &#40;output&#41;<br />; temp = temporary variable<br />; x and y registers are preserved<br /><br />mult16<br />&nbsp; &nbsp;lda #$00&nbsp; &nbsp; &nbsp;; clear temporary variables<br />&nbsp; &nbsp;sta tmp16x<br />&nbsp; &nbsp;sta tmp16x+1<br />&nbsp; &nbsp;sta temp<br />&nbsp; &nbsp;jmp multstart<br />-loop<br />&nbsp; &nbsp;asl val1&nbsp; &nbsp; &nbsp;; double first value<br />&nbsp; &nbsp;rol temp&nbsp; &nbsp; &nbsp;; using 16bit precision<br />&nbsp; &nbsp;lsr val2&nbsp; &nbsp; &nbsp;; halve second value<br />multstart<br />&nbsp; &nbsp;lda val2<br />&nbsp; &nbsp;and #01&nbsp; &nbsp; &nbsp; ; is new 2nd value an odd number?<br />&nbsp; &nbsp;beq -loop<br />&nbsp; &nbsp;clc&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; if so, add new 1st value to running total<br />&nbsp; &nbsp;lda tmp16x<br />&nbsp; &nbsp;adc val1<br />&nbsp; &nbsp;sta tmp16x<br />&nbsp; &nbsp;lda tmp16x+1<br />&nbsp; &nbsp;adc temp<br />&nbsp; &nbsp;sta tmp16x+1<br />&nbsp; &nbsp;lda val2<br />&nbsp; &nbsp;cmp #01&nbsp; &nbsp; &nbsp; ; is 2nd value 1?&nbsp; if so, we're done<br />&nbsp; &nbsp;bne -loop&nbsp; &nbsp; ; otherwise, loop <br />&nbsp; &nbsp;rts</div>
+<br />
+<br />Then simply use whatever result is in the high bits as the value to subtract!  With the example above, tmp16x+1 will contain the decimal value 19.
+<br />
+<br />What do you guys think?  Useful, not useful, potential hangups?  I haven't actually implemented it yet but I like the idea. <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Sun May 22, 2011 8:00 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />It's an interesting idea, but I'm not a big fan of the trade off here... To gain 2 bytes of RAM you have to dedicate quite a lot of CPU cycles to this multiplication routine. Also, since there's no sub-pixel positioning, the speed of the clouds (or whatever it is the sprites represent) is not very configurable.
+<br />
+<br />Personally, I'd never do something like this for such a small gain, specially considering what you have to sacrifice (CPU cycles and smooth movement). If I was really desperate for a few bytes of RAM I'd cut down the coordinates to 3 bytes instead, so that each coordinate would be 12 bits. 9 bits is enough to smoothly scroll sprites in and out of the screen and there are still 3 bits left for sub-pixel positioning.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>UncleSporky</b> [ Mon May 23, 2011 3:00 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I thought of that too, and subpixel movement precision is nice to have, but I'd think it would ultimately cost you more CPU cycles elsewhere just setting up and dealing with a fragmented 3 byte coordinate set.  Stuff like rolling bits in and out repeatedly.
+<br />
+<br />It's true that this method really wouldn't be very useful in a scrolling game like Mario 3, it's more of a single screen thing, or for effects that aren't affected by the scroll (clouds/wind/rain).
+<br />
+<br />
+<br />EDIT: Well, actually...there could be other uses for this way of thinking.
+<br />
+<br />Currently in my demo I use 4 byte coordinates: 2 each of 4 bit high/8 bit screen/4 bit subpixel.
+<br />
+<br />This would arguably makes the 4 high bits unnecessary, if all you're using it for is to scroll sprites smoothly on and off the screen in a non-scrolling game.  If nothing has to leave the screen and survive, you could still have 4 byte coordinates, but go with 8 bit screen/8 bit subpixel.  It'd be much smoother and also easier to manage.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>bogax</b> [ Tue May 24, 2011 2:52 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Assuming you've only got a few sprite widths, looks like
+<br /> an obvious candidate for LUTs or dedicated code.
+<br />
+<br /> You could find a better multiply routine.
+<br />
+<br /> Here's some dedicated code with a hardcoded
+<br /> multiply for 24 bit width.
+<br />
+<br /> First, what you've got is:
+<br />
+<br />   x-(256-x-1)* w/256)
+<br />
+<br /> I think what you want is:
+<br />
+<br />   x-(256-x)*w/256
+<br /> 
+<br /> So
+<br />
+<br />   x-(w*256/256-x*w/256)
+<br />   x-(w-x*w/256)
+<br />   x-w+x*w/256
+<br />   x*w/256-w+x
+<br />
+<br /> And with a little care you can fit that into 8 bits
+<br /> <div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp;lda x <br />&nbsp; &nbsp;lsr&nbsp; &nbsp; &nbsp; &nbsp; ; .5*x&nbsp; &nbsp; &nbsp; &nbsp;<br />&nbsp; &nbsp;adc x&nbsp; &nbsp; &nbsp; ; 1.5*x<br />&nbsp; &nbsp;ror<br />&nbsp; &nbsp;lsr<br />&nbsp; &nbsp;lsr<br />&nbsp; &nbsp;lsr&nbsp; &nbsp; &nbsp; &nbsp; ; 1.5*x/16 = 24*x/256<br />&nbsp; &nbsp;sbc #$18&nbsp; &nbsp;; defer the sec to facilitate<br />&nbsp; &nbsp;sec&nbsp; &nbsp; &nbsp; &nbsp; ; rounding<br />&nbsp; &nbsp;adc x<br /></div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Wed May 25, 2011 12:01 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />And what is the problem with 16-bit coordinates ?
+<br />I first programmed my engine with 8-bit and when all the problems arose I spend weeks to convert it to 16-bit. The lower 4-bit is subpixel precision, the middle 8-bits are pixels and higher 4-bits would be "screen" (only used for overflow if not scrolling).
+<br />
+<br />It really makes it a lot easier to move object smoothly and move them off-screen properly.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>UncleSporky</b> [ Wed May 25, 2011 3:20 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Nothing's really wrong with them, I like 16 bit coordinates.  This is just a method of saving some precious RAM, perhaps only necessary for people with a really bloated setup.  I'm not pretending this is a great way to do it or anything, I know it'll be situational.  Just wanted to share.
+<br />
+<br />If your engine supports a player, 16 enemies and 16 objects, you could save up to 66 bytes if you decided to use this method on all of them, about 3% of your total RAM.
+<br />
+<br />Or as I said above, if you'd like to have a full 8 bits of subpixel precision but don't want to move to 3 byte x and y values, this is a way to do that too.
+<br />
+<br />I mean, we can let this topic die if you want, I didn't intend for it to be a big point of contention.  If people think it's not a good idea compared to other options, that's fine, I'm not bummed. <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" />  Just an idea I had.
+<br />
+<br />And thanks for that code, bogax, I didn't think of hardcoding it like that.  It's true that sprites would always be specific widths that are simpler to work with than using a generic multiply.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Wed May 25, 2011 4:25 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">If your engine supports a player, 16 enemies and 16 objects, you could save up to 66 bytes if you decided to use this method on all of them, about 3% of your total RAM.<br /></div>
+<br />my $2 : If so many objects are present, chances are that it would slow the game down. So you should make slots for less objects, and therefore save more ram more intelligently than by using the method you describe in your post.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Wed May 25, 2011 8:53 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />If 66 bytes make that much of a difference, you're in serious trouble. IMO there are better ways of getting more RAM, like using a great portion of page 1, something not many people do because that's the stack page.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Dwedit</b> [ Wed May 25, 2011 11:28 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I don't usually use more than 32 bytes of stack, but I still let it go up to 64 bytes.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>qbradq</b> [ Wed May 25, 2011 12:05 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I leave the stack page alone unless I am 100% out of RAM everywhere else. It gives me the creeps <img src="./images/smilies/icon_biggrin.gif" alt=":D" title="Very Happy" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Dwedit</b> [ Wed May 25, 2011 12:33 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Stack page is great to use for PPU updates when scrolling, since you can do PLA / STA $2007 in an unrolled loop.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Wed May 25, 2011 3:20 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Dwedit wrote:</div><div class="quotecontent">Stack page is great to use for PPU updates when scrolling, since you can do PLA / STA $2007 in an unrolled loop.</div>
+<br />Too bad the the only advantage in doing that is ROM use, since PLA takes as many cycles as LDA absolute (or indexed, which makes the stack pointer not so useful either). If PLA was faster I'd do this more often.
+<br />
+<br />So far I haven't used more than 10 bytes of my stack, and I don't expect that to change much. I have set aside only 32 bytes for it.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>qbradq</b> [ Wed May 25, 2011 6:08 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I like using the stack for backing up a value without having to use a memory address, and my call stack gets fairly deep when I am doing out-of-frame stuff, like decompressing a map.
+<br />
+<br />It all depends on your personal style I guess <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

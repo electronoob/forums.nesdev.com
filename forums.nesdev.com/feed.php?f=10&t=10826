@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=10&amp;t=10826" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2013-12-27T17:17:37-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=10&amp;t=10826</id>
+<entry>
+<author><name><![CDATA[SoleGooseProductions]]></name></author>
+<updated>2013-12-27T17:17:37-07:00</updated>
+<published>2013-12-27T17:17:37-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10826&amp;p=122961#p122961</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10826&amp;p=122961#p122961"/>
+<title type="html"><![CDATA[Re: Random Horizontally Scrolling Background Columns?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10826&amp;p=122961#p122961"><![CDATA[
+Ha! I see the error in my thinking now. Since the code that had been shared with me was divided up into sections, I came to think of them as actual sections, when in fact the divisions are arbitrary. False problem resolved  <img src="http://forums.nesdev.com/images/smilies/icon_smile.gif" alt=":)" title="Smile" />  Thanks for the hint, too! I'll sleep on it, but at the moment I am not really sure how to proceed.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6252">SoleGooseProductions</a> — Fri Dec 27, 2013 5:17 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[lidnariq]]></name></author>
+<updated>2013-12-27T15:00:18-07:00</updated>
+<published>2013-12-27T15:00:18-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10826&amp;p=122954#p122954</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10826&amp;p=122954#p122954"/>
+<title type="html"><![CDATA[Re: Random Horizontally Scrolling Background Columns?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10826&amp;p=122954#p122954"><![CDATA[
+<div class="quotetitle">SoleGooseProductions wrote:</div><div class="quotecontent"><br />Perhaps, then, my question should be: how can/should one load sections of columns?<br /></div>&quot;Sections&quot; ?<br /><br />Currently, the code starting at &quot;DrawColumn&quot; and though the end is what uploads 30 bytes, adding a new 1x30 tile area on screen (or 8x240 pixels). Each time you call DrawNewColumn it calculates the source pointer, destination pointer, and then uploads those 30 bytes.<br /><br />As you noticed, it's the &quot;scroll&quot; variable that chooses which of the 256 columns to upload. &quot;DrawColumn&quot; doesn't modify &quot;scroll&quot;, only reads it.<br /><br />So now you just need to figure out how you want to modify &quot;scroll&quot; before you call &quot;DrawColumn&quot;.<br /><br />Does this make sense?<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3512">lidnariq</a> — Fri Dec 27, 2013 3:00 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[SoleGooseProductions]]></name></author>
+<updated>2013-12-27T14:03:56-07:00</updated>
+<published>2013-12-27T14:03:56-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10826&amp;p=122952#p122952</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10826&amp;p=122952#p122952"/>
+<title type="html"><![CDATA[Re: Random Horizontally Scrolling Background Columns?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10826&amp;p=122952#p122952"><![CDATA[
+Hacking a binary is a bit beyond my skills (and interests) as well! Looking over it again, the only change that I have made to the NN code is replacing &quot;columndata,&quot; which pointed to a BIN file that I could not figure out how to peek at, with my overly gigantic array. SourceLow would appear to be the instruction that is keeping track of what tile to load. Perhaps, then, my question should be: how can/should one load sections of columns?<br /><br />NN Week 5 Code:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">DrawNewColumn:<br />  LDA scroll       ; calculate new column address using scroll register<br />  LSR A<br />  LSR A<br />  LSR A            ; shift right 3 times = divide by 8<br />  STA columnLow    ; $00 to $1F, screen is 32 tiles wide<br /><br />  LDA nametable     ; calculate new column address using current nametable<br />  EOR #$01          ; invert low bit, A = $00 or $01<br />  ASL A             ; shift up, A = $00 or $02<br />  ASL A             ; $00 or $04<br />  CLC<br />  ADC #$20          ; add high byte of nametable base address ($2000)<br />  STA columnHigh    ; now address = $20 or $24 for nametable 0 or 1<br /><br />  LDA columnNumber  ; column number * 32 = column data offset<br />  ASL A<br />  ASL A<br />  ASL A<br />  ASL A<br />  ASL A             <br />  STA sourceLow<br />  LDA columnNumber<br />  LSR A<br />  LSR A<br />  LSR A<br />  STA sourceHigh<br />  <br />  LDA sourceLow       ; column data start + offset = address to load column data from<br />  CLC <br />  ADC #LOW(columnData)<br />  STA sourceLow<br />  LDA sourceHigh<br />  ADC #HIGH(columnData)<br />  STA sourceHigh<br /><br />DrawColumn:<br />  LDA #%00000100        ; set to increment +32 mode<br />  STA $2000<br />  <br />  LDA $2002             ; read PPU status to reset the high/low latch<br />  LDA columnHigh<br />  STA $2006             ; write the high byte of column address<br />  LDA columnLow<br />  STA $2006             ; write the low byte of column address<br />  LDX #$1E              ; copy 30 bytes<br />  LDY #$00<br />DrawColumnLoop:<br />  LDA &#91;sourceLow&#93;, y<br />  STA $2007<br />  INY<br />  DEX<br />  BNE DrawColumnLoop<br /><br />  RTS<br />  </div><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6252">SoleGooseProductions</a> — Fri Dec 27, 2013 2:03 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[lidnariq]]></name></author>
+<updated>2013-12-27T13:09:51-07:00</updated>
+<published>2013-12-27T13:09:51-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10826&amp;p=122948#p122948</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10826&amp;p=122948#p122948"/>
+<title type="html"><![CDATA[Re: Random Horizontally Scrolling Background Columns?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10826&amp;p=122948#p122948"><![CDATA[
+Er, actually, let me take a step back: Are you just hacking a binary to do something different? That's a different set of skills than adapting source code, and a bit beyond my ability to explain.<br /><br />Otherwise, somewhere there should be a pointer in the code, something like a <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">lda &#40;something&#41;,y</tt> instruction; it is that (something) that is keeping track of which tile it's uploading.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3512">lidnariq</a> — Fri Dec 27, 2013 1:09 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[SoleGooseProductions]]></name></author>
+<updated>2013-12-27T12:59:40-07:00</updated>
+<published>2013-12-27T12:59:40-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10826&amp;p=122947#p122947</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10826&amp;p=122947#p122947"/>
+<title type="html"><![CDATA[Re: Random Horizontally Scrolling Background Columns?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10826&amp;p=122947#p122947"><![CDATA[
+Well, my ignorance is about to show through <img src="http://forums.nesdev.com/images/smilies/icon_smile.gif" alt=":)" title="Smile" /> Yes, it is a huge array. In my defense it was up to 32x256, but I began to suspect that there might be a better way. With some help I managed to alter the NN code to be dependent on player movement, and it only scrolls in one direction and loops back to the beginning once it finishes. With that said, I do not know what you mean about keeping track of where I am at. Isn't it always at where it needs to be? Sorry if that is less than helpful, feel free to educate me. I am learning as I go.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6252">SoleGooseProductions</a> — Fri Dec 27, 2013 12:59 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[lidnariq]]></name></author>
+<updated>2013-12-27T12:34:57-07:00</updated>
+<published>2013-12-27T12:34:57-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10826&amp;p=122944#p122944</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10826&amp;p=122944#p122944"/>
+<title type="html"><![CDATA[Re: Random Horizontally Scrolling Background Columns?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10826&amp;p=122944#p122944"><![CDATA[
+To make sure I understand: right now you have a huge array of 30(padded to 32)x128 tiles to upload, and you upload them in sequence? How do you keep track of where you are?<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3512">lidnariq</a> — Fri Dec 27, 2013 12:34 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[SoleGooseProductions]]></name></author>
+<updated>2013-12-27T12:31:07-07:00</updated>
+<published>2013-12-27T12:31:07-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10826&amp;p=122943#p122943</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10826&amp;p=122943#p122943"/>
+<title type="html"><![CDATA[Re: Random Horizontally Scrolling Background Columns?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10826&amp;p=122943#p122943"><![CDATA[
+So far I simply have them run one after the other, through four nametables worth of data (16 sets). It looks a bit like this:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">Level1Nametable:<br />  .db $80,$80,$80,$80, $80, $80,$80,$80,$80,$80,$80,$80, $80, $80,$80,$80 ;1-1 (Column set 1)<br />  .db $80,$80,$80,$80, $80, $80,$80,$80,$80,$80,$80,$80, $80, $80,$80,$80<br />  .db $80,$80,$80,$80, $80, $80,$80,$80,$80,$80,$80,$80, $80, $80,$80,$80<br />  .db $80,$80,$80,$80, $80, $80,$80,$80,$80,$80,$80,$80, $80, $80,$80,$80<br />  .db $80,$80,$80,$80, $80, $80,$80,$80,$80,$80,$80,$80, $80, $80,$80,$80<br />  .db $80,$80,$80,$80, $80, $80,$80,$80,$80,$80,$80,$80, $80, $80,$80,$80<br />  .db $80,$80,$80,$80, $80, $80,$80,$80,$80,$80,$80,$80, $80, $80,$80,$80<br />  .db $80,$80,$80,$80, $80, $80,$80,$80,$80,$80,$80,$80, $80, $80,$80,$80<br /><br />  .db $80,$80,$80,$80, $80, $80,$80,$80,$80,$80,$80,$80, $80, $80,$80,$80 ;1-2 (Column set 2)<br />  .db $80,$80,$80,$80, $80, $80,$80,$80,$80,$80,$80,$80, $80, $80,$80,$80<br />  .db $80,$80,$80,$80, $80, $80,$80,$80,$80,$80,$80,$80, $80, $80,$80,$80<br />  .db $80,$80,$80,$80, $80, $80,$80,$80,$80,$80,$80,$80, $80, $80,$80,$80<br />  .db $80,$80,$80,$80, $80, $80,$80,$80,$80,$80,$80,$80, $80, $80,$80,$80<br />  .db $80,$80,$80,$80, $80, $80,$80,$80,$80,$80,$80,$80, $80, $80,$80,$80<br />  .db $80,$80,$80,$80, $80, $80,$80,$80,$80,$80,$80,$80, $80, $80,$80,$80<br />  .db $80,$80,$80,$80, $80, $80,$80,$80,$80,$80,$80,$80, $80, $80,$80,$80<br /><br />etc.</div><br /><br />This was the best that I could figure out since BunnyBoy's code is in a BIN file, and I could not figure out how to view it. In place of having the program load SMBLevel.bin I have it load the above, all the way down to 1-16 (and yes, I know that the last few digits at the end of each pair of lines is thrown out since it only loads 30 as opposed to 32 tiles). The only way to re-arrange the order in this scheme is to re-arrange the sets. I assume that some kind of pointer table could allow for each set to be handled individually, but I am not sure how to load these into a string.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6252">SoleGooseProductions</a> — Fri Dec 27, 2013 12:31 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[lidnariq]]></name></author>
+<updated>2013-12-27T12:05:46-07:00</updated>
+<published>2013-12-27T12:05:46-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10826&amp;p=122940#p122940</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10826&amp;p=122940#p122940"/>
+<title type="html"><![CDATA[Re: Random Horizontally Scrolling Background Columns?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10826&amp;p=122940#p122940"><![CDATA[
+Try simplifying first, and ignore the &quot;random&quot; bit. How would you upload an <em>intentional</em> sequence of columns?<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3512">lidnariq</a> — Fri Dec 27, 2013 12:05 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[SoleGooseProductions]]></name></author>
+<updated>2013-12-27T09:47:38-07:00</updated>
+<published>2013-12-27T09:47:38-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10826&amp;p=122935#p122935</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10826&amp;p=122935#p122935"/>
+<title type="html"><![CDATA[Random Horizontally Scrolling Background Columns?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10826&amp;p=122935#p122935"><![CDATA[
+After playing around with lesson #3 of the Advanced Nerdy Nights (<a href="http://www.nintendoage.com/forum/messageview.cfm?catid=22&amp;threadid=36958" class="postlink">http://www.nintendoage.com/forum/messageview.cfm?catid=22&amp;threadid=36958</a>), I was wondering how one might go about loading endless, random nametable data into the program? Not entirely random data, of course, but random sets of pre-defined columns (in other words, the columns are not random, only the order). I can think of several different ways conceptually, but then they all spiral out of control in my head and leave me starring off into space for hours at a time. I have in mind something similar to Sivak’s Fall Down game from a few years ago (<a href="http://www.nintendoage.com/forum/messageview.cfm?catid=22&amp;threadid=13981" class="postlink">http://www.nintendoage.com/forum/messageview.cfm?catid=22&amp;threadid=13981</a>), but moving horizontally. There are probably other examples, but I cannot think of any off of the top of my head (feel free to mention any; ideas never hurt). Thanks for any help, and if this question needs clarification just let me know!<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6252">SoleGooseProductions</a> — Fri Dec 27, 2013 9:47 am</p><hr />
+]]></content>
+</entry>
+</feed>

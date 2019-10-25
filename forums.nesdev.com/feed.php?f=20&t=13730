@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=20&amp;t=13730" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2016-01-15T13:26:40-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=20&amp;t=13730</id>
+<entry>
+<author><name><![CDATA[byuu]]></name></author>
+<updated>2016-01-15T13:26:40-07:00</updated>
+<published>2016-01-15T13:26:40-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=13730&amp;p=162635#p162635</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=13730&amp;p=162635#p162635"/>
+<title type="html"><![CDATA[Re: blargg's dmg_sound-2 tests in plain English]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=13730&amp;p=162635#p162635"><![CDATA[
+<strong>09-wave read while on</strong><br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent"><br />If the wave channel is enabled, accessing any byte from $FF30-$FF3F is equivalent to accessing the current byte selected by the waveform position. Further, on the DMG accesses will only work in this manner if made <strong>within a couple of clocks</strong> of the wave channel accessing wave RAM; if made at any other time, reads return $FF and writes have no effect.<br /></div><br /><br />Is that really the best we can get in documentation? &quot;Yeah, this thing happens, at some point, probably. What's it to you?&quot;<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">12557968: period=103<br />12558071: fetch<br />12558071: 00<br />12558073: fetch<br />12558075: fetch<br />12558077: fetch<br />12558079: fetch<br />12558081: fetch<br />12559850: period=102<br />12559952: fetch<br />12559953: ff<br />12559954: fetch<br />12559956: fetch<br />12559958: fetch<br />12559960: fetch<br />12559962: fetch<br />12561706: period=101<br />12561807: fetch<br />12561809: fetch<br />12561809: 00<br />12561811: fetch<br />12561813: fetch<br />12561815: fetch<br />12561817: fetch<br />12563558: period=100<br />12563658: fetch<br />12563660: fetch<br />12563661: ff<br />12563662: fetch<br />12563664: fetch<br />12563666: fetch<br />12563668: fetch<br />12565324: period=99<br />12565423: fetch<br />12565425: fetch<br />12565427: fetch<br />12565427: 11<br />12565429: fetch<br />12565431: fetch<br />12565433: fetch<br />12567086: period=98<br />12567184: fetch<br />12567186: fetch<br />12567188: fetch<br />12567189: ff<br />12567190: fetch<br />12567192: fetch<br />12567194: fetch<br />12568912: period=97<br />12569009: fetch<br />12569011: fetch<br />12569013: fetch<br />12569015: fetch<br />12569015: 11<br />12569017: fetch<br />12569019: fetch<br />12570752: period=96<br />12570848: fetch<br />12570850: fetch<br />12570852: fetch<br />12570854: fetch<br />12570855: ff<br />12570856: fetch<br />12570858: fetch</div><br /><br />First off, the timing on this is obscenely brutal. You don't have to be exact on cycles, you have to be exact to a single clock tick. This kind of absolute, psychopathic perfection doesn't belong in an otherwise general test suite. Especially when the entirety of the documentation consists of a single comment in a source file:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">; Reads from wave RAM while playing, each time 2 clocks later.</div><br /><br />Just to get the &lt;pass, fail, pass, fail&gt; instead of &lt;fail, pass, fail, pass&gt; required changing the CPU read handler to step 2 clock ticks, read, then step 2 clock ticks. The same kind of obscene timing that the SNES requires for latching counters.<br /><br />Next up, the test is interleaved so that more and more wave RAM fetches happen before the read. You basically have to have the CPU read on the exact same cycle that the APU fetches the byte. One cycle later and on the DMG, it expects to get back FF instead. So it's not &quot;within a couple of clocks&quot;, it's literally &quot;instantly.&quot; One single tick of the 2MHz APU, and the value's gone and back to reading FF. Short of a sadistic test ROM like this, reading back the wave RAM would be nigh impossible while the channel was running.<br /><br />When enabling the channel, you set uint5 patternOffset=0, and when you run the wave channel and the timer hits zero, then you want:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">    if(!(patternOffset &amp; 1)) {<br />      patternByte = pattern&#91;patternOffset &gt;&gt; 1&#93;;<br />    }<br />    patternOffset++;</div><br /><br />For computing an output sample inside run:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">  uint4 patternSample = patternByte &gt;&gt; (patternOffset &amp; 1 ? 0 : 4);<br />  uint4 sample = patternSample &gt;&gt; shift&#91;volume&#93;;</div><br /><br />Then for reading from wave RAM:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">    if(!system.cgb() &amp;&amp; enable &amp;&amp; (!patternAccess || !patternClocked)) result = 0xff;<br />    else if(enable) result = patternByte;<br />    else result = pattern&#91;addr &amp; 15&#93;;</div><br /><br />That gets the GBC version of the test to pass, and misses only the first byte. There's almost no combination of setting the initial pattern offset to {30, 31, 0, 1}, setting the CPU clocks to {0,4; 1,3; 2,2; 3,1; 4,0}, setting the wave RAM reads to ((patternOffset-N)&amp;31)&gt;&gt;1, using ++patternOffset vs patternOffset++ in wave::run, etc that can counter the fact that with this test ROM as it is, the first pattern RAM fetch from wave::run happens before the first CPU read from pattern RAM. The only workable solution is for CPU::read to be { add_clocks(1); read(); add_clocks(3); } plus making my CPU sync to APU on clock&lt;=0 (instead of &lt;0), and APU to CPU on clock &gt;=0, which I don't believe for a second to be correct. Plus, {1,3} pushes the tick evens back to &lt;pass,fail,pass,fail&gt;, which won't pass the test.<br /><br />The only thing I can do to pass the DMG test is an absolutely disgusting hack where &quot;if the period has only expired once AND the APU is on the same clock position both when the period expired AND when the palette RAM was read by the CPU, force the value to 0xFF&quot;. But I don't know whether that 0xFF value is secretly &quot;waveRAM[15] 0xFF&quot; or &quot;can't access, busy, 0xFF&quot;.<br /><br />There's probably some special channel enable delays that aren't documented anywhere. Both Gb_Snd_Emu and libgambatte are full of disgusting speed hacks that play fast and loose with time shifting, making it completely impossible to reason about what's going on, timing-wise.<br /><br />There's a possibility I have a DMG opcode whose cycle timings (eg read, read, i/o vs read, i/o, read) are incorrect. But I pass all the tests from gekkio around this that I know of, and it's not documented anywhere else, and there are no other test ROMs for it, so ... if that's the case, I'd be helpless to find it.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=375">byuu</a> — Fri Jan 15, 2016 1:26 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[byuu]]></name></author>
+<updated>2016-01-14T17:55:23-07:00</updated>
+<published>2016-01-14T17:55:23-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=13730&amp;p=162577#p162577</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=13730&amp;p=162577#p162577"/>
+<title type="html"><![CDATA[Re: blargg's dmg_sound-2 tests in plain English]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=13730&amp;p=162577#p162577"><![CDATA[
+&gt; 07-len sweep period sync: #5 &quot;Powering up APU MODs next frame time with 8192&quot;<br /><br />blargg's code was a bit misleading, but I was able to decipher it from observing the same bit-twiddling in gambatte.<br /><br />You want to clear the sequencer phase (0-7) back to zero only on a 0-&gt;1 transition of NR52.d7<br />If you clear it regardless (eg 0-&gt;0 or 1-&gt;1), the test fails.<br /><br />&gt; 08-len ctr during power: &quot;40 00 40 40 3cf589b4 Failed&quot;<br /><br />I notice I'm passing for CGB mode, but not DMG mode. All two lines of comments in the source file:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">; On CGB, length counters are reset when powered up.<br />; On DMG, they are unaffected, and not clocked.</div><br /><br />I am 100% certain the length counters are not affected on powering up. The message has <em>nothing</em> to do with why the tests are failing.<br /><br />EDIT: ... great. Test# 8 requires writes to length registers when the APU is off to succeed, and test #1 requires those same writes to fail. It's a paradox.<br /><br />&gt; 11-regs after power: #4 &quot;Power off shouldn't affect NR41&quot;<br /><br /><em>Really</em> getting annoyed with this one. I commented out 100% of the code that touches NR4x on power off/on. This message is complete nonsense and isn't the problem, but the code can't possibly be more obtuse about what it's actually testing.<br /><br />EDIT 2: okay, passed all three of these. Since nobody else can explain this, I guess I'll just have to do it myself.<br /><br />When the APU is disabled via NR52.d7:<br /><br />1. reads from all registers work. You'll get back zero bits for the valid settings because things were reset on the NR52.d7=1-&gt;0 write. However, note that wave RAM is not flushed and still reads back as normal. Note that the NRx1 length registers aren't ever readable and always return as all 1's instead of 0's here (s you get back 3F, 3F, FF, FF [noise is 3F but has no duty, so it's FF])<br /><br />2. writes most registers will fail. However, on the DMG, writes to NR11, NR21, NR31, NR41, NR52 succeed. And on the CGB, only writes to NR52 succeed. HOWEVER, DMG writes to NR11, NR21, NR31, NR41 only change the length: if NR52.d7==0, then you cannot change the duty setting that's on the same register for the two square channels.<br /><br />Now all that's left are the dreaded wave read/trigger/write while on tests. Which, uh ...<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent"><br />Triggering the wave channel on the DMG while it reads a sample byte will alter the first four bytes of wave RAM. If the channel was reading one of the first four bytes, the only first byte will be rewritten with the byte being read. If the channel was reading one of the later 12 bytes, the first FOUR bytes of wave RAM will be rewritten with the four aligned bytes that the read was from (bytes 4-7, 8-11, or 12-15); for example if it were reading byte 9 when it was retriggered, the first four bytes would be rewritten with the contents of bytes 8-11. To avoid this corruption you should stop the wave by writing 0 then $80 to NR30 before triggering it again. The game Duck Tales encounters this issue part way through most songs.<br /></div><br /><br />... sounds like a bucket of fun ;_;<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=375">byuu</a> — Thu Jan 14, 2016 5:55 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2016-01-14T07:11:11-07:00</updated>
+<published>2016-01-14T07:11:11-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=13730&amp;p=162546#p162546</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=13730&amp;p=162546#p162546"/>
+<title type="html"><![CDATA[Re: blargg's dmg_sound-2 tests in plain English]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=13730&amp;p=162546#p162546"><![CDATA[
+<div class="quotetitle">AWJ wrote:</div><div class="quotecontent"><br />That page is impossible to find unless you know the URL; no other page in the wiki links to it.<br /></div><br />Then go create a forum account, activate it through the link sent to your e-mail, and place links to <a href="http://gbdev.gg8.se/wiki/articles/Special:LonelyPages" class="postlink">these pages</a> where they belong.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Thu Jan 14, 2016 7:11 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Dwedit]]></name></author>
+<updated>2016-01-13T23:24:15-07:00</updated>
+<published>2016-01-13T23:24:15-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=13730&amp;p=162528#p162528</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=13730&amp;p=162528#p162528"/>
+<title type="html"><![CDATA[Re: blargg's dmg_sound-2 tests in plain English]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=13730&amp;p=162528#p162528"><![CDATA[
+Note that manual control of the volume envelopes does not work from GBA code.  I don't know if it has been tested on GB/GBC games running on a GBA.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=53">Dwedit</a> — Wed Jan 13, 2016 11:24 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[AWJ]]></name></author>
+<updated>2016-01-13T21:22:30-07:00</updated>
+<published>2016-01-13T21:22:30-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=13730&amp;p=162523#p162523</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=13730&amp;p=162523#p162523"/>
+<title type="html"><![CDATA[Re: blargg's dmg_sound-2 tests in plain English]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=13730&amp;p=162523#p162523"><![CDATA[
+<div class="quotetitle">ikari_01 wrote:</div><div class="quotecontent"><br />http://gbdev.gg8.se/wiki/articles/Gameboy_sound_hardware might give you some answers, preferrably the &quot;Obscure Behavior&quot; section <img src="http://forums.nesdev.com/images/smilies/icon_smile.gif" alt=":)" title="Smile" /><br /></div><br /><br />That page is impossible to find unless you know the URL; no other page in the wiki links to it.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3737">AWJ</a> — Wed Jan 13, 2016 9:22 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[byuu]]></name></author>
+<updated>2016-01-12T15:34:18-07:00</updated>
+<published>2016-01-12T15:34:18-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=13730&amp;p=162430#p162430</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=13730&amp;p=162430#p162430"/>
+<title type="html"><![CDATA[Re: blargg's dmg_sound-2 tests in plain English]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=13730&amp;p=162430#p162430"><![CDATA[
+... wow. I thought all that site had was a wikified pandocs, that's all my Google searches pulled up.<br /><br />That is <em>exactly</em> what I needed! Much more detailed explanations of the quirks that blargg is relying on!<br /><br />Thank you very, very much! This will be immensely helpful :D<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=375">byuu</a> — Tue Jan 12, 2016 3:34 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[ikari_01]]></name></author>
+<updated>2016-01-12T02:31:37-07:00</updated>
+<published>2016-01-12T02:31:37-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=13730&amp;p=162390#p162390</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=13730&amp;p=162390#p162390"/>
+<title type="html"><![CDATA[Re: blargg's dmg_sound-2 tests in plain English]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=13730&amp;p=162390#p162390"><![CDATA[
+<!-- m --><a class="postlink" href="http://gbdev.gg8.se/wiki/articles/Gameboy_sound_hardware">http://gbdev.gg8.se/wiki/articles/Gameb ... d_hardware</a><!-- m --> might give you some answers, preferrably the &quot;Obscure Behavior&quot; section <img src="http://forums.nesdev.com/images/smilies/icon_smile.gif" alt=":)" title="Smile" /><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3966">ikari_01</a> — Tue Jan 12, 2016 2:31 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[byuu]]></name></author>
+<updated>2016-01-14T13:39:21-07:00</updated>
+<published>2016-01-11T15:50:39-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=13730&amp;p=162359#p162359</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=13730&amp;p=162359#p162359"/>
+<title type="html"><![CDATA[blargg's dmg_sound-2 tests in plain English]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=13730&amp;p=162359#p162359"><![CDATA[
+Can anyone decipher blargg's cryptic test ROM comments into plain English?<br /><br />I'm trying very hard to pass his tests (I was able to pass 1-6), but I can't make any sense out of the rest. Sorry if it seems disparaging, I appreciate test ROMs very much, but I <em>really</em> wish they could be bothered to write more than six to twelve words to explain what each one is actually testing. The source code for test ROMs is usually even -less- helpful because it's full of 80 macros that hide what's really going on.<br /><br />Also, I'm not one to talk. My test ROMs are even worse. I'm just frustrated because test ROMs aren't really helpful when they're indecipherable :(<br /><br />Any help would, as always, be very much appreciated.<br /><br />07-len sweep period sync: #5 &quot;Powering up APU MODs next frame time with 8192&quot;<br />I have no idea what he means by frame time. But in his source, I see this for NR52 writes:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">      else if ( addr == status_reg &amp;&amp; (data ^ old_data) &amp; power_mask )<br />      {<br />         // Power control<br />         frame_phase = 0;<br />         for ( int i = osc_count; --i &gt;= 0; )<br />            silence_osc( *oscs &#91;i&#93; );<br /><br />         reset_regs();<br />         if ( wave.mode != mode_dmg )<br />            reset_lengths();<br /><br />         regs &#91;status_reg - start_addr&#93; = data;<br />      }</div><br /><br />He's resetting the frame_phase, which is the sequencer step (it goes through eight phases, which varyingly clock the lengths, sweep and envelopes.) I do the same thing as he does with frame_phase = 0, but still fail the test.<br /><br />Also very bizarre is his bit-twiddling logic: &quot;(data ^ old_data) &amp; power_mask&quot;<br />That basically causes the APU to reset itself both on 0-&gt;1 and 1-&gt;0 transitions.<br />I can't really believe that's how the real hardware works. Whether I do this or not, I still fail. It's just curious.<br /><br />08-len ctr during power: &quot;40 00 40 40 3cf589b4 Failed&quot;<br />I'm not sure how this could be less intuitive if he tried.<br /><br />09-wave read while on: &lt;huge amount of zeroes&gt; &quot;7a 75e7b6 Failed&quot;<br />See above. My understanding is wave RAM is always readable while on.<br /><br />10-wave trigger while on: &lt;about 30 pages of hex values that scroll off screen immediately&gt; &quot;Failed&quot;<br />I stand corrected. Scrolling test results offscreen is even worse.<br /><br />11-regs after power: #4 &quot;Power off shouldn't affect NR41&quot;<br />NR41 is the length value for square 1. I made it so that disabling the APU via NR52 doesn't affect it. The test still fails anyway. So there's more to this test than just that.<br /><br />12-wave write while on: &lt;about 30 pages of hex values that scroll off screen immediately&gt; &quot;Failed&quot;<br />Sigh.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=375">byuu</a> — Mon Jan 11, 2016 3:50 pm</p><hr />
+]]></content>
+</entry>
+</feed>

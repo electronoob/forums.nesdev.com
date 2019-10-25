@@ -1,0 +1,336 @@
+//HW Test for byuu
+//Shonumi, January 19th, 2016
+//Tests for how many OAM-STAT interrupts happen per frame
+//
+//This test waits until VBlank, counting how many OAM-STAT interrupts are successfully triggered
+//OAM-STAT interrupts can happen 145 times a frame, on Lines 0-144
+//This is possible only if regular VBlank interrupts do not occur
+//Otherwise OAM-STAT interrupts only happen 144 times a frame, on Lines 0-144
+//
+//This test draws a "Y" if it detects 145 OAM-STAT interrupts
+//If it detects 144 OAM-STAT interrupts, it will draw an "N" (if, somehow, the first 145 Cart RAM entries are correct, see below)
+//If it detects anything else, it will draw nothing
+//
+//Test will also verify the first 145 LY values/Cart RAM entries
+//Failure to match the expected LY values draws an "NN" screen
+
+//Default STAT INT @ 0x1500
+!0048
+JP 0x1500		$C3 $00 $15
+
+//Entry Point
+!0100
+
+NOP			$00
+JP 0x150		$C3 $50 $01
+
+//Nintendo Logo
+!0104
+
+$CE $ED $66 $66 $CC $0D $00 $0B $03 $73 $00 $83 $00 $0C $00 $0D
+$00 $08 $11 $1F $88 $89 $00 $0E $DC $CC $6E $E6 $DD $DD $D9 $99
+$BB $BB $67 $63 $6E $0E $EC $CC $DD $DC $99 $9F $BB $B9 $33 $3E
+
+//Title
+!0134
+
+POKEMON 20TH		$50 $4F $4B $45 $4D $4F $4E $20 $32 $30 $54 $48
+
+//Cart Type
+!0147
+
+MBC1+RAM+BATTERY	$03
+
+//ROM Size
+!0148
+
+32KB			$00
+
+//RAM Size
+!0149			
+
+8KB			$02
+
+//Header Checksum
+!014D
+			$AB
+================================
+= OAM STAT INT                 =
+================================
+
+!1500
+INC B			$04
+
+PUSH AF			$F5
+
+//Grab LY, verify that it matches expected value (0 ... 144)
+LDH A, C		$F2
+CP D			$BA
+JP NZ 0x0500		$C2 $00 $05
+INC D			$14
+
+//Check if LY again, LY to Cart RAM
+CP 0x90			$FE $90
+LDI (HL), A		$22
+JR NZ 4			$20 $04
+
+//Ret2Go - LY = 144
+POP AF			$F1
+LD A, 0x1		$3E $01
+RETI			$D9			
+
+//Ret2Go - LY <> 144
+POP AF			$F1
+LD A, 0x0		$3E $00
+RETI			$D9
+
+================
+= Main Program =
+================
+
+!0150
+
+//Disable IRQs
+DI			$F3
+
+//Setup MBC1 RAM, enable it, then set the bank
+LD A, 0x0A		$3E $0A
+LD HL, 0x1000		$21 $00 $10
+LD (HL), A		$77
+
+LD A, 0x01		$3E $01
+LD HL, 0x6000		$21 $00 $60
+LD (HL), A		$77
+
+LD A, 0x00		$3E $00
+LD HL, 0x4000		$21 $00 $40
+LD (HL), A		$77
+
+//Manually wait for VBlank
+CALL 0x2010		$CD $10 $20
+
+//Turn off LCD
+LD A, 0x0		$3E $00
+LD C, 0x40		$0E $40
+LDH C, A		$E2
+
+//Turn on OAM IRQs via STAT
+LD A, 0x20		$3E $20
+LD C, 0x41		$0E $41
+LDH C, A		$E2
+
+//Enable STAT IRQs
+LD A, 0x2		$3E $02
+LD C, 0xFF		$0E $FF
+LDH C, A		$E2
+
+//Setup the color palette
+LD A, 0xE4		$3E $E4
+LD C, 0x47		$0E $47
+LDH C, A		$E2
+
+//Zero out VRAM
+LD HL, 0x8000		$21 $00 $80
+LD BC, 0xA000		$01 $00 $A0
+
+LD A, 0x0		$3E $00
+LD (HL), A		$77
+INC HL			$23
+LD A, H			$7C
+CP B			$B8
+JR NZ -8		$20 $F8
+
+//Setup LCDC
+LD A, 0x91		$3E $91
+LD C, 0x40		$0E $40
+LDH C, A		$E2
+
+//Manually wait for VBlank, clear A, B, and D
+CALL 0x2010		$CD $10 $20
+XOR A			$AF
+LD B, A			$47
+LD D, A			$57
+
+//Clear IF for pending IRQs, prepare to read LY manually
+LD C, 0x0F		$0E $0F
+LDH C, A		$E2
+LD C, 0x44		$0E $44
+
+//Setup HL to point to Cart RAM
+LD HL, 0xA000		$21 $00 $A0
+
+//Enable IRQs
+EI			$FB
+
+//Empty spin loop, waits for A to be set to 1
+CP 0x1			$FE $01
+JR NZ -4		$20 $FC
+
+NOP			$00
+NOP			$00
+NOP			$00
+
+//We should be in VBlank now, check B
+LD A, B			$78
+
+//Load "N" for No, we did not hit 145 OAM Interrupts
+CP 0x90			$FE $90
+JP Z 0x0300		$CA $00 $03
+
+//Load "Y" for Yes, we did hit 145 OAM Interrupts
+CP 0x91			$FE $91
+JP Z 0x0400		$CA $00 $04
+
+//Empty spin loop for anything else!
+CP 0x1			$FE $01
+JR NZ -4		$20 $FC
+
+================
+= Load N =
+================
+
+!0300
+
+DI			$F3
+
+//Turn off LCD
+LD A, 0x0		$3E $00
+LD C, 0x40		$0E $40
+LDH C, A		$E2
+
+//Load 1.bmp from 0x4000 - 0x4010 : 0x8000
+//Transfer Size - 0x10
+LD HL, 0x4000		$21 $00 $40
+LD BC, 0x8000		$01 $00 $80
+LD DE, 0x0010		$11 $10 $00
+CALL 0x2000		$CD $00 $20
+
+//Load 1.map from 0x7000 - 0x7200 : 0x9800
+//Transfer Size - 0x200
+LD HL, 0x7000		$21 $00 $70
+LD BC, 0x9800		$01 $00 $98
+LD DE, 0x0200		$11 $00 $02
+CALL 0x2000		$CD $00 $20
+
+//Setup LCDC
+LD A, 0x91		$3E $91
+LD C, 0x40		$0E $40
+LDH C, A		$E2
+
+//Stall or something
+NOP			$00
+NOP			$00
+NOP			$00
+JR -5			$18 $FB
+
+================
+= Load Y =
+================
+
+!0400
+
+DI			$F3
+
+//Turn off LCD
+LD A, 0x0		$3E $00
+LD C, 0x40		$0E $40
+LDH C, A		$E2
+
+//Load 2.bmp from 0x5000 - 0x5030 : 0x8000
+//Transfer Size - 0x30
+LD HL, 0x5000		$21 $00 $50
+LD BC, 0x8000		$01 $00 $80
+LD DE, 0x0030		$11 $30 $00
+CALL 0x2000		$CD $00 $20
+
+//Load 2.map from 0x7200 - 0x7400 : 0x9800
+//Transfer Size - 0x200
+LD HL, 0x7200		$21 $00 $72
+LD BC, 0x9800		$01 $00 $98
+LD DE, 0x0200		$11 $00 $02
+CALL 0x2000		$CD $00 $20
+
+//Setup LCDC
+LD A, 0x91		$3E $91
+LD C, 0x40		$0E $40
+LDH C, A		$E2
+
+//Stall or something
+NOP			$00
+NOP			$00
+NOP			$00
+JR -5			$18 $FB
+
+================
+= Load NN =
+================
+
+!0500
+
+//Manually wait for VBlank
+CALL 0x2010		$CD $10 $20
+
+DI			$F3
+
+//Turn off LCD
+LD A, 0x0		$3E $00
+LD C, 0x40		$0E $40
+LDH C, A		$E2
+
+//Load 3.bmp from 0x6000 - 0x6010 : 0x8000
+//Transfer Size - 0x10
+LD HL, 0x6000		$21 $00 $60
+LD BC, 0x8000		$01 $00 $80
+LD DE, 0x0010		$11 $10 $00
+CALL 0x2000		$CD $00 $20
+
+//Load 2.map from 0x7400 - 0x7600 : 0x9800
+//Transfer Size - 0x200
+LD HL, 0x7400		$21 $00 $74
+LD BC, 0x9800		$01 $00 $98
+LD DE, 0x0200		$11 $00 $02
+CALL 0x2000		$CD $00 $20
+
+//Setup LCDC
+LD A, 0x91		$3E $91
+LD C, 0x40		$0E $40
+LDH C, A		$E2
+
+//Stall or something
+NOP			$00
+NOP			$00
+NOP			$00
+JR -5			$18 $FB
+
+====================
+= Global Functions =
+====================
+
+===================
+= 16_BIT_TRANSFER =
+===================
+
+!2000
+
+LD A, (HL)		$7E
+LD BC, A		$02
+INC HL			$23
+INC BC			$03
+DEC DE			$1B
+LD A, D			$7A
+OR A, E			$B3
+JR NZ -9		$20 $F7
+RET			$C9
+
+===========
+= VB_WAIT =
+===========
+
+!2010
+
+LD C, 0x44		$0E $44
+LDH A, C		$F2
+CP 0x90			$FE $90
+JR NZ -7		$20 $F9
+RET			$C9
+

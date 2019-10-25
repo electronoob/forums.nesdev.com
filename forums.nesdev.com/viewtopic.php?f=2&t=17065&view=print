@@ -1,0 +1,354 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - How to compress multi-direction scrolling?</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">How to compress multi-direction scrolling?</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=17065">http://forums.nesdev.com/viewtopic.php?f=2&amp;t=17065</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>dougeff</b> [ Fri Feb 16, 2018 11:31 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>How to compress multi-direction scrolling?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I was reviewing my ninja game's scrolling engine. I figure with some minor tweaks I could scroll both left and right. (I have it working with uncompressed data).<br /><br />But I'm scratching my head at compressing the room data. When I was only scrolling right, I had a pointer to each room, and decompressed as I scrolled through the room, one vertical column of metatiles at a time, adjusting the pointer after 13 metatiles.<br /><br />(On a side note, I was never happy with my hand edited compression system, either)<br /><br />Now, if I scrolled both directions, a pointer to a room wouldn't work unless I uncompressed the entire room into a 208 byte (16x13 game area, HUD at top) RAM space first, which would use up more RAM than I'd prefer.<br /><br />Another idea I had was to compress half (left vs right) a room, and only have to use 104 bytes. I would need a pointer to each half-room, which isn't too crazy.<br /><br />Or I could decompress into the unused part of the stack, maybe. 208 bytes there should be ok.<br /><br />Thoughts?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Fri Feb 16, 2018 11:57 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: How to compress multi-direction scrolling?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Assuming you don't want to just decompress an entire map to WRAM the way <em>Super Mario Bros. 3</em> does, you could still randomly access columns in a data format similar to that of <em>Super Mario Bros.</em> Each object consists of two bytes:<br /><br /><ol style="list-style-type: decimal"><li>Position of object within screen (4 bits Y, 4 bits X) </li><li>Object type </li></ol><br />You'd maintain pointers to the start of objects within each page (256-pixel-wide area). Every time you draw a column, you'd scan the objects on the previous page and the current page to calculate the distance from the left side of the object to the column being drawn. If this distance is 0 to 15 metatiles, call each object's column drawing procedure, passing these arguments:<br /><br /><ul><li>X position within the object, that is, the distance between the left side of the object and the current column (0-15) </li><li>Y position of the object </li><li>Object type </li></ul><br />Each column drawing routine overwrites part of a 12- to 15-entry array of metatiles representing the current column. You may have one routine for each four object types, reserving the lower bytes for an &quot;object size&quot; argument.<br /><br />Once all column drawing routines in range have finished, copy the metatile column to a 32-metatile-wide by 12- to 15-metatile-tall sliding window buffer used for collision detection, and prepare VRAM update packets based on each metatile's shape.<br /><br />If you want, I can dig up President, a tech demo I made in 2009 that implements this algorithm. Both <em>Super Mario Bros.</em> and the President demo implement additional layers of scenery behind the objects, such as the iconic hills and cloudbushes.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>pubby</b> [ Fri Feb 16, 2018 12:01 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: How to compress multi-direction scrolling?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />What do you mean by &quot;room&quot;?<br /><br />For 2-way scrolling along the X axis, data is almost always stored in a column-major order. For compression, nowadays you can get away with only using metatiles. The larger metatiles you use, the better it will compress. If you insist on using RLE then it's easiest to compress each column individually and store each column's compressed size somewhere so that you can traverse backwards.<br /><br />Anyway, I've developed a pretty cynical view on level compression. Most of the times it is a trap that limits you more than it helps. If you want to make your life easier, your levels prettier, and you RAM more spacious, ignore all compression beyond 16x16 metatiles. Flash memory is cheap; developer time is not.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>dougeff</b> [ Fri Feb 16, 2018 12:54 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: How to compress multi-direction scrolling?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />A &quot;room&quot; is the amount of data needed to fill 1 nametable.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Fri Feb 16, 2018 1:07 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: How to compress multi-direction scrolling?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />And then there's always multi-level metatile encoding, where metatiles are composed of other metatiles, if you're willing to go through a bit of indirection. It's pretty compact and allows random access, since the amount of memory used per room is constant.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Fri Feb 16, 2018 1:34 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: How to compress multi-direction scrolling?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><em>Mega Man</em> series for NES and <em>Sonic the Hedgehog</em> series for Game Gear use two levels (through 32x32), and <em>Blaster Master</em> uses three (through 64x64). <em>Sonic the Hedgehog 2</em> and <em>Sonic 3 &amp; Knuckles</em> for Genesis have a 128x128 scale. At that scale, it introduces another level of griddiness into your architecture. <em>Sonic Advance</em> series has 96x96-pixel metatiles, which appears to be an adaptation of the 128x128-pixel grid rhythm of later <em>Sonic</em> games for Genesis to the Game Boy Advance's smaller screen.<br /><br />An even bigger metatile scale is reuse of a whole room: <em>Sonic the Hedgehog</em> for Genesis and <em>Sonic CD</em> use 256x256, and <em>Super Mario Land</em> uses 160x128. One problem here is that if you reuse rooms too obviously in early levels, new players will end up wondering whether the level is like the &quot;maze&quot; levels of the first <em>Super Mario Bros.</em> (4-4 and 7-4), where you get seamlessly kicked back four rooms if you don't pass through the right invisible rings.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>dougeff</b> [ Fri Feb 16, 2018 3:55 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: How to compress multi-direction scrolling?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">And then there's always multi-level metatile encoding, where metatiles are composed of other metatiles, if you're willing to go through a bit of indirection. It's pretty compact and allows random access, since the amount of memory used per room is constant.</div><br /><br />I think I like this best. Instead of a 16x13 set of metatiles, a 8x7 set of metatiles to metatiles. I only need to fetch 7 bytes, and then decompress twice, buffer of 13, 2 buffers of 26. 26+26+13+7=72 total, plus 7 for a column of attributes (skipping the top for HUD) = 79.<br /><br />That seems a manageable size of RAM for constructing the background on the fly.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Kasumi</b> [ Fri Feb 16, 2018 6:02 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: How to compress multi-direction scrolling?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />My &quot;secret&quot; slope game decompressed levels of 256x256 screens of 128x128 metatiles of 32x32 metatiles into RAM. (The 32x32 metatiles were further divided into 16x16 metatiles.) <br /><br />With a page of RAM, you can fit 4 screens of 32x32 metatiles. All objects read from this RAM for collision. There was an RLE step for the 32x32 metatiles in the 128x128 metatiles. I think there were two streams. One for tile number, one for repeats. You could fit two strings of repeats in every byte since 16 was the guaranteed max. (XXXXYYYY) <br /><br />I also did an overlay compression thing: <!-- l --><a class="postlink-local" href="https://forums.nesdev.com/viewtopic.php?f=5&amp;t=14370&amp;start=0">viewtopic.php?f=5&amp;t=14370&amp;start=0</a><!-- l --><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">;Basically:<br /><br />tiles00:<br />	.db 0, 0, 0, 0, 1, 0<br />tiles01:<br />	.db 0, 1, 0, 2, 4, 5<br />	<br />becomes:<br /><br />tiles00:<br />	.db 0, 0, 0<br />tiles01:<br />	.db 0, 1, 0, 2, 4, 5<br />	<br />	<br />;The address for tiles01 is put in the middle of tile00's data, but it doesn't matter. Because in either case, reading tiles0X,y will get the same value for both the top and bottom, so long as Y is in range. (If Y is out of range, that'd be... a bug.)</div><br />(I actually always recommend this. No changes to the underlying code that loads it are needed, even. Indivisible used only that overlay compression.)<br />I fit quite a lot in 16KB with all these techniques: <!-- m --><a class="postlink" href="https://youtu.be/2bJW64G_tHY">https://youtu.be/2bJW64G_tHY</a><!-- m --><br />There are object definitions included in that, but they don't show up in the video. As well, I'm not limited much as far as what I can put in a level, even if all these test maps look pretty basic. Granted, if they got less basic I would also get less savings. But like... all of these maps fit in less space than the like... two in Indivisible. <br />The decompression was somewhat expensive, I guess? But only happened for 1 frame at 128 pixel boundaries.<br /><br />And it's not hard, except for the RLE, somewhat. AND #% a given bit gives you which &quot;half&quot; of the metatile you're on for each dimension if it's a power of two.<br /><br />Edit: But to be honest, I feel like just overlaying the data for the columns of metatiles would get you really decent savings. I only did all the rest for bidirectional random access.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Fri Feb 16, 2018 8:37 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: How to compress multi-direction scrolling?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I did try this kind of overlay compression once, where each screen was divided into rows or columns of metatiles, and all the rows and columns would be packed as tightly as possible as a single 1D array, so that each screen was just made of a constant number of pointers to this array. The results weren't so good though, so I scrapped the idea. I can see this working better when combined with other techniques, though.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>dougeff</b> [ Sun Feb 18, 2018 9:01 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: How to compress multi-direction scrolling?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Here, I got it working. meta-tiles to meta-tiles. 2 way scrolling with a sprite zero hit.<br /><br /><!-- m --><a class="postlink" href="https://youtu.be/wWrZ8Pn0t58">https://youtu.be/wWrZ8Pn0t58</a><!-- m -->
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Diskover</b> [ Mon Feb 19, 2018 1:16 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: How to compress multi-direction scrolling?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">dougeff wrote:</div><div class="quotecontent">Here, I got it working. meta-tiles to meta-tiles. 2 way scrolling with a sprite zero hit.<br /><br /><!-- m --><a class="postlink" href="https://youtu.be/wWrZ8Pn0t58">https://youtu.be/wWrZ8Pn0t58</a><!-- m --></div><br />I love.<br /><br />Will you share?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>dougeff</b> [ Mon Feb 19, 2018 8:19 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: How to compress multi-direction scrolling?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Well, this is for asm6. not cc65. The ninja game was written in asm, and this is a slight modification of that code.<br /><br />I'm not sure yet, but maybe I will make this open source one day.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

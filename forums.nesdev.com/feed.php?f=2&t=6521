@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=2&amp;t=6521" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2011-04-29T05:37:31-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=2&amp;t=6521</id>
+<entry>
+<author><name><![CDATA[tokumaru]]></name></author>
+<updated>2011-04-29T05:37:31-07:00</updated>
+<published>2011-04-29T05:37:31-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6521&amp;p=77372#p77372</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6521&amp;p=77372#p77372"/>
+<title type="html"><![CDATA[DMC IRQs]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6521&amp;p=77372#p77372"><![CDATA[
+This is a very interesting idea, Bregalad. Suddenly I feel very tempted to try coding the "definitive mapperless scanline counter" again...! =)<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=95">tokumaru</a> — Fri Apr 29, 2011 5:37 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Bregalad]]></name></author>
+<updated>2011-04-29T05:10:13-07:00</updated>
+<published>2011-04-29T05:10:13-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6521&amp;p=77370#p77370</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6521&amp;p=77370#p77370"/>
+<title type="html"><![CDATA[DMC IRQs]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6521&amp;p=77370#p77370"><![CDATA[
+OK I took time to compute the # of scanline each possibility of DMC length, for both NTSC and PAL (hopefully I didn't do accidental errors).<br />I rounded all values to the <em>higer</em> integer, because if you want to wait N scanlines, you want the IRQ to happen BEFORE the Nth scanline after setting up the IRQ.<br />(samples taking longer than a frame are represented by stars)<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">NTSC               Rate<br />Length              $0    $1   $2   $3   $4   $5   $6   $7   $8   $9   $a   $b   $c   $d   $e   $f<br />----------------------------------------------------------------------------------------------------<br />1-byte &#40;8 bits&#41;     31    27   24   23   21   18   16   16   14   12   10   10   8    6    6    4<br />17-byte &#40;136 bits&#41;  **    **   **   **   **   **   **   **   228  192  170  154  127  101  87   65<br />33-byte &#40;264 bits&#41;  **    **   **   **   **   **   **   **   **   **   **   **   **   196  168  126<br />49-byte &#40;392 bits&#41;  **    **   **   **   **   **   **   **   **   **   **   **   **   **   **   187<br /><br />PAL                Rate<br />Length              $0    $1   $2   $3   $4   $5   $6   $7   $8   $9   $a   $b   $c   $d   $e   $f<br />----------------------------------------------------------------------------------------------------<br />1-byte &#40;8 bits&#41;     30    27   24   23   21   18   16   15   14   12   10   9    8    6    5    4<br />17-byte &#40;136 bits&#41;  **    **   **   **   **   **   **   **   225  189  169  151  126  100  85   64<br />33-byte &#40;264 bits&#41;  **    **   **   **   **   **   **   **   **   **   **   **   **   194  164  124<br />49-byte &#40;392 bits&#41;  **    **   **   **   **   **   **   **   **   **   **   **   **   **   **   184<br /></div><br /><br />Because a PAL interrupt will always happen about the same time or a bit sooner than a NTSC interrupt, I will use the NTSC table exclusively to set the "best" setting here :<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">Delta      Best opt. for IRQ<br /><br />1-3        Timed code<br />4-5        Length $0, rate $f<br />6-7        Lenght $0, rate $d<br />8-9        Length $0, rate $c<br />10-11      Length $0, rate $a<br />12-13      Length $0, rate $9<br />14-15      Length $0, rate $8<br />16-17      Length $0, rate $6<br />18-20      Length $0, rate $5<br />21-22      Length $0, rate $4<br />23         Lenght $0, rate $3<br />24-26      Length $0, rate $2<br />27-30      Length $0, rate $1<br />31-64      Length $0, rate $0<br />65-86      Length $1, rate $f<br />87-100     Length $1, rate $e<br />101-125    Lenght $1, rate $d<br />126        Lenght $2, rate $f<br />127-153    Length $1, rate $c<br />154-167    Lenght $1, rate $b<br />168-169    Lenght $2, rate $e<br />170-186    Length $1, rate $a<br />187-191    Length $3, rate $f<br />192-195    Length $1, rate $9<br />196-227    Length $2, rate $d<br />228-239    Length $1, rate $8<br /></div><br /><br />Therefore, after counting a necesarly initial wait of 4 scanlines, which is necessarily for the sync because of how DMC works, you should compute the # of scanline that remains to wait before the split and use the lockup table above.<br /><br />Note that it's in most cases unnecessary to have a sample longer than 17 bytes, because it will only save a couple of scan-lines in the final fine-tuned timed code wait. The only exeption is if you want to wait something close to 220- 227 scanlines, where there is a significant gap where it's best to use a 33 bytes sample.<br /><br />Also note the huge gap between 31 and 64 scan lines, where there is nothing better than 31 scanlines available. If you wanted to wait, let's say exactly 63 scanlines and use only one IRQ, you'd have to set an IRQ to line 31 and wait the remaining 32 lines "by hand", wasting a lot of CPU usage. Therefore for this game I'd really to use a second IRQ, to save CPU usage.<br /><br />So there is probably no way more than 2 IRQs and more than 8 scanlines of "timed code" would ever be required for this, for ANY split.<br /><br />I agree it's not the most amazing thing in the world, but remember all this is possible WITHOUT ANY MAPPER.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=38">Bregalad</a> — Fri Apr 29, 2011 5:10 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2011-04-19T12:25:58-07:00</updated>
+<published>2011-04-19T12:25:58-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6521&amp;p=76969#p76969</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6521&amp;p=76969#p76969"/>
+<title type="html"><![CDATA[DMC IRQs]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6521&amp;p=76969#p76969"><![CDATA[
+<div class="quotetitle">Bregalad wrote:</div><div class="quotecontent"><br />Well can't you play the shortest 1-byte sample at rate $0f for the initial tuning, then play a longer/slower sample for a second IRQ, then wait a variable time that adds up to a constant with the first delay ?<br /></div><br />I already do this, sort of: I use a 1-byte sample and a 17-byte sample. The 1-byte sample takes 1*8*54 = 432 CPU cycles, or 432*3/341 = 3.8 scanlines. The 17-byte sample takes 17*8*54 = 7344 CPU cycles, or 7344*3/341 = 64.6 scanlines. I already do play a 17-byte sample to skip large areas. But there's nothing in between a 1- and 17-byte sample. On the other hand, you're right that I haven't investigated playing the 1-byte sample at maximum rate (54 cycle period) and then switching to 1-byte samples at a slower rate (longer period) in order to skip areas smaller than 64 scanlines.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Tue Apr 19, 2011 12:25 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Bregalad]]></name></author>
+<updated>2011-04-19T12:00:52-07:00</updated>
+<published>2011-04-19T12:00:52-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6521&amp;p=76968#p76968</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6521&amp;p=76968#p76968"/>
+<title type="html"><![CDATA[DMC IRQs]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6521&amp;p=76968#p76968"><![CDATA[
+No, no that's not what I mean.<br /><br />The timing diagram of what I mean is that :<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">------------------<br />NMI Vblank sync<br />Sprite DMA, VRAM updates, etc... &#40;constant time&#41;<br />------------------<br />start playback of short sample &#40;varying time&#41;<br />enter in a loop polling $4015 and counting iterations<br />--------------------<br />&quot;IRQ #1&quot; -&gt; count time before the pseudo-IRQ &#40;an actual IRQ isn't needed and can be disabled with SEI, this is automatically done in an NMI routine by the way&#41;.<br />Start playback of long/slow sample &#40;fixed time&#41;<br />RTI &#40;also clears the I flag&#41;<br /><br /><br />....sound, game engine, etc. code here....<br /><br />-------------------<br />IRQ #2 -&gt; disable DMC channel<br />Wait for constant time minus the calulated one<br />Wait for an adjustement time for the raster effect &#40;compensate for lack of precision in lenght/speed of the long sample&#41;<br />Raster effect register writes<br />RTI<br />----------------------<br /><br />end of frame here<br />----------------------</div><br /><br />I think this is what would make the most sense to me, and I think it should work, but the adjustment time that compensate the lack of precision must not be too big else too much CPU time will be wasted<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=38">Bregalad</a> — Tue Apr 19, 2011 12:00 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tokumaru]]></name></author>
+<updated>2011-04-19T11:38:19-07:00</updated>
+<published>2011-04-19T11:38:19-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6521&amp;p=76965#p76965</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6521&amp;p=76965#p76965"/>
+<title type="html"><![CDATA[DMC IRQs]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6521&amp;p=76965#p76965"><![CDATA[
+IIRC, the whole problem with DMC IRQs is that the APU runs at it's own pace, meaning that even if you give it the command to start playing a sample at the same point in the frame every time, the IRQ will not happen at the same time.<br /><br />If we count how long it takes for the IRQ to fire (this is one of the waiting loops), we know what the error is, and we can use this information to compensate for the error later (this is the second waiting loop), when it's time for the raster effect.<br /><br />Maybe it is actually possible to detect the error using a shorter/faster sample to reduce the amount of waiting, but it might not be trivial to dynamically vary the frequency during the frame as the split point comes closer.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=95">tokumaru</a> — Tue Apr 19, 2011 11:38 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Bregalad]]></name></author>
+<updated>2011-04-19T10:57:47-07:00</updated>
+<published>2011-04-19T10:57:47-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6521&amp;p=76964#p76964</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6521&amp;p=76964#p76964"/>
+<title type="html"><![CDATA[DMC IRQs]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6521&amp;p=76964#p76964"><![CDATA[
+Well can't you play the shortest 1-byte sample at rate $0f for the initial tuning, then play a longer/slower sample for a second IRQ, then wait a variable time that adds up to a constant with the first delay ? I'm pretty sure you could.<br />Of course if you play a slower sample you loose resolution, but then you'd have to find the best length/rate ratio for this. Then it'd be a tradeoff between playing a longer sample, thrus waste ROM, or play a shorter one and waste some CPU time counting useless IRQs before the interesting one.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=38">Bregalad</a> — Tue Apr 19, 2011 10:57 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2011-04-19T07:23:54-07:00</updated>
+<published>2011-04-19T07:23:54-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6521&amp;p=76961#p76961</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6521&amp;p=76961#p76961"/>
+<title type="html"><![CDATA[DMC IRQs]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6521&amp;p=76961#p76961"><![CDATA[
+<div class="quotetitle">Bregalad wrote:</div><div class="quotecontent"><br />Why use 20 IRQs when you could just play a longer sample with adjusted lenght/duration ratio, and use only 1 on them ?<br /></div><br />I already do play a longer sample through much of the big area. But the only sample lengths one can reasonably use for this are 1 and 17 bytes.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Tue Apr 19, 2011 7:23 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tokumaru]]></name></author>
+<updated>2011-04-19T06:03:38-07:00</updated>
+<published>2011-04-19T06:03:38-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6521&amp;p=76959#p76959</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6521&amp;p=76959#p76959"/>
+<title type="html"><![CDATA[DMC IRQs]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6521&amp;p=76959#p76959"><![CDATA[
+<div class="quotetitle">Bregalad wrote:</div><div class="quotecontent"><br />Why use 20 IRQs when you could just play a longer sample with adjusted lenght/duration ratio, and use only 1 on them ?<br /></div><br />Because we have to measure how long it takes for the first IRQ to fire (so that this difference is used to compensate the timing later), and if you use a larger interval you'll waste a lot of time waiting for this IRQ to happen.<br /><br />EDIT: <a href="http://membler-industries.com/tokumaru/dmc_20100826.zip" class="postlink">Here's all the work I've done on this</a>. Don't expect any documentation or clean code though. Feel free to do whatever you want with this.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=95">tokumaru</a> — Tue Apr 19, 2011 6:03 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Bregalad]]></name></author>
+<updated>2011-04-19T02:00:53-07:00</updated>
+<published>2011-04-19T02:00:53-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6521&amp;p=76956#p76956</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6521&amp;p=76956#p76956"/>
+<title type="html"><![CDATA[DMC IRQs]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6521&amp;p=76956#p76956"><![CDATA[
+Why use 20 IRQs when you could just play a longer sample with adjusted lenght/duration ratio, and use only 1 on them ?<br /><br />I think the CPU usage is about 9 scanlines, plus a few more because of the imperfetion of the lenght/duration ratio (you'll have to use the one which will fire an IRQ just before the desired split point, and wait the remaining time the old way).<br />So I'll say 10 scanlines, which is about 4% CPU time in NTSC.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=38">Bregalad</a> — Tue Apr 19, 2011 2:00 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tokumaru]]></name></author>
+<updated>2011-04-18T17:54:11-07:00</updated>
+<published>2011-04-18T17:54:11-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6521&amp;p=76943#p76943</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6521&amp;p=76943#p76943"/>
+<title type="html"><![CDATA[DMC IRQs]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6521&amp;p=76943#p76943"><![CDATA[
+Yeah, my solution has so much overhead because it's supposed to act like an scanline counter, that can generate interrupts for any given scanline. Hardcoded split points are surely much faster.<br /><br />I found the most recent archive of my work on this (and it appears I was working on PAL compatibility the last time I touched it, because the assembled ROM works on PAL but not on NTSC), but I'm having trouble uploading it using the ftp Memblers set up for me. I'll try again after dinner.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=95">tokumaru</a> — Mon Apr 18, 2011 5:54 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2011-04-18T11:02:01-07:00</updated>
+<published>2011-04-18T11:02:01-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6521&amp;p=76929#p76929</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6521&amp;p=76929#p76929"/>
+<title type="html"><![CDATA[DMC IRQs]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6521&amp;p=76929#p76929"><![CDATA[
+A demo with multiple variable split points uses a lot of CPU time, as it would have to spin a lot longer to wait for the right line. But the letterbox demo (two fixed split points) uses 20 IRQs per frame, most of which take only about 36 cycles (if I remember correctly) to handle. Even counting other overheads, I imagine it's taking less than 5% of CPU time. I'd have to profile it harder to get a more precise figure.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Mon Apr 18, 2011 11:02 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[thefox]]></name></author>
+<updated>2011-04-18T10:09:06-07:00</updated>
+<published>2011-04-18T10:09:06-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6521&amp;p=76925#p76925</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6521&amp;p=76925#p76925"/>
+<title type="html"><![CDATA[DMC IRQs]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6521&amp;p=76925#p76925"><![CDATA[
+<div class="quotetitle">tokumaru wrote:</div><div class="quotecontent"><br />I never finished this for good, because I lost interest in this technique when I realized that about 20% of a frame's time would be spent on a single split.<br /></div><br />Aah, I remembered there was a catch to this. <img src="http://forums.nesdev.com/images/smilies/icon_smile.gif" alt=":)" title="Smile" /> Do you think it would be possible to cut down on the CPU usage if one was more clever about the choice of frequencies/etc?<br /><br />On another note, even if a generic routine can't be made efficiently, it would still be useful to have good documentation and/or an ("offline") application to generate code for DMC timed splits based on input parameters.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=80">thefox</a> — Mon Apr 18, 2011 10:09 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tokumaru]]></name></author>
+<updated>2011-04-17T13:38:17-07:00</updated>
+<published>2011-04-17T13:38:17-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6521&amp;p=76888#p76888</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6521&amp;p=76888#p76888"/>
+<title type="html"><![CDATA[DMC IRQs]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6521&amp;p=76888#p76888"><![CDATA[
+<div class="quotetitle">thefox wrote:</div><div class="quotecontent"><br />tokumaru, did you ever get the PAL version of this working and if so, source would be appreciated. <img src="http://forums.nesdev.com/images/smilies/icon_smile.gif" alt=":)" title="Smile" /><br /></div><br />I'm not sure. The PAL version was exactly like the NTSC one, the only difference was how many scanlines apart the interrupts were, since I wanted to use a frequency that would result in intervals close to whole scanlines, to waste as few cycles as possible.<br /><br />I never finished this for good, because I lost interest in this technique when I realized that about 20% of a frame's time would be spent on a single split. I'll check the files though (I don't even remember where they are, but I'm sure there's a backup somewhere) and will share whatever I have. The code is far from clean though, there were still a lot of little things left to do before this could be considered a reusable piece of code. A problem I could never solve is that once in a while there would be sudden variations of 40 or so pixels, which could easily screw up scrolling changes.<br /><br />Now that I think of it, I might have even made a single program that is NTSC &amp; PAL compatible, based on console detection at startup. I'm sure I had plans for this, but I'll have to check if I actually implemented it. I'll let you know later today.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=95">tokumaru</a> — Sun Apr 17, 2011 1:38 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[thefox]]></name></author>
+<updated>2011-04-17T10:28:35-07:00</updated>
+<published>2011-04-17T10:28:35-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6521&amp;p=76883#p76883</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6521&amp;p=76883#p76883"/>
+<title type="html"><![CDATA[DMC IRQs]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6521&amp;p=76883#p76883"><![CDATA[
+Bump, since this came up in <a href="http://nesdev.com/bbs/viewtopic.php?p=76844#76844" class="postlink">http://nesdev.com/bbs/viewtopic.php?p=76844#76844</a>. tokumaru, did you ever get the PAL version of this working and if so, source would be appreciated. <img src="http://forums.nesdev.com/images/smilies/icon_smile.gif" alt=":)" title="Smile" /><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=80">thefox</a> — Sun Apr 17, 2011 10:28 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[blargg]]></name></author>
+<updated>2010-08-25T07:21:21-07:00</updated>
+<published>2010-08-25T07:21:21-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6521&amp;p=66712#p66712</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6521&amp;p=66712#p66712"/>
+<title type="html"><![CDATA[DMC IRQs]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6521&amp;p=66712#p66712"><![CDATA[
+Seems the edge case I was worried about is real. Here are your three STA $4015 instructions:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">IRQ     DMA     Buffer  Output<br />-------------------------------<br />0       0       empty   busy<br />STA $4015<br />0       1       empty   busy<br />1       0       full    busy<br />1       0       empty   new cycle<br />STA $4015<br />0       1       empty   busy<br />1       0       full    busy &lt;-- this was the problem<br />STA $4015<br />0       1       full    busy<br />...<br />0       1       full    busy<br />0       1       empty   new cycle<br />1       0       full    busy<br />IRQ at proper time</div><br /><br />At the beginning, the DMA unit has nothing to fetch, the one-byte buffer is empty, and the output unit is almost done with its current cycle.<br /><br />After the first STA $4015, the DMA unit has one byte to fetch, which it does immediately. This fills the sample buffer, and sets the IRQ flag. Just after that, the output unit completes its cycle and empties the sample buffer.<br /><br />By the time of the second STA $4015, the sample buffer is empty again, and thus it gets immediately filled and the IRQ flag set almost immediately again. If you had done the CLI after this, the IRQ would have been delayed until after the instruction AFTER the CLI (due to the way the 6502 effectively delays clearing the I flag by one instruction). So your IRQ would be late.<br /><br />But if you instead do a third STA $4015, you are ensured that the output unit is busy and the sample buffer full, so that you don't get an immediate IRQ.<br /><br />It's nice to have others working on new techniques like this and experimenting until they work well on hardware. <img src="http://forums.nesdev.com/images/smilies/icon_smile.gif" alt=":)" title="Smile" /><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=17">blargg</a> — Wed Aug 25, 2010 7:21 am</p><hr />
+]]></content>
+</entry>
+</feed>

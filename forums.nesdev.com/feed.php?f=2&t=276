@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=2&amp;t=276" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2005-04-20T13:04:48-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=2&amp;t=276</id>
+<entry>
+<author><name><![CDATA[Bregalad]]></name></author>
+<updated>2005-04-20T13:04:48-07:00</updated>
+<published>2005-04-20T13:04:48-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=276&amp;p=1906#p1906</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=276&amp;p=1906#p1906"/>
+<title type="html"><![CDATA[Use DPCM channel while having timed code]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=276&amp;p=1906#p1906"><![CDATA[
+Hum, to support the entire range of pitch rates of the DPCM channel, you have to calculate the value to add every scanline once before trigerring the timed code, then I can't see why self-modifing code would be needed. Or would this method be unprecise enough to don't work ?<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=38">Bregalad</a> — Wed Apr 20, 2005 1:04 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Bananmos]]></name></author>
+<updated>2005-04-19T14:34:24-07:00</updated>
+<published>2005-04-19T14:34:24-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=276&amp;p=1896#p1896</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=276&amp;p=1896#p1896"/>
+<title type="html"><![CDATA[Use DPCM channel while having timed code]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=276&amp;p=1896#p1896"><![CDATA[
+I think you misunderstood me. If you want to support the entire range of pitch rates of the DPCM, then you HAVE TO make your code take a whole cycle less (+additional fractions) per scanline above a certain pitch rate. What happens is basically that you adjust the #113/#85 value so much that it wraps around, and that means it's time to add an integer. <br /><br />And like I said, I think using self-modifying code to change a zeropage operand into an immediate one is the best way to do this, since you should be using SMC already if you're writing timed scanline loops. But it is of course possible to do something like this instead:<br /><br />lda skip_an_extra_cycle_or_not<br />bne +<br />+<br /><br />And the space taken by the extra padding bytes for a DPCM sound shouldn't be very big either. After all, the worst case you can have is a DPCM sound being played at pitch $F at a maximum time of one frame, which should eat up less than 100 silent padding bytes per DPCM sound before your replay code turns the sample off manually.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=106">Bananmos</a> — Tue Apr 19, 2005 2:34 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Bregalad]]></name></author>
+<updated>2005-04-19T11:45:02-07:00</updated>
+<published>2005-04-19T11:45:02-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=276&amp;p=1894#p1894</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=276&amp;p=1894#p1894"/>
+<title type="html"><![CDATA[Use DPCM channel while having timed code]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=276&amp;p=1894#p1894"><![CDATA[
+Okay. Have silent after a DPCM sample may waste a lot of spce with just $55 or $aa, but witout this, gliches would appear.<br />So, a calculation for the number to add would be needed (using a zp-variable would be MUCH simpler than using self-modifing code, I think), and that way it's easy to do 2 version of the rom PAL/NTSC.<br />Thanks.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=38">Bregalad</a> — Tue Apr 19, 2005 11:45 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Bananmos]]></name></author>
+<updated>2005-04-18T17:11:38-07:00</updated>
+<published>2005-04-18T17:11:38-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=276&amp;p=1891#p1891</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=276&amp;p=1891#p1891"/>
+<title type="html"><![CDATA[It's been done]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=276&amp;p=1891#p1891"><![CDATA[
+Check out Years Behind. It uses timed code during most of the screen rendering, while playing dpcm samples at arbitrary pitch rates. It accomplishes this by using code like this in every timed scanline-loop<br /><br />lda fractional_cycles<br />adc #113 ; for PAL, use #85 for NTSC<br />bcc +<br />+<br />sta fractional_cycles<br /><br />And the #113 value to add to the fractional_cycles variable is then adjusted depending on which pitch rate is played. At the higher rates, you will also need to make it an additional whole cycle faster. (most easily accomplished using self-modifying code, the adc #113 is a good candidate for this as you can just change the opcode to a zeropage addition when it needs to be a cycle longer)<br /><br />And like you might already have figured out, this also means that a sample can never be allowed to stop by itself when it's finished. The replay code must instead take care of the stopping samples manually, so you might need some silent padding bytes at the end of the sample.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=106">Bananmos</a> — Mon Apr 18, 2005 5:11 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Bregalad]]></name></author>
+<updated>2005-04-10T05:16:22-07:00</updated>
+<published>2005-04-10T05:16:22-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=276&amp;p=1818#p1818</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=276&amp;p=1818#p1818"/>
+<title type="html"><![CDATA[Use DPCM channel while having timed code]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=276&amp;p=1818#p1818"><![CDATA[
+I think it would be interesting to talk about how it would be possible or not to play a sample in the DPCM channel while having timed code.<br />Many games doesn't use this channel at certain times to avoid gliches (I think to Earthbound), or simply have giches (like Castlevania 3) because the DPCM channel stole one cycle every x time. Often, only the DPCM frequency $f is used to have the better quality as possible.<br />I think it would be possible to have a timing routine for use when DPCM is playing a sample, and another one for use when it's disabled, and we could check $4015.5 to know witch one we have to execute. So we're just limited to use only one frequecey ($f) instead of be limited to don't use DPCM at all. The only problem would be if the sample stops during the timed code, the CPU will run a bit faster and this would cause gliches, so it's better to use this only when the timing code isn only there for a small part of the screen to avoid huge gliches.<br /><br />PS : I enventually bought a Game Boy Advance! It's a special model who has the same design as the original Famicom ! That's cool, but it was much more expensive...<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=38">Bregalad</a> — Sun Apr 10, 2005 5:16 am</p><hr />
+]]></content>
+</entry>
+</feed>

@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=3&amp;t=4680" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2008-12-30T10:30:43-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=3&amp;t=4680</id>
+<entry>
+<author><name><![CDATA[qeed]]></name></author>
+<updated>2008-12-30T10:30:43-07:00</updated>
+<published>2008-12-30T10:30:43-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=4680&amp;p=41141#p41141</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=4680&amp;p=41141#p41141"/>
+<title type="html"><![CDATA[PPU scanline cycles question]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=4680&amp;p=41141#p41141"><![CDATA[
+<div class="quotetitle"><b>Quote:</b></div><div class="quotecontent"><br />Edited 2 times<br /></div><br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent"><br />- Each pixel is 1 PPU cycle. So is this the first 256 cycles?<br /></div> <br />yeah it is rendered every cycle from scanline 1-240 for 240 scanlines. <br /><br />For the X increment and Y increment part, you can find more info on brad taylor's doc. The outline is that the NES fetches the tiles at cycle 0, get pattern address at cycle 1, get attribute address to render on cycle 2, then after it gets the attribute and it increases the X scroll for the next evaluation, this is cycle 3. On cycle 4 it uses the pattern address it gets in cycle 1 to render. On cycle 5 it gets the low chr data for rendering, on cycle 6 it gets the hi pattern table address and on cycle 7 it gets the hi pattern table data. It is restarted at 8 and do it until 32 tiles have been processed (256 pixels). The Y scroll gets incremented because at cycle 251 the last X scroll on the scanline has incremented and ready to process the tiles for the last 8 pixels of the scanline.<br />Im not sure of the reason why X scroll is reset at cycle 257. The last tile should be done processing at cycle 255, since 8 cycles are needed to process a tile, so I am not sure why it doesn't happen on cycle 256.<br />It also gets 2 extra tiles at the end of a scanline for the next scanline due to the NES rendering a pixel every cycle. <br /><br />As for Background and sprite interleaving <!-- m --><a class="postlink" href="http://nesdevwiki.org/wiki/Sprite_priority">http://nesdevwiki.org/wiki/Sprite_priority</a><!-- m --> this explains how the bg and sprite interleave. <br /><br />About the read and writes, the number of read and write cycles is more than what is really needed since let say the sprite slot for visible sprites are in 57-64, so it'd be (2*56) for sprites processing not in range, then (2*56)+(2*4)*8 since 3 read and write to fetch the data associated with the sprite found that is in the scanline. it'd be around 176 cycles.<br />So I don't think the number of read and writes correspond with how many sprites there are. The weird evaluation phase I think kind of implies that, though it might be another reason, this is just speculation on my part.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3551">qeed</a> — Tue Dec 30, 2008 10:30 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[albailey]]></name></author>
+<updated>2008-12-30T08:58:13-07:00</updated>
+<published>2008-12-30T08:58:13-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=4680&amp;p=41139#p41139</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=4680&amp;p=41139#p41139"/>
+<title type="html"><![CDATA[PPU scanline cycles question]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=4680&amp;p=41139#p41139"><![CDATA[
+So I spent last weekend getting a PPU working.  I can now see some basics, but I still have a way to go.  Much thanks to all you guys who have contributed so much solid information.<br /><br />I am trying to figure out the proper behaviour for each PPU cycle of a visible scanline.<br /><br />I checked the wiki and it has some very detailed information about sprite evaluation, but I am unclear as to how normal background rendered happens.<br /><br />Here is what I have read:<br />- There are 341 PPU cycles per visible scanline (theres an anomaly on the 20th scanline, which I assume is the scanline BEFORE the visible scanlines start and only affects NTSC)<br /><br />- Each pixel is 1 PPU cycle.   So is this the first 256 cycles?<br /><br /> I assume yes based on the following conversation between Disch and Quietrust a long time ago:<br />0 based <br />PPU X address is incremented no earlier than every 3rd cycle on the scanline (3, 11, 19, etc) <br />PPU Y address is incremented on cycle 251 <br />PPU X address is reset on cycle 257 <br /><br />I dont completely understand the "3" or why Y increments before X unless part of those cycles are in setting up a buffer of some sort.<br /><br />Is there interleaving between background rendering, and sprite evaluation for the next scanline, or are both done (in some cases) on the same PPU cycle? (I assume yes)<br /><br />I am a little confused by some of the wording on the wiki for sprite evaluation<br /><!-- m --><a class="postlink" href="http://www.nesdevwiki.org/wiki/NES_PPU#Sprite_evaluation">http://www.nesdevwiki.org/wiki/NES_PPU# ... evaluation</a><!-- m --><br /><br />It says: <br />Cycles 64-255: Sprite evaluation <br />On even cycles, data is read from (primary) OAM <br />On odd cycles, data is written to secondary OAM (unless writes are inhibited, in which case it will read the value in secondary OAM instead) <br /><br />So by my math, there are 96 reads and 96 writes.  ???   That number seems weird.   There are 64 sprites max, there are 8 sprites (so 32 bytes) max per scanline.  Is this a reflectection of both those numbers?<br /><br /><br />Also, I dont fully understand the state machine listed afterwards.  <br />Are all the sprites evaluated each cycle for a partcular pixel?  Maybe my problem is that the evaluations shouldnt be per pixel, but per tile.<br /><br />Al<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=772">albailey</a> — Tue Dec 30, 2008 8:58 am</p><hr />
+]]></content>
+</entry>
+</feed>

@@ -1,0 +1,262 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - NFS PLAY_ADDR and the NMI...</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">NFS PLAY_ADDR and the NMI...</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=10&amp;t=4090">http://forums.nesdev.com/viewtopic.php?f=10&amp;t=4090</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Compton</b> [ Sun May 04, 2008 6:49 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>NFS PLAY_ADDR and the NMI...</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Ok, i have been working on programming on the nes for about a week now, and i really like it. I do have a few issues with how picky the hardware can be under some situations, but it seems like there are a lot of tools to make things easier.
+<br />
+<br />Considering the amount of work that goes into a sound engine, i decided to use NSF for music, but as soon as i tried to implemented it, it went completely to hell.
+<br />
+<br />Ok, so here is the deal. I set the NSF file up according to the Nerdtracker documentation (Used hex editor, wrote the LOAD_ADDR, INIT_ADDR, and PLAY_ADDR, then completely deleted the header (128bit, or anything under 0x80.) I then .org'ed the .incbin'ed binary straight to the LOAD_ADDR (because there is no header)  and created EQU constants for INIT_ADDR and PLAY_ADDR to the addresses was listed in the NSF header (all addresses were reinterpreted from little endian, since that is how multi-byte values are stored by the 6502.)  
+<br />
+<br />Now when go through my initialization, i 'lda #0' and 'ldx #0' (for track 0, and ntsc speed respectively) then 'jsr INIT_ADDR' to set them. I then set a 'jsr PLAY_ADDR' Right in the NMI interrupt routine.
+<br />
+<br />Originally, it would play but it would hijack my program. I figured it had to do with how i would set a flag in NMI to tell the main loop that VBlank was done refreshing. so i replaced that code with the simple NMI detection...
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">- lda $2002<br />&nbsp; bpl -<br /></div><br /><br />Now that it gets through my full loop before the next NMI interrupt, the music is only reminiscent of what i wrote. The drum beat bleeds through on an occasion, and most of the notes are wrong or distorted.<br /><br />This is my Main.s file, it has everything i did towards implementing an NSF. <br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">; Variables<br /><br />&nbsp; &nbsp;.enum $0000<br />&nbsp; &nbsp;<br />;This is for the Vblank function&nbsp; &nbsp;<br />VBlankOrNo&nbsp; &nbsp;.db 0 ;This WAS used as a VBlank flag.<br /><br />PMove&nbsp; &nbsp; &nbsp; &nbsp;.db 0 ;Is Player Moving? T/F.<br />MCount&nbsp; &nbsp; &nbsp; .db 0 ;VBlank Movement Counter<br /><br />;Music register constants...<br />INIT_ADDR EQU $B200<br />PLAY_ADDR EQU $B203<br />&nbsp; &nbsp;<br />;These will hold a value if pressed, else 0<br />P1_A&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; .db 0<br />P1_B&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; .db 0<br />P1_Select&nbsp; &nbsp;.db 0<br />P1_Start&nbsp; &nbsp;.db 0<br />P1_Up&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; .db 0<br />P1_Down&nbsp; &nbsp;&nbsp; &nbsp;.db 0<br />P1_Left&nbsp; &nbsp;&nbsp; &nbsp;.db 0<br />P1_Right&nbsp; &nbsp;.db 0<br />&nbsp; &nbsp;.ende<br /><br />;Sprite DMA&nbsp; &nbsp;<br />&nbsp; &nbsp;.enum $0400<br />&nbsp; &nbsp;<br />Player_Y1&nbsp; &nbsp;.db 0&nbsp; &nbsp; &nbsp; &nbsp;; a X position for our sprite, start at 20<br />Player_T1&nbsp; &nbsp;.db 0&nbsp; &nbsp;&nbsp; &nbsp; ; Tile Number<br />Player_S1&nbsp; &nbsp;.db 0&nbsp; &nbsp;&nbsp; &nbsp; ; Special byte &#40;lots of stuff&#41;<br />Player_X1&nbsp; &nbsp;.db 0&nbsp; &nbsp; &nbsp; &nbsp;; a Y position for our sprite, start at 20<br /><br />Player_Y2&nbsp; &nbsp;.db 0&nbsp; &nbsp; &nbsp; &nbsp;; a X position for our sprite, start at 20<br />Player_T2&nbsp; &nbsp;.db 0<br />Player_S2&nbsp; &nbsp;.db 0<br />Player_X2&nbsp; &nbsp;.db 0&nbsp; &nbsp; &nbsp; &nbsp;; a Y position for our sprite, start at 20<br /><br />Player_Y3&nbsp; &nbsp;.db 0&nbsp; &nbsp; &nbsp; &nbsp;; a X position for our sprite, start at 20<br />Player_T3&nbsp; &nbsp;.db 0<br />Player_S3&nbsp; &nbsp;.db 0<br />Player_X3&nbsp; &nbsp;.db 0&nbsp; &nbsp; &nbsp; &nbsp;; a Y position for our sprite, start at 20<br /><br />Player_Y4&nbsp; &nbsp;.db 0&nbsp; &nbsp; &nbsp; &nbsp;; a X position for our sprite, start at 20<br />Player_T4&nbsp; &nbsp;.db 0<br />Player_S4&nbsp; &nbsp;.db 0<br />Player_X4&nbsp; &nbsp;.db 0&nbsp; &nbsp; &nbsp; &nbsp;; a Y position for our sprite, start at 20<br /><br />Player_Y5&nbsp; &nbsp;.db 0&nbsp; &nbsp; &nbsp; &nbsp;; a X position for our sprite, start at 20<br />Player_T5&nbsp; &nbsp;.db 0<br />Player_S5&nbsp; &nbsp;.db 0<br />Player_X5&nbsp; &nbsp;.db 0&nbsp; &nbsp; &nbsp; &nbsp;; a Y position for our sprite, start at 20<br /><br />Player_Y6&nbsp; &nbsp;.db 0&nbsp; &nbsp; &nbsp; &nbsp;; a X position for our sprite, start at 20<br />Player_T6&nbsp; &nbsp;.db 0<br />Player_S6&nbsp; &nbsp;.db 0<br />Player_X6&nbsp; &nbsp;.db 0&nbsp; &nbsp; &nbsp; &nbsp;; a Y position for our sprite, start at 20<br /><br />&nbsp; &nbsp;.ende<br />&nbsp; &nbsp;<br />;INES Header<br />&nbsp; &nbsp;.org $7ff0<br /><br />&nbsp; &nbsp;.db &quot;NES&quot;, $1a&nbsp; &nbsp;;ID<br />&nbsp; &nbsp;.db $02&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;;2 PRG-ROM pages<br />&nbsp; &nbsp;.db $01&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;;1 CHR-ROM present<br />&nbsp; &nbsp;.db $00&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;;No mapper &#40;unrom&#41; with horizontal mirroring<br />&nbsp; &nbsp;.dsb $09, $00&nbsp; &nbsp;;Clear the rest<br /><br />&nbsp; &nbsp;<br />&nbsp; &nbsp;<br />;Begin Main Code Here \/<br />&nbsp; &nbsp;.base $8000<br /><br />&nbsp; <br />Start:<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;<br /><br />-&nbsp; &nbsp;lda $2002&nbsp; &nbsp;&nbsp; &nbsp;; give the PPU a little time to initialize<br />&nbsp; &nbsp;bpl -&nbsp; &nbsp;&nbsp; &nbsp;; by waiting for a vblank<br />&nbsp; &nbsp;<br />-&nbsp; &nbsp;lda $2002&nbsp; &nbsp;&nbsp; &nbsp;; wait for a second vblank to be safe<br />&nbsp; &nbsp;bpl -&nbsp; &nbsp;&nbsp; &nbsp;; and now the PPU should be initialized<br /><br /><br />&nbsp; &nbsp;lda #%10001000&nbsp; ;<br />&nbsp; &nbsp;sta $2000&nbsp; &nbsp; &nbsp; &nbsp;; <br />&nbsp; &nbsp;lda #%00011110&nbsp; ; Our typical PPU Setup code.<br />&nbsp; &nbsp;sta $2001&nbsp; &nbsp; &nbsp; &nbsp;; <br /><br />&nbsp; &nbsp;ldx #$00&nbsp; &nbsp; ; clear X&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ;; start of pallete loading code<br /><br />&nbsp; &nbsp;lda #$3F&nbsp; &nbsp; ; have $2006 tell<br />&nbsp; &nbsp;sta $2006&nbsp; &nbsp;; $2007 to start<br />&nbsp; &nbsp;lda #$00&nbsp; &nbsp; ; at $3F00 &#40;pallete&#41;.<br />&nbsp; &nbsp;sta $2006<br /><br />loadpal:&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; this is a freaky loop<br />&nbsp; &nbsp;lda tilepal, x&nbsp; ; that gives 32 numbers<br />&nbsp; &nbsp;sta $2007&nbsp; &nbsp; &nbsp; &nbsp;; to $2007, ending when<br />&nbsp; &nbsp;inx&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; X is 32, meaning we<br />&nbsp; &nbsp;cpx #32&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; are done.<br />&nbsp; &nbsp;bne loadpal&nbsp; &nbsp; &nbsp;; if X isn't =32, goto &quot;loadpal:&quot; line.<br />&nbsp; &nbsp;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ;; end of pallete loading code<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;;Chosing song&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; lda #$00&nbsp; &nbsp;;or whatever number song you want<br />&nbsp; ldx #$00&nbsp; &nbsp;;0 for NTSC/1 for PAL<br />&nbsp; jsr INIT_ADDR<br />&nbsp; &nbsp;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp;jsr SpriteSetup&nbsp; &nbsp; ;This Function Sets the <br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; ;Staring position, Tiles and Special<br /><br />infinite:&nbsp; ; a label to start our infinite Game loop<br /><br />;NMI check<br />WaitForVBlank:&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;&nbsp; &nbsp;<br />&nbsp; &nbsp;lda $2002&nbsp; &nbsp;&nbsp; &nbsp;; wait for a second vblank to be safe<br />&nbsp; &nbsp;bpl WaitForVBlank&nbsp; &nbsp;&nbsp; &nbsp;; and now the PPU should be initialized <br />&nbsp; &nbsp;&nbsp; <br />&nbsp; ;now that vblank is ready...<br />&nbsp; &nbsp;jsr Draw_Player&nbsp; &nbsp;&nbsp; &nbsp; ;This subroutine Draws the player<br />&nbsp; &nbsp; &nbsp;&nbsp; &nbsp;<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;;now do stuff in preperation of next VBlank<br />&nbsp; &nbsp;jsr Read_Controller1 ;This Subroutine Read the controller<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;jsr Move_Player&nbsp; &nbsp;&nbsp; &nbsp; ;This subroutine Moves the player<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;<br /><br /><br />&nbsp; &nbsp;jmp infinite&nbsp; &nbsp;;end of game loop,<br />;-----End of Main loop-----<br /><br /><br />;Start of Interupt Functions<br />NMI:<br />&nbsp; &nbsp;&nbsp; &nbsp;<br />&nbsp; &nbsp;;Play the next Music note<br />&nbsp; jsr PLAY_ADDR <br />&nbsp; &nbsp;<br />&nbsp; &nbsp;rti&nbsp; &nbsp;;Return from interrupt<br /><br />IRQ:<br />&nbsp; rti<br /><br />;Start of includes<br /><br />tilepal:&nbsp; &nbsp;.incbin &quot;pallete.pal&quot;&nbsp; ; a label for our pallete data<br />&nbsp; &nbsp;<br />&nbsp; ;Now the subroutines<br />&nbsp; &nbsp;.include &quot;Draw_Player.s&quot;<br /><br />&nbsp; &nbsp;.include &quot;Move_Player.s&quot;<br /><br />&nbsp; &nbsp;.include &quot;Read_Controller1.s&quot;<br /><br />&nbsp; &nbsp;.include &quot;SpriteSetup.s&quot;<br /><br />;This is where the Music file wants to be stored<br />&nbsp; .org $aeff&nbsp; ;Start at the LOAD ADDRESS location<br />&nbsp; .incbin &quot;FirstTry.mus&quot; ; '.mus' file = NSF w/o header<br /><br />;Now we do the interupt Vector assignments...<br />&nbsp; &nbsp;.org $fffa<br />&nbsp; &nbsp;.dw NMI&nbsp; &nbsp; &nbsp; &nbsp; ; First our NMI/VBlank jump<br />&nbsp; &nbsp; .dw Start&nbsp; &nbsp; ; Next, is our address to execute on reset<br />&nbsp; &nbsp; .dw IRQ&nbsp; &nbsp; &nbsp; &nbsp; ; IRQ/Break location &#40;nothing yet...&#41;<br /><br /><br />;Now our binary inclusions &#40;char, bkg, etc...&#41;<br />&nbsp; &nbsp;.incbin &quot;our.bkg&quot;<br />&nbsp; &nbsp;.incbin &quot;char1.spr&quot;<br /><br /></div><br /><br />now, 'jsr SpriteSetup' just sets the starting position of the player sprite (into Player_Y1 and Player_X1) and picks the default sprite tiles.<br /><br />'jsr Draw_Player' takes the player X1 and Y1 values and sets the other player sprite tiles accordingly, then does a DMA transfer from $04 ($0400) to the PPU.<br /><br />'jsr Read_Controller1' was made to be reuseable, and just clears the P1 buttons, then reads the controller (1) and sets each P1 button to 1 (if pressed.)<br /><br />lastly, 'jsr Move_Player' just handles the buttons pressed in 'Read_Controller1' by checking screen bounds and then moves the player if there are no collisions with (hardcoded) screen borders.<br /><br />If this isn't enough information, i will post my full code when my server comes back online.<br /><br />Any assistance would be apreciated... <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" /><br /><br />EDIT:<br />Also, adding <br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">;Enable Play after init<br />&nbsp; lda #%10000000<br />&nbsp; sta $2000 </div>
+<br />
+<br />causes the whole thing to not work.
+<br />
+<br />I forgot to mention, this is all done in ASM6...
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Sun May 04, 2008 9:06 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Make sure there's no RAM conflicts.  Make sure you know what areas of RAM the music engine is using, and don't use any of that for your program (your sprite variables might be messing up something used by the music)
+<br />
+<br />Other than that, the only thing I can think of is that according to NSF specs, RAM should be zero'd before the INIT routine is called so you may have to zero all of the RAM that the music engine uses.  However I doubt this is a problem, as I would really hope NT2's music engine doesn't use any RAM it doesn't prep itself.
+<br />
+<br />
+<br />On a side note:  I never understood what was so hard about writing a music engine.  It seems to me it's much harder to insert an NSF in your program and get it working without messing up the works than it would be to just write a simple engine yourself.  But then again I'm kind of nutty.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Sun May 04, 2008 11:42 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />For one thing, if you write a music engine, that means you have to write music.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>thefox</b> [ Sun May 04, 2008 3:14 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />1) Do not use $2002 to check for NMI, see <!-- m --><a class="postlink" href="http://nesdevwiki.org/index.php/NMI">http://nesdevwiki.org/index.php/NMI</a><!-- m -->
+<br />
+<br />2) You might want to save the registers before calling the NSF play routine, and restore them after
+<br />
+<br />3) Still your main problem is probably RAM conflicts
+<br />
+<br /><div class="quotetitle">Disch wrote:</div><div class="quotecontent">On a side note:  I never understood what was so hard about writing a music engine.  It seems to me it's much harder to insert an NSF in your program and get it working without messing up the works than it would be to just write a simple engine yourself.  But then again I'm kind of nutty.</div>
+<br />Yeah writing a simple music engine is easy (I still think it's harder than inserting an existing NSF tho <img src="./images/smilies/icon_wink.gif" alt=";)" title="Wink" />, but no musician is going to write you a kickass tune if he has to do so in a hex editor, so you need to supply good tools for composing too. And finetuning those tools can be a lot of work <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Compton</b> [ Mon May 05, 2008 6:03 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Thank for the help! Yep, it was entirely ram conflicts.
+<br />
+<br />In fact i think it might have been the NSF file accessing the area i was using for memory that caused my original NMI detection (in the main loop) to fail most of the time.
+<br />
+<br />If you guys all say it is that easy to make a sound engine for my demos, then i will look into it for future projects. 
+<br />
+<br />Is there any restricted areas of RAM that an NSF file uses, because from what i was reading it could be anywhere from $0000-$07ff. 
+<br />
+<br />Oh, and thanks for linking me to that NMI detection routine on the wiki. It works a LOT better then the flagging system i was using (it takes less operations to increment the flag in the NMI interrupt routine, then just lda the flag and watch for a change in the main loop.)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Mon May 05, 2008 7:27 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Compton wrote:</div><div class="quotecontent">Is there any restricted areas of RAM that an NSF file uses, because from what i was reading it could be anywhere from $0000-$07ff.</div>
+<br />NSFs can use all of RAM, depending on which sound engine they use. But practical sound engines won't use more than a couple dozen locations in zero page, a dozen bytes of stack, and part of a 256-byte page of RAM.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

@@ -1,0 +1,123 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - New VRAM Buffer transfer routine.</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">New VRAM Buffer transfer routine.</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=9864">http://forums.nesdev.com/viewtopic.php?f=2&amp;t=9864</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Movax12</b> [ Thu Feb 28, 2013 11:23 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>New VRAM Buffer transfer routine.</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I wrote a new VRAM data transfer routine since my old one was using page 1 and I want the stack space for something else. I think this is a good method if you don't mind using up some extra ROM. It is pretty fast, as it has to make a constant six branches per block of data to be copied. Looking for feedback if this is a decent method, or I am missing something that could be improved?<br /><br />Forgive the heavy macro code, but I think it should still be understandable even if you aren't familiar with the macros.<br /><br />Data format: PPUAddressHI, PPUAddressLO, Length (max 32, bits inverted), data, data, .. <br />PPUAddressHI : bit7 set means no more data blocks.<br />PPUAddressHI : bit6 set means column mode.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">.proc PPUtransferFast<br /><br />&nbsp; &nbsp; ; Buffer fixed to VramBuffer1<br />&nbsp; &nbsp; ; can copy about 140 bytes with OAM DMA<br />&nbsp; &nbsp; ; can copy about 185 bytes without OAM DMA<br /><br />&nbsp; &nbsp; locals<br />&nbsp; &nbsp; &nbsp; &nbsp; dataLength&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; .byte<br />&nbsp; &nbsp; endlocals&nbsp; &nbsp;<br />&nbsp; &nbsp; <br />&nbsp; &nbsp; ldy #0&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; y is index into buffer<br />&nbsp; &nbsp; <br />&nbsp; &nbsp; lda VramBuffer1<br />&nbsp; &nbsp; <br />&nbsp; &nbsp; repeat<br />&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; ldx #CT_NMI&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; assume horizontal, leave NMI active<br />&nbsp; &nbsp; &nbsp; &nbsp; ; check for vertical write:<br />&nbsp; &nbsp; &nbsp; &nbsp; if rol a == bit7 set&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; check bit 6 with bit 7<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ldx #(CT_NMI | CT_ADDRINC32)<br />&nbsp; &nbsp; &nbsp; &nbsp; endif<br />&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; stx PPU_CTRL&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; calling code expected to set PPU_CTRL after if needed.<br />&nbsp; &nbsp; &nbsp; &nbsp; ror a ; restore a <br />&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; sta PPU_ADDRESS&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; bit6 ignored here.<br />&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; iny<br />&nbsp; &nbsp; &nbsp; &nbsp; lda VramBuffer1, y&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; PPU address low<br />&nbsp; &nbsp; &nbsp; &nbsp; sta PPU_ADDRESS<br />&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; ; load length byte:<br />&nbsp; &nbsp; &nbsp; &nbsp; ; bits for length are pre-inverted for more optimal code<br />&nbsp; &nbsp; &nbsp; &nbsp; iny<br />&nbsp; &nbsp; &nbsp; &nbsp; lda VramBuffer1,y<br />&nbsp; &nbsp; &nbsp; &nbsp; tax<br />&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; if !a &amp; #32 ; bit 6 (not) set, assume valid value of 32<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; if here, all PPU writes below will be executed<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; tax ; a is zero, so set length to 0 -&gt; bottom 5 bits will be read as set (logic is inverted below)<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; iny<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; mb PPU_DATA := VramBuffer1&#91; y &#93; ; do extra copy for total of 32<br />&nbsp; &nbsp; &nbsp; &nbsp; endif<br />&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; mb local::dataLength := x<br />&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; tya ; count index with a<br />&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; if lsr local::dataLength == carry clear<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; mb x, PPU_DATA := VramBuffer1&#91; y + 1 &#93;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; mb y := a +c #1<br />&nbsp; &nbsp; &nbsp; &nbsp; endif<br />&nbsp; &nbsp; &nbsp; &nbsp; if lsr local::dataLength == carry clear<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; mb x, PPU_DATA := VramBuffer1&#91; y + 1 &#93;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; mb x, PPU_DATA := VramBuffer1&#91; y + 2 &#93;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; mb y := a +c #2<br />&nbsp; &nbsp; &nbsp; &nbsp; endif<br />&nbsp; &nbsp; &nbsp; &nbsp; if lsr local::dataLength == carry clear<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; mb x, PPU_DATA := VramBuffer1&#91; y + 1 &#93;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; mb x, PPU_DATA := VramBuffer1&#91; y + 2 &#93;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; mb x, PPU_DATA := VramBuffer1&#91; y + 3 &#93;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; mb x, PPU_DATA := VramBuffer1&#91; y + 4 &#93;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; mb y := a +c #4<br />&nbsp; &nbsp; &nbsp; &nbsp; endif<br />&nbsp; &nbsp; &nbsp; &nbsp; if lsr local::dataLength == carry clear<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; mb x, PPU_DATA := VramBuffer1&#91; y + 1 &#93;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; mb x, PPU_DATA := VramBuffer1&#91; y + 2 &#93;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; mb x, PPU_DATA := VramBuffer1&#91; y + 3 &#93;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; mb x, PPU_DATA := VramBuffer1&#91; y + 4 &#93;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; mb x, PPU_DATA := VramBuffer1&#91; y + 5 &#93;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; mb x, PPU_DATA := VramBuffer1&#91; y + 6 &#93;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; mb x, PPU_DATA := VramBuffer1&#91; y + 7 &#93;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; mb x, PPU_DATA := VramBuffer1&#91; y + 8 &#93;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; mb y := a +c #8<br />&nbsp; &nbsp; &nbsp; &nbsp; endif<br />&nbsp; &nbsp; &nbsp; &nbsp; if lsr local::dataLength == carry clear<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; mb x, PPU_DATA := VramBuffer1&#91; y +&nbsp; 1 &#93;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; mb x, PPU_DATA := VramBuffer1&#91; y +&nbsp; 2 &#93;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; mb x, PPU_DATA := VramBuffer1&#91; y +&nbsp; 3 &#93;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; mb x, PPU_DATA := VramBuffer1&#91; y +&nbsp; 4 &#93;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; mb x, PPU_DATA := VramBuffer1&#91; y +&nbsp; 5 &#93;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; mb x, PPU_DATA := VramBuffer1&#91; y +&nbsp; 6 &#93;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; mb x, PPU_DATA := VramBuffer1&#91; y +&nbsp; 7 &#93;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; mb x, PPU_DATA := VramBuffer1&#91; y +&nbsp; 8 &#93;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; mb x, PPU_DATA := VramBuffer1&#91; y +&nbsp; 9 &#93;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; mb x, PPU_DATA := VramBuffer1&#91; y + 10 &#93;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; mb x, PPU_DATA := VramBuffer1&#91; y + 11 &#93;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; mb x, PPU_DATA := VramBuffer1&#91; y + 12 &#93;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; mb x, PPU_DATA := VramBuffer1&#91; y + 13 &#93;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; mb x, PPU_DATA := VramBuffer1&#91; y + 14 &#93;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; mb x, PPU_DATA := VramBuffer1&#91; y + 15 &#93;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; mb x, PPU_DATA := VramBuffer1&#91; y + 16 &#93;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; mb y := a +c #16<br />&nbsp; &nbsp; &nbsp; &nbsp; endif<br />&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; iny<br /><br />&nbsp; &nbsp; until lda VramBuffer1&#91; y &#93; == N set<br /><br />&nbsp; &nbsp; ; clear buffer:<br />&nbsp; &nbsp; <br />&nbsp; &nbsp; ldy #0<br />&nbsp; &nbsp; sty M::VramBuffer1Offset<br />&nbsp; &nbsp; lda #$FF&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; first byte is negative, if this buffer used now, nothing happens<br />&nbsp; &nbsp; sta VramBuffer1<br />&nbsp; &nbsp; <br />&nbsp; &nbsp; rts<br />.endproc<br /></div><br /><br />I am trying to figure out if you can have a block of 32 copies and jump into the appropriate spot, but then the constant part of the offset will be wrong. You could read the buffer backwards, but then it has to be written backwards. <img src="./images/smilies/icon_razz.gif" alt=":P" title="Razz" /><br /><br />EDIT: Realized that there is no requirment to negate the data count, I was doing that to avoid having to clear the carry for the add in each if-block: I can just add one less than the current constant.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

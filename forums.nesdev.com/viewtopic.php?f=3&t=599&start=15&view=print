@@ -1,0 +1,451 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Sprite #0</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Sprite #0</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=3&amp;t=599">http://forums.nesdev.com/viewtopic.php?f=3&amp;t=599</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>2</strong> of <strong>2</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>WedNESday</b> [ Tue Oct 04, 2005 2:52 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Ok, I want to implement some form of accurate timing on my emulator. However, I don't want to rewrite my CPU for cycle for cycle timing. Can I do it this way.
+<br />
+<br />Opcode == 0xA9 (LDA Immediate)
+<br />
+<br />Do Operation...
+<br />Clock Cycles = Clock Cycles + 2;
+<br />
+<br />DrawPixel( NumberofPixels ) (NumberofPixels == 2 * 3)
+<br />{
+<br />...
+<br />}
+<br />
+<br />Obviously, this would increase the accuracy of my emulator. But would it be enough for hit detection?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Tue Oct 04, 2005 4:00 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />That would work, though it doesn't match the simplicity and speed of the method described in the thread <a href="http://nesdev.com/bbs/viewtopic.php?t=505" class="postlink">"timing... (attn: disch)"</a>.
+<br />
+<br />The basic idea is very simple: whenever the CPU is just about to do something that might affect PPU rendering, <em>first</em> run the PPU until that time, then carry out the read/write. The only requirement is that the CPU keep track of how many clocks it's executed and make this available when reading and writing I/O memory locations. With this scheme you don't constantly run the PPU every instruction, so it's quite fast.
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">void run_ppu&#40; long ppu_time &#41;<br />&#123;<br />&nbsp; &nbsp; ...<br />&#125;<br /><br />void write_ppu&#40; long ppu_time, int addr, int data &#41;<br />&#123;<br />&nbsp; &nbsp; run_ppu&#40; ppu_time &#41;;<br />&nbsp; &nbsp; switch &#40; addr &amp; 0x2007 &#41;<br />&nbsp; &nbsp; &#123;<br />&nbsp; &nbsp; &nbsp; &nbsp; case 0x2000:<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ...<br />&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; case 0x2005:<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ...<br />&nbsp; &nbsp; &#125;<br />&#125;<br /><br />long cpu_time;<br />long cpu_end; // CPU will run until or just after this time<br /><br />void write_memory&#40; int addr, int data &#41;<br />&#123;<br />&nbsp; &nbsp; if &#40; &#40;addr &amp; 0xe000&#41; == 0x2000 &#41;<br />&nbsp; &nbsp; &nbsp; &nbsp; write_ppu&#40; cpu_time * 3, addr, data &#41;;<br />&nbsp; &nbsp; ...<br />&#125;<br /><br />void stop_cpu&#40;&#41;<br />&#123;<br />&nbsp; &nbsp; cpu_end = 0; // stop CPU execution after current instruction<br />&#125;<br /><br />void run_cpu&#40;&#41;<br />&#123;<br />&nbsp; &nbsp; while &#40; cpu_time &lt; cpu_end &#41;<br />&nbsp; &nbsp; &#123;<br />&nbsp; &nbsp; &nbsp; &nbsp; int opcode = read_memory&#40; pc++ &#41;;<br />&nbsp; &nbsp; &nbsp; &nbsp; cpu_time += timing_table &#91;opcode&#93;;<br />&nbsp; &nbsp; &nbsp; &nbsp; switch &#40; opcode &#41;<br />&nbsp; &nbsp; &nbsp; &nbsp; &#123;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; 0x8D: &#123; // STA abs<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; int addr = read_memory&#40; pc + 1 &#41; * 0x100 +<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; read_memory&#40; pc &#41;;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; pc += 2;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; write_memory&#40; addr, a &#41;;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; break;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &#125;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ...<br />&nbsp; &nbsp; &nbsp; &nbsp; &#125;<br />&nbsp; &nbsp; &#125;<br />&#125;<br /></div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Tue Oct 04, 2005 4:08 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />What you're thinking looks a lot like a pixel-accurate renderer.. although catching up after every instruction would be slow.
+<br />
+<br />One way to go would be to impiment a pixel-by-pixel PPU as I describe in <a href="http://nesdev.com/bbs/viewtopic.php?t=505" class="postlink">this thread</a>... although that would likely require many significant changes.
+<br />
+<br />A good alternative would be to predict the cycle at which sprite 0 hit will occur... and on $2002 reads, see if the CPU is before or after that cycle... if at or after, you would set the sprite0 hit flag without having to do any PPU emulation.
+<br />
+<br />You could predict by rendering the sprite 0 into a temporary buffer... then rendering the BG tiles on top of it to see where they'd first collide (up to 6 BG tiles will need to be drawn -- if sprite 0 is 8x16 it can be over at most 6 tiles).. to see where they'd hit and get the timestamp from that.  However you'd need to re-predict every time the circumstances change (CHR swapped, CHR-RAM written to, Sprite/BG enable/disable change, scroll change, etc, etc.. anything that could affect when sprite 0 will happen).
+<br />
+<br />Rather than re-predict every time those things change (since they change all the freaking time), you could raise a "NeedRepredict" flag when those things change... and re-predict only on $2002 reads if the NeedRepredict flag is set (of course clearing it after you predict).
+<br />
+<br />I was meaning to put something like that in my emu to speed up games which do wait for sprite 0 loops.  You could do something similar to this for the 8-sprite flag, too.
+<br />
+<br />Anyway I hope that makes sense.
+<br />
+<br />
+<br />edit --- oop too slow... blargg beat me to it... and he linked to that thread as well XD
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Tue Oct 04, 2005 4:45 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Disch described exactly what I've been thinking of for my emulator (though he's going at it from an already-correct implementation, while I'm trying to improve accuracy). Currently in my $2002 read function I check to see if the current time is after the earliest sprite 0 could occur. (based on its Y position). If so, I just scan however many lines of sprite 0 have been drawn and report a hit when I find one with any non-transparent pixels (i.e. I never look at the background). This works surprising well for many games (even Battletoads, except for the snake pit and tower). This also passes the sprite hit timing test ROM I posted earlier (since they use a sprite that's just a big block of non-transparent pixels).
+<br />
+<br />I haven't yet come up with a way to handle sprite 0 hit without interacting with sprite rendering. I don't want to write a separate mini-renderer because it would be so similar to main rendering and might have subtle differences. The idea I'm working on involves saving the pixels under sprite 0, then comparing those to the pixels after it's drawn. Cheap, but simpler to implement and it doesn't affect low-level pixel rendering (which is done in chunks one or more scanlines).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Tue Oct 04, 2005 6:16 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Well, I just implemented the scheme I described above and it works well so far. It came out quite simple and I didn't have to duplicate any of the sprite drawing logic (flipping, etc.). I'm going to be improving the sprite hit timing ROM to test with pixels in the four corners, and writing a second test ROM to test many different situations of transparent and non-transparent pixels, other sprites, non-hit under left clip border and right edge, etc. Hopefully I'll post it tomorrow, if I don't run into any problems.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Zepper</b> [ Wed Oct 05, 2005 2:28 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I still need to run a benchmark test in a PentiumIII 800Mhz, but for my machine (Celeron 2.66GHz), my emu runs at 130~140 FPS on 256x240 windowed mode. On 640x480 stretched, it goes up to 85 FPS. I have no clue if this is a good or bad result, but anyways it uses pixel precision emulation. ^_^;;
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>WedNESday</b> [ Wed Oct 05, 2005 2:53 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Ok, I am going to implement my afforementioned method of rendering, i.e. execute a full CPU instruction, followed by rendering 3 pixels etc.
+<br />
+<br />Draw (Instruction Time - 1) * 3 Pixels
+<br />Execute Instruction
+<br />Draw 3 Pixels (Remaining Cycle)
+<br />
+<br />With this method am I guarenteed to have an accurate CPU/PPU/APU relation?
+<br />
+<br />I was wondering which methods other people use in their emulators. Quitest, Fx3, blargg, What do yours use?
+<br />
+<br />Also what is the importance of Loopy's scroll document? I have totally ignored the information contained inside (as I also find it totally incomprehensible), but I have had not scrolling issues in my emulator.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Wed Oct 05, 2005 3:42 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />A pixel is not rendered on every PPU cycle.  There are 341 PPU cycles per scanline... but only the first 256 of those cycles render pixels.  The other cycles do other things.
+<br />
+<br />This method'll work... but as blargg and I have already pointed out, it'll be difficult to get going properly and will be painfully slow (it's basically the same concept as the "catch up" method described in the previously linked thread, only instead of only catching up when needed you're catching up after every instruction).
+<br />
+<br />Quietust, afaik, does things one cycle at a time... as in he runs the CPU for one cycle, then the PPU, then the APU, CPU, PPU, APU, etc... which makes it easier to do things with cycle-perfect accuracy.. however it is DREADFULLY slow, which is why Nintendulator demands a much more powerful computer to run than other emus do.  (Feel free to correct me on this Q, that's just my understanding of how Nintendulator works.. I could very well be wrong).
+<br />
+<br />Some games may rely on $2006 and $2005 interaction for split screen effects, so understanding and applying the info in Loopy's docs might be important.  The docs are pretty hard to understand at first... but it's not really as complex as it may seem.
+<br />
+<br />There's a PPU address (Loopy_V) which the PPU uses to not only handle $2007 read/writes, but also uses for tile fetching when rendering.  There's also a temporary value (Loopy_T) which it uses to refresh Loopy_V with during rendering (like say, to reset the X scroll at the start of a new scanline).
+<br />
+<br />Loopy_V and Loopy_T are both 15 bits... and are referred to as 'v' and 't' in loopy's doc.  'd' in loopy's doc refers to the value being written to the register, and 'x' is the fine X-scroll value.
+<br />
+<br />so in loopy's doc:
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">2000 write:<br />&nbsp; &nbsp; &nbsp; &nbsp; t:0000110000000000=d:00000011<br /></div><br /><br />Means the low 2 bits of the value written to $2000, are written to bits 10 and 11 of Loopy_T (other bits in Loopy_T are unaffected).<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">2005 first write:<br />&nbsp; &nbsp; &nbsp; &nbsp; t:0000000000011111=d:11111000<br />&nbsp; &nbsp; &nbsp; &nbsp; x=d:00000111<br /></div>
+<br />
+<br />means the high 5 bits of the written value get written to the low 5 bits of Loopy_T, and the low 3 bits of the written value set the fine X scroll.
+<br />
+<br />And so on.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Quietust</b> [ Wed Oct 05, 2005 4:23 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Disch wrote:</div><div class="quotecontent">Quietust, afaik, does things one cycle at a time... as in he runs the CPU for one cycle, then the PPU, then the APU, CPU, PPU, APU, etc... which makes it easier to do things with cycle-perfect accuracy.. however it is DREADFULLY slow, which is why Nintendulator demands a much more powerful computer to run than other emus do.  (Feel free to correct me on this Q, that's just my understanding of how Nintendulator works.. I could very well be wrong).</div>
+<br />
+<br />For the most part, you are correct - the only detail is that while my CPU does emulate individual instruction cycles (and emulates the PPU/APU between each one), it is not capable of stopping in the middle of an instruction. The end result is effectively the same, however.
+<br />
+<br />For example, the instruction "STA $4015" would do the following:
+<br />* Read opcode (LDA absolute) and update PPU+APU
+<br />* Read operand low byte ($15) and update PPU+APU
+<br />* Read operand high byte ($40) and update PPU+APU
+<br />* Write value in accumulator to $4015 and update PPU+APU
+<br />
+<br />In my current code, I emulate the PPU+APU <strong>before</strong> the corresponding CPU cycle. The only down side is that this can cause some PPU updates (grayscale, colour emphasis, fine X scroll, palette change) to be up to 3 pixels off, which is negligible.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>WedNESday</b> [ Thu Oct 06, 2005 3:00 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Disch wrote:</div><div class="quotecontent">A pixel is not rendered on every PPU cycle.  There are 341 PPU cycles per scanline... but only the first 256 of those cycles render pixels.  The other cycles do other things.</div>
+<br />
+<br />I know about that. 256 Pixels are rendered and the rest of the CPU time is HBlank (about 28.3 cc's). What do the remaining PPU cycles do then?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>hap</b> [ Thu Oct 06, 2005 4:48 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">What do the remaining PPU cycles do then?</div>
+<br />
+<br />A lot. Did you read Brad Taylor's NTSC 2C02 technical reference ? If you didn't yet, now's the time. It explains what the PPU cycles 'do'.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>WedNESday</b> [ Thu Oct 06, 2005 5:43 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">hap wrote:</div><div class="quotecontent">A lot. Did you read Brad Taylor's NTSC 2C02 technical reference ? If you didn't yet, now's the time. It explains what the PPU cycles 'do'.</div>
+<br />
+<br />Should I use that reference or this one <a href="http://www.nesworld.com/dev/ntscpput.txt" class="postlink">http://www.nesworld.com/dev/ntscpput.txt</a>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Thu Oct 06, 2005 7:53 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />That doc seems to say the exact same thing... just cut down (a lot of other not-as-useful-for-emu-development information removed).  I'd say either reference is fine... nothing in the two should contradict each other... at least not that I saw.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>2</strong> of <strong>2</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

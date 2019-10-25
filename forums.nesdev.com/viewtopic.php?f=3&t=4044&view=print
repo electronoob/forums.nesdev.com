@@ -1,0 +1,191 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - PPU playfield rendering quirk question</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">PPU playfield rendering quirk question</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=3&amp;t=4044">http://forums.nesdev.com/viewtopic.php?f=3&amp;t=4044</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>EvtimDjerekarov</b> [ Sun Apr 13, 2008 7:08 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>PPU playfield rendering quirk question</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Hello,
+<br />
+<br />I am writing a NES emulator, and Brad Taylor's "NTSC 2C02 technical reference" says that at the end of a playfield tile fetch phase for a given tile, its just fetched pattern table bytes #0 and #1 are put into the most significant bytes of two 16-bit shift registers that shift right every PPU clock cycle. 
+<br />
+<br />The 2 bits of pallete select data for this particular tile are loaded in two 8-bit shift registers, also shifted every clock, to implement fine horizontal scrolling with the correct pallete select data.
+<br />
+<br />Depending on fine horizontal scroll value(0...7), bit 0 - 7 is selected in all 4 shift registers. These four bits are used as the pallete index for the current playfield pixel.
+<br />
+<br />The document also states that:
+<br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">the precise delay between when a tile's bitmap fetch phase starts (the whole 4 memory fetches), and when the first pixel of that tile's bitmap data hits the video out pin, the formula is (16-n) clock cycles, where n is the fine horizontal scroll offset (0..7 pixels).</div>
+<br />
+<br />As we know, at scanline cycles 0..255, 32 tile fetches occur, the first one being for the 3-rd tile drawn on the current scanline, and the last two - for the first two tiles of the next scanline.
+<br />
+<br />Each tile fetch consists of 4 fetches(2 clock cycles each):
+<br />1. Fetch Name table byte
+<br />2. Fetch Attribute table byte
+<br />3. Fetch Pattern table bitmap #0
+<br />4. Fetch Pattern table bitmap #1
+<br />
+<br />So each complete tile fetch takes 8 PPU clock cycles.
+<br />
+<br />Now, I will try to illustrate what I believe to be the shift register behaviour:
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">0 - meaningless data<br />1 - data for tile #1<br />2 - data for tile #2<br />3 - data for tile #3<br />4 - data for tile #4<br /><br />the 16-bit value indicates one of the 16-bit PT shift registers<br />the 8-bit value&#40;prefixed tith *&#41;<br />indicates one of the 8 bit AT palette select shift registers.<br /><br />CC&nbsp; &nbsp; &nbsp;MSByte&nbsp; &nbsp;LSByte<br />CC 00 22222222|11111111 &lt;- Fetch phase for tile #3 begins at the beginning of CC 0<br />CC 01 02222222|21111111&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &#40;takes cycles 0..7&#41;<br />CC 02 00222222|22111111<br />CC 03 00022222|22211111<br />CC 04 00002222|22221111<br />CC 05 00000222|22222111<br />CC 06 00000022|22222211<br />CC 07 00000002|22222221<br />CC 08 33333333|22222222 &lt;- Tile #3 fetch phase ends at the end of CC7<br />CC 09 03333333|32222222&nbsp; &nbsp;&#40;the 16-bit register is FIRST shifted, and then<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; *32222222&nbsp; &nbsp; &nbsp;MSB updated with #3 byte&#41;<br />CC 10 00333333|33222222&nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; *33222222&nbsp; &nbsp; <br />CC 11 00033333|33322222<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; *33322222<br />CC 12 00003333|33332222<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; *33332222<br />CC 13 00000333|33333222<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; *33333222<br />CC 14 00000033|33333322<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; *33333322<br />CC 15 00000003|33333332<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; *33333332<br />CC 16 44444444|33333333 &lt;- If fine horizontal scroll is 0, the first<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; *33333333&nbsp; &nbsp; tile #3 pixel will be drawn at CC 16<br />CC 17 04444444|43333333&nbsp; &nbsp; &nbsp;<br />CC 18 00444444|44333333<br /><br /></div>
+<br />
+<br />If that is correct, it would mean that:
+<br />1. Before the PT byte is latched into the MSB of a reg, the reg is first shifted right.
+<br />
+<br />2. After PT is latched into the MSbyte , no further shifts are made during this cycle.
+<br />
+<br />3.  The pallete select data is loaded into the first bit of the 8bit AT shift registers EXACTLY 9 CC's after the corresponding tile fetch starts(if it starts at the beginning of CC0, the first palette value will be shifted into the AT shift register during CC9).
+<br />
+<br />4. the pixel data is fet to the video out pin AFTER all shifts for the current cycle are made
+<br />
+<br />I have one more question. As far as I know, A pattern table byte is drawn like this:
+<br />
+<br />leftmost pixel -&gt;01011001&lt;- rightmost pixel
+<br />
+<br />The screen ray moves from left to right on the screen -&gt;
+<br />
+<br />Now, if we load the PT byte into the leftmost byte of the 16-bit shift register, and shift it right every clock, the first bit to reach the video out pin will be the bit of the rightmost tile pixel, which the TV ray will draw as the leftmost, and will flip the tile horizontally.
+<br />
+<br />So, isn't it really the least significant byte of the shift reg that is loaded with the PT byte, and isn't it shifted left every clock?
+<br />
+<br />Cheers,
+<br />Evtim
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>mattmatteh</b> [ Mon Apr 14, 2008 9:20 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />i dont have my code in front of me so i can not check what i have.  at the moment i am using an exact pixel method which has the shift registers.  its a good way to learn the nes but very slow and generally not needed.  i think i got mine to work by reading brad taylors docs and then trial and error.  also there is more information on the wiki and brad taylors docs have some errors, and some is speculation, it may not be correct
+<br />
+<br />matt
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

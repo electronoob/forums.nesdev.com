@@ -1,0 +1,338 @@
+;--------------------------------------------
+; constants
+;--------------------------------------------
+
+PRG_COUNT = 1 ;1 = 16KB, 2 = 32KB
+MIRRORING = %0001 ;%0000 = horizontal, %0001 = vertical, %1000 = four-screen
+
+;--------------------------------------------
+; variables
+;--------------------------------------------
+
+.enum $0000
+count .dsb 1
+xpos .dsb 1
+ypos .dsb 1
+yadd .dsb 1
+fall_f .dsb 1
+
+.ende
+
+;--------------------------------------------
+; iNES header
+;--------------------------------------------
+
+.db "NES", $1a ;identification of the iNES header
+.db PRG_COUNT ;number of 16KB PRG-ROM pages
+.db $01 ;number of 8KB CHR-ROM pages
+.db $00|MIRRORING ;mapper 0 and mirroring
+.dsb 9, $00 ;clear the remaining bytes
+
+;--------------------------------------------
+; program bank(s)
+;--------------------------------------------
+
+.base $10000-(PRG_COUNT*$4000)
+
+;------------------------------------------- 
+Reset:
+sei			; disable IRQs
+cld			; disable decimal mode
+ldx	#$40
+stx	$4017		; disable APU frame IRQ
+ldx	#$ff		; Set up stack
+txs			;  .
+inx			; now X = 0
+stx	$2000		; disable NMI
+stx	$2001		; disable rendering
+stx	$4010		; disable DMC IRQs
+
+	;; first wait for vblank to make sure PPU is ready
+vblankwait1:
+bit	$2002
+bpl	vblankwait1
+
+clear_memory:
+	lda	#$00
+	sta	$0000, x
+	sta	$0100, x
+	sta	$0300, x
+	sta	$0400, x
+	sta	$0500, x
+	sta	$0600, x
+	sta	$0700, x
+	lda	#$fe
+	sta	$0200, x	; move all sprites off screen
+	inx
+ bne	clear_memory
+
+;; second wait for vblank, PPU is ready after this
+vblankwait2:
+bit	$2002
+bpl	vblankwait2
+;-------------------------------------------
+initloadpal:
+lda $2002
+lda #$3F
+sta $2006
+lda #$00
+sta $2006
+ldx #$00
+
+loadpal:
+lda pal,x
+sta $2007
+inx
+cpx #$20
+bne loadpal
+
+lda #$80
+sta $2000;enable NMI
+lda #$00;disable Sprites and BG
+sta $2001;enable only when BG writes are done
+lda #$00 ;disable scrolling
+sta $2005;disable scrolling
+sta $2005;disable scrolling
+;-------------------------------------------
+ldx #$00
+ldsp:
+lda sprite0,x
+sta $0200,x
+inx
+cpx #$08
+bne ldsp
+
+lda #$2002;reset PPU latch
+lda #$20
+sta $2006
+lda #$00
+sta $2006
+
+ldx #$00
+ldy #$00
+ldbg0:
+lda level0,x
+sta $2007
+inx
+bne ldbg0
+ldbg1:
+lda level1,x
+sta $2007
+inx
+bne ldbg1
+ldbg2:
+lda level2,x
+sta $2007
+inx
+bne ldbg2
+ldbg3:
+lda level3,x
+sta $2007
+inx
+cpx #$C0
+bne ldbg3
+
+ldx #$00
+ldy #$00
+lda #$1E
+sta $2001
+;-------------------------------------------
+;-------------------------------------------
+main:;checks for collision
+lda $0204;vert pos of metasprite
+clc
+adc #$08
+clc
+ror A
+clc
+ror A
+clc
+ror A
+clc
+sta ypos
+lda $0207;hor pos of metasprite
+clc
+ror A
+clc
+ror A
+clc
+ror A
+clc
+sta xpos
+;-------------------------------------------
+ldx #$00
+lda ypos
+clc
+ror A
+clc
+ror A
+clc
+ror A
+clc
+cmp #$00
+beq le0;until #$07 is reached
+cmp #$01
+beq le1;until #$0F is reached
+cmp #$02
+beq le2;until #$17 is reached
+cmp #$03
+beq le3;until #$1F is reached
+;-------------------------------------------
+le0:
+lda ypos
+sta yadd
+jsr add32
+ldx xpos
+lda level0,x
+cmp #$07;emptyness->falls through
+beq fallf
+jmp main
+le1:
+lda ypos
+and #$07
+sta yadd
+jsr add32
+ldx xpos
+lda level1,x
+cmp #$07;emptyness->falls through
+beq fallf
+jmp main
+le2:
+lda ypos
+and #$07
+sta yadd
+jsr add32
+ldx xpos
+lda level2,x
+cmp #$07;emptyness->falls through
+beq fallf
+jmp main
+le3:
+lda ypos
+and #$07
+sta yadd
+jsr add32
+ldx xpos
+lda level3,x
+cmp #$07;emptyness->falls through
+beq fallf
+jmp main
+fallf:
+lda #$01
+sta fall_f
+jmp main
+
+add32:
+ldx #$00
+lda yadd
+cmp #$00
+beq rts_le
+add32_on:
+lda xpos
+clc
+adc #$20
+sta xpos
+inx
+cpx yadd
+bne add32_on
+rts_le:
+rts
+;-------------------------------------------
+
+
+;-------------------------------------------
+;-------------------------------------------
+NMI:
+pha
+txa
+pha
+tya
+pha
+
+inc $0203
+inc $0207
+inc $0203
+inc $0207
+inc count
+lda fall_f
+cmp #$01
+beq fall
+nmi_on:
+jsr anim
+lda #$00
+sta $2003
+lda #$02
+sta $4014
+
+pla
+tay
+pla
+tax
+pla
+rti
+;-------------------------------------------
+IRQ:
+
+;-------------------------------------------
+anim:
+lda count
+cmp #$08
+beq a2
+cmp #$10
+beq a3
+rts
+a1:
+lda #$01
+sta $0205
+rts
+a2:
+lda #$02
+sta $0205
+rts
+a3:
+lda #$03
+sta $0205
+lda #$00
+sta count
+rts
+;-------------------------------------------
+fall:
+inc $0200
+inc $0204
+lda #$00
+sta fall_f
+jmp nmi_on
+;-------------------------------------------
+pal:
+;bg palette data
+HEX 0F 30 10 00
+HEX 0F 02 38 3C
+HEX 0F 1C 15 14
+HEX 22 36 05 14 
+;sprite palette data
+HEX 0F 10 30 00
+HEX 3f 30 10 00
+HEX 0f 00 30 10
+HEX 22 36 05 14
+sprite0:;Sprite in Stand position
+;   ve ti at ho
+HEX 85 00 00 70
+HEX 8D 01 00 70
+
+level:
+.include "level.asm"
+;-------------------------------------------
+; interrupt vectors
+;-------------------------------------------
+
+.org $fffa
+
+.dw NMI
+.dw Reset
+.dw IRQ
+
+;--------------------------------------------
+; CHR-ROM bank
+;--------------------------------------------
+
+.incbin "chr.chr"

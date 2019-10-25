@@ -1,0 +1,460 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - DMA to WRAM on FC Twin</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">DMA to WRAM on FC Twin</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=12&amp;t=5275">http://forums.nesdev.com/viewtopic.php?f=12&amp;t=5275</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>bunnyboy</b> [ Wed Jun 03, 2009 4:41 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>DMA to WRAM on FC Twin</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I have some DMA code that appears to run correctly on a real SNES and the RetroDuo, but not the FC Twin.
+<br />
+<br />I am using channel 1 (0-7) to do graphics updates during vblank.  That part is working fine on all systems.  
+<br />
+<br />I am using channel 0 to do data transfer from ROM to WRAM, not necessarily in vblank.  This is the part that doesn't work on the FC Twin.    Putting WAI before the DMA code doesn't help, and neither does forcing vblank using $2100 before the DMA.  My code seems pretty basic:
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; <br />&nbsp; &#40;16 bit X/Y, 8 bit A&#41;<br />&nbsp; ldx destLo<br />&nbsp; stx $2181<br />&nbsp; lda #$00<br />&nbsp; sta $2183&nbsp; ;;load the WRAM dest address<br />&nbsp; <br />&nbsp; lda #$08<br />&nbsp; sta $4300&nbsp; &nbsp;;;no source increment<br />&nbsp; <br />&nbsp; lda #$80<br />&nbsp; sta $4301&nbsp; &nbsp;;;dest = wram, $2180<br />&nbsp; <br />&nbsp; lda sourcelow<br />&nbsp; sta $4302<br />&nbsp; lda sourcehigh<br />&nbsp; sta $4303<br />&nbsp; lda sourcebank<br />&nbsp; sta $4304<br />&nbsp; <br />&nbsp; ldx sourceBytes16<br />&nbsp; stx $4305&nbsp; &nbsp;;;size in bytes<br /><br />&nbsp; lda #$01<br />&nbsp; sta $420B&nbsp; &nbsp;;Initiate transfer using channel 0</div>
+<br />  
+<br />Any more ideas?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>koitsu</b> [ Wed Jun 03, 2009 8:43 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I'm a little confused by what it is you're trying to do here.  :-)
+<br />
+<br />My first question is: why are you using $2180 and $2181?  WRAM is memory mapped to $0000-1FFF in banks $00-3F and $80-BF, as well as bank $7E (I think).
+<br />
+<br />Next, you're claiming you're copying part of the ROM space to WRAM directly (e.g. A-bus --&gt; B-bus, where A-bus == ROM/CPU and B-bus == $2180), but I see you're setting D3 of $4300 to 1, which stops the A-bus address from incrementing when reading from the source.
+<br />
+<br />This would cause the DMA transfer to essentially copy a single byte of data in ROM to $2180, for a total of sourceBytes16 times.  You also have the code comment "no source increment", which implies that's what you want.
+<br />
+<br />This means your DMA transfer is being used solely to clear WRAM by using a DMA transfer, copying a single byte from sourcebank/sourcehigh/sourcelow into $2180 over and over.  You can accomplish the exact same using a simple loop.
+<br />
+<br />Otherwise, if you're trying to copy a "chunk" of existing memory (ROM or otherwise) into WRAM, you should set D3 of $4300 to 0 and D4 of $4300 to 0, to ensure that the A-bus address is incremented.
+<br />
+<br />Another workaround for copying data using DMA is to use the MVN opcode.  The SFC's DMA gives you a lot more control than MVN, but for copying memory around, MVN can get the job done.  Or just go with a custom loop...  :-)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>bunnyboy</b> [ Wed Jun 03, 2009 9:43 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">koitsu wrote:</div><div class="quotecontent">My first question is: why are you using $2180 and $2181?  WRAM is memory mapped to $0000-1FFF in banks $00-3F and $80-BF, as well as bank $7E (I think).</div><br />Because the DMA dest can only access the $21xx range on the A bus, when the source is the B bus.  But somehow I think you already knew that  <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" /><br /><br /><div class="quotetitle">koitsu wrote:</div><div class="quotecontent">Next, you're claiming you're copying part of the ROM space to WRAM directly (e.g. A-bus --&gt; B-bus, where A-bus == ROM/CPU and B-bus == $2180), but I see you're setting D3 of $4300 to 1, which stops the A-bus address from incrementing when reading from the source.</div>
+<br />Think of it as memory mapped IO, not an actual ROM chip.  I will test it but I doubt the non incrementing source is the problem anyways.
+<br />
+<br />Of course there are other (slower) ways of doing it, but that wasn't the question.  Code like the starter kit uses it to clear WRAM, but that is likely before the PPU is enabled.  I don't want to say it is just clone incompatibility since the SNES clones seem to be very good.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Thu Jun 04, 2009 3:02 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I'm pretty sure anomie's doc mentionned trying to DMA to WRAM by $2180 won't work (so I don't even understand why can $2180 be usefull, why won't you adress WRAM directly ?). I could be wrong tough. Check anomie's docs on DMA.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Thu Jun 04, 2009 3:57 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">koitsu wrote:</div><div class="quotecontent">Another workaround for copying data using DMA is to use the MVN opcode.  The SFC's DMA gives you a lot more control than MVN, but for copying memory around, MVN can get the job done.  Or just go with a custom loop...  <img src="./images/smilies/icon_smile.gif" alt=":-)" title="Smile" /></div>
+<br />But isn't that slow? From my Apple IIGS days, I seem to remember MVN taking 7 cycles per byte and requiring self-modifying code to set the source and destination banks. <a href="http://www.pineight.com/gba/managing-sprite-vram.txt" class="postlink">On the GBA at least</a>, the fastest memcpy() from ROM to WRAM is DMA; the LDMIA/STMIA loop comes in a close second and has better IRQ latency.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>bunnyboy</b> [ Thu Jun 04, 2009 6:03 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Bregalad wrote:</div><div class="quotecontent">I'm pretty sure anomie's doc mentionned trying to DMA to WRAM by $2180 won't work</div>
+<br />Anomie's docs say you can't DMA <strong>between</strong> WRAM and $2180, because the WRAM can't respond to both buses at once.  Between ROM and $2180 is no problem, and works on the real SNES.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Thu Jun 04, 2009 8:56 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Oh thanks for correcting me.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>koitsu</b> [ Thu Jun 04, 2009 12:20 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tepples wrote:</div><div class="quotecontent"><div class="quotetitle">koitsu wrote:</div><div class="quotecontent">Another workaround for copying data using DMA is to use the MVN opcode.  The SFC's DMA gives you a lot more control than MVN, but for copying memory around, MVN can get the job done.  Or just go with a custom loop...  :-)</div><br />But isn't that slow? From my Apple IIGS days, I seem to remember MVN taking 7 cycles per byte and requiring self-modifying code to set the source and destination banks. <a href="http://www.pineight.com/gba/managing-sprite-vram.txt" class="postlink">On the GBA at least</a>, the fastest memcpy() from ROM to WRAM is DMA; the LDMIA/STMIA loop comes in a close second and has better IRQ latency.</div>
+<br />
+<br />You remember correctly -- MVN/MVP are indeed slow.  My point was to offer an alternative if needed.  Plus, given that I wasn't sure what bunnyboy was trying to do (re: is this code intended to just init WRAM, or is it actually wanting to copy ROM contents into WRAM?), it's a legitimate alternative to said problem.  That said, it's almost always faster to do things in an actual loop vs. using MVN/MVP, but again, depends on what the code was trying to do.
+<br />
+<br />I'll read the rest of the thread after I've slept.  :)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>bunnyboy</b> [ Thu Jun 04, 2009 4:30 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Slight bit of additional info: it looks like the DMA is happening but the bytes are shifted to the left, like the first byte was skipped.  Next to check if its actually copying the right amount, or the address is wrong, etc...
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>bunnyboy</b> [ Fri Jun 05, 2009 10:31 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />F YOU FC Twin!
+<br />
+<br />Turns out there is frequently a sysclk glitch at the beginning of DMA.  This is no problem when reading from ROM, because the value doesn't change.  When reading from IO the glitch triggers and extra read, shifting everything over.  Now to figure out how to detect that clone and switch to a fixed loop...
+<br />
+<br /><img src="http://www.retrousb.com/images/snesdma.jpg" alt="Image" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Fri Jun 05, 2009 11:10 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Hmmm... What could cause a glitch? Did the SPC700 fetch a sample at that exact moment? <img src="./images/smilies/icon_wink.gif" alt=";-)" title="Wink" />
+<br />
+<br />You could try to do an I/O from a known data source and if it screws up, it's a clone.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>bunnyboy</b> [ Fri Jun 05, 2009 2:56 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tepples wrote:</div><div class="quotecontent">Hmmm... What could cause a glitch? Did the SPC700 fetch a sample at that exact moment? <img src="./images/smilies/icon_wink.gif" alt=";-)" title="Wink" /><br /><br />You could try to do an I/O from a known data source and if it screws up, it's a clone.</div>
+<br />
+<br />Don't have any audio running so I hope its not the same DPCM bug  <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" />
+<br />
+<br />Can't just check for alignment wrong because it doesn't happen every time.  Would have to do something like run it 10-20x and see if any fail.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>koitsu</b> [ Fri Jun 05, 2009 7:12 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />You're not doing any HDMA transfers anywhere in your program are you?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>bunnyboy</b> [ Fri Jun 05, 2009 8:44 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Nope no HDMA, IRQs also off, turning NMI off or making it happen before the DMA doesn't make a diff either.  I can test doing the DMA before any of the screen is turned on but I am skeptical that will make a difference.  Wonder if its something with the clock alignment.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>koitsu</b> [ Sat Jun 06, 2009 10:44 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">bunnyboy wrote:</div><div class="quotecontent">Nope no HDMA, IRQs also off, turning NMI off or making it happen before the DMA doesn't make a diff either.  I can test doing the DMA before any of the screen is turned on but I am skeptical that will make a difference.  Wonder if its something with the clock alignment.</div>
+<br />
+<br />The reason I ask about HDMA is that there's a documented bug in the SFC (and possibly the Twin, or maybe they have to emulate it!) which happens where an HDMA transfer starts shortly before a DMA transfer finishes.  I can outline the bug if people need details, but it sounds unrelated to this problem.
+<br />
+<br />I guess you've found a nice quirk in the FC Twin... :)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

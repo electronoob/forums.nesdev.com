@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="https://forums.nesdev.com/feed.php?f=2&amp;t=14319" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="https://forums.nesdev.com/index.php" />
+<updated>2019-01-05T21:38:37-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>https://forums.nesdev.com/feed.php?f=2&amp;t=14319</id>
+<entry>
+<author><name><![CDATA[Fiskbit]]></name></author>
+<updated>2019-01-05T21:38:37-07:00</updated>
+<published>2019-01-05T21:38:37-07:00</published>
+<id>https://forums.nesdev.com/viewtopic.php?t=14319&amp;p=231604#p231604</id>
+<link href="https://forums.nesdev.com/viewtopic.php?t=14319&amp;p=231604#p231604"/>
+<title type="html"><![CDATA[Re: Glitch-free controller reads with DMC?]]></title>
+
+<content type="html" xml:base="https://forums.nesdev.com/viewtopic.php?t=14319&amp;p=231604#p231604"><![CDATA[
+By testing this on real hardware via Everdrive, I believe I've been able to confirm this write behavior, and also discovered that the only emulator that seems to be getting this totally correct right now is Nintendulator 0.980. Testing this is a bit tricky because it seems that you can have timing alignments where the DMA avoids landing on certain cycles of the loop, which can cause it to miss an odd write cycle (manifesting as tests showing black when they should show white), but I found that by adding variable delay into the loop, it seems to land on the target cycle reliably. I'd appreciate another set of eyes on this to make sure it all makes sense, but I'm fairly confident in the results because my test ROMs show different behavior despite the only meaningful difference being the timing of the ROL write cycles (all other timing, code positioning, and register values remain the same).<br /><br />I've attached two modified versions of dma_sync_test_v2. Both of these change the loop to no longer include the OAM DMA, so code has to stay synced indefinitely for the controller port reads to work reliably. They also add a variably delay to try to mix up where DMC DMA lands within the function. The difference between these versions is in the second ROL instruction, which ends on an odd cycle in badrol and an even cycle in goodrol. badrol is expected to exhibit bit deletion (screen turns white) because DMA landing on the odd ROL write cycle (cycle 5/5) will be delayed by 1 to an even cycle and thus take only 3 cycles, changing the parity so that future joypad bits can be lost. goodrol is expected to never encounter bit deletion (screen stays black unless right is manually pressed) because DMA landing on the odd ROL write cycle (cycle 5/6) will be delayed by 2 to an odd cycle, where it takes 4 cycles as usual.<br /><br />Both tests are verified to give the expected result on real hardware and Nintendulator 0.980, and but not on Mesen 0.9.7.37 (goodrol turns white), puNES 0.100 (goodrol turns white), Nestopia UE 1.49 (goodrol turns white), and Nintaco 2018.12.31 (goodrol turns white on some resets). Other emulators I'm aware of don't emulate the bit deletion at all and will show black on both ROMs. There hasn't been much progress in a couple years on emulator support for this, so I'm really hoping to get the ball rolling so hacks and homebrews can use synced reads and still work properly in emulators.<p>Statistics: Posted by <a href="https://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=8835">Fiskbit</a> — Sat Jan 05, 2019 9:38 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Fiskbit]]></name></author>
+<updated>2019-01-05T04:50:26-07:00</updated>
+<published>2019-01-05T04:50:26-07:00</published>
+<id>https://forums.nesdev.com/viewtopic.php?t=14319&amp;p=231503#p231503</id>
+<link href="https://forums.nesdev.com/viewtopic.php?t=14319&amp;p=231503#p231503"/>
+<title type="html"><![CDATA[Re: Glitch-free controller reads with DMC?]]></title>
+
+<content type="html" xml:base="https://forums.nesdev.com/viewtopic.php?t=14319&amp;p=231503#p231503"><![CDATA[
+I tried to write a test that involved watching for corruption while doing repeated synced joypad reads, with the goal of identifying whether the emulator supported this method of reading. Surprisingly, despite being synced, I was encountering corruption when testing on Mesen.<br /><br />What I learned was that if your synced region is long enough that two or more DMAs can occur during it (about 430 CPU cycles at minimum, I believe), then you need to ensure that all consecutive write cycles in the routine end on an even cycle; otherwise, DMA landing on that write will take 3 cycles instead of 4. For example, when using ROL on memory, the second write cycle must be even so that DMA that tries to occur on either one is forced onto the following odd cycle, where it will take 4 cycles. Without this, the cycle parity changes, allowing future reads of controller registers to occur on odd cycles where they're subject to bit deletion.<br /><br />In addition to repeatedly reading the joypad, this seems likely relevant for handling Four Score because of how much time is required to read everything even once.<br /><br /><br />While I'm reviving this old thread, I'd like to note here on the topic of OAM DMA on PAL that testing done in <a href="http://forums.nesdev.com/viewtopic.php?f=3&amp;t=15763" class="postlink">this thread</a> indicates that if your OAM DMA fits within NTSC vblank, it should also be fine on PAL, so it does not appear that different behavior needs to be taken depending on the region; ending vblank with OAM DMA and joypad read should work either way.<p>Statistics: Posted by <a href="https://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=8835">Fiskbit</a> — Sat Jan 05, 2019 4:50 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Sour]]></name></author>
+<updated>2017-01-06T22:33:20-07:00</updated>
+<published>2017-01-06T22:33:20-07:00</published>
+<id>https://forums.nesdev.com/viewtopic.php?t=14319&amp;p=186155#p186155</id>
+<link href="https://forums.nesdev.com/viewtopic.php?t=14319&amp;p=186155#p186155"/>
+<title type="html"><![CDATA[Re: Glitch-free controller reads with DMC?]]></title>
+
+<content type="html" xml:base="https://forums.nesdev.com/viewtopic.php?t=14319&amp;p=186155#p186155"><![CDATA[
+<div class="quotetitle">tepples wrote:</div><div class="quotecontent"><br /><a href="http://forums.nesdev.com/viewtopic.php?p=186078#p186078" class="postlink">Mail from the wiki is broken right now</a>. Try <em>not</em> providing an email address when signing up. Because mail is broken, you'll need to autoconfirm (2 talk edits and 4 days) or wait for me or another administrator to wake back up and confirm your account.<br /></div>Yup, that worked.  If someone could confirm the account (same username as here) that'd be nice - no hurry though, I'm not planning on editing this right away :p<p>Statistics: Posted by <a href="https://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=7406">Sour</a> — Fri Jan 06, 2017 10:33 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2017-01-06T22:27:29-07:00</updated>
+<published>2017-01-06T22:27:29-07:00</published>
+<id>https://forums.nesdev.com/viewtopic.php?t=14319&amp;p=186154#p186154</id>
+<link href="https://forums.nesdev.com/viewtopic.php?t=14319&amp;p=186154#p186154"/>
+<title type="html"><![CDATA[Re: Glitch-free controller reads with DMC?]]></title>
+
+<content type="html" xml:base="https://forums.nesdev.com/viewtopic.php?t=14319&amp;p=186154#p186154"><![CDATA[
+<a href="http://forums.nesdev.com/viewtopic.php?p=186078#p186078" class="postlink">Mail from the wiki is broken right now</a>. Try <em>not</em> providing an email address when signing up. Because mail is broken, you'll need to autoconfirm (2 talk edits and 4 days) or wait for me or another administrator to wake back up and confirm your account.<p>Statistics: Posted by <a href="https://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Fri Jan 06, 2017 10:27 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Sour]]></name></author>
+<updated>2017-01-06T22:25:34-07:00</updated>
+<published>2017-01-06T22:25:34-07:00</published>
+<id>https://forums.nesdev.com/viewtopic.php?t=14319&amp;p=186153#p186153</id>
+<link href="https://forums.nesdev.com/viewtopic.php?t=14319&amp;p=186153#p186153"/>
+<title type="html"><![CDATA[Re: Glitch-free controller reads with DMC?]]></title>
+
+<content type="html" xml:base="https://forums.nesdev.com/viewtopic.php?t=14319&amp;p=186153#p186153"><![CDATA[
+<div class="quotetitle">tepples wrote:</div><div class="quotecontent"><br />If there are others you know about, feel free to <a href="https://wiki.nesdev.com/w/index.php?title=Special:UserLogin&amp;type=signup" class="postlink">join</a> and add them to <a href="https://wiki.nesdev.com/w/index.php/Emulator_tests" class="postlink">Emulator tests</a>.<br /></div>I just tried to create a wiki account and get a 500 error with both FF &amp; Chrome.<br /><br /><div class="quotetitle">Rahsennor wrote:</div><div class="quotecontent"><br />Grab the old version from page 1 and see if the odd test fails instantly.<br /></div>Yup, the odd test gives me a white screen instantly.  Always nice to pass new tests without having to waste a whole day trying to figure out what's wrong :)<p>Statistics: Posted by <a href="https://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=7406">Sour</a> — Fri Jan 06, 2017 10:25 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Rahsennor]]></name></author>
+<updated>2017-01-06T21:14:57-07:00</updated>
+<published>2017-01-06T21:14:57-07:00</published>
+<id>https://forums.nesdev.com/viewtopic.php?t=14319&amp;p=186149#p186149</id>
+<link href="https://forums.nesdev.com/viewtopic.php?t=14319&amp;p=186149#p186149"/>
+<title type="html"><![CDATA[Re: Glitch-free controller reads with DMC?]]></title>
+
+<content type="html" xml:base="https://forums.nesdev.com/viewtopic.php?t=14319&amp;p=186149#p186149"><![CDATA[
+<div class="quotetitle">Sour wrote:</div><div class="quotecontent"><br />Never noticed this test existed until now (saw a link in another thread).  Mesen keeps a black screen the whole time and goes white if I press right - so I guess it passes? I do have the DMC glitch emulated. Just wanted to double-check before I add it to the list of tests it passes.<br /></div><br />Grab the old version from page 1 and see if the odd test fails instantly. If it doesn't, you either have no DMC glitches or your controller reports aren't padded with 1s.<br /><br />If it does, congrats, Mesen is the first emulator to pass. <img src="https://forums.nesdev.com/images/smilies/icon_biggrin.gif" alt=":D" title="Very Happy" /><p>Statistics: Posted by <a href="https://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=7168">Rahsennor</a> — Fri Jan 06, 2017 9:14 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2017-01-06T20:46:32-07:00</updated>
+<published>2017-01-06T20:46:32-07:00</published>
+<id>https://forums.nesdev.com/viewtopic.php?t=14319&amp;p=186146#p186146</id>
+<link href="https://forums.nesdev.com/viewtopic.php?t=14319&amp;p=186146#p186146"/>
+<title type="html"><![CDATA[Re: Glitch-free controller reads with DMC?]]></title>
+
+<content type="html" xml:base="https://forums.nesdev.com/viewtopic.php?t=14319&amp;p=186146#p186146"><![CDATA[
+<div class="quotetitle">Sour wrote:</div><div class="quotecontent"><br />wouldn't it be helpful if the wiki had a page containing all known test roms? [...] There is a test rom page already, but it is outdated and missing literally hundreds of them.<br /></div><br />If there are others you know about, feel free to <a href="https://wiki.nesdev.com/w/index.php?title=Special:UserLogin&amp;type=signup" class="postlink">join</a> and add them to <a href="https://wiki.nesdev.com/w/index.php/Emulator_tests" class="postlink">Emulator tests</a>.<p>Statistics: Posted by <a href="https://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Fri Jan 06, 2017 8:46 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Sour]]></name></author>
+<updated>2017-01-06T20:28:21-07:00</updated>
+<published>2017-01-06T20:28:21-07:00</published>
+<id>https://forums.nesdev.com/viewtopic.php?t=14319&amp;p=186144#p186144</id>
+<link href="https://forums.nesdev.com/viewtopic.php?t=14319&amp;p=186144#p186144"/>
+<title type="html"><![CDATA[Re: Glitch-free controller reads with DMC?]]></title>
+
+<content type="html" xml:base="https://forums.nesdev.com/viewtopic.php?t=14319&amp;p=186144#p186144"><![CDATA[
+<div class="quotetitle">Rahsennor wrote:</div><div class="quotecontent"><br />The expected output is that the screen should remain black until right is pressed on either controller. If it fails, it should do so almost instantly, producing a white screen.<br /></div>Never noticed this test existed until now (saw a link in another thread).  Mesen keeps a black screen the whole time and goes white if I press right - so I guess it passes? I do have the DMC glitch emulated. Just wanted to double-check before I add it to the list of tests it passes.<br /><br />Offtopic:<br />Being an emulator author I might be biased, but wouldn't it be helpful if the wiki had a page containing all known test roms? I have a collection of ~300ish of them, but I keep finding test roms posted here and there in both new and old forum threads (and sometimes the download links are not even working anymore).  There is a test rom page already, but it is outdated and missing literally hundreds of them.<p>Statistics: Posted by <a href="https://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=7406">Sour</a> — Fri Jan 06, 2017 8:28 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2016-10-17T20:43:22-07:00</updated>
+<published>2016-10-17T20:43:22-07:00</published>
+<id>https://forums.nesdev.com/viewtopic.php?t=14319&amp;p=180965#p180965</id>
+<link href="https://forums.nesdev.com/viewtopic.php?t=14319&amp;p=180965#p180965"/>
+<title type="html"><![CDATA[Re: Glitch-free controller reads with DMC?]]></title>
+
+<content type="html" xml:base="https://forums.nesdev.com/viewtopic.php?t=14319&amp;p=180965#p180965"><![CDATA[
+To be safe, I'd just spend the 4 cycles (2 before, 2 after) on testing bit 0.<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">lda tvSystem<br />lsr a<br />bcc wherever</div><p>Statistics: Posted by <a href="https://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Mon Oct 17, 2016 8:43 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[JRoatch]]></name></author>
+<updated>2016-10-17T20:21:47-07:00</updated>
+<published>2016-10-17T20:21:47-07:00</published>
+<id>https://forums.nesdev.com/viewtopic.php?t=14319&amp;p=180964#p180964</id>
+<link href="https://forums.nesdev.com/viewtopic.php?t=14319&amp;p=180964#p180964"/>
+<title type="html"><![CDATA[Re: Glitch-free controller reads with DMC?]]></title>
+
+<content type="html" xml:base="https://forums.nesdev.com/viewtopic.php?t=14319&amp;p=180964#p180964"><![CDATA[
+<div class="quotetitle">tepples wrote:</div><div class="quotecontent"><br />OAM DMA should be done first in PAL because OAM is not writable in lines 261-310.<br /><br />Recommended pseudocode:<br />If PAL NES then OAM DMA<br />Update palettes, nametables, and CHR RAM as needed<br />If NTSC or Dendy then OAM DMA<br />Read controller<br /></div><br />Is Dendy afflicted by the DMC/controller conflict? If not, then treating Dendy like PAL in this case would make the conditionals a simple pair of <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">lda</tt> with <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">beq</tt>/<tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">bne</tt> (In the usual setup of NTSC = 0, PAL = 1, and Dendy = 2).<p>Statistics: Posted by <a href="https://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6385">JRoatch</a> — Mon Oct 17, 2016 8:21 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2016-06-08T18:37:31-07:00</updated>
+<published>2016-06-08T18:37:31-07:00</published>
+<id>https://forums.nesdev.com/viewtopic.php?t=14319&amp;p=173113#p173113</id>
+<link href="https://forums.nesdev.com/viewtopic.php?t=14319&amp;p=173113#p173113"/>
+<title type="html"><![CDATA[Re: Glitch-free controller reads with DMC?]]></title>
+
+<content type="html" xml:base="https://forums.nesdev.com/viewtopic.php?t=14319&amp;p=173113#p173113"><![CDATA[
+If you want to detect failure through controller reads, you'll have to autodetect the type of controller in port 1. It could be an authentic NES controller, a Super NES controller with its 16-bit report (especially if played on an FC Twin or if the player also owns a Super NES Mouse-compatible game), the left half of a Four Score with its 24-bit report, or an unlicensed NES controller that returns 0 bits after the 8-bit report instead of 1 bits. It might be easier to test whether $2007 readback skips a byte, though I imagine a broken emulator might implement double reads for $2007 but not $4016 or vice versa.<p>Statistics: Posted by <a href="https://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Wed Jun 08, 2016 6:37 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[lidnariq]]></name></author>
+<updated>2016-06-08T18:24:07-07:00</updated>
+<published>2016-06-08T18:24:07-07:00</published>
+<id>https://forums.nesdev.com/viewtopic.php?t=14319&amp;p=173111#p173111</id>
+<link href="https://forums.nesdev.com/viewtopic.php?t=14319&amp;p=173111#p173111"/>
+<title type="html"><![CDATA[Re: Glitch-free controller reads with DMC?]]></title>
+
+<content type="html" xml:base="https://forums.nesdev.com/viewtopic.php?t=14319&amp;p=173111#p173111"><![CDATA[
+<div class="quotetitle">Myask wrote:</div><div class="quotecontent"><br />unless you have player cooperation or one of the (uncommon) cases where there's a signature afterward, you can't guarantee detection of a bit deletion.<br /></div>Bit deletions work on reads from $2007, too ... it's just more than a single byte per glitch there.<p>Statistics: Posted by <a href="https://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3512">lidnariq</a> — Wed Jun 08, 2016 6:24 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[rainwarrior]]></name></author>
+<updated>2016-06-08T18:57:16-07:00</updated>
+<published>2016-06-08T17:54:21-07:00</published>
+<id>https://forums.nesdev.com/viewtopic.php?t=14319&amp;p=173108#p173108</id>
+<link href="https://forums.nesdev.com/viewtopic.php?t=14319&amp;p=173108#p173108"/>
+<title type="html"><![CDATA[Re: Glitch-free controller reads with DMC?]]></title>
+
+<content type="html" xml:base="https://forums.nesdev.com/viewtopic.php?t=14319&amp;p=173108#p173108"><![CDATA[
+<div class="quotetitle">Myask wrote:</div><div class="quotecontent"><br />But the problem is, unless you have player cooperation or one of the (uncommon) cases where there's a signature afterward, you can't guarantee detection of a bit deletion.<br /></div><br />You can make two quick reads in succession, one uncorrupted, one intentionally corrupted, and just test if they're equal.<br /><br />A true fail is going to fail this test every time you do it. A human playing on hardware accidentally making a press in the middle of this process probably isn't going to be able to do it two frames in a row. Pretty easy to weed out the false positives just by requiring several failed frames in succession. You don't need to be able to fail all the time, you can just wait until they need to press RIGHT or something and catch it then.<br /><br />Not that I'd recommend it, anyway, just I don't think this in particular is the problem.<p>Statistics: Posted by <a href="https://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=5165">rainwarrior</a> — Wed Jun 08, 2016 5:54 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Myask]]></name></author>
+<updated>2016-06-08T17:59:08-07:00</updated>
+<published>2016-06-08T17:38:36-07:00</published>
+<id>https://forums.nesdev.com/viewtopic.php?t=14319&amp;p=173107#p173107</id>
+<link href="https://forums.nesdev.com/viewtopic.php?t=14319&amp;p=173107#p173107"/>
+<title type="html"><![CDATA[Re: Glitch-free controller reads with DMC?]]></title>
+
+<content type="html" xml:base="https://forums.nesdev.com/viewtopic.php?t=14319&amp;p=173107#p173107"><![CDATA[
+<div class="quotetitle">lidnariq wrote:</div><div class="quotecontent"><br />&quot;clearly&quot; the correct thing to do is explicitly elicit a DPCM bit deletion and refuse to run in emulators that <em>don't</em> implement it.<br /></div><br /><span style="font-size: 75%; line-height: normal">Sarcasm noted</span> But the problem is, unless you have player cooperation or one of the (uncommon) cases where there's a signature afterward, you can't guarantee detection of a bit deletion.<p>Statistics: Posted by <a href="https://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=6603">Myask</a> — Wed Jun 08, 2016 5:38 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[lidnariq]]></name></author>
+<updated>2016-06-08T12:08:20-07:00</updated>
+<published>2016-06-08T12:08:20-07:00</published>
+<id>https://forums.nesdev.com/viewtopic.php?t=14319&amp;p=173082#p173082</id>
+<link href="https://forums.nesdev.com/viewtopic.php?t=14319&amp;p=173082#p173082"/>
+<title type="html"><![CDATA[Re: Glitch-free controller reads with DMC?]]></title>
+
+<content type="html" xml:base="https://forums.nesdev.com/viewtopic.php?t=14319&amp;p=173082#p173082"><![CDATA[
+&quot;clearly&quot; the correct thing to do is explicitly elicit a DPCM bit deletion and refuse to run in emulators that <em>don't</em> implement it.<p>Statistics: Posted by <a href="https://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3512">lidnariq</a> — Wed Jun 08, 2016 12:08 pm</p><hr />
+]]></content>
+</entry>
+</feed>

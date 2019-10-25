@@ -1,0 +1,123 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - ASM6 and trouble with nametables...</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">ASM6 and trouble with nametables...</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=10&amp;t=11402">http://forums.nesdev.com/viewtopic.php?f=10&amp;t=11402</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>3</strong> of <strong>3</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Kasumi</b> [ Tue Jul 08, 2014 7:14 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: ASM6 and trouble with nametables...</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I feel I misled you a bit by saying don't write to $2005 outside the NMI. Granted that's fairly true (because it may affect a &quot;random&quot; portion of scanlines instead of the entire screen unless you know what you're doing), but that doesn't also mean writes to $2006/$2007 can only go in the NMI. As long as rendering is disabled, those are safe to write to at anytime. And there's no other way to draw an entire screen at once without disabling rendering anyway.<br /><br />For during gameplay updates when rendering is enabled, yes, $2006/$2007 writes should only go in the NMI.<br /><br />Just to get an idea about this without hopefully getting too advanced, each instruction takes a little bit of time. <a href="http://www.obelisk.demon.co.uk/6502/reference.html" class="postlink">You can look up how many cycles each instruction will take here by clicking it and looking at cycles.</a> There are approximately 2270 cycles before rendering begins after an NMI fires. Remember that writing to $2006/$2007 during rendering can make some bad things happen.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp;PHA;3 Cycles, 3 total<br />&nbsp; &nbsp;TXA;2 Cycles, 5 total<br />&nbsp; &nbsp;PHA;3 Cycles, 8 total<br />&nbsp; &nbsp;TYA;2 Cycles, 10 total<br />&nbsp; &nbsp;PHA;3 Cycles, 13 total<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ;; set oal dma (?) - look into this<br />&nbsp; &nbsp;LDA #$00;2 Cycles, 15 total<br />&nbsp; &nbsp;STA $2003;4 Cycles, 19 total<br />&nbsp; &nbsp;LDA #$02;2 Cycles, 21 total<br />&nbsp; &nbsp;STA $4014;4 cycles, 25 total<br />;At this point something NES specific happens. The write to $4014 triggers a thing that halts the CPU while it updates the PPU's OAM. This takes around 513 cycles.<br />;513 cycles, 538 total<br /></div><br />Now there are 1024 bytes in a single nametable. If you wanted to write them all with the same value without even using a loop (the fastest way possible), it'd look like this:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">lda #$00;2 cycles, 540 total<br />sta $2007;4 cycles 544 total<br />sta $2007 4 cycles 548 total<br />;insert 1022 more sta instructions here.<br /></div><br /><br />1022*4 = 4088 cycles. 4636 total. Way beyond the window, which means it would crash. Even if rendering were disabled beforehand (which would add to the cycle count slightly), writing to the scroll after this would not affect the entire screen. And this is for writing just one value, because loading different ones for each tile would add two cycles to every store. This is without a loop because the branches and inx/iny instructions that control the loop would also add to this time. <br /><br />(Absolutely use a loop like you have, because this fast method takes up a stupid amount of space in ROM. It's just to show that even the not-practical fastest way possible is not fast enough to get it done in the time window, and why)<br /><br />This time before rendering is the only real &quot;gotcha&quot; for NES background updates, but it is much easier to understand than work around. To do things like scrolling you have to prepare the bytes to update outside the NMI, so that the only thing the NMI needs to do is write those bytes to $2007. If it was also figuring out which bytes should go there, this logic would take up the valuable 2270 cycles and the game might crash. If you never update the background during gameplay, you can do all your nametables updates outside your NMI with rendering disabled in between levels.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>3</strong> of <strong>3</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

@@ -1,0 +1,252 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - MMC1, banking, ca65/ld65 woes</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">MMC1, banking, ca65/ld65 woes</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=10&amp;t=3525">http://forums.nesdev.com/viewtopic.php?f=10&amp;t=3525</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>avalon</b> [ Fri Aug 10, 2007 10:25 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>MMC1, banking, ca65/ld65 woes</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I have written a program which might need more than 16KB of data at times, and I have "decided" that for clarity's sake (?) I'm going to use MMC1 and swap the lower bank, upper bank being static and containing the code. Thus, the memory setup I'd like to have is something like this:
+<br />
+<br />(data/bank 1)(data/bank 2) ... (code/bank n)
+<br />
+<br />Now, I'm not sure how to relay that information to ca65/ld65. The memory (mis-)configuration I currently have is:
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">MEMORY &#123;<br />&nbsp; &nbsp;ROM1:&nbsp; &nbsp; &nbsp; &nbsp;start = $8000, size = $8000;<br />&nbsp; &nbsp;ROM2:&nbsp; &nbsp; &nbsp; &nbsp;start = $c000, size = $8000;<br />&#125;<br /><br />SEGMENTS &#123;<br />&nbsp; &nbsp;DATA:&nbsp; &nbsp;&nbsp; &nbsp;load = ROM1, type = ro;<br />&nbsp; &nbsp;CODE:&nbsp; &nbsp;&nbsp; &nbsp;load = ROM2, type = ro;<br />&nbsp; &nbsp;VECTORS:&nbsp; &nbsp;load = ROM2, type = ro, start = $FFFA;<br />&#125;<br /></div><br /><br />I took a look at another memory configuration from an open-source project (Tetramino), which seems to have "fluff" like ZPA area declaration - does ca65/ld65 really (have to) care? Do I need to specify the ROM segments "type = rw" to be able to manipulate the mapper? The start address of the RAM area is $0300.. shouldn't that be $0200? Confusing. <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" /><br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">MEMORY &#123;<br />&nbsp; ZP:&nbsp; &nbsp; &nbsp;start = $10, size = $f0, type = rw;<br />&nbsp; # use first $10 zeropage locations as locals<br />&nbsp; HEADER: start = $7f00, size = $0010, type = ro, file = %O;<br />&nbsp; RAM:&nbsp; &nbsp; start = $0300, size = $0500, type = rw;<br />&nbsp; ROM:&nbsp; &nbsp; start = $C000, size = $8000, type = ro, file = %O;<br />&#125;<br /><br />SEGMENTS &#123;<br />&nbsp; INESHDR:&nbsp; load = HEADER, type = ro, align = $10;<br />&nbsp; ZEROPAGE: load = ZP, type = zp;<br />&nbsp; DATA:&nbsp; &nbsp; &nbsp;load = ROM, run = RAM, type = rw, define = yes, align = $100;<br />&nbsp; BSS:&nbsp; &nbsp; &nbsp; load = RAM, type = bss, define = yes, align = $100;<br />&nbsp; CODE:&nbsp; &nbsp; &nbsp;load = ROM, type = ro, align = $100;<br />&nbsp; RODATA:&nbsp; &nbsp;load = ROM, type = ro, align = $100;<br />&nbsp; DMC:&nbsp; &nbsp; &nbsp; load = ROM, type = ro, align = $40;<br />&nbsp; VECTORS:&nbsp; load = ROM, type = ro, start = $FFFA;<br />&#125;<br /><br />FILES &#123;<br />&nbsp; %O: format = bin;<br />&#125;<br /></div><br /><br />So, my question boils down to this - how can I introduce the additional data banks to my code &amp; ca65/ld65? Code additions probably amount to something like:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">.segment &quot;DATABNK1&quot;<br />.incbin &quot;foo1.bin&quot;<br />.segment &quot;DATABNK2&quot;<br />.incbin &quot;foo2.bin&quot;<br /></div>
+<br />
+<br />But.. yeah. I initially wrote the program using NESASM, tried to figure out the banking there to no avail, checked here for help and found out that it blows and this is the way to go, converted the program and here I am again. <img src="./images/smilies/icon_wink.gif" alt=";)" title="Wink" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Fri Aug 10, 2007 1:49 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: MMC1, banking, ca65/ld65 woes</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">avalon wrote:</div><div class="quotecontent">I have written a program which might need more than 16KB of data at times, and I have "decided" that for clarity's sake (?) I'm going to use MMC1 and swap the lower bank, upper bank being static and containing the code[...]<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">MEMORY &#123;<br />&nbsp; &nbsp;ROM1:&nbsp; &nbsp; &nbsp; &nbsp;start = $8000, size = $8000;<br />&nbsp; &nbsp;ROM2:&nbsp; &nbsp; &nbsp; &nbsp;start = $c000, size = $8000;<br />&#125;</div><br />MMC1 banks in this configuration are size $4000, not size $8000.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">I took a look at another memory configuration from an open-source project (Tetramino), which seems to have "fluff" like ZPA area declaration - does ca65/ld65 really (have to) care? Do I need to specify the ROM segments "type = rw" to be able to manipulate the mapper? The start address of the RAM area is $0300.. shouldn't that be $0200? Confusing. <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" /></div></div>
+<br />My link script reserves $0200-$02FF for the OAM transfer buffer.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>avalon</b> [ Sat Aug 11, 2007 3:08 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: MMC1, banking, ca65/ld65 woes</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tepples wrote:</div><div class="quotecontent">MMC1 banks in this configuration are size $4000, not size $8000.</div><br /><br />Indeed, left-overs from experimenting with stuff.<br /><br /><div class="quotetitle">tepples wrote:</div><div class="quotecontent">My link script reserves $0200-$02FF for the OAM transfer buffer.</div>
+<br />
+<br />Speak of the devil.. <img src="./images/smilies/icon_biggrin.gif" alt=":D" title="Very Happy" /> Ok.. is it about not declaring areas/segments you don't want ld65 to touch? You also have the ZP memory area and the ZEROPAGE segment, but the segment doesn't seem to be referenced in the code. Is it necessary to tell ld65 that $0000 - $00ff is for ZPA (for initialization or something?), or is it enough that I know what it is for and how to use it?
+<br />
+<br />Questions, questions, questions. <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Sat Aug 11, 2007 5:38 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: MMC1, banking, ca65/ld65 woes</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">avalon wrote:</div><div class="quotecontent">Speak of the devil.. <img src="./images/smilies/icon_biggrin.gif" alt=":D" title="Very Happy" /> Ok.. is it about not declaring areas/segments you don't want ld65 to touch?</div><br />Yes.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">You also have the ZP memory area and the ZEROPAGE segment, but the segment doesn't seem to be referenced in the code.</div><br />That's because Tetramino was originally written for x816 but ported to cc65, so I went only halfway with making use of what my link script allowed me. See <a href="http://nesdev.com/bbs/viewtopic.php?t=3393" class="postlink">tvpassfail</a> for a more complete example.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Is it necessary to tell ld65 that $0000 - $00ff is for ZPA (for initialization or something?)</div>
+<br />No. You need to declare a section if you'll be putting something there.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>avalon</b> [ Sat Aug 11, 2007 10:02 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Thanks for the info, I got it working although I possibly cheated by not playing around with ld65 and just building the image on the fly. 
+<br />
+<br />My memory configuration is now simply:
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">MEMORY &#123;<br />&nbsp; &nbsp;ROM1:&nbsp; &nbsp; &nbsp; &nbsp;start = $8000, size = $4000, type = ro;<br />&nbsp; &nbsp;ROM2:&nbsp; &nbsp; &nbsp; &nbsp;start = $c000, size = $4000, type = ro;<br />&#125;<br /><br />SEGMENTS &#123;<br />&nbsp; &nbsp;DATA:&nbsp; &nbsp;&nbsp; &nbsp;load = ROM1, type = ro;<br />&nbsp; &nbsp;CODE:&nbsp; &nbsp;&nbsp; &nbsp;load = ROM2, type = ro;<br />&nbsp; &nbsp;VECTORS:&nbsp; &nbsp;load = ROM2, type = ro, start = $fffa;<br />&#125;<br /></div>
+<br />
+<br />I have declared 5 PRG banks and 0 CHR banks in the header. Then, I just compile and link the program and:
+<br />
+<br />copy /b header.bin + dummy.bin + dummy.bin + dummy.bin + dummy.bin + myprog.prg
+<br />
+<br />..dummy.bin containing 16KB of junk just to fill it up. There's a problem related to mapper usage (with FCE Ultra only?), though. 
+<br />
+<br /><div class="quotetitle">MMC1 documentation wrote:</div><div class="quotecontent">When the cart is first started, the <strong>first 16K ROM bank in the cart is loaded into $8000, and the LAST 16K bank into $C000</strong>.<br /></div>
+<br />
+<br />Following addresses are offsets in the image.
+<br />
+<br />iNES hdr = $00000 (5 banks of PRG-ROM, 0 CHR-ROM)
+<br />1st bank = $00010 (dummy data)
+<br />2nd bank = $04010 (dummy data)
+<br />3rd bank = $08010 (dummy data)
+<br />4th bank = $0c010 (dummy data)
+<br />5th bank = $10010 (program)
+<br />
+<br />Everything seems to be OK in there as far as I can tell, but FCE Ultra w/debugger fails to load the last bank into $c000, although it loads the first one into $8000. No$nes seems to have no trouble whatsoever, and the program at least looks like it's working when run in the debugger..
+<br />
+<br />edit:
+<br />
+<br />Looks like 5 banks confused the other emulators - it works in FCEU, Nintendulator and friends with 4 banks.
+<br />
+<br />edit:
+<br />
+<br />MMC1 is annoying, switched to UNROM. <img src="./images/smilies/icon_razz.gif" alt=":P" title="Razz" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

@@ -1,0 +1,516 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Handy collision detection</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Handy collision detection</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=7522">http://forums.nesdev.com/viewtopic.php?f=2&amp;t=7522</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Drag</b> [ Sun Feb 27, 2011 1:47 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Handy collision detection</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />A while back, I was throwing around ideas to make my collision detection routines more efficient, especially on the NES, where every cycle counts. I came up with a pretty cool idea that I've never heard before, but I wouldn't be surprised if someone else came up with and implemented this before I did. It just means it's an extra good idea if more than one person came up with it all on their own. <img src="./images/smilies/icon_razz.gif" alt=":P" title="Razz" />
+<br />
+<br />So first and foremost, I'm doing bounding-box collision detection between all of my actors, and I'm iterating through all possible combinations of actors all at once.
+<br />
+<br />If I have actors A, B, C, and D, then I would check AB, AC, AD, BC, BD, CD. It's worthless to check things like AA, BB, etc, and it's redundant to check BA, DB, etc.
+<br />
+<br />Let's say that in my game, there's a player actor, several collectable/powerup actors, and a few enemy actors. Let's also say that enemies don't care about powerups, and enemies don't care about each other (they don't bump into each other).
+<br />
+<br />So maybe in one level, I'll have the player, 10 keys, and 3 enemies. For the player actor, the logical thing would be to check its bounding box with the bounding boxes of each of those 10 keys, and those 3 enemies to see if it's colliding with any of them. No problem!
+<br />
+<br />However, why would I need to check each individual key for collisions against the other keys, and against the enemies, if I've established that they don't do anything when they collide? I'd be performing coordinate transformation calculations for a lot of actors that it doesn't even matter for.
+<br />
+<br />To solve this problem, my system is to assign each type of actor to a team, and have each actor specifiy which teams they collide with. Let's say I have a Player 1 actor, a Key actor, a Health actor, and several different types of enemies.
+<br />
+<br />Each actor has two bytes, which are bitmasks, which determine the team(s) they belong to (the team byte), and which team(s) they collide with (the mask byte). I'll put Player 1 on team 00000001, Key and Health can both go onto team 00000010, and all of the different kinds of enemies can go into team 00000100.
+<br />
+<br />Players need to collide with the collectables and the enemies, so I'll want it to look for collisions with both teams 00000010 and 00000100, so I'll give the player actors a mask byte of 00000110.
+<br />
+<br />Collectables also need to collide with players, since players can collide with collectables, but the collectables don't need to collide with each other, nor the enemies, so I'll give the collectables a mask byte of 00000001. It's important to set both teams up to collide with each other (players collide with collectables and collectables collide with players), otherwise you'll have problems depending on which order you check the actors in.
+<br />
+<br />Enemies also need to collide with players, since players can collide with enemies. They don't need to collide with the collectables, and they don't need to collide with each other, so they get a mask byte of 00000001. Later, if I *do* want the enemies to collide with each other (maybe so they turn around when they bump into each other), I can change their mask byte to 00000101. That way, they'll check for collisions with the players, and members of their own team.
+<br />
+<br />So in summary:
+<br />Player1 -&gt; Team 001, Mask 110
+<br />Key -&gt; Team 010, Mask 001
+<br />Health -&gt; Team 010, Mask 001
+<br />EnemyA -&gt; Team 100, Mask 001
+<br />EnemyB -&gt; Team 100, Mask 001
+<br />EnemyC -&gt; Team 100, Mask 001
+<br />
+<br />So now we're in the level, and the collision routine needs to check each actor combination for collisions. Let's say Actor 1 is a Player1, Actors 2-10 are Keys and Health, Actors 11-14 are various EnemyAs, EnemyBs, and EnemyCs.
+<br />
+<br />The routine first checks (1,2). Actor 1 is a Player1 with a mask 110. Actor 2 is some collectable on team 010.
+<br />
+<br />Mask 110 &amp; Team 010 = nonzero, so this is a valid combination of actors, let's compare 1's collision box with 2's, see if they collide, run the appropriate code if necessary, etc.
+<br />
+<br />Let's say we've done that, and now we check (1,3). Same thing happens, Actor 1 is still Player1 with the same mask 110, Actor 3 is another collectable on team 010. 110 &amp; 010 is nonzero, check these actors for a collision. (There's actually an optimization opportunity here, load actor 1's collision box, transform it, etc, and then just keep that stuff in memory while you compare it with all of the other actors, Until it's time to check Actor 2 against everyone, in which case you forget Actor 1's box, transform Actor 2's box, keep it in memory, etc)
+<br />
+<br />So fast forward a bit, now we're checking (2,3). Actor 2 is a collectable with mask 001. Actor 3 is another collectable on team 010.
+<br />
+<br />Mask 001 &amp; Team 010 = zero, which means we don't even need to bother computing anything else, these two types of actors don't care about colliding with each other.
+<br />
+<br />(2,4) now, same thing, collectable vs. collectable, Mask 001 &amp; Team 010 = zero, so skip and go to the next combination.
+<br />
+<br />So keep going and going until everyone's been checked. The end result is that we've saved ourselves from a lot of worthless computations trying to compare certain combinations of actors who don't care about colliding with each other. Again, on modern hardware, who really cares? However, on a system like the NES, every cycle you save is important.
+<br />
+<br />Now, it's time to touch on something. Remember how it was important to say <em>both</em> that players collide with collectables, <em>and</em> that collectables collide with players?
+<br />
+<br />In the example above, I checked (Player1, Key); Player1's Mask is 110, and Key's Team is 010. 110 &amp; 010 = nonzero.
+<br />
+<br />What if we were checking (Key, Player1)? Maybe in some other situation, Actor 1 was a key, and Actor 2 was a Player1. In this new case, Key's Mask is 001, and Player1's Team is 001. 001 &amp; 001 = nonzero, so the same collision would happen, which is what we want.
+<br />
+<br />If we go back to the enemies, let's say I want them to check each other for collisions, so they can turn around if they bump into each other. I said that I needed to change the masks for the enemies from 001 to 101 to do this.
+<br />
+<br />With this new definition, let's check two random Enemy actors, (EnemyA, EnemyC). EnemyA has a Mask of 101, EnemyC is on Team 100. 101 &amp; 100 = nonzero. So now, everyone on the enemy team will check for collisions with other actors on the enemy team.
+<br />
+<br />This is the method I came up with, and so far, it's worked pretty nicely, and I am at sound mind knowing my code isn't doing stuff it doesn't need to be doing. <img src="./images/smilies/icon_razz.gif" alt=":P" title="Razz" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Dwedit</b> [ Sun Feb 27, 2011 2:41 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I had seen the Collision by Object Group stuff before when I used to use Games Factory, it let you assign objects to group types.  But I would just make separate lists instead, so you just iterate through them, instead of using bitmasks.  So you'd have a list of which objects are collectables, which are enemies, etc.
+<br />
+<br />Another way to speed up collision detection is to sort the objects by X, and sort the objects by Y, then you can do in-range checks for X quickly, and in-range checks for Y quickly.  Never actually tried this, but it sounds cool.  Of course, this has the cost of sorting the objects.  (when sorting the objects, you actually sort pointers/array index numbers, not move around the objects in memory)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Sun Feb 27, 2011 7:52 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Sounds awfully complicated to me... In my game, I don't have a "master" collision routine that checks for all possible collisions, I have each object check just for the collisions that are relevant to them in their AI routines. If an object doesn't collide with anything, just don't call any collision routines in its AI, which wastes 0 CPU cycles.
+<br />
+<br />This is great for my game, where most objects are not aware of each other and only collide with the player and the level map, but if I had to check for other types of collisions I would just create the different groups using liked lists. I'd have a list of projectiles, a list of items, and so on. So if I wanted my projectiles to only hit enemies, in the projectile AI I'd call a "CheckForEnemyCollisions" function, which would scan the list of enemies looking for a hit with the projectile that called the function. There would be no need for bitmasks or things like that, since all projectiles are already checking all the enemies, there's no need for the enemies to check the projectiles, so there will be no repeated checks.
+<br />
+<br />After having rewritten my main game engine more times than I can count, I have come to the conclusion that it is much easier to write simpler functions that each object can call as necessary than to write huge "master" managers that reign over all of the game world at all times. First because of the reduced complexity, because performing a task for a single object is easier than managing them all at once, and second because of CPU use, since complex managers will always steal some CPU time even if it's just to come to the conclusion that they don't have to do anything, but when the responsibility of executing object-related tasks is delegated to the objects themselves, they only do what's absolutely necessary, and don't waste a lot of time just checking what needs to be done.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tomaitheous</b> [ Sun Feb 27, 2011 8:19 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Interesting idea. All the collision detection routines I've done are divided into separate functions. Allows me to optimize for cycles easier that way. But I guess it's really game dependent.
+<br />
+<br /> The way I look at it, you have player objects, player projectiles (set shared for all players), collectible items, enemies, enemy projectiles.
+<br />
+<br /> Compare player(s) against all enemies. Then compare player(s) against all enemy project tiles. Compare player(s) against all collectible items. Compare player projectiles against enemies. 
+<br />
+<br />
+<br /> Then any additional detection routines for objects to BG map collision if needed.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Celius</b> [ Tue Mar 01, 2011 6:10 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tokumaru wrote:</div><div class="quotecontent">This is great for my game, where most objects are not aware of each other and only collide with the player and the level map, but if I had to check for other types of collisions I would just create the different groups using liked lists. I'd have a list of projectiles, a list of items, and so on. So if I wanted my projectiles to only hit enemies, in the projectile AI I'd call a "CheckForEnemyCollisions" function, which would scan the list of enemies looking for a hit with the projectile that called the function. There would be no need for bitmasks or things like that, since all projectiles are already checking all the enemies, there's no need for the enemies to check the projectiles, so there will be no repeated checks.<br /></div><br /><br />I guess I'm not understanding the advantage of having projectiles check enemies. In my game, the same thing doesn't always happen when an enemy collides with a projectile, and having to figure out what happens for a certain enemy within the projectile code seems really complex and inefficient. For example, a fireball enemy may not even need to detect for collision with bullets. Having bullets check for this collision wastes cycles. Also, a fire-based enemy may respond differently to ice-based weapons than an ice-based enemy. Enemies handle these collisions themselves. If an enemy detects collision with a projectile, it also decide to self-destruct if it runs out of health. Could you elaborate a little on why checking enemies is more efficient? Perhaps it also depends on the project.<br /><br />I basically have it doing this: Enemies/items check with player and player bullets. Enemy and item AI responds more uniquely to collision with the player or player weapons than the player does on a collision. This may seem backwards or partially true. Item AI checks for collision with the player, and then alternates player variables directly rather than having the player handler handle any of the logic upon colliding with items. Enemies respond more uniquely to collision with player weapons than the player does to enemy collisions. Enemies always just damage players, and weapons have unique effects on enemies. So I think the entity that responds uniquely needs to be the one checking for collision, most of the time.<br /><br /><div class="quotetitle">Dwedit wrote:</div><div class="quotecontent">Another way to speed up collision detection is to sort the objects by X, and sort the objects by Y, then you can do in-range checks for X quickly, and in-range checks for Y quickly.  Never actually tried this, but it sounds cool.  Of course, this has the cost of sorting the objects.  (when sorting the objects, you actually sort pointers/array index numbers, not move around the objects in memory)</div>
+<br />
+<br />I really wanted to be able to do this in my game, but when I wrote a sorting method, even the simplest method for about 8 values can take 1 to 2 thousand cycles. You may as well just forget wasting space with the sorting method and go with checking for collision straight-up. I can't even remember how long my collision detection routine is; I think its 1-2 hundred cycles.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Tue Mar 01, 2011 10:52 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Celius wrote:</div><div class="quotecontent">I guess I'm not understanding the advantage of having projectiles check enemies. In my game, the same thing doesn't always happen when an enemy collides with a projectile, and having to figure out what happens for a certain enemy within the projectile code seems really complex and inefficient.</div><br />You could of course do the other way around and have enemies check for projectiles instead, it doesn't really matter. But then, if you have different types of projectiles, you might still have to do some checking to select the appropriate response. I think the only way to avoid such checks would be to build very specific lists, like fire projectiles, ice projectiles, etc., so that an ice enemy could simply ignore all ice projectiles. But checking for the type of projectile doesn't sound so bad to me.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Enemies respond more uniquely to collision with player weapons than the player does to enemy collisions. Enemies always just damage players, and weapons have unique effects on enemies. So I think the entity that responds uniquely needs to be the one checking for collision, most of the time.</div><br />Yeah, this is OK. Which objects check which depends on the design of the game, but the technique of using lists for the different types of objects can remain the same.<br /><br /><div class="quotetitle">Dwedit wrote:</div><div class="quotecontent">Another way to speed up collision detection is to sort the objects by X, and sort the objects by Y, then you can do in-range checks for X quickly, and in-range checks for Y quickly.</div>
+<br />I don't know if there's any real advantage in doing that... it might even make things slower, I think. To sort the objects you have to check their X and Y coordinates, just like you do in the bounding box collision check, with the difference that the collision check stops as soon as a collision is found to be impossible. Not only that, but there's still the overhead of manipulating the pointers to the objects in the sorted list(s).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Drag</b> [ Tue Mar 01, 2011 11:31 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tokumaru wrote:</div><div class="quotecontent">Sounds awfully complicated to me...</div><br />That may be my fault, I'm not the best at explaining things in a simple way. All this method does is take two actors, AND two of their bytes together, and use that to determine whether or not they need to be checked for a collision with each other. It does this with every pair of unique actors.<br /><br /><br /><div class="quotetitle">tokumaru wrote:</div><div class="quotecontent">In my game, I don't have a "master" collision routine that checks for all possible collisions [...] </div><br />I did it that way because I wanted to have all of the collisions happen simultaneously, and in one centralized location. Different strokes for different folks. <img src="./images/smilies/icon_razz.gif" alt=":P" title="Razz" /><br /><br />Both of our methods are still doing (basically) the same thing. The only difference is that you're using linked lists, and I'm using actor properties. Either way, we're still grouping things together and checking other groups. <img src="./images/smilies/icon_razz.gif" alt=":P" title="Razz" /><br /><br /><div class="quotetitle">tokumaru wrote:</div><div class="quotecontent">After having rewritten my main game engine more times than I can count, I have come to the conclusion that it is much easier to write simpler functions that each object can call as necessary than to write huge "master" managers that reign over all of the game world at all times.</div><br />haha, you make it sound like it's this big horrible thing. <img src="./images/smilies/icon_razz.gif" alt=":P" title="Razz" /> The manager is isolated from the AI routines, so that if I ever needed to completely redo it, I'd only have to replace one section of code, and I wouldn't need to alter any AI code to compensate for the new routine. In fact, I could completely delete that section of the code, and the AI wouldn't even know the difference. <img src="./images/smilies/icon_razz.gif" alt=":P" title="Razz" /><br /><br />This is just how I structured my code. By all means, you should definitely stick with your own ways of doing things if it's more comfortable to you. I'm only posting about my ways in case it may be helpful to someone. I know <em>I</em> would've loved a post like this a few months ago. <img src="./images/smilies/icon_wink.gif" alt=";)" title="Wink" /><br /><br /><div class="quotetitle">tokumaru wrote:</div><div class="quotecontent">First because of the reduced complexity, because performing a task for a single object is easier than managing them all at once, and second because of CPU use, since complex managers will always steal some CPU time even if it's just to come to the conclusion that they don't have to do anything, but when the responsibility of executing object-related tasks is delegated to the objects themselves, they only do what's absolutely necessary, and don't waste a lot of time just checking what needs to be done.</div><br /><br />Yes, simplicity is better than complexity, but my method isn't doing anything complicated here:<br />Iterating through all unique pairs of actors (without redundancy) is trivial:<br />A B C D E<br />Check A against B, C, D, E<br />Check B against C, D, E<br />Check C against D, E<br />Check D against E<br /><br />Each actor is compared with every other actor exactly once. The actual comparison is even simpler:<br />Take a byte from A, AND it with a byte from B. <br />From this result, we'll either compare their hit-boxes, or we'll jump straight to the next pair.<br /><br />This doesn't take any more or less time to perform than iterating through linked lists repeatedly, it's just simply a different way to do things. <img src="./images/smilies/icon_razz.gif" alt=":P" title="Razz" /><br /><br /><div class="quotetitle">Dwedit wrote:</div><div class="quotecontent">Another way to speed up collision detection is to sort the objects by X, and sort the objects by Y, then you can do in-range checks for X quickly, and in-range checks for Y quickly.  Never actually tried this, but it sounds cool.  Of course, this has the cost of sorting the objects.  (when sorting the objects, you actually sort pointers/array index numbers, not move around the objects in memory)</div>
+<br />
+<br />I thought of that too, actually, but I eventually came to the conclusion that it would take too much effort to do the sorting, and I wouldn't really be that much better off. <img src="./images/smilies/icon_razz.gif" alt=":P" title="Razz" /> It's not a bad idea though, but I think that's more of a modern method to do things, which unfortunately doesn't translate well to archaic hardware like the NES.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Wed Mar 02, 2011 6:52 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />To explain Drag's ancient vs. modern concept further: If you have enough objects to need sort-by-X or sort-by-Y collision, then you probably have too many objects for one screen or for one scanline. For example, the NES (without a really complicated coprocessor) is <a href="http://wiki.nesdev.com/w/index.php/Limitations#Bullet_hell_shooter" class="postlink">not the appropriate platform for a bullet hell shooter</a>, where you really have to use sorting to prune the set of rectangles to test.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tomaitheous</b> [ Wed Mar 02, 2011 10:55 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Another way to speed up collision detection is to sort the objects by X, and sort the objects by Y, then you can do in-range checks for X quickly, and in-range checks for Y quickly. Never actually tried this, but it sounds cool. Of course, this has the cost of sorting the objects. (when sorting the objects, you actually sort pointers/array index numbers, not move around the objects in memory)</div>
+<br />
+<br /> If you're talking about a two pass system, then you won't gain any additional speed for doing that on a simple rectangle/square collision box (anything other than square/rectangle, I could see doing that). Actually, I can't see it doing anything but increasing over all cpu resource needed. 
+<br />
+<br /> You can prioritize which should be the first check, X or Y. Depending on the game design one might occur more often than the other.
+<br />
+<br /> My current routines directly checks to see if the object is outside the bounds of another box, not inside. If box1 X position is too far left of box2 or is too far right of box 2 then skip rest of Y checking, else boxes overlay on X position - now check the same way Y. I assume this is pretty much the standard way of doing it, right?
+<br />
+<br /> Box A (Xa1,Ya1)(Xa2,Ya2) and box B (Xb1,Yb1)(Xb2,Yb2). Xn1,Yn1 is the upper left hand coords of the box and Xn2,Yn2 the lower right.
+<br />
+<br /> <div class="codetitle"><b>Code:</b></div><div class="codecontent">lda Xa2,y<br />cmp Xb1,x<br />bcc .no_collision<br />lda Xb2,x&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;;reverse the compare order since there's no &quot;greater than' only flag. <br />cmp Xa1,y<br />bcc .no_collision<br />&nbsp;;else X is a match, check Y</div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Wed Mar 02, 2011 8:18 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Drag wrote:</div><div class="quotecontent">Either way, we're still grouping things together and checking other groups. <img src="./images/smilies/icon_razz.gif" alt=":P" title="Razz" /></div><br />Yeah, the basic difference is when and where in the code those checks happen, but final effect is pretty much the same.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">This is just how I structured my code. By all means, you should definitely stick with your own ways of doing things if it's more comfortable to you.</div><br />Sure, the same to you. I know how difficult it can be to find solutions for problems like these, and when we finally do we grow very fond of our conclusions.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">I'm only posting about my ways in case it may be helpful to someone.</div><br />Yeah, same here. Maybe your method sounded more complicated than it actually is, so I kinda felt the need to present an alternative solution, even if only to let people know that there are various possible ways to solve this issue.<br /><br /><div class="quotetitle">tokumaru wrote:</div><div class="quotecontent">Iterating through all unique pairs of actors (without redundancy) is trivial:<br />A B C D E<br />Check A against B, C, D, E<br />Check B against C, D, E<br />Check C against D, E<br />Check D against E</div><br />Sure, you found a simple way to make sure the collision checks aren't redundant, but you still waste some CPU time ANDing the masks of objects that will never collide. It might not seem like much with just 5 objects, but it might add up to something significant when there are, say, 20 active objects. Let's see what happens with 10 objects:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">A B C D E F G H I J<br /><br />check A against B C D E F G H I J<br />check B against C D E F G H I J<br />check C against D E F G H I J<br />check D against E F G H I J<br />check E against F G H I J<br />check F against G H I J<br />check G against H I J<br />check H against I J<br />check I against J</div><br />That's 45 checks you have to do just to figure out what collisions to check for. I'll assume your loop looks something like this:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp;ldy #FIRST_OBJECT ;2 cycles<br />OuterLoop:<br />&nbsp; &nbsp;tya ;2 cycles<br />&nbsp; &nbsp;tax ;2 cycles<br />&nbsp; &nbsp;inx ;2 cycles<br />InnerLoop:<br />&nbsp; &nbsp;lda CollisionMask, y ;4 cycles<br />&nbsp; &nbsp;cmp CollisionMask, x ;4 cycles<br />&nbsp; &nbsp;beq SkipCollision ;3 cycles<br />&nbsp; &nbsp;;;;COLLISION CHECK GOES HERE;;;<br />SkipCollision:<br />&nbsp; &nbsp;inx ;2 cycles<br />&nbsp; &nbsp;cpx #LAST_OBJECT+1 ;2 cycles<br />&nbsp; &nbsp;bne InnerLoop ;3 cycles<br />&nbsp; &nbsp;iny ;2 cycles<br />&nbsp; &nbsp;cpy #LAST_OBJECT ;2 cycles<br />&nbsp; &nbsp;bne OuterLoop ;2 cycles</div><br />If this is really the case, just the inner loop, repeating 45 times, will use nearly 8 scanlines. Considering the rest of the code, that doesn't run 45 times, it goes a little past 8 scanlines.<br /><br />Now say that 4 of these objects are enemies and 6 are projectiles. This means you'll need 24 collision checks:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">enemy A against projectiles E F G H I J<br />enemy B against projectiles E F G H I J<br />enemy C against projectiles E F G H I J<br />enemy D against projectiles E F G H I J</div><br />The collision checks will obviously take more time, but that doesn't matter because the same number of collision checks would be performed either way. The point is that while with collision masks you'd need to spend 8 scanlines just figuring out who can collide with who, with the linked lists you can skip straight to the collision checks.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Take a byte from A, AND it with a byte from B.</div><br />This might not be so versatile if 8 bits aren't enough for all the group combinations you want to make.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">This doesn't take any more or less time to perform than iterating through linked lists repeatedly</div>
+<br />I think there is a difference... it might be negligible to you, but it is there. A liked list tells you right away which objects you need to collide with, there is no need to waste CPU time figuring out whether one type of object should collide with another... if an objected requested collision checks against the objects in a linked list, you just know that ALL the objects in the list represent possible collisions.
+<br />
+<br />I'm not saying your solution sucks, it's probably perfect for your game, or you wouldn't be using it. But I did notice some possible problems with your method, so I thought I should bring them up. Maybe they are not really problems for you, but I still wanted to show another way to handle collisions, and I'm trying to explain the difference. I hope you don't take this as an attack to you or as a claim of superiority from my part, I just want to get what I think is a good solution out there, so other people can hopefully use our methods as inspiration for making their own, rather than copying one or the other directly.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Drag</b> [ Wed Mar 02, 2011 11:22 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Don't worry, I didn't take any offense to anything. <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" /> Part of this thread <em>was</em> to get critiques, after all. <img src="./images/smilies/icon_razz.gif" alt=":P" title="Razz" /> Plus, it's always a good thing to present multiple ways to solve the same problem. Programming would be very boring if we all had to do it one way! <img src="./images/smilies/icon_razz.gif" alt=":P" title="Razz" />
+<br />
+<br />Yeah, you do have a good point; you perform less checks if you group the actors together with those lists, but a shortcoming with that is the fact that you're storing several lists, one list for each group. If you have a lot of objects and/or groups, that could potentially use up a lot of memory, even if it's just lists of pointers. If your linked lists are very dynamic (for example, projectiles being added and removed frequently), then you may end up with a heap of memory with lots of holes, and every time you want to add an object to a list, you'd need to scan through the whole heap to locate a free spot.
+<br />
+<br />The only advantage my method would have over this is the fact that the memory is more static; the only actor related stuff in the memory are the actors themselves. Each actor has one byte (defined by the actor type, with that table in ROM) which can assign up to 8 teams simultaneously (and a byte to 'watch' 8 teams simultaneously), where the linked list method would require duplicate list entries (in ram) to achieve the same thing.
+<br />
+<br />If you have the memory to spare though, the efficiency of the checks may be worth the expense of extensive memory management, because arguably, the checks would be occuring a lot more frequently than the addition/removal of objects.
+<br />
+<br />So I guess it comes down to CPU vs Memory usage. <img src="./images/smilies/icon_razz.gif" alt=":P" title="Razz" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Wave</b> [ Thu Mar 03, 2011 2:25 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Drag wrote:</div><div class="quotecontent"><strong>So I guess it comes down to CPU vs Memory usage. </strong>:P</div>
+<br />It's almost ALWAYS a CPU vs Mem issue <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Thu Mar 03, 2011 10:02 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Drag wrote:</div><div class="quotecontent">If you have a lot of objects and/or groups, that could potentially use up a lot of memory, even if it's just lists of pointers.</div><br />I admit that there might be some memory overhead depending on how you implement the lists, but my implementation just requires one byte to point to the first element and one byte per object (it's in a constant place in the object's memory) to indicate the next element in the list.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">If your linked lists are very dynamic (for example, projectiles being added and removed frequently), then you may end up with a heap of memory with lots of holes, and every time you want to add an object to a list, you'd need to scan through the whole heap to locate a free spot.</div><br />You can use the same solution again, and have a linked list of empty slots, so there will be no need to scan. When you need a free slot, just grab the first one and make the second one the new first, and when you free a slot you can do the opposite. Memory use will just increase by 1 byte, the one used to indicate the first free slot, because objects can't be in both lists, so you can still get away with only one byte per object indicating the next one.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Each actor has one byte (defined by the actor type, with that table in ROM) which can assign up to 8 teams simultaneously (and a byte to 'watch' 8 teams simultaneously), where the linked list method would require duplicate list entries (in ram) to achieve the same thing.</div>
+<br />Not really, as explained above. If your collision masks are stored in ROM (if they were in RAM, the memory use would be practically the same as the linked lists way), that inner loop that checks the flags will take even more CPU time.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Dwedit</b> [ Thu Mar 03, 2011 11:30 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tokumaru wrote:</div><div class="quotecontent"><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">If your linked lists are very dynamic (for example, projectiles being added and removed frequently), then you may end up with a heap of memory with lots of holes, and every time you want to add an object to a list, you'd need to scan through the whole heap to locate a free spot.</div><br />You can use the same solution again, and have a linked list of empty slots, so there will be no need to scan. When you need a free slot, just grab the first one and make the second one the new first, and when you free a slot you can do the opposite. Memory use will just increase by 1 byte, the one used to indicate the first free slot, because objects can't be in both lists, so you can still get away with only one byte per object indicating the next one.<br /></div>
+<br />
+<br />Wow, never thought of this trick.  That's a great idea!
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Thu Mar 03, 2011 12:05 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Wikipedia has heard of <a href="http://en.wikipedia.org/wiki/Free_list" class="postlink">free lists</a>.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

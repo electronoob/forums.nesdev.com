@@ -1,0 +1,165 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - PC-to-NES communication ideas</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">PC-to-NES communication ideas</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=9&amp;t=10966">http://forums.nesdev.com/viewtopic.php?f=9&amp;t=10966</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Sat Feb 01, 2014 9:42 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>PC-to-NES communication ideas</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />In some idle time I came up with various communication schemes for PC to NES, with a focus on their software implementation and maximum throughput. Most are controller-port based. Of them I've only implemented asynchronous and synchronous serial, none of the multi-bit ones.<br /><br />sync = controller CLK line clocks USART<br />no framing = known series of bytes without any start/stop flags encoded<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">; 310 async 57600 bps: 5.8KB/sec<br />&nbsp; &nbsp; lda #1<br />@wait:<br />&nbsp; &nbsp; bit $4017<br />&nbsp; &nbsp; beq @wait<br />&nbsp; &nbsp; ldy #8<br />@bit:<br />&nbsp; &nbsp; nop<br />&nbsp; &nbsp; nop<br />&nbsp; &nbsp; lda $4017<br />&nbsp; &nbsp; eor #1<br />&nbsp; &nbsp; lsr a<br />&nbsp; &nbsp; ror &lt;0<br />&nbsp; &nbsp; nop<br />&nbsp; &nbsp; nop<br />&nbsp; &nbsp; nop<br />&nbsp; &nbsp; bit &lt;0<br />&nbsp; &nbsp; dey<br />&nbsp; &nbsp; bne @bit<br />&nbsp; &nbsp; bit &lt;0<br />&nbsp; &nbsp; lda #1<br />&nbsp; &nbsp; eor $4017<br />&nbsp; &nbsp; lsr a<br />&nbsp; &nbsp; lda &lt;0<br />&nbsp; &nbsp; ror a<br /><br />; 96 sync: 18.6KB/sec<br />&nbsp; &nbsp; lda #1<br />@wait:<br />&nbsp; &nbsp; bit $4017<br />&nbsp; &nbsp; beq @wait<br />.repeat 7<br />&nbsp; &nbsp; lda $4017<br />&nbsp; &nbsp; lsr a<br />&nbsp; &nbsp; ror &lt;0<br />.endrepeat<br />&nbsp; &nbsp; lda $4017<br />&nbsp; &nbsp; lsr a<br />&nbsp; &nbsp; lda &lt;0<br />&nbsp; &nbsp; ror a<br /><br />; 76 sync faster: 23.5KB/sec<br />&nbsp; &nbsp; lda #1<br />@wait:<br />&nbsp; &nbsp; bit $4017<br />&nbsp; &nbsp; beq @wait<br />.repeat 8<br />&nbsp; &nbsp; lsr $4017<br />&nbsp; &nbsp; ror a<br />.endrepeat<br />&nbsp; &nbsp; bit $4017<br /><br />; 64 sync faster no framing: 30.0KB/sec<br />.repeat 8<br />&nbsp; &nbsp; lsr $4017<br />&nbsp; &nbsp; ror a<br />.endrepeat<br /><br />; 50 dual (data on D4 &amp; D0, ready on D3): 35.8KB/sec<br />@wait:<br />&nbsp; &nbsp; lda $4017<br />&nbsp; &nbsp; and #$19<br />&nbsp; &nbsp; beq @wait<br />.repeat 3<br />&nbsp; &nbsp; asl a<br />&nbsp; &nbsp; sta &lt;0<br />&nbsp; &nbsp; lda $4017<br />&nbsp; &nbsp; and #$19<br />&nbsp; &nbsp; eor &lt;0<br />.endrepeat<br /><br />; 48 dual no framing: 37.3KB/sec<br />&nbsp; &nbsp; lda $4017<br />&nbsp; &nbsp; and #$19<br />.repeat 3<br />&nbsp; &nbsp; asl a<br />&nbsp; &nbsp; sta &lt;0<br />&nbsp; &nbsp; lda $4017<br />&nbsp; &nbsp; and #$19<br />&nbsp; &nbsp; eor &lt;0<br />.endrepeat<br /><br />; 24 quad (D0-D3 data, D4 ready): 74.6KB/sec<br />@wait:<br />&nbsp; &nbsp; lda $4017<br />&nbsp; &nbsp; and #$1f<br />&nbsp; &nbsp; beq @wait<br />&nbsp; &nbsp; sta &lt;0<br />&nbsp; &nbsp; lda $4017<br />&nbsp; &nbsp; asl a<br />&nbsp; &nbsp; asl a<br />&nbsp; &nbsp; asl a<br />&nbsp; &nbsp; eor &lt;0<br /><br />; 22 quad no framing: 81.3KB/sec<br />&nbsp; &nbsp; lda $4017<br />&nbsp; &nbsp; and #$1f<br />&nbsp; &nbsp; sta &lt;0<br />&nbsp; &nbsp; lda $4017<br />&nbsp; &nbsp; asl a<br />&nbsp; &nbsp; asl a<br />&nbsp; &nbsp; asl a<br />&nbsp; &nbsp; eor &lt;0<br /><br />; 10 octal: 179.0KB/sec<br />@wait:<br />&nbsp; &nbsp; bit $xxxx<br />&nbsp; &nbsp; bpl @wait<br />&nbsp; &nbsp; lda $xxxx<br /><br />; 4 octal no framing: 447.4KB/sec<br />&nbsp; &nbsp; lda $xxxx<br /></div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>byemu</b> [ Fri Mar 21, 2014 6:05 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: PC-to-NES communication ideas</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><img src="./images/smilies/icon_biggrin.gif" alt=":D" title="Very Happy" />  <img src="./images/smilies/icon_biggrin.gif" alt=":D" title="Very Happy" /> <br />do you know famicom clone in china<br />it's a pal-d timing <br />how to nesbootloader work on
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Fri Mar 21, 2014 10:56 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: PC-to-NES communication ideas</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />What we've been calling Dendy timing? Which a CPU that runs at 26 MHz ÷ 15  (instead of the 2A07's 26 MHz ÷ 16) ?<br />It's only running 1% slower than the 2A03, so the NTSC code works fine.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

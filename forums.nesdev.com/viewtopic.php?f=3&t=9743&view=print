@@ -1,0 +1,144 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - I have no idea what is wrong with my MMC5 CHR swap :-/</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">I have no idea what is wrong with my MMC5 CHR swap :-/</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=3&amp;t=9743">http://forums.nesdev.com/viewtopic.php?f=3&amp;t=9743</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>proxy</b> [ Fri Jan 25, 2013 7:17 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>I have no idea what is wrong with my MMC5 CHR swap :-/</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />OK, I am trying to get MMC5 implemented correctly and I honestly don't see where I am going wrong.<br /><br />Here's the quirk rundown. I have my mapper's able to hook VRAM reads/writes so they can do what they like there. Here's the relevant parts (snipped for brevity):<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">void Mapper5::write_5(uint16_t address, uint8_t value) {<br /><br />&nbsp; &nbsp;switch(address) {<br />&nbsp; &nbsp;// ...<br />&nbsp; &nbsp;case 0x5101:<br />&nbsp; &nbsp;&nbsp; &nbsp;chr_mode_ = value &amp; 0x03;<br />&nbsp; &nbsp;&nbsp; &nbsp;break;<br />&nbsp; &nbsp;case 0x5120:<br />&nbsp; &nbsp;case 0x5121:<br />&nbsp; &nbsp;case 0x5122:<br />&nbsp; &nbsp;case 0x5123:<br />&nbsp; &nbsp;case 0x5124:<br />&nbsp; &nbsp;case 0x5125:<br />&nbsp; &nbsp;case 0x5126:<br />&nbsp; &nbsp;case 0x5127:<br />&nbsp; &nbsp;&nbsp; &nbsp;sp_chr_banks_&#91;address &amp; 0x07&#93; = value;<br />&nbsp; &nbsp;&nbsp; &nbsp;last_chr_write_ = CHR_BANK_A;<br />&nbsp; &nbsp;&nbsp; &nbsp;break;<br />&nbsp; &nbsp;case 0x5128:<br />&nbsp; &nbsp;case 0x5129:<br />&nbsp; &nbsp;case 0x512a:<br />&nbsp; &nbsp;case 0x512b:<br />&nbsp; &nbsp;&nbsp; &nbsp;bg_chr_banks_&#91;(address &amp; 0x07) ^ 0x00&#93; = value;<br />&nbsp; &nbsp;&nbsp; &nbsp;bg_chr_banks_&#91;(address &amp; 0x07) ^ 0x04&#93; = value; // mirrored here so the implementation later is simpler<br />&nbsp; &nbsp;&nbsp; &nbsp;last_chr_write_ = CHR_BANK_B;<br />&nbsp; &nbsp;&nbsp; &nbsp;break;<br />&nbsp; &nbsp;// ...<br />&nbsp; &nbsp;}<br />}<br /></div><br /><br />And now for the VRAM/VROM read hook:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">uint8_t Mapper5::read_vram(uint16_t address) {<br /><br />&nbsp; &nbsp;switch((address &gt;&gt; 10) &amp; 0x0f) {<br />&nbsp; &nbsp;// ...<br />&nbsp; &nbsp;case 0x00:<br />&nbsp; &nbsp;case 0x01:<br />&nbsp; &nbsp;case 0x02:<br />&nbsp; &nbsp;case 0x03:<br />&nbsp; &nbsp;case 0x04:<br />&nbsp; &nbsp;case 0x05:<br />&nbsp; &nbsp;case 0x06:<br />&nbsp; &nbsp;case 0x07:<br />&nbsp; &nbsp;&nbsp; &nbsp;// CHR-ROM ($0000 - $1fff)<br />&nbsp; &nbsp;&nbsp; &nbsp;const uint8_t *chr_selector;<br />&nbsp; &nbsp;&nbsp; &nbsp;<br />&nbsp; &nbsp;&nbsp; &nbsp;if(sprite_size_ == 16) {<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;// sprite fetches seem to bebe between fetch #130 and #162 <br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;// I've tried basing this on a few factors, more or less same results<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if(fetch_count_ &gt;= 130 &amp;&amp; fetch_count_ &lt; 162) {<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;chr_selector = sp_chr_banks_;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;} else {<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;chr_selector = bg_chr_banks_;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />&nbsp; &nbsp;&nbsp; &nbsp;} else {<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;if(last_chr_write_ == CHR_BANK_A) {<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;chr_selector = sp_chr_banks_;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;} else {<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;chr_selector = bg_chr_banks_;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;}<br />&nbsp; &nbsp;&nbsp; &nbsp;}<br />&nbsp; &nbsp;&nbsp; &nbsp;<br />&nbsp; &nbsp;&nbsp; &nbsp;const uint8_t *chr_rom_banks&#91;8&#93;;<br />&nbsp; &nbsp;&nbsp; &nbsp;const uint8_t *const chr_rom&nbsp; = nes::cart.chr();<br />&nbsp; &nbsp;&nbsp; &nbsp;const uint32_t chr_mask&nbsp; &nbsp; &nbsp; &nbsp;= nes::cart.chr_mask();<br />&nbsp; &nbsp;&nbsp; &nbsp;<br />&nbsp; &nbsp;&nbsp; &nbsp;switch(chr_mode_ &amp; 0x03) {<br />&nbsp; &nbsp;&nbsp; &nbsp;case 0x00: // 8K mode<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;chr_rom_banks&#91;0&#93; = chr_rom + ((chr_selector&#91;7&#93; * 0x2000) &amp; chr_mask) + 0x0000; // $0000<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;chr_rom_banks&#91;1&#93; = chr_rom + ((chr_selector&#91;7&#93; * 0x2000) &amp; chr_mask) + 0x0400; // $0400<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;chr_rom_banks&#91;2&#93; = chr_rom + ((chr_selector&#91;7&#93; * 0x2000) &amp; chr_mask) + 0x0800; // $0800<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;chr_rom_banks&#91;3&#93; = chr_rom + ((chr_selector&#91;7&#93; * 0x2000) &amp; chr_mask) + 0x0c00; // $0c00<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;chr_rom_banks&#91;4&#93; = chr_rom + ((chr_selector&#91;7&#93; * 0x2000) &amp; chr_mask) + 0x1000; // $1000<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;chr_rom_banks&#91;5&#93; = chr_rom + ((chr_selector&#91;7&#93; * 0x2000) &amp; chr_mask) + 0x1400; // $1400<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;chr_rom_banks&#91;6&#93; = chr_rom + ((chr_selector&#91;7&#93; * 0x2000) &amp; chr_mask) + 0x1800; // $1800<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;chr_rom_banks&#91;7&#93; = chr_rom + ((chr_selector&#91;7&#93; * 0x2000) &amp; chr_mask) + 0x1c00; // $1c00<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;break;<br />&nbsp; &nbsp;&nbsp; &nbsp;case 0x01: // 4K mode<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;chr_rom_banks&#91;0&#93; = chr_rom + ((chr_selector&#91;3&#93; * 0x1000) &amp; chr_mask) + 0x0000; // $0000<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;chr_rom_banks&#91;1&#93; = chr_rom + ((chr_selector&#91;3&#93; * 0x1000) &amp; chr_mask) + 0x0400; // $0400<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;chr_rom_banks&#91;2&#93; = chr_rom + ((chr_selector&#91;3&#93; * 0x1000) &amp; chr_mask) + 0x0800; // $0800<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;chr_rom_banks&#91;3&#93; = chr_rom + ((chr_selector&#91;3&#93; * 0x1000) &amp; chr_mask) + 0x0c00; // $0c00<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;chr_rom_banks&#91;4&#93; = chr_rom + ((chr_selector&#91;7&#93; * 0x1000) &amp; chr_mask) + 0x0000; // $1000<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;chr_rom_banks&#91;5&#93; = chr_rom + ((chr_selector&#91;7&#93; * 0x1000) &amp; chr_mask) + 0x0400; // $1400<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;chr_rom_banks&#91;6&#93; = chr_rom + ((chr_selector&#91;7&#93; * 0x1000) &amp; chr_mask) + 0x0800; // $1800<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;chr_rom_banks&#91;7&#93; = chr_rom + ((chr_selector&#91;7&#93; * 0x1000) &amp; chr_mask) + 0x0c00; // $1c00<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;break;<br />&nbsp; &nbsp;&nbsp; &nbsp;case 0x02: // 2K mode<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;chr_rom_banks&#91;0&#93; = chr_rom + ((chr_selector&#91;1&#93; * 0x0800) &amp; chr_mask) + 0x0000; // $0000<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;chr_rom_banks&#91;1&#93; = chr_rom + ((chr_selector&#91;1&#93; * 0x0800) &amp; chr_mask) + 0x0400; // $0400<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;chr_rom_banks&#91;2&#93; = chr_rom + ((chr_selector&#91;3&#93; * 0x0800) &amp; chr_mask) + 0x0000; // $0800<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;chr_rom_banks&#91;3&#93; = chr_rom + ((chr_selector&#91;3&#93; * 0x0800) &amp; chr_mask) + 0x0400; // $0c00<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;chr_rom_banks&#91;4&#93; = chr_rom + ((chr_selector&#91;5&#93; * 0x0800) &amp; chr_mask) + 0x0000; // $1000<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;chr_rom_banks&#91;5&#93; = chr_rom + ((chr_selector&#91;5&#93; * 0x0800) &amp; chr_mask) + 0x0400; // $1400<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;chr_rom_banks&#91;6&#93; = chr_rom + ((chr_selector&#91;7&#93; * 0x0800) &amp; chr_mask) + 0x0000; // $1800<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;chr_rom_banks&#91;7&#93; = chr_rom + ((chr_selector&#91;7&#93; * 0x0800) &amp; chr_mask) + 0x0400; // $1c00<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;break;<br />&nbsp; &nbsp;&nbsp; &nbsp;case 0x03: // 1K mode<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;chr_rom_banks&#91;0&#93; = chr_rom + ((chr_selector&#91;0&#93; * 0x0400) &amp; chr_mask) + 0x0000; // $0000<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;chr_rom_banks&#91;1&#93; = chr_rom + ((chr_selector&#91;1&#93; * 0x0400) &amp; chr_mask) + 0x0000; // $0400<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;chr_rom_banks&#91;2&#93; = chr_rom + ((chr_selector&#91;2&#93; * 0x0400) &amp; chr_mask) + 0x0000; // $0800<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;chr_rom_banks&#91;3&#93; = chr_rom + ((chr_selector&#91;3&#93; * 0x0400) &amp; chr_mask) + 0x0000; // $0c00<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;chr_rom_banks&#91;4&#93; = chr_rom + ((chr_selector&#91;4&#93; * 0x0400) &amp; chr_mask) + 0x0000; // $1000<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;chr_rom_banks&#91;5&#93; = chr_rom + ((chr_selector&#91;5&#93; * 0x0400) &amp; chr_mask) + 0x0000; // $1400<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;chr_rom_banks&#91;6&#93; = chr_rom + ((chr_selector&#91;6&#93; * 0x0400) &amp; chr_mask) + 0x0000; // $1800<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;chr_rom_banks&#91;7&#93; = chr_rom + ((chr_selector&#91;7&#93; * 0x0400) &amp; chr_mask) + 0x0000; // $1c00<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;break;<br />&nbsp; &nbsp;&nbsp; &nbsp;}<br /><br />&nbsp; &nbsp;&nbsp; &nbsp;return chr_rom_banks&#91;(address &gt;&gt; 10) &amp; 0x0f&#93;&#91;0x03ff&#93;; // for reads at $0000-$1ffff result is our implementation<br />&nbsp; &nbsp;}<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;// default implementation if not caught above<br />&nbsp; &nbsp;return Mapper::read_vram(address);<br />}<br /></div><br /><br />The current result is a mostly white title screen and single color blocks during game play (attributes seem right...). <br /><br />I am currently counting fetches to determine when rendering sprites/bg. My IRQ is implemented in terms of 3 consecutive identical reads (and seems to fire at the correct point). When the IRQ fires, I reset the &quot;fetch count&quot; to 0. So it should be 0-130 for BG rendering, 130-162 for sprites, and 162+ for next scanline BG.<br /><br />I have been staring at this for a while now and can't find my mistake.<br /><br />hopefully it's something obvious someone here can point out.<br /><br /><br />NOTE: I've chosen for now to implement CHR set &quot;B&quot; like the &quot;proposed revision&quot; in Disch's Doc. (where $512B is a full 8K in 8K mode).<br /><br />Thanks,<br />proxy
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>proxy</b> [ Sat Jan 26, 2013 2:17 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: I have no idea what is wrong with my MMC5 CHR swap :-/</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />OK, I missed something **really** obvious and feel kinda dumb missing it <img src="./images/smilies/icon_razz.gif" alt=":-P" title="Razz" />.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">return chr_rom_banks&#91;(address &gt;&gt; 10) &amp; 0x0f&#93;&#91;0x03ff&#93;;<br /></div><br /><br />should **obviously** be:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">return chr_rom_banks&#91;(address &gt;&gt; 10) &amp; 0x0f&#93;&#91;address &amp; 0x03ff&#93;;<br /></div><br /><br />The graphics look pretty much perfect now.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

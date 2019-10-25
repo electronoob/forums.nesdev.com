@@ -1,0 +1,222 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Interrupt behavior</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Interrupt behavior</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=3&amp;t=8513">http://forums.nesdev.com/viewtopic.php?f=3&amp;t=8513</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>beannaich</b> [ Thu Jan 12, 2012 11:59 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Interrupt behavior</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Hello all,
+<br />
+<br />I've been testing games to see what bugs I need to fix, and while playing "Gimmick!" I noticed that my IRQs aren't too stable. I was wondering what the best way to emulate IRQs would be, as currently it's implemented as:
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">if &#40;apuSource.Asserted&#41;<br />&#123;<br />&nbsp; &nbsp; if &#40;!sr.i&#41;<br />&nbsp; &nbsp; &#123;<br />&nbsp; &nbsp; &nbsp; &nbsp; apuSource.Reset&#40;&#41;;<br />&nbsp; &nbsp; &nbsp; &nbsp; Interrupt&#40;0xFFFE&#41;;<br />&nbsp; &nbsp; &#125;<br /><br />&nbsp; &nbsp; continue;<br />&#125;<br /><br />if &#40;dmcSource.Asserted&#41;<br />&#123;<br />&nbsp; &nbsp; if &#40;!sr.i&#41;<br />&nbsp; &nbsp; &#123;<br />&nbsp; &nbsp; &nbsp; &nbsp; dmcSource.Reset&#40;&#41;;<br />&nbsp; &nbsp; &nbsp; &nbsp; Interrupt&#40;0xFFFE&#41;;<br />&nbsp; &nbsp; &#125;<br /><br />&nbsp; &nbsp; continue;<br />&#125;<br /><br />if &#40;extSource.Asserted&#41;<br />&#123;<br />&nbsp; &nbsp; if &#40;!sr.i&#41;<br />&nbsp; &nbsp; &#123;<br />&nbsp; &nbsp; &nbsp; &nbsp; extSource.Reset&#40;&#41;;<br />&nbsp; &nbsp; &nbsp; &nbsp; Interrupt&#40;0xFFFE&#41;;<br />&nbsp; &nbsp; &#125;<br /><br />&nbsp; &nbsp; continue;<br />&#125;</div>
+<br />
+<br />But I'm not sure if that's correct. So to start off with, are the APU Frame, DPCM, and Mapper interrupt lines continuously asserted until acknowledged? Do only some mappers follow this behavior? What happens when the interrupt flag is set, is the IRQ ignored, or does that flag only inhibit the interrupt routine from occurring?
+<br />
+<br />Say the DPCM asserts /IRQ, and the interrupt inhibit flag is set. The CPU ignores that request. Then say about 6 instructions later, a CLI instruction is executed (ignore CLI latency for now), what happens after that? Would /IRQ still be asserted from the DPCM assertion 6 instructions prior?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Dwedit</b> [ Fri Jan 13, 2012 12:08 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />IRQs are level activated, they stick around until you've told the IRQ source to clear the flag.  Entering an interrupt handler will set the processor's IRQ disable flag, so it won't immediately end up in an infinite loop before it can tell the IRQ source that it has handled it.
+<br />
+<br />The CLI, PLP, and RTI instructions can change the state of the processor's interrupt disable flag.  If there's an interrupt waiting, that can cause it to jump to the IRQ handler.
+<br />
+<br />Don't know of any interrupts that expire if you don't handle them in time, but I know the GBA has some of those.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>beannaich</b> [ Fri Jan 13, 2012 12:24 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />PLP and RTI undergo the same latency as CLI, correct? And does SEI have any latency, or is it's effect immediate?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>cpow</b> [ Fri Jan 13, 2012 7:59 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">beannaich wrote:</div><div class="quotecontent">PLP and RTI undergo the same latency as CLI, correct? And does SEI have any latency, or is it's effect immediate?</div>
+<br />
+<br />There's a <a href="https://gitorious.org/nesicide/nes-test-roms/trees/master/cpu_interrupts_v2" class="postlink">set of well-documented test ROMs</a> for this.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>cpow</b> [ Fri Jan 13, 2012 8:02 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Interrupt behavior</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">beannaich wrote:</div><div class="quotecontent"><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp; &nbsp; &nbsp; apuSource.Reset&#40;&#41;;<br />&nbsp; &nbsp; &nbsp; &nbsp; Interrupt&#40;0xFFFE&#41;;<br />...<br />&nbsp; &nbsp; &nbsp; &nbsp; dmcSource.Reset&#40;&#41;;<br />&nbsp; &nbsp; &nbsp; &nbsp; Interrupt&#40;0xFFFE&#41;;<br />...<br />&nbsp; &nbsp; &nbsp; &nbsp; extSource.Reset&#40;&#41;;<br />&nbsp; &nbsp; &nbsp; &nbsp; Interrupt&#40;0xFFFE&#41;;<br /></div><br /></div>
+<br />I'm assuming Interrupt() is an API that causes your CPU core to vector to the interrupt.  I'm not sure what the .Reset() APIs are doing, but if they're clearing the fact that the APU or DMC caused an interrupt in the APU or DMC itself, then this is being done prematurely.  The interrupt shouldn't be cleared by the fact that it's being vectored to...the interrupt handler that's vectored to should read/write to $4015 or whatever the 'interrupt clear' stimulus is.  Inside *that* code is where I'd think you'd want to do your .Reset() call.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

@@ -1,0 +1,94 @@
+/* Nintendulator Mapper DLLs
+ * Copyright (C) 2002-2011 QMT Productions
+ *
+ * $Id: mapper119.cpp 1311 2015-03-01 03:56:04Z quietust $
+ */
+
+#include	"..\DLL\d_iNES.h"
+#include	"..\Hardware\h_MMC3.h"
+
+namespace
+{
+uint8 Reg;
+FCPUWrite _Write4;
+void	Sync (void)
+{
+	MMC3::SyncPRG(0x3F, 0);
+	MMC3::SyncWRAM();
+
+	switch(Reg) {
+		case 0:	// Regular MMC3 mode
+			MMC3::SyncCHR_ROM(0xFF, 0);
+			MMC3::SyncMirror();
+			break;
+		case 1: // CHR ROM, four extra nametables
+			MMC3::SyncCHR_ROM(0xFF, 0);
+			EMU->SetCHR_RAM4(0x8, 1);
+			EMU->SetCHR_RAM4(0xC, 1);
+			break;
+		case 2:
+		case 3: // CHR RAM, normal mirroring
+			EMU->SetCHR_RAM4(0, 0);
+			EMU->SetCHR_RAM4(4, 0);
+			MMC3::SyncMirror();
+			break;
+	}
+}
+
+BOOL	MAPINT	Load (void)
+{
+	MMC3::Load(Sync);
+	iNES_SetSRAM();
+	return TRUE;
+}
+
+int	MAPINT	SaveLoad (STATE_TYPE mode, int offset, unsigned char *data)
+{
+	SAVELOAD_BYTE(mode, offset, data, Reg);
+	offset = MMC3::SaveLoad(mode, offset, data);
+	if (mode == STATE_LOAD)
+	{
+		Sync();
+	}
+	return offset;
+}
+
+void	MAPINT	Write (int Bank, int Addr, int Val)
+{
+	if (Bank == 4) _Write4(Bank, Addr, Val);
+	if (Addr == 0x100) Reg = Val &3;
+	Sync();
+}
+
+void	MAPINT	Reset (RESET_TYPE ResetType)
+{	
+	_Write4 = EMU->GetCPUWriteHandler(0x4);
+	for (int i = 0x4; i < 0x6; i++)
+		EMU->SetCPUWriteHandler(i, Write);
+	if (ResetType == RESET_HARD)
+		Reg = 0;
+
+	MMC3::Reset(ResetType);
+}
+void	MAPINT	Unload (void)
+{
+	MMC3::Unload();
+}
+
+uint16 MapperNum = 243;
+} // namespace
+
+const MapperInfo MapperInfo_243 =
+{
+	&MapperNum,
+	_T("Millionaire II"),
+	COMPAT_FULL,
+	Load,
+	Reset,
+	Unload,
+	NULL,
+	MMC3::PPUCycle,
+	SaveLoad,
+	NULL,
+	NULL
+};

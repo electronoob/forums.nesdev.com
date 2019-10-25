@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=3&amp;t=8807" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2012-04-29T08:30:09-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=3&amp;t=8807</id>
+<entry>
+<author><name><![CDATA[Zepper]]></name></author>
+<updated>2012-04-29T08:30:09-07:00</updated>
+<published>2012-04-29T08:30:09-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8807&amp;p=93073#p93073</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8807&amp;p=93073#p93073"/>
+<title type="html"><![CDATA[How do I shot MMC3 IRQ?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8807&amp;p=93073#p93073"><![CDATA[
+Ah, ok! <img src="http://forums.nesdev.com/images/smilies/icon_smile.gif" alt=":)" title="Smile" /> That's what I thought, thanks. <br /><br />Anyway... for some reason, the Kickmaster title screen is slightly curling.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=39">Zepper</a> — Sun Apr 29, 2012 8:30 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[infiniteneslives]]></name></author>
+<updated>2012-04-28T18:28:20-07:00</updated>
+<published>2012-04-28T18:28:20-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8807&amp;p=93052#p93052</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8807&amp;p=93052#p93052"/>
+<title type="html"><![CDATA[How do I shot MMC3 IRQ?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8807&amp;p=93052#p93052"><![CDATA[
+So I'm not sure if I'm quite following you Zepper.  I wasn't sure which quote extactly you were referring to.  But I think I might see where your problem is.<br /><br />So with BG at $1000 and sprites at $0000 the MMC3 is clocked when the background is being fetched.  But the PPU fetches the background TWICE per line.  However it's normally only clocked once per line, the exception is the first line where it gets clocked twice.<br /><br />More detailed explaination---<br /><br /><div class="quotetitle">Disch's docs wrote:</div><div class="quotecontent"><br />there are 42 opportunities for A12 to rise.  These<br />opportunities occur on the following dots:<br /><br />4, 12, 20, ..., 244, 252                 (32 BG tiles)<br />260, 268, 276, 284, 292, 300, 308, 316   (8 Spr tiles)<br />324, 332                                 (2 BG tiles)<br /><br />(You might be able to see now how I came up with those 260, 324 numbers I threw at you earlier)<br /><br />MMC3 seems to ignore rises that are too close together.  This is why the 8 sprite fetches will only clock<br />the counter once.  Exactly how far apart the rising edges have to be is unknown, but it is somewhere between<br />14 and 16 dots.  So any two consecutive opportunities are too close together (including the most distant<br />332-&gt;4), but any two non-consecutive opportunities will both be acknowledged.<br /></div><br /><br />I'm no PPU expert or anthing but this is how I understand it, and I believe it answers your question.  So the basic sequence for each scanline is fetch 32 BG tiles, 8 sprite tiles, 2 BG tiles, go to next scanline.  In this setting the scanline counter gets clocked every time we start fetching BG tiles.  The key here is that the time between fetching the last 2 BG tiles of the first scanline and fetching the 32 BG tiles for the second  scanline only count as one collective 'clock' of the scanline counter because they are too close together to be seen as two 'clocks' of the scanline counter.  So in reality the first scanline clocks the counter TWICE (once at begining with the 32 BG tiles and once at end for the 2 BG tiles) and each subseqent scanline only clocks the counter ONCE (at the end for the 2 BG tile fetch).<br /><br />That's why Disch says, "the IRQ will occur after dot 324 of the *previous* scanline."  because the first scanline clocked the counter twice so the counter could be considered as 'off by one' scanline.  EDIT: in hindsight I think this might have been the "previous scanline" quote you were referring too. <img src="http://forums.nesdev.com/images/smilies/icon_wink.gif" alt=";)" title="Wink" /><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4832">infiniteneslives</a> — Sat Apr 28, 2012 6:28 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Zepper]]></name></author>
+<updated>2012-04-29T08:25:13-07:00</updated>
+<published>2012-04-28T17:54:54-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8807&amp;p=93046#p93046</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8807&amp;p=93046#p93046"/>
+<title type="html"><![CDATA[How do I shot MMC3 IRQ?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8807&amp;p=93046#p93046"><![CDATA[
+OK, I rewrote the IRQ code here, but something's annoying... regarding the <em>previous scanline</em> quote from Disch' MMC3 document I believe.<br /><br />- if register $2000 and $18 = $10 (BG at PPU $1000 and SP at PPU $0000), the IRQ is expected to be clocked at ppu cycle 4 <strong>AND</strong> 324 on scanline zero (20 lines after the VBlank). That's <strong>odd</strong>, because it's like the counter had been clocked <strong>twice</strong>. I can't get a "Passed" if I don't setup the IRQ to trigger this way. The test considers cycle 324 of the scanline zero as if the IRQ had been triggered on scanline 1. o.O<br /><br />Am I doing something wrong???<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=39">Zepper</a> — Sat Apr 28, 2012 5:54 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Zepper]]></name></author>
+<updated>2012-04-25T14:40:13-07:00</updated>
+<published>2012-04-25T14:40:13-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8807&amp;p=92900#p92900</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8807&amp;p=92900#p92900"/>
+<title type="html"><![CDATA[How do I shot MMC3 IRQ?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8807&amp;p=92900#p92900"><![CDATA[
+basically... we have an abstraction...<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">ppu_run -&gt; apu/irq_clock -&gt; cpu_opcode/next_byte -&gt; ppu_run -&gt;...<br />... -&gt; poll_nmi/irq -&gt; ppu_run -&gt; ...</div><br /><br /><div class="quotetitle">infiniteneslives wrote:</div><div class="quotecontent"><br />False, Blargg's tests will fail if the IRQ is fired ONE CPU cycle off from where it belongs. So you can have right scanline but wrong split second (CPU cycle).<br /></div><br /><br />Right. <img src="http://forums.nesdev.com/images/smilies/icon_smile.gif" alt=":)" title="Smile" /><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=39">Zepper</a> — Wed Apr 25, 2012 2:40 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[infiniteneslives]]></name></author>
+<updated>2012-04-25T10:22:52-07:00</updated>
+<published>2012-04-25T10:22:52-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8807&amp;p=92892#p92892</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8807&amp;p=92892#p92892"/>
+<title type="html"><![CDATA[How do I shot MMC3 IRQ?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8807&amp;p=92892#p92892"><![CDATA[
+<div class="quotetitle">beannaich wrote:</div><div class="quotecontent"><br />make sure your PPU is always synced AFTER executing instructions and BEFORE you check for IRQs.<br /></div><br /><br />Yeah I think that's basically what I was trying to explain when I said this.  I just didn't understand how to put it in terms of emulation <img src="http://forums.nesdev.com/images/smilies/icon_smile.gif" alt=":)" title="Smile" />  <br /><br /><div class="quotetitle">infiniteneslives wrote:</div><div class="quotecontent"><br />Unless you've got some time misalignment between your PPU and CPU.  <br /><br />I know I've said it before but... Your IRQ MUST come in at the exact same time as CHR A12 rises (in the middle of the CPU clock cycle etc).  If you round off to the nearest CPU clock cycle you'll end up getting it late/early depending on how you round.  Round out to next and you'll be late at times, round in to beginning of CPU cycle and you'll be early.  When the CPU and PPU are aligned the IRQ should be found by the CPU on the next cycle, because it didn't get there early enough for the current cycle.<br /></div><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4832">infiniteneslives</a> — Wed Apr 25, 2012 10:22 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Zepper]]></name></author>
+<updated>2012-04-25T10:19:52-07:00</updated>
+<published>2012-04-25T10:19:52-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8807&amp;p=92891#p92891</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8807&amp;p=92891#p92891"/>
+<title type="html"><![CDATA[How do I shot MMC3 IRQ?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8807&amp;p=92891#p92891"><![CDATA[
+I'd say BEFORE an instruction.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=39">Zepper</a> — Wed Apr 25, 2012 10:19 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[beannaich]]></name></author>
+<updated>2012-04-25T07:06:07-07:00</updated>
+<published>2012-04-25T07:06:07-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8807&amp;p=92888#p92888</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8807&amp;p=92888#p92888"/>
+<title type="html"><![CDATA[How do I shot MMC3 IRQ?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8807&amp;p=92888#p92888"><![CDATA[
+<div class="quotetitle">infiniteneslives wrote:</div><div class="quotecontent"><br />False,  Blargg's tests will fail if the IRQ is fired ONE CPU cycle off from where it belongs.  So you can have right scanline but wrong split second (CPU cycle).  It sounds like your IRQ may only be firing at the wrong time in relation to M2 which I discussed above a few posts back.  This is easy todo if you handle your enabling/disabling improperly.<br /></div><br /><br />This turned out to be true, but the problem wasn't in my MMC3 emulation. Instead it was a problem with the PPU losing sync at just the right moment, causing the counter to not be clocked, and making the test fail.<br /><br />So, for future readers of this topic who may be having troubles with that test failing, make sure your PPU is always synced AFTER executing instructions and BEFORE you check for IRQs.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4320">beannaich</a> — Wed Apr 25, 2012 7:06 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[infiniteneslives]]></name></author>
+<updated>2012-04-24T08:37:02-07:00</updated>
+<published>2012-04-24T08:37:02-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8807&amp;p=92859#p92859</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8807&amp;p=92859#p92859"/>
+<title type="html"><![CDATA[How do I shot MMC3 IRQ?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8807&amp;p=92859#p92859"><![CDATA[
+<div class="quotetitle">beannaich wrote:</div><div class="quotecontent"><br />meaning they are firing at the wrong scanlines. <img src="http://forums.nesdev.com/images/smilies/icon_smile.gif" alt=":)" title="Smile" /><br /></div><br /><br />False,  Blargg's tests will fail if the IRQ is fired ONE CPU cycle off from where it belongs.  So you can have right scanline but wrong split second (CPU cycle).  It sounds like your IRQ may only be firing at the wrong time in relation to M2 which I discussed above a few posts back.  This is easy todo if you handle your enabling/disabling improperly.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4832">infiniteneslives</a> — Tue Apr 24, 2012 8:37 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[beannaich]]></name></author>
+<updated>2012-04-24T06:42:25-07:00</updated>
+<published>2012-04-24T06:42:25-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8807&amp;p=92852#p92852</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8807&amp;p=92852#p92852"/>
+<title type="html"><![CDATA[How do I shot MMC3 IRQ?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8807&amp;p=92852#p92852"><![CDATA[
+<div class="quotetitle">Zepper wrote:</div><div class="quotecontent"><br />Normal: clock at dot 260.<br />Abnormal: clock at dot 324. "Forget" the word <em>previous</em> and just do the things.<br /></div><br /><br />It's kind of hard to "forget" that when your IRQs are firing at the right dots, but still failing the tests, meaning they are firing at the wrong scanlines. <img src="http://forums.nesdev.com/images/smilies/icon_smile.gif" alt=":)" title="Smile" /><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4320">beannaich</a> — Tue Apr 24, 2012 6:42 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Zepper]]></name></author>
+<updated>2012-04-24T06:01:17-07:00</updated>
+<published>2012-04-24T06:01:17-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8807&amp;p=92851#p92851</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8807&amp;p=92851#p92851"/>
+<title type="html"><![CDATA[How do I shot MMC3 IRQ?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8807&amp;p=92851#p92851"><![CDATA[
+<div class="quotetitle">beannaich wrote:</div><div class="quotecontent"><br />I should have clarified. By "normal" and "abnormal" I meant:<br /><br />Normal: BG at $0000, SP at $1000<br />Abnormal: BG at $1000, SP at $0000<br /><br />According to Disch's mapper docs, the abnormal settings cause the IRQ to fire at dot 324 of the scanline before when it's supposed to fire. Normal settings fire at dot 260.<br /></div><br /><br />Normal: clock at dot 260.<br />Abnormal: clock at dot 324. "Forget" the word <em>previous</em> and just do the things.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=39">Zepper</a> — Tue Apr 24, 2012 6:01 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[infiniteneslives]]></name></author>
+<updated>2012-04-24T02:00:21-07:00</updated>
+<published>2012-04-24T02:00:21-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8807&amp;p=92849#p92849</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8807&amp;p=92849#p92849"/>
+<title type="html"><![CDATA[How do I shot MMC3 IRQ?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8807&amp;p=92849#p92849"><![CDATA[
+Ahhhh  DOT 260... <img src="http://forums.nesdev.com/images/smilies/icon_smile.gif" alt=":)" title="Smile" /><br /><br />Well if you allow clocking of the counter properly (digitally filtering CHR A12) then you shouldn't have to concern yourself with background and sprite setup.  The effect of it firing early will happen naturally just like it does in the hardware.  I'm not sure how easy it is to do in an emulator but it's dead simple in hardware.  <br /><br />Another way to think about it is have a 'clock allow' flag that's controlled by the CPU every clock cycle. <br /><br />On rising edge of CHR A12:<br />*If 'clock allow' flag is set decrement counter<br />*else counter unchanged<br /><br />Set the 'allow clock' flag:<br />When CHR A12 has been low for ~5 *consecutive* CPU clock cycles (or 15 PPU cycles should work but that's not what the hardware senses)  If CHR A12 goes high before 5 cycles you have to start counting again from 0 (not where you were interupted by CHR A12)<br /><br />Clear the 'allow clock'  flag:<br />Any time CHR A12 is high<br /><br />In hardware you just have a counter that is clocked by negedges of M2.  And the counter is reset asynchronously when CHR A12 is high.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4832">infiniteneslives</a> — Tue Apr 24, 2012 2:00 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[beannaich]]></name></author>
+<updated>2012-04-24T00:40:22-07:00</updated>
+<published>2012-04-24T00:40:22-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8807&amp;p=92848#p92848</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8807&amp;p=92848#p92848"/>
+<title type="html"><![CDATA[How do I shot MMC3 IRQ?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8807&amp;p=92848#p92848"><![CDATA[
+<div class="quotetitle">infiniteneslives wrote:</div><div class="quotecontent"><br />Scan line early?  norm and alt fire IRQ at the same time.<br /></div><br /><br />I should have clarified. By "normal" and "abnormal" I meant:<br /><br />Normal: BG at $0000, SP at $1000<br />Abnormal: BG at $1000, SP at $0000<br /><br />According to Disch's mapper docs, the abnormal settings cause the IRQ to fire at dot 324 of the scanline before when it's supposed to fire. Normal settings fire at dot 260.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4320">beannaich</a> — Tue Apr 24, 2012 12:40 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[infiniteneslives]]></name></author>
+<updated>2012-04-23T23:31:04-07:00</updated>
+<published>2012-04-23T23:31:04-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8807&amp;p=92841#p92841</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8807&amp;p=92841#p92841"/>
+<title type="html"><![CDATA[How do I shot MMC3 IRQ?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8807&amp;p=92841#p92841"><![CDATA[
+<div class="quotetitle">Zepper wrote:</div><div class="quotecontent"><br />...unless the scanline does NOT start at cycle 0, but on 260.<br /></div><br /><br />260???  It's only a 8bit register 0-256 (upto 257 scanlines)<br /><br />Congrats on getting it working Zepper!<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4832">infiniteneslives</a> — Mon Apr 23, 2012 11:31 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Zepper]]></name></author>
+<updated>2012-04-23T18:21:33-07:00</updated>
+<published>2012-04-23T18:21:33-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8807&amp;p=92825#p92825</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8807&amp;p=92825#p92825"/>
+<title type="html"><![CDATA[How do I shot MMC3 IRQ?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8807&amp;p=92825#p92825"><![CDATA[
+...unless the scanline does NOT start at cycle 0, but on 260.<br /><br /><strong>EDIT:</strong> I was doing it all wrong<em>!</em> All MMC3 tests have passed now. Sweet at maximum. <img src="http://forums.nesdev.com/images/smilies/icon_smile.gif" alt=":)" title="Smile" /><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=39">Zepper</a> — Mon Apr 23, 2012 6:21 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[infiniteneslives]]></name></author>
+<updated>2012-04-23T17:03:07-07:00</updated>
+<published>2012-04-23T17:03:07-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8807&amp;p=92821#p92821</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8807&amp;p=92821#p92821"/>
+<title type="html"><![CDATA[How do I shot MMC3 IRQ?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8807&amp;p=92821#p92821"><![CDATA[
+<div class="quotetitle">beannaich wrote:</div><div class="quotecontent"><br />I don't see how the IRQ is supposed to fire on an earlier scanline without some trickery.<br /></div><br /><br />Scan line early?  norm and alt fire IRQ at the same time.  When counter == 0 AND 'allowed' posedge of CHR A12.<br /><br />The only thing that is different between the two is what to do if 0 is loaded into the reload register $C000.  alt will ONLY fire once after being cleared by $C001.  Norm will fire on EVERY 'allowed' posedge of CHR A12 assuming IRQs are enabled.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4832">infiniteneslives</a> — Mon Apr 23, 2012 5:03 pm</p><hr />
+]]></content>
+</entry>
+</feed>

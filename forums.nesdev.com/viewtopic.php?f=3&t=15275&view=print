@@ -1,0 +1,289 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Square duty cycle vs apu_mixer/square test</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Square duty cycle vs apu_mixer/square test</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=3&amp;t=15275">http://forums.nesdev.com/viewtopic.php?f=3&amp;t=15275</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Sour</b> [ Tue Dec 20, 2016 7:51 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Square duty cycle vs apu_mixer/square test</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />(This is pretty much a follow up of the conversation in Mesen's main thread, but I figured this might be better off as a thread of its own at this point)<br /><br />So I've been taking another look at Mesen's square channel code, and looking at the &quot;apu_mixer/square&quot; test's code..<br /><br />And there's something that I just can't make sense of.<br />In the test, square 2's duty cycle is set to 50%.<br />The code writes to $4007 to reset square 2's sequencer and sets the timer to 111 (i.e clock every 224 cpu cycles)<br />Then, it loops and writes 127 to $4011, 160 times in a row (each 896 cycles apart), before finally writing 123 on the 161th write.<br /><br />The sequence looks like this, right after the $4007 write that causes the sequencer to reset to 0 (thus outputting 0 for the next 4 square cycles)<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">DMC Value:&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;127 #1&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; 127 #2&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; 127 #3&nbsp; ... (156 more writes) ...&nbsp; &nbsp; 127 #160&nbsp; &nbsp; &nbsp; &nbsp; 123&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;127&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &#91;...&#93;<br />Square Output:&nbsp; &nbsp; &nbsp;0&nbsp; &nbsp;0&nbsp; &nbsp;0&nbsp; &nbsp;0&nbsp; &nbsp;1&nbsp; &nbsp;1&nbsp; &nbsp;1&nbsp; &nbsp;1&nbsp; &nbsp;0&nbsp; &nbsp; &nbsp; ...&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;...&nbsp; &nbsp; &nbsp;1&nbsp; &nbsp;1&nbsp; &nbsp;1&nbsp; &nbsp;1&nbsp; &nbsp;0&nbsp; &nbsp;0&nbsp; &nbsp;0&nbsp; &nbsp;0&nbsp; &nbsp;1&nbsp; &nbsp;1&nbsp; &nbsp;1&nbsp; &nbsp;1&nbsp; &#91;...&#93;<br /></div><br />So odd writes (1, 3, #161) match with a &quot;0&quot; for the duty cycle and even writes (#2, #4, #160) match with a &quot;1&quot;.<br />This means that the 161th write (value = 123) falls on a falling edge for the duty cycle (1 -&gt; 0), which makes BOTH channels drop at the same time.<br />Considering the test is attempting to cancel both channels by applying the opposite change, that doesn't make sense.  I would expect the exact opposite.<br /><br />What am I not understanding?<br /><br />Current problems I had with my code vs the wiki:<br />1- Writes to $4003/7 were resetting the sequencer AND the timer (instead of just the sequencer).<br />2- The sequencer was counting upwards instead of downwards.<br />(It looks like both of these might be &quot;fixes&quot; I took from puNES' code while attempting to make the apu_mixer tests work, but they both contradict the wiki)<br /><br />After fixing these to match the wiki, I get a perfect match up (cycle-wise) between the square duty changes and the DMC writes, but the value of the square channel is always opposite of what it would need to be for it to cancel out the DMC's output.<br />At this point, if I invert the duty cycle so that the sequence after a $4007 write is 11110000 instead of 00001111, everything falls into place and the sound output is (to my ears) even closer to the apu_mixer/square recording than my older code.<br /><br />Picture below is the (what I assume to be) NES recording that was bundled with the tests, Mesen's 0.5.3 output (bottom), and Mesen's current output if I fix both bugs, and invert the duty cycle like I said (middle).<br />Clearly the middle one is the closest to the recording - so what am I not getting?
+
+		
+			<br clear="all" /><br />
+
+			<table class="tablebg" width="100%" cellspacing="1">
+			<tr>
+				<td><b class="genmed">Attachments: </b></td>
+			</tr>
+			
+				<tr>
+					<td>
+			<img src="./download/file.php?id=7372" alt="ApuMixerSquare.png" /><br />
+			<span class="gensmall">ApuMixerSquare.png [ 10.69 KiB | Viewed 1633 times ]</span>
+		
+
+		<br />
+	</td>
+				</tr>
+			
+			</table>
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Tue Dec 20, 2016 7:57 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Square duty cycle vs apu_mixer/square test</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Inverting the duty is on the right track. Because the waveform position counter is a down counter, it counts in the order 07654321, producing the waveform 01111000.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Sour</b> [ Tue Dec 20, 2016 8:04 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Square duty cycle vs apu_mixer/square test</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Yes, it counts 07654321, but that produces 00001111 (according to the wiki), which is what I used in the sequence above (repeated 161 times).<br />But then that doesn't produce noise cancellation, it doubles up the sound's volume instead.  (DMC goes 127 -&gt; 123 when square goes 1 -&gt; 0, and then 123 -&gt; 127 happens when square does 0 -&gt; 1)<br /><br />To get the square channel to produce the opposite of the DMC channel, I need to count backwards (07654321) and invert the duty cycle values (0&lt;-&gt;1) so that it becomes 11110000.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Quietust</b> [ Wed Dec 21, 2016 5:38 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Square duty cycle vs apu_mixer/square test</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Sour wrote:</div><div class="quotecontent">Yes, it counts 07654321, but that produces 00001111 (according to the wiki)</div><br />The wiki is wrong, then - the hardware definitely outputs 01111000 for that duty cycle, and I'm pretty sure it's been confirmed against visual2a03 (it effectively outputs D2 of the counter).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Sour</b> [ Wed Dec 21, 2016 6:32 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Square duty cycle vs apu_mixer/square test</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Ah, now I see my mistake.  Thanks for clearing this up!  I always looked at the wiki's data thinking it was the internal representation of the duty cycle from indexes 0 to 7.  But it does actually says that this is the actual sequence that is output, so it's actually listed as 07654321.<br /><br />So I wasn't counting backwards as I originally thought.<br />That still leaves a 1 duty cycle gap though.  Does writing to 4003/7 change the output instantly because it resets the sequencer? Or is that delayed until the next time the timer expires?  I.e, when you write does it reset to index 0 and then goes to index 7 on the next time the timer is up?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Sour</b> [ Wed Dec 21, 2016 3:19 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Square duty cycle vs apu_mixer/square test</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I took a look at Nintendulator's code, and it implies any write to $4000-4007 can instantly alter the channel's output - I'm not sure if this is actually written anywhere on the wiki though.<br /><br />So the write to $4007 instantly resets the sequencer, and ends up setting the volume to 0.<br />The sequence is then 0 (on $4007 write) 1 (on next timer) 1 1 1 0 0 0 (like the wiki), with the first DMC write occurring at the same time as the first &quot;1&quot;, this matches up perfectly with the DMC channel's output.  The end result is an almost silent tone, all while keeping in line with everything that's written in the wiki.<br /><br />Problem solved, I think.  Thanks for the help!
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Quietust</b> [ Wed Dec 21, 2016 5:48 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Square duty cycle vs apu_mixer/square test</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Sour wrote:</div><div class="quotecontent">I took a look at Nintendulator's code, and it implies any write to $4000-4007 can instantly alter the channel's output - I'm not sure if this is actually written anywhere on the wiki though.</div><br />It's only for $4003 and $4007, and the <a href="http://wiki.nesdev.com/w/index.php/APU_Pulse" class="postlink">APU Pulse</a> page states that &quot;The sequencer is restarted at the first value of the current sequence.&quot;
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Sour</b> [ Wed Dec 21, 2016 9:22 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Square duty cycle vs apu_mixer/square test</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Quietust wrote:</div><div class="quotecontent">the <a href="http://wiki.nesdev.com/w/index.php/APU_Pulse" class="postlink">APU Pulse</a> page states that &quot;The sequencer is restarted at the first value of the current sequence.&quot;</div>Yea, but I always had interpreted that as &quot;the next time the timer expires and the duty cycle moves to the next step, it'll have been reset to the start of the sequence instead&quot;.<br />Now that I know the actual behavior, and thinking about it from a hardware point of view (which is something I know relatively little about), it does make more sense that it would be applied immediately, though.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

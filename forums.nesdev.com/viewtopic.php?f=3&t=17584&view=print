@@ -1,0 +1,417 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Handling Writing to ROM or out of range addresses</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Handling Writing to ROM or out of range addresses</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=3&amp;t=17584">http://forums.nesdev.com/viewtopic.php?f=3&amp;t=17584</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ace314159</b> [ Wed Jul 25, 2018 12:45 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Handling Writing to ROM or out of range addresses</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I'm not sure if it is a bug with some logic with my emulator or if games actually edit ROM or access out of range address, expecting some behavior which is not implemented.<br /><br />When running Super Mario Bros, I see that the code tries to edit the pattern tables. When running Ice Climber, I see it trying to access a VRAM address greater than 0x4000. Both occur when writing to 0x2007 and both cause my emulator to crash.<br />This is how I handle a write to 0x2007:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">mem.setVRAM8(this-&gt;currentVramAddr++, this-&gt;DATA);<br />this-&gt;currentVramAddr += ((this-&gt;CTRL &gt;&gt; 2) &amp; 0x1) * 31; // Ads extra 31 if bit 2 is set<br /></div><br />Is this supposed to happen in those games or is something wrong with my implementation? My CPU passes all the tests from nestest and instr_test-v5.  My PPU passes all of blargg's tests (blargg_ppu_tests_2005.09.15b) except for vbl_clear_time if I allow the code to edit CHR.<br /><br />Another interesting thing to note is that everything works perfectly fine in Release mode in Visual Studio. Both Super Mario Bros and Ice Climber seem to work mostly fine, except for some sprites being all black, but I'm pretty sure that it is unrelated to this issue.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>pubby</b> [ Wed Jul 25, 2018 12:55 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Handling Writing to ROM or out of range addresses</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I believe the PPU uses 14 bit addresses, so going past $4000 wraps around to $0000.<br /><br />Writing to cartridge memory depends on the mapper. With NROM it's a nop.<br /><br />BTW an emulator should never crash from bad user programs. One needs to handle every address.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ace314159</b> [ Wed Jul 25, 2018 1:44 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Handling Writing to ROM or out of range addresses</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">BTW an emulator should never crash from bad user programs. One needs to handle every address.</div><br />Yeah, you're right. I made it overflow after reaching 0x4000 and made writing to ROM a nop.<br /><br />I also figured out why it was working in Release, but not Debug. It was because I didn't initialize the PPU registers, and they got set to values that caused an NMI on the first cycle, stopping the CPU from running initialization code and messing everything up. I simply initialized them to 0 and made the changes you suggested and it worked! Thanks for the help!<br /><br />However, on the scrolling page on the <a href="https://wiki.nesdev.com/w/index.php/PPU_scrolling#PPU_internal_registers" class="postlink">wiki</a>, it says that the VRAM address is 15 bits long. Is that talking about a different address?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Wed Jul 25, 2018 2:16 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Handling Writing to ROM or out of range addresses</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Bits 14-12 of the VRAM address have a different meaning between rendering on the one hand and video memory access through $2007 on the other. During rendering, bits 14-12 represent fine Y scroll, which is reflected as PA2-0 of pattern table fetches. During video memory access through $2007, bit 14 is ignored, and bits 13-12 represent actual PA13-12.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>koitsu</b> [ Wed Jul 25, 2018 3:48 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Handling Writing to ROM or out of range addresses</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">ace314159 wrote:</div><div class="quotecontent">I also figured out why it was working in Release, but not Debug. It was because I didn't initialize the PPU registers, and they got set to values that caused an NMI on the first cycle, stopping the CPU from running initialization code and messing everything up. I simply initialized them to 0 and made the changes you suggested and it worked! Thanks for the help!</div><br />Read closely (not all are zero), and also understand the difference between power-on (power cycle) and reset:<br /><!-- m --><a class="postlink" href="https://wiki.nesdev.com/w/index.php/PPU_power_up_state">https://wiki.nesdev.com/w/index.php/PPU_power_up_state</a><!-- m --><br /><br />Similar applies to CPU:<br /><!-- m --><a class="postlink" href="https://wiki.nesdev.com/w/index.php/CPU_power_up_state">https://wiki.nesdev.com/w/index.php/CPU_power_up_state</a><!-- m -->
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Wed Jul 25, 2018 4:28 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Handling Writing to ROM or out of range addresses</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I've added a small note to the Wiki. Would this have helped understanding?<br /><a href="https://wiki.nesdev.com/w/index.php?title=PPU_scrolling&amp;diff=prev&amp;oldid=15253" class="postlink">https://wiki.nesdev.com/w/index.php?title=PPU_scrolling&amp;diff=prev&amp;oldid=15253</a>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ace314159</b> [ Thu Jul 26, 2018 9:51 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Handling Writing to ROM or out of range addresses</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tepples wrote:</div><div class="quotecontent">Bits 14-12 of the VRAM address have a different meaning between rendering on the one hand and video memory access through $2007 on the other. During rendering, bits 14-12 represent fine Y scroll, which is reflected as PA2-0 of pattern table fetches. During video memory access through $2007, bit 14 is ignored, and bits 13-12 represent actual PA13-12.</div><br />Thank you! This clears everything up!<br /><br /><div class="quotetitle">koitsu wrote:</div><div class="quotecontent">Read closely (not all are zero), and also understand the difference between power-on (power cycle) and reset:<br /><!-- m --><a class="postlink" href="https://wiki.nesdev.com/w/index.php/PPU_power_up_state">https://wiki.nesdev.com/w/index.php/PPU_power_up_state</a><!-- m --><br /><br />Similar applies to CPU:<br /><!-- m --><a class="postlink" href="https://wiki.nesdev.com/w/index.php/CPU_power_up_state">https://wiki.nesdev.com/w/index.php/CPU_power_up_state</a><!-- m --></div><br /><br />So if I'm understanding this right, on a power cycle, I set everything but 0x2002 to 0 and set 0x2002 to 0xA0. What I don't understand is the diference between a power cycle and reset. I couldn't find an explanation on the page or through a Google search. Is a reset just a way to change the ROM without resetting all of the registers, and on a physical device without turning it on and off?<br /><br /><div class="quotetitle">rainwarrior wrote:</div><div class="quotecontent">I've added a small note to the Wiki. Would this have helped understanding?<br /><!-- m --><a class="postlink" href="https://wiki.nesdev.com/w/index.php?title=PPU_scrolling&amp;diff=prev&amp;oldid=15253">https://wiki.nesdev.com/w/index.php?tit ... ldid=15253</a><!-- m --></div><br />This would have definitely helped!
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Thu Jul 26, 2018 9:56 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Handling Writing to ROM or out of range addresses</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">ace314159 wrote:</div><div class="quotecontent">What I don't understand is the diference between a power cycle and reset. I couldn't find an explanation on the page or through a Google search. Is a reset just a way to change the ROM without resetting all of the registers, and on a physical device without turning it on and off?</div><br />The NES and famicom have two separate buttons: POWER and RESET.<br /><br />The power switch removes power from the system and turns it off. The reset button doesn't turn anything off, it just restarts the software from the beginning.<br /><br />A lot of stuff that was happening, most contents of RAM, etc. is preserved across a reset that is not preserved when you power off. Some games will behave differently for a reset than for powering off and on, though I think most games will be the same either way.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ace314159</b> [ Thu Jul 26, 2018 10:08 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Handling Writing to ROM or out of range addresses</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />So you can't change the game or cartridge when you hit RESET? It's just to restart the current game?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Thu Jul 26, 2018 10:18 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Handling Writing to ROM or out of range addresses</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />You <em>can</em> yank a cartridge out of your NES while it's on, if you want, but that's not really something I've ever seen emulated. You can also do that while holding reset, I suppose?<br /><br />If you pull a cartridge out of the machine while it's powered on, the system will more or less just crash. You can stick a new game in without powering it off, but to get it to run you will need to press reset (or power off and on).<br /><br />There's some <a href="http://metopal.com/2012/09/12/the-famicom-cart-swap-trick/" class="postlink">obscure possibilities</a> involved with this, but emulators can usually do the same thing in a more convenient way with game genie codes or other methods.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ace314159</b> [ Thu Jul 26, 2018 11:11 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Handling Writing to ROM or out of range addresses</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />That's definitely out of the scope of my emulator, but I understand what a power cycle and reset does now. Thanks for the help!
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>koitsu</b> [ Thu Jul 26, 2018 11:24 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Handling Writing to ROM or out of range addresses</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">ace314159 wrote:</div><div class="quotecontent">So if I'm understanding this right, on a power cycle, I set everything but 0x2002 to 0 and set 0x2002 to 0xA0.</div><br />Don't miss the part about the PPU RAM contents, specifically the nametable regions.  &quot;Mostly&quot; in this case can probably be interpreted as, for emulation purposes, &quot;fill completely with&quot;.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ace314159</b> [ Thu Jul 26, 2018 11:47 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Handling Writing to ROM or out of range addresses</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I'll make sure to remember that.<br /><br />Looking at it again, I noticed that for OAM and CHR RAM it mentions a &quot;pattern&quot;. What does this mean?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Thu Jul 26, 2018 11:51 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Handling Writing to ROM or out of range addresses</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">ace314159 wrote:</div><div class="quotecontent">Looking at it again, I noticed that for OAM and CHR RAM it mentions a &quot;pattern&quot;. What does this mean?</div><br />Hmm, that seems misleading. We probably shouldn't suggest that there is some specific pattern these boot with.<br /><br />They are unreliable. You can implement it as powering on all 0, all FF, all random, doesn't really matter.<br /><br />There are usually some pattern tendencies to any particular RAM's power on, but it will vary a bit from time to time your turn it on.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Thu Jul 26, 2018 12:18 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Handling Writing to ROM or out of range addresses</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I've replaced most of the &quot;pattern&quot; stuff in the article with <a href="https://en.wikipedia.org/wiki/Unspecified_behavior" class="postlink">&quot;unspecified values&quot;</a>.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

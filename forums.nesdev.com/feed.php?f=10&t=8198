@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=10&amp;t=8198" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2011-10-10T09:42:03-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=10&amp;t=8198</id>
+<entry>
+<author><name><![CDATA[lazigamer]]></name></author>
+<updated>2011-10-10T09:42:03-07:00</updated>
+<published>2011-10-10T09:42:03-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8198&amp;p=84918#p84918</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8198&amp;p=84918#p84918"/>
+<title type="html"><![CDATA[Getting CPU jams all the time.]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8198&amp;p=84918#p84918"><![CDATA[
+Been lurking this site for a while finally decided to sign up and post, so I might as well make my first post good.<br /><br />I've looked over your code, and I found the primary problem. Your project assembled wrong, NESASM does not like to deal with banks larger than 8kb at a time, when you assembled it it the ROM came out to 24kb, it should've been 40kb. To fix that, add the line ".bank 3" right before ".org $fffa" that will put the vectors in the right spot and now it should assemble correctly. This will prevent it from crashing, but the rest of you code needs work too. Here is a good way to structure your code.<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">  ;defines here<br />Reset:<br />  ;disable nmi, display, and sound<br />  ;set stack pointer<br />  ;clear RAM/VRAM<br />  ;wait two VBlanks<br />  ;do your background loading here &#40;since display and nmi are disabled&#41;<br />  ;enable NMI, display &#40;and sound when you have some&#41;<br />MainLoop:<br />  ;get controller status<br />  ;other game code here<br />  ;loop that waits for NMI &#40;have it check for a flag&#41;<br />  ;after NMI is done and returned &#40;clear the flag&#41;<br />  ;jump to the beginning of the main loop<br />  ;subroutines here<br />NMI: ;&#40;should set a flag so the loop that waits for nmi will exit&#41;<br />  ;vectors here<br />  ;chr memory here<br />  ;end of code</div><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=5036">lazigamer</a> — Mon Oct 10, 2011 9:42 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tokumaru]]></name></author>
+<updated>2011-10-09T17:50:14-07:00</updated>
+<published>2011-10-09T17:50:14-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8198&amp;p=84903#p84903</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8198&amp;p=84903#p84903"/>
+<title type="html"><![CDATA[Getting CPU jams all the time.]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8198&amp;p=84903#p84903"><![CDATA[
+<div class="quotetitle">tepples wrote:</div><div class="quotecontent"><br />At line 94, if the CPU keeps going, it'll fall right into the subroutine LoadBackground, and the RTS will send the program counter off into nowheresville.<br /></div><br />I'm pretty sure this is what crashes the program. Your "mainLoop" is not a loop at all, since there's no "JMP mainLoop" at the end, and because of that, program execution continues right into the LoadBackground subroutine. But since it wasn't called with JSR, there's no address to return to when the RTS at line 107 is reached, so the CPU gets lost and crashes.<br /><br />Your main loop has a weird structure though... First you pretend that you'll read the controller but you don't read the actual button states, then you do a bunch of PPU operations without having waited for VBlank or NMI first, which means that there are no guarantees that those procedures will take place during VBlank.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=95">tokumaru</a> — Sun Oct 09, 2011 5:50 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2011-10-09T08:56:26-07:00</updated>
+<published>2011-10-09T08:56:26-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8198&amp;p=84894#p84894</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8198&amp;p=84894#p84894"/>
+<title type="html"><![CDATA[Getting CPU jams all the time.]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8198&amp;p=84894#p84894"><![CDATA[
+<div class="quotetitle">IvanDSM wrote:</div><div class="quotecontent"><br />i still get CPU jams, what's going wrong? I did the things you said such as waiting for 2 VBlanks before starting the screen.<br /><br /><!-- m --><a class="postlink" href="http://pastebin.com/787pbWCn">http://pastebin.com/787pbWCn</a><!-- m --><br /></div><br />You're still enabling NMI (line 40) before having called JSR waitVBlank twice. Leave it disabled until after the PPU has fully warmed up. Replace lines 40-41 with<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">   stx PPU_CTRL<br />   jsr waitVBlank</div><br />And why do you have a waitVBlank <em>inside</em> the loop at line 55? Move it after bne clearRAM.<br /><br />The waitVBlank calls at lines 75, 76, and 92 are unnecessary. After the PPU has warmed up, you should use only waitNMI.<br /><br />At line 94, if the CPU keeps going, it'll fall right into the subroutine LoadBackground, and the RTS will send the program counter off into nowheresville.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Sun Oct 09, 2011 8:56 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[IvanDSM]]></name></author>
+<updated>2011-10-09T08:37:07-07:00</updated>
+<published>2011-10-09T08:37:07-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8198&amp;p=84893#p84893</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8198&amp;p=84893#p84893"/>
+<title type="html"><![CDATA[Getting CPU jams all the time.]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8198&amp;p=84893#p84893"><![CDATA[
+Oops, i meant $8000, not $0000!<br /><br />Hey tepples, i still get CPU jams, what's going wrong? I did the things you said such as waiting for 2 VBlanks before starting the screen.<br /><br />And thanks snarfblam! I'll use pastebin more often from now on!<br /><br /><!-- m --><a class="postlink" href="http://pastebin.com/787pbWCn">http://pastebin.com/787pbWCn</a><!-- m --><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4974">IvanDSM</a> — Sun Oct 09, 2011 8:37 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2011-10-09T06:18:47-07:00</updated>
+<published>2011-10-09T06:18:47-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8198&amp;p=84891#p84891</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8198&amp;p=84891#p84891"/>
+<title type="html"><![CDATA[Re: Getting CPU jams all the time.]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8198&amp;p=84891#p84891"><![CDATA[
+<div class="quotetitle">IvanDSM wrote:</div><div class="quotecontent"><br />I'm learning 6502 asm, and i'm creating a small project called Тетрис (or Tetris if you prefer)<br /></div><br />I have plenty to say about this, but I'll hold back for now so that I can help you with your code. I just feel like getting one thing off my chest: Do you know what "<a href="http://harddrop.com/wiki/Glossary#L" class="postlink">lock delay</a>" and "<a href="http://harddrop.com/wiki/Glossary#H" class="postlink">hard drop</a>" are?<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent"><br />and this time i got the code for the title screen showing up, but it only gives me a CPU jam! Upon compiling and running on FCEUX, $0000 is BRK!<br /></div><br />$0000-$07FF is RAM, and it doesn't have a value until you put one there.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent"><br />The code is long, so i uploaded it to MediaFire: <!-- m --><a class="postlink" href="http://www.mediafire.com/?8b4gy1a4rgzbf4f">http://www.mediafire.com/?8b4gy1a4rgzbf4f</a><!-- m --><br /></div><br />First let's get some power-up state compatibility problems out of the way:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">   lda #%10000000<br />    sta PPU_CTRL<br /><br />   jsr waitVBlank<br /></div><br />waitVBlank is the "spin on PPU_STATUS" subroutine. Why are you turning on NMIs (the write to PPU_CTRL) before you spin on PPU_STATUS? You really shouldn't be writing anything after you've spun on PPU_STATUS twice. And before clearVRAM, you need one more JSR waitVBlank and then you can turn on NMIs in PPU_CTRL.<br /><br />Why do you have palette code right in the middle of your code? Either JMP past it or move it out of the way of code.<br /><br />It's best not to enable the display (write to PPU_MASK) until after the entire nametable has been written to VRAM. If you try to write to VRAM while the PPU is rendering, you'll just cause a load of glitches.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Sun Oct 09, 2011 6:18 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[snarfblam]]></name></author>
+<updated>2011-10-09T06:05:05-07:00</updated>
+<published>2011-10-09T06:05:05-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8198&amp;p=84889#p84889</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8198&amp;p=84889#p84889"/>
+<title type="html"><![CDATA[Getting CPU jams all the time.]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8198&amp;p=84889#p84889"><![CDATA[
+You should probably stick with pastebin (you can create multiple pastes if necessary) or use a good file-hosting service like DropBox.<br /><br />I haven't looked at the code, but you shouldn't be trying to run code from $0000. Your code should start at $C000 or $8000, depending on the mapper. $0000 is RAM. $8000 to $FFFF is ROM. Your ASM code should .BASE or .ORG accordingly.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4871">snarfblam</a> — Sun Oct 09, 2011 6:05 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[IvanDSM]]></name></author>
+<updated>2011-10-09T05:53:35-07:00</updated>
+<published>2011-10-09T05:53:35-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8198&amp;p=84887#p84887</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8198&amp;p=84887#p84887"/>
+<title type="html"><![CDATA[Getting CPU jams all the time.]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8198&amp;p=84887#p84887"><![CDATA[
+I'm learning 6502 asm, and i'm creating a small project called Тетрис (or Tetris if you prefer), and this time i got the code for the title screen showing up, but it only gives me a CPU jam! Upon compiling and running on FCEUX, $0000 is BRK! But how? It happens in any emulator, i'm compiling it with NESASM3. Could anybody tell me a more suitable assembler for this?<br /><br />The code is long, so i uploaded it to MediaFire: <!-- m --><a class="postlink" href="http://www.mediafire.com/?8b4gy1a4rgzbf4f">http://www.mediafire.com/?8b4gy1a4rgzbf4f</a><!-- m --><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4974">IvanDSM</a> — Sun Oct 09, 2011 5:53 am</p><hr />
+]]></content>
+</entry>
+</feed>

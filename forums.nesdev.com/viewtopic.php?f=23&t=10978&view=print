@@ -1,0 +1,123 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - VIC20 alternate sound</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">VIC20 alternate sound</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=23&amp;t=10978">http://forums.nesdev.com/viewtopic.php?f=23&amp;t=10978</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Tue Feb 04, 2014 8:23 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>VIC20 alternate sound</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I had a VIC-20 growing up, but the difficulty of bootstrapping pre-internet meant I never really did anything all that interesting on it. Someone recently posted their flashcart for same to HackADay and then I started looking at this stuff again.<br /><br />I'd forgotten—or maybe just been too young to know—just how minimal the whole thing was. A simple tilemap-based display, with a pixel clock of either NTSC colorburst×8÷7 (aspect ratio 3:2), or PAL colorburst (aspect ratio 5:3); interleaved with a CPU that ran at exactly 1/4 of that. Each nametable (using this term just for NES comparison) entry is 12 bits wide (vs 10), specifying 8 bits of tile, 3 bits of foreground color, and 1 bit specifying whether to interpret the tile as 1bpp or 2bpp and twice as wide, with three colors that are shared across the entire screen. The source palette is extremely limited, and several are out of gamut (The ones that the C64's VIC-2 replaced with greys).<br /><br />The audio channels appear to be three square waves, plus one 16-bit LFSR, all of which have a seven bit divisor, and each of which have a different master clock: CPU/32, CPU/64, CPU/128, and CPU/256 respectively. All four voices share the same linear volume control, but the analog output path clips asymmetrically on anything more than about 1/3-1/2 of full scale.<br /><br />In doing, I stumbled onto <a href="http://chipmusic.org/forums/topic/6555/mos-technology-vic-vic20/" class="postlink">this thread</a> on chipmusic where it's pointed out that the VIC20's output sound stage <em>isn't</em> a simple 50% square wave, but rather a eight bit shift register, with its output connected through a NOR gate to its input. When you disable the sound, you don't actually stop anything; instead you start clocking in 0s. When you enable the sound, you instead start clocking in NOT(eight bits ago). <a href="http://www.pelulamu.net/pwp/vic20/waveforms.txt" class="postlink">Viznut's writeup of his discovery</a> pointed out that of the 256 different possible values, all but 16 are actually rotated forms of others. (e.g. the square wave, &quot;0&quot;, is the same as &quot;1&quot;, &quot;3&quot;, &quot;7&quot;, … &quot;192&quot; and &quot;128&quot;).<br /><br />I was curious about what these waveforms sounded like, so I entered them into schism tracker, and then threw Octave's FFT at them. And I noticed that, of the 16, there were four more duplicates. Because, for chip samples, forwards in time sounds the same as backwards in time.<br /><br />I finally ended up with the following table (&quot;code&quot; means &quot;the value in viznut's writeup treated as big-endian binary and printed as decimal&quot;):<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">code waveform--------&nbsp; dB 1x&nbsp; &nbsp;dB 3x&nbsp; &nbsp;dB 5x&nbsp; &nbsp;dB 7x <br />&nbsp;0&nbsp; 0000000011111111&nbsp; &nbsp; 0&nbsp; &nbsp; &nbsp; -9.09&nbsp; -12.59&nbsp; -14.03<br />24&nbsp; 0001100011100111&nbsp; -12.59&nbsp; &nbsp; 0&nbsp; &nbsp; &nbsp;-14.03&nbsp; &nbsp;-9.09<br />36&nbsp; 0010010011011011&nbsp; &nbsp;-9.09&nbsp; -14.03&nbsp; &nbsp; 0&nbsp; &nbsp; &nbsp;-12.59<br />42&nbsp; 0010101011010101&nbsp; -14.03&nbsp; -12.59&nbsp; &nbsp;-9.09&nbsp; &nbsp; 0&nbsp; &nbsp;<br /><br />&nbsp;2&nbsp; 0000001011111101&nbsp; &nbsp;-1.43&nbsp; -21.68&nbsp; &nbsp;-7.66&nbsp; &nbsp;-4.94<br />12&nbsp; 0000110011110011&nbsp; &nbsp;-7.66&nbsp; &nbsp;-1.43&nbsp; &nbsp;-4.94&nbsp; -21.68<br />44&nbsp; 0010110011010011&nbsp; -21.68&nbsp; &nbsp;-4.94&nbsp; &nbsp;-1.43&nbsp; &nbsp;-7.66<br />10&nbsp; 0000101011110101&nbsp; &nbsp;-4.94&nbsp; &nbsp;-7.66&nbsp; -21.68&nbsp; &nbsp;-1.43<br /><br />&nbsp;4&nbsp; 0000010011111011&nbsp; &nbsp;-2.98&nbsp; &nbsp;-6.53&nbsp; &nbsp;-4.12&nbsp; &nbsp;-9.76&nbsp; (aka&nbsp; 6)<br />&nbsp;8&nbsp; 0000100011110111&nbsp; &nbsp;-4.12&nbsp; &nbsp;-2.98&nbsp; &nbsp;-9.76&nbsp; &nbsp;-6.53&nbsp; (aka 14)<br />18&nbsp; 0001001011101101&nbsp; &nbsp;-6.53&nbsp; &nbsp;-9.76&nbsp; &nbsp;-2.98&nbsp; &nbsp;-4.12&nbsp; (aka 22)<br />20&nbsp; 0001010011101011&nbsp; &nbsp;-9.76&nbsp; &nbsp;-4.12&nbsp; &nbsp;-6.53&nbsp; &nbsp;-2.98&nbsp; (aka 26)<br /></div><br />The first thing I noticed was that the sums of the magnitudes of the harmonics fell into three distinct groups. And then I noticed that the individual overtones tended to bounce around in the same pattern. For the group of four patterns that all have a maximum-amplitude harmonic, the other three harmonics were all same-valued.<br /><br />I was specifically looking for sequences one could use in making a typical forment sweep sound (or maybe &quot;the 'acid music' sound&quot;). It turns out that of the extremely restricted set of sounds, the patterns above suggest rearranging the sequences in a 4x3 matrix:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">1st&nbsp; 3rd&nbsp; 5th&nbsp; 7th harmonic<br />&nbsp; 0 - 24 - 36 - 42 ↑ more narrowband<br />&nbsp; 2 - 12 - 44 - 10<br />&nbsp; 4 -&nbsp; 8 - 18 - 20 ↓ more broadband<br /></div><br />At the most broadband of sequences (4/8/18/20) I have a lot of difficulty noticing the difference between the sound of the patterns: the not-quite-7dB variation from loudest to quietest isn't obvious to me.<br /><br />This would suggest sequences of the form of narrowband→broadband→narrowband again would sound good and also provide a significant number of different tone colors, e.g. 0,2,4,8,12,24, and it does seem to be mostly true, except for the waveform &quot;44&quot;, which has a problematically quiet fundamental in comparison to any of its neighbors.<br /><br />None of these advanced waveforms help with the extremely restrictive tuning: for that, the only option is some kind of dithering between adjacent values at super-infrasonic rates.<br /><br />Anyway, maybe this'll be useful to someone.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

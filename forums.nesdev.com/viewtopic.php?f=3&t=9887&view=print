@@ -1,0 +1,291 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - blargg's APU tests (len_reload_timing)</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">blargg's APU tests (len_reload_timing)</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=3&amp;t=9887">http://forums.nesdev.com/viewtopic.php?f=3&amp;t=9887</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>proxy</b> [ Tue Mar 05, 2013 2:11 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>blargg's APU tests (len_reload_timing)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I am trying to get my APU core to pass all of blargg's tests and am sooo close. I pass tests 1-10. But constantly get:<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">4) Reload during length clock when ctr = 0 should work normally</div><br /><br />When I run 11.len_reload_timing.nes. I feel like I have tried everything I can think of at the moment.<br /><br />Here's my general strategy for dealing with reloads at the moment. When $4003/$4007/$400b/$400f are written too. I do something to this effect:<br /><br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp;reload_value_ = length_table&#91;index &amp; 0x1f&#93;;<br />&nbsp; &nbsp;reload_&nbsp; &nbsp; &nbsp; &nbsp;= true;<br />&nbsp; &nbsp;reload_cycle_ = nes::apu.cycle_count();<br /></div><br /><br />So I don't actually do the reload yet, i just note that a reload was called for and record the value and when it happened.<br /><br />Since, I am doing a lazy load, I need to perform the reload during status reads, no biggie<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp;if(reload_) {<br />&nbsp; &nbsp;&nbsp; &nbsp;value_&nbsp; = reload_value_;<br />&nbsp; &nbsp;&nbsp; &nbsp;reload_ = false;<br />&nbsp; &nbsp;}<br />&nbsp; &nbsp;return value_;<br /></div><br /><br />This also seems to work fine.<br /><br />Finally, when the LC gets clocked, before I do any of the usual clocking logic, I do the reload with something like this:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp;if(reload_) {&nbsp; &nbsp;&nbsp; &nbsp;<br />&nbsp; &nbsp;&nbsp; &nbsp;if((reload_cycle_ != nes::apu.cycle_count()) || (value_ == 0)) {<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;value_ = reload_value_;<br />&nbsp; &nbsp;&nbsp; &nbsp;}<br />&nbsp; &nbsp;&nbsp; &nbsp;reload_ = false;<br />&nbsp; &nbsp;}<br /></div><br /><br />Finally, here's a debug log of Square 0's LC reload activity during the test:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">RELOAD&#91; &#93;:&nbsp; &nbsp; &nbsp; &nbsp; 0:&nbsp; &nbsp;14995 &#91;v = 00&#93;<br />RELOAD&#91;-&#93;:&nbsp; &nbsp; 44854:&nbsp; &nbsp;44855 &#91;v = 06&#93;<br />RELOAD&#91; &#93;:&nbsp; &nbsp; 74776:&nbsp; &nbsp;89697 &#91;v = 00&#93;<br />RELOAD&#91; &#93;:&nbsp; &nbsp; 89698:&nbsp; &nbsp;89721 &#91;v = 05&#93;<br />RELOAD&#91;=&#93;:&nbsp; &nbsp;134563:&nbsp; 134563 &#91;v = 00&#93;<br />RELOAD&#91; &#93;:&nbsp; &nbsp;446814:&nbsp; 447757 &#91;v = 00&#93;<br />RELOAD&#91; &#93;:&nbsp; &nbsp;893856:&nbsp; 895141 &#91;v = 00&#93;<br />RELOAD&#91; &#93;:&nbsp; 1340898: 1342525 &#91;v = 00&#93;<br />RELOAD&#91; &#93;:&nbsp; 1787940: 1789909 &#91;v = 00&#93;<br /></div><br /><br />The value in the bracket will be either '=', '+', '-', or ' ' to indicate that the reload happened during, 1 cycle after, 1 cycle before or &quot;other&quot; respective to the clock.<br />The first number column is APU cycle $4003 was written on.<br />The second is the APU cycle that the clock happened on.<br />Finally, v is the value of the LC when clocked.<br /><br />The one and only thing I can think of (which I will look into now) is if my lazy reload is making the status register return the wrong value during corner cases. But I don't see how that could happen since i *think*, the only time that would matter is if the LC was clocked on the same cycle as the status was read AND on the same cycle as the $4003 write, which is obviously not possible.<br /><br />Anyone have any thoughts (Blargg, if you see this, your insights are usually awesome, so I'd love to hear your thoughts!)<br /><br />thanks,<br />proxy
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Zepper</b> [ Tue Mar 05, 2013 4:19 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: blargg's APU tests (len_reload_timing)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Check if $4015 reads are +1 cycle off of sync with the APU. I had a problem of clocking the channel _at same time_ that a $4015 read is performed.<br /><br />Just my 0.02
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Tue Mar 05, 2013 4:50 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: blargg's APU tests (len_reload_timing)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />First off, this is extremely obscure stuff that hardly matters. And next, I'm very rusty with all this. I take the error to indicate that usually a reload on length clock does something wonky, but that if the counter is 0, it behaves as a normal reload on any cycle. What if you change the logic to _value &lt;= 1 (or move the check until after clocking)?<br /><br />I'm curious as to the motivation behind the lazy actions. Is it to avoid having to catch the APU up when the CPU writes? Is catchup expensive in your APU?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>proxy</b> [ Tue Mar 05, 2013 5:23 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: blargg's APU tests (len_reload_timing)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Thanks for the input guys. I've tried shifting the comparison to +1 or -1. No joy yet. But at the same time, I've just noticed that while I pass a lot of blargg's APU tests. I also fail a few similar ones that I found in the nesticide test roms. So perhaps I have something subtly off which is close enough to pass some tests, but wrong enough to throw off some other tests. Either way, I will continue to test and experiment with the implementation to see what I need to do. I kinda feel it's a combination of factors right now, we'll see <img src="./images/smilies/icon_smile.gif" alt=":-)" title="Smile" />.<br /><br />Regarding why I'm doing the lazy evaluation, I'm sorry to say, it's not anything too exciting. I am currently simply not using a catch up method at all. I instead have implemented the CPU, PPU and APU such that they can be asked to execute 1 cycle at a time, and am running them lock step.<br /><br />I know this isn't the most efficient approach (I still get 350 FPS though, so it isn't too bad), but I want to make the implementation accurate and simple before I make it fast. On average, the catch up method is a little more complex to get right (at least IMO). The lazy evaluation allows me to choose to apply the reload or not later on. So far, this is the only case I've needed to do this though.<br /><br />Once I have the implementation correct, I plan to move towards the catchup method as an optimization though. Just not right now.<br /><br />Thanks again for the input.<br /><br />proxy
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Zepper</b> [ Wed Mar 06, 2013 9:19 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: blargg's APU tests (len_reload_timing)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">blargg wrote:</div><div class="quotecontent">First off, this is extremely obscure stuff that hardly matters.</div><br /><br /><strong>Right.</strong> I was looking for the problem... and as I said before, if the PPU runs for 3 cycles (NTSC) and the last cycle was the 340th, the VBlank flag must be set <em>before</em> the current CPU cycle. It affects more stuff, as I wasn't understanding much of the inner works (as you call obscure stuff) of your test ROMs until then.<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">ppu_clock();&nbsp; &nbsp;// x3 cycles -- running _prior_ to the CPU cycle.<br />cpu_clock();&nbsp; &nbsp;// x1 cycles</div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Quietust</b> [ Wed Mar 06, 2013 2:06 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: blargg's APU tests (len_reload_timing)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />It may not be a matter of counts being off by 1 cycle; rather, it might be a matter of clock <strong>alignment</strong> (just as sprite DMA takes either 513 or 514 cycles depending on when it happens).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>proxy</b> [ Thu Mar 07, 2013 9:54 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: blargg's APU tests (len_reload_timing)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Yea, right now my PPU clocking looks something like this:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">if((ppu_cycles++ % 3) == 0) {<br />&nbsp; &nbsp; nes::cpu.run(1);<br />}<br /></div><br /><br />But I have tried making it trigger when it's 0, 1 and 2 in order to test alignment issues, but so far no love.<br /><br />Zepper, can you explain more what you mean about the PPU exiting on cycle 340? Since this isn't the pre-render scanline, shouldn't the vblank be set after cycle 341?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Quietust</b> [ Thu Mar 07, 2013 10:16 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: blargg's APU tests (len_reload_timing)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">proxy wrote:</div><div class="quotecontent">Yea, right now my PPU clocking looks something like this:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">if((ppu_cycles++ % 3) == 0) {<br />&nbsp; &nbsp; nes::cpu.run(1);<br />}<br /></div><br /><br />But I have tried making it trigger when it's 0, 1 and 2 in order to test alignment issues, but so far no love.</div><br />That's not what I meant - I'm talking about making your &quot;reload_cycle_&quot; either be &quot;nes::apu.cycle_count()&quot; or &quot;nes::apu.cycle_count() + 1&quot; depending on whether said count is even or odd.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>proxy</b> [ Thu Mar 07, 2013 11:22 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: blargg's APU tests (len_reload_timing)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Ahh, that's a good point! I will look into that <img src="./images/smilies/icon_smile.gif" alt=":-)" title="Smile" />.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

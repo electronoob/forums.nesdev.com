@@ -1,0 +1,558 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Multithreaded emu designs</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Multithreaded emu designs</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=3&amp;t=8999">http://forums.nesdev.com/viewtopic.php?f=3&amp;t=8999</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>3</strong> of <strong>4</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Thu Jun 21, 2012 10:32 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Thanks byuu.
+<br />
+<br />I'm switching periodically back and forth between the two just to try them out.  I think I have most of the stability issues with preemptive resolved (it used to hang every once in a while, but since a recent fix in how ppu&lt;-&gt;cpu are synced at the end of the frame, I haven't gotten it to hang again no matter what I tried).
+<br />
+<br />No actual "numbers" yet, but so far it's looking like cooperative gives better performance on my machine, as I notice a significant speed difference in Excitebike when running the two modes.  HOWEVER!  I am doing incredibly dumb unoptimized syncing at this point (sync after every single reg read/write no matter the state), so there is a LOT of context switching going on, so this is pretty much what I expected.  I'm not giving up on preemptive yet -- once I put in some smarter code to make it so I don't have to sync as often, I'll do some proper tests.
+<br />
+<br />Plus... preemptive is way easier to debug since I can switch thread contexts in the debugger.  So even if it turns out not to be practical from an end user standpoint, I'm glad it's there  ;)
+<br />
+<br />
+<br />
+<br />@ mozz:
+<br />
+<br />I was planning to implement a simple lockless queue to track register writes.  It would basically work like this:
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">// in ppu thread:<br /><br />if&#40; ppu_pos != cpu_pos &#41;<br />&#123;<br />&nbsp; // read and act on queue&#91;ppu_pos&#93;<br />&nbsp; ++ppu_pos;<br />&#125;<br /><br />// in cpu thread, on register write<br />queue&#91;cpu_pos&#93; = whatever;<br />++cpu_pos;<br /></div>
+<br />
+<br />What kind of gotchas would bite me here?  And is there a way around them?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>byuu</b> [ Fri Jun 22, 2012 1:58 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Heya mozz, long time no see!
+<br />
+<br />&gt; you MUST BE CAREFUL not to make any OS calls while running that co-thread!
+<br />
+<br />It is a good idea to be overly cautious, sure. You can keep the cothreads almost entirely based around only your own code, and back out to the real main thread to do OS interaction. But this really isn't an issue on x86/amd64.
+<br />
+<br />I've had my PPU call interface-&gt;videoRefresh(), which invokes the GUI, which calls DirectX + window geometry querying stuff. Same for input that polls the keyboard, mouse and gamepads, and audio which writes to the sound card. I *definitely* use lots of C-level file I/O stuff in the core even now. And bsnes has been run on x86, amd64, PPC32, PPC64, MIPS, ARM, SPARC; Windows, Linux, OS X, Nintendo DS, PS3, Loongson, and FreeBSD.
+<br />
+<br />I can see a secure environment doing wildly ineffective things like stack bounds checking, but desktop OSes don't really do that. Also, I have a Windows Fibers backing, and I'd be absolutely shocked if fibers didn't let you call other API functions.
+<br />
+<br />&gt; I am highly skeptical of this preemptive multithreading idea you guys are discussing
+<br />
+<br />I concur, said as much at the beginning. I have very little hope of seeing good performance numbers from the preemptive version. But you never know unless you try! Having a real-world, full-fledged example is great, if someone is willing to put the work in.
+<br />
+<br />That said, I do want to add that Disch's abstraction to allow both types is going to have a ton of overhead in and of itself. We're talking about millions of switches a second here. I wouldn't be surprised to see a 20-40% speed boost by using libco without a wrapper.
+<br />
+<br />&gt; Plus... preemptive is way easier to debug since I can switch thread contexts in the debugger.
+<br />
+<br />Neato! I never use debuggers, but that does sound like it'd be really helpful. Valgrind goes crazy when it sees my userspace stack switching.
+<br />
+<br />&gt; once I put in some smarter code to make it so I don't have to sync as often, I'll do some proper tests.
+<br />
+<br />That will indeed help a lot. Cooperative threading can actually outperform state machines by a large margin when you are able to run each thread far longer than a state machine could. But swapping every cycle, it's a very clear loser in terms of performance.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Fri Jun 22, 2012 7:27 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">We're talking about millions of switches a second here.</div><br /><br />I'm not <strong>quite</strong> switching every cycle... just every register access and at end of frame.<br /><br />I plan on eventually implementing the following to prevent unnecessary switching:<br /><br />1)  detect common $2002 polling loops and run the PPU ahead until 2002 status changes.<br /><br />2)  Queue register writes at have the PPU dequeue them and actually perform them as it runs, rather than force it to sync up every register write.<br /><br />3)  Only sync up on 2004/2007 register reads if the read will affect (or be affected by) ppu behavior (ie:  if rendering is disabled and the ppu address is outside the $3Fxx range, there is no need to sync)<br /><br /><br />So the only things I'll have to sync for are:<br />- once for each 2002 poll loop<br />- crazy stuff like 2004 or 2007 poll loops while the PPU is rendering (damn you, Micro Machines)<br />- mapper reg writes that affect ppu execution (mirroring/chr switching)<br />- end of frame<br /><br />I'm estimating maybe 8-12 syncs per frame on average, with 2 context switches per sync.  I don't think that will be too hard on performance.  But I won't know until I actually get there!<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">That said, I do want to add that Disch's abstraction to allow both types is going to have a ton of overhead in and of itself.</div><br /><br />"Tons" is an overstatement.  All I'm doing is putting libco function calls behind an abstract base class.  The extra overhead is a pointer dereference and a virtual function call.  Hardly performance killers.  Especially after the amount of syncing is minimized.<br /><br />The bigger hinderance to performance is probably due to making the timestamp counters volatile.<br /><br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Neato! I never use debuggers</div>
+<br />
+<br />Good god, man.  How do you function?  XD
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>byuu</b> [ Fri Jun 22, 2012 8:09 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />&gt; 2) Queue register writes at have the PPU dequeue them and actually perform them as it runs, rather than force it to sync up every register write. 
+<br />
+<br />Please be sure to do benchmarks before you implement this and immediately after. I'm very curious about this one.
+<br />
+<br />There's a high probability that the queue + time compensation will outweigh the benefit of less switches. I'm not really sure here.
+<br />
+<br />&gt; I'm estimating maybe 8-12 syncs per frame on average
+<br />
+<br />That is realllllly ambitious, but we will see :D
+<br />I take it your APU is a state machine? Fine if it is, mine isn't solely for consistency.
+<br />
+<br />My SNES core syncs between 200,000 and 6,000,000 times a second on average (tons of games do PPU / APU spin loops); highly dependent upon the game. So ~600 is something else.
+<br />
+<br />Hell, maybe NES really only needs that many on average, I haven't really messed with it. I just did the "sync whenever ahead" thing there too, as I already get 400+fps on my system, and I don't expect anyone to use my NES emulation.
+<br />
+<br />&gt; Hardly performance killers. Especially after the amount of syncing is minimized.
+<br />
+<br />Well yeah, at 8-12 I agree. In the hundreds of thousands, it adds up.
+<br />
+<br />&gt; The bigger hinderance to performance is probably due to making the timestamp counters volatile.
+<br />
+<br />Definitely add:
+<br />#ifdef PREEMPTIVE
+<br />  #define PVOLATILE volatile
+<br />#else
+<br />  #define PVOLATILE
+<br />#endif
+<br />
+<br />&gt; Good god, man. How do you function? XD
+<br />
+<br />Lots of well-placed printf() statements :D
+<br />Very rarely I'll use gdb bt, but that works with cothreads just fine, amazingly enough.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Fri Jun 22, 2012 8:35 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Please be sure to do benchmarks before you implement this and immediately after. I'm very curious about this one.<br /><br />There's a high probability that the queue + time compensation will outweigh the benefit of less switches. I'm not really sure here. </div><br /><br />I will.<br /><br />I suspect queuing will do more for preemptive than it will for cooperative, as switching is alot more costly there.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">That is realllllly ambitious, but we will see :D </div><br /><br />From what I've seen of typical NES games, most of them don't really do a lot of PPU/CPU sync.  But I'm partly pulling that number out of my ass, so yeah maybe it is a bit optimistic.  We'll see indeed.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">I take it your APU is a state machine? Fine if it is, mine isn't solely for consistency. </div><br /><br />I currently have no APU, but eventually I'll make it another thread.  I was just speaking about CPU&lt;-&gt;PPU syncing previously.  With the addition of an APU, there will of course be more switching.<br /><br />I don't plan on adding any other threads, though.  I thought about doing one for a mapper, but most mappers don't need it and those that do can operate very easily with a state machine, as their logic isn't very complex.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Definitely add:<br />#ifdef PREEMPTIVE<br />#define PVOLATILE volatile </div>
+<br />
+<br />Well my ultimate goal was to make this a runtime option.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Fri Jun 22, 2012 8:45 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />How do you plan to handle IRQs triggered by the PPU? MMC3 and MMC5 watch PA12 or PA13 to count scanlines. If you're running the CPU ahead, you'll need to estimate how many scanlines ahead the IRQ is going to occur.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Fri Jun 22, 2012 9:25 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />IRQs will be precalculated and predicted.  I've always done it this way so this isn't really new.
+<br />
+<br />AFAIK there are 3 different PPU-triggered IRQs:
+<br />
+<br />1)  A12 rises (MMC3, mapper 90)
+<br />2)  MMC5's scanline counter
+<br />3)  mapper 90's "ppu read" counter (not used in any games?)
+<br />
+<br />
+<br />All of which are relatively easy to predict.  Though state changes midframe would complicate them and probably require additional syncing.
+<br />
+<br />For example, if a game switches from sprites using $1000 for CHR to using $0000 normally wouldn't require a sync because that could be queued.  But since it would change A12 prediction it probably would have to sync.
+<br />
+<br />But honestly I'm not concerned about mapper details yet.  I don't expect many complications in working that in.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>byuu</b> [ Fri Jun 22, 2012 10:49 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I very much enjoyed implementing the mappers as true independent processors with their own cycles. It does start to cross beyond your average emulator though, keep track of values on the busses between cycles and such.
+<br />
+<br />There's so much speculation out there, but almost nothing on how the boards definitively detect scanline edges. Especially on the more complex mappers.
+<br />
+<br />Very interestingly, I found that the method I use to detect MMC5 scanlines (runs all MMC5 games) [I believe I watch for the two dummy nametable fetches ... but I haven't worked on NES code in a while now] results in the counter being drastically desynced from where the actual PPU is at frequently, but only during scenes without any graphics onscreen. Kind of neat. A test ROM could probably easily detect most emulators' implementations.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Fri Jun 22, 2012 11:02 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">byuu wrote:</div><div class="quotecontent">the method I use to detect MMC5 scanlines (runs all MMC5 games) [I believe I watch for the two dummy nametable fetches ... but I haven't worked on NES code in a while now] results in the counter being drastically desynced from where the actual PPU is at frequently, but only during scenes without any graphics onscreen. Kind of neat. A test ROM could probably easily detect most emulators' implementations.</div>
+<br />I've read speculation that the MMC5 watches writes to $2001 and disables the scanline counter while rendering is disabled. It has to watch $2000 because some of the CHR bank behavior differs for 8x8 and 8x16 pixel sprites.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>mozz</b> [ Fri Jun 22, 2012 12:31 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">byuu wrote:</div><div class="quotecontent">I can see a secure environment doing wildly ineffective things like stack bounds checking, but desktop OSes don't really do that. Also, I have a Windows Fibers backing, and I'd be absolutely shocked if fibers didn't let you call other API functions.</div>
+<br />I'm afraid its been almost 15 years and I can't remember most of the details, but this would have been either on Windows 95/98 or NT4, and probably not all Win32 API functions but more likely just specific functions (things involving a window handle ??? I can't remember anymore).  I'm not sure about Windows 2000/XP.
+<br />
+<br />Also I would expect Windows Fibers to work fine, because their stack space is handled by the OS.  I remember that we were allocating our own "stack space" from the process heap for each cothread, and switching between them similar to how libco does it.  For one thing, I don't think Fibers were supported on 95/98, I think they were only supported on NT at the time, so we didn't want to use them.  The main thing I remember was that some Win32 API functions would freak out if we called them while our userspace stack pointer that pointed into the heap.  (It was a GUI app, maybe it was something that involved WndFuncs or message queues etc.)  Fortunately our emulator had a known fixed set of threads it needed to create, so we worked around it by doing the easy thing.  On startup, we just allocated those stacks inside the main Windows thread's stack with _alloca.  Then we could switch them around and still call Win32 API functions without triggering whatever it was.
+<br />
+<br />Perhaps this old restriction is not enforced at all in newer versions of Windows.  If people can run bsnes on Windows XP, then I guess everything is fine.  Carry on  <img src="./images/smilies/icon_wink.gif" alt=";)" title="Wink" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>mozz</b> [ Fri Jun 22, 2012 12:55 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Disch wrote:</div><div class="quotecontent">@ mozz:<br /><br />I was planning to implement a simple lockless queue to track register writes.  It would basically work like this:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">// in ppu thread:<br /><br />if&#40; ppu_pos != cpu_pos &#41;<br />&#123;<br />&nbsp; // read and act on queue&#91;ppu_pos&#93;<br />&nbsp; ++ppu_pos;<br />&#125;<br /><br />// in cpu thread, on register write<br />queue&#91;cpu_pos&#93; = whatever;<br />++cpu_pos;<br /></div><br /><br />What kind of gotchas would bite me here?  And is there a way around them?</div>
+<br />I'm no expert on lock-free stuff, but that's the kind of question that would take a textbook to answer.
+<br />
+<br />In general, other threads might not see the results of reads and writes in the same order that your thread executes them, and there might be arbitrary delays before they see those results.  Various types of barrier instruction can be used to "flush" writes to other processors.  But even then, you have to be careful--out-of-order execution means reads won't necessarily occur in program order, and neither will writes (except I think they do on x86, but its not safe to rely on that) and reads can be reordered before/after writes, and writes can be combined in a buffer before they actually get flushed out to the cache, etc.  Non-atomic operations can always be interrupted by a thread switch or hardware interrupt, allowing other threads to see the partial results of the operation.  Cache line contention (even false contention on different parts of the cacheline) can easily kill performance.  So when you write your own lock-free primitives you are trying to build a reliable, complex atomic op that overcomes all of these problems, out of simpler ops (atomic and non-atomic, and barriers).  It's definitely not for the faint of heart.
+<br />
+<br />The good news, is that a circular FIFO single-producer single-consumer queue is about the simplest lock-free data structure anyone makes, so its entirely possible to get it right after a few tries.
+<br />
+<br />I suggest to read these blog posts by charles bloom, he is one of the guys who likes to figure this kind of stuff out and he's smarter than most.
+<br /><a href="http://cbloomrants.blogspot.ca/2009/01/01-25-09-low-level-threading-junk-part.html" class="postlink">Intro to low level threading issues</a>
+<br /><a href="http://cbloomrants.blogspot.ca/2009/02/02-24-09-low-level-threading-part-31.html" class="postlink">Introducing CAS and cache line issues.</a>
+<br /><a href="http://cbloomrants.blogspot.ca/2009/02/02-24-09-low-level-threading-part-30.html" class="postlink">Intro to Lock-Free Programming</a>
+<br /><a href="http://cbloomrants.blogspot.ca/2009/02/02-26-09-low-level-threading-part-51.html" class="postlink">SPSC FIFO: the simple message queue</a>
+<br /><a href="http://cbloomrants.blogspot.ca/2011/07/07-29-11-look-at-some-bounded-queues_29.html" class="postlink">A look at some bounded queues</a>
+<br /><a href="http://cbloomrants.blogspot.ca/2011/07/07-30-11-look-at-some-bounded-queues.html" class="postlink">A look at some bounded queues - part 2</a>
+<br />
+<br />Edit: Just making variables volatile is NOT enough to make them safe across multiple threads/cores.  All volatile does is keep the compiler from optimizing away your memory access (and on MSVC on x86 it adds some reordering constraints in the compiler too, but none at the CPU level).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Fri Jun 22, 2012 1:27 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Wonderful, mozz.  Thanks for the links.  I'll check them out tonight.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Sun Jun 24, 2012 8:11 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Well I've been reading those links and yutzing around with optimizing and stabalizing the preemptive approach.  I have come to the agreement that lock-free techniques are not worth the trouble, at least not until std::atomic is widely implemented.
+<br />
+<br />Just about ready to start initial performance benchmarks before I do the "queue register writes" thing.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Mon Jun 25, 2012 8:58 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Grrrr... Preemptive is still deadlocking.  I thought I got that resolved.  Grrrrr.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Tue Jun 26, 2012 6:54 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Initial numbers are in.  As expected, Cooperative seems to be the better performer so far:
+<br />
+<br /><img src="http://i45.tinypic.com/o5nviw.png" alt="Image" />
+<br />
+<br />Each game ran for 10000 frames, no user input (they just ran the demo).
+<br /><strong>Ticks</strong> = time in milliseconds it took to run all frames.
+<br /><strong>Context switch</strong> = applicable to Cooperative only, how many times thread contexts switched (ie:  co_switch calls)
+<br /><strong>Waits</strong> = applicable to Preemptive only.  The number of calls to condition_variable::wait (ie, thread sleeps waiting for the other thread to catch up and wake it up)
+<br /><strong>Yields</strong> = applicable to Preemptive only.  The number of times the PPU "caught up" to the CPU and had to spin in a yield loop while it waited for the CPU to gain some ground (the PPU does not sleep/wait for the CPU in my implementation).
+<br />
+<br />As I expected, volatility is a considerable performance hit in of itself.  Just adding volatiles knocks 30 off the average FPS.
+<br />
+<br />Preemptive performed poorly on SMB (and especially Excitebike) due to their $2002 spin loops.  Those sync ups are really heavy on Preemptive.
+<br />
+<br />
+<br />I'm going to do two more optimizations.  Profiling again after each one:
+<br />
+<br />1)  Put register writes in a FIFO queue and have the ppu pull them out and apply them as it runs, rather than having to switch/sync up on every write.
+<br />
+<br />2)  Detect common $2002 spin loops and run the PPU ahead until $2002 status changes.
+<br />
+<br />
+<br />#2 should do wonders for Preemptive.
+<br />
+<br />
+<br />Also... interesting note.  Balloon Fight has ~110,000 context switches in 10,000 frames.  That's ~11 context switches per frame.  Not far from my estimate  XD.
+<br />
+<br />
+<br />But unless preemptive pulls out some kind of miracle with these optimizations, it's looking like I'm going to gut it and stick to cooperative.  Still, this is a very very fun experiment.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>3</strong> of <strong>4</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

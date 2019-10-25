@@ -1,0 +1,439 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - new to NES, layering simulation effect question</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">new to NES, layering simulation effect question</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=9317">http://forums.nesdev.com/viewtopic.php?f=2&amp;t=9317</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>4</strong> of <strong>13</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Thu Sep 20, 2012 6:36 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: new to NES, layering simulation effect question</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I don't remember the exact timing, but IIRC the IRQ fires kinda late in the scanline, so there might not be enough time to update the scroll before the PPU does its internal scrolling maintenance. If this is the case, the fine X scroll (pixel 0-7) would update (it's updated immediately), but the coarse scroll (tile 0-31) wouldn't be updated until the next scanline, resulting in a glitchy scanline. You could try delaying your scroll change until the end of the next scanline, with some timed code before the write to $2005.<br /><br />EDIT: There's no need to turn off rendering. You just have to be sure that the $2005 write finishes before the X scroll is reset internally. I searched and it seems that the <a href="http://forums.nesdev.com/viewtopic.php?p=46833#p46833" class="postlink">X scroll is reset on cycle/pixel 257</a>, and the <a href="http://forums.nesdev.com/viewtopic.php?p=62444#p62444" class="postlink">MMC3 IRQ fires at cycle 260</a>, so you really have to wait until the next scanline.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Thu Sep 20, 2012 7:09 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: new to NES, layering simulation effect question</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />IRQ fires at dot 260, and the fetches to load the first tiles of the next scanline begin at 320.<br /><br />Here is your current IRQ handler, with execution times in dots (assuming NTSC or RGB system). Internally, an IRQ or NMI is performed by <a href="http://www.pagetable.com/?p=410" class="postlink">replacing the input to the instruction decoder with $00 (which is the opcode for BRK)</a>, so I'll show the IRQ's entry as &quot;Brk&quot; in the following.<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">xxx xxxxx&nbsp; ;&nbsp; 0-18: wait for current instruction to finish<br />Brk $00&nbsp; &nbsp; ; 21: enter IRQ<br />Pha&nbsp; &nbsp; &nbsp; &nbsp; ;&nbsp; 9<br />Lda #$01&nbsp; &nbsp;;&nbsp; 6<br />Sta $E000&nbsp; ; 12<br />Lda #$20&nbsp; &nbsp;;&nbsp; 6<br />Sta $2005&nbsp; ; 12<br />Pla<br />Rti<br /></div><br />So it takes 66 to 82 dots before the write completes.<br /><br />Technically you don't need to store any particular value into $E000 for MMC3, and you might as well make the $2005 write happen as early as possible. This one completes the write in 48-66 dots:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">xxx xxxxx&nbsp; ;&nbsp; 0-18: wait for current instruction to finish<br />Brk $00&nbsp; &nbsp; ; 21: enter IRQ<br />Pha&nbsp; &nbsp; &nbsp; &nbsp; ;&nbsp; 9<br />Lda #$20&nbsp; &nbsp;;&nbsp; 6<br />Sta $2005&nbsp; ; 12<br />Sta $E000<br />Pla<br />Rti<br /></div><br />So trigger the IRQ handler a scanline early, write only the coarse scroll value, and then write the new fine scroll value during the <em>next</em> horizontal blank.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>exdeath</b> [ Thu Sep 20, 2012 8:35 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: new to NES, layering simulation effect question</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Good stuff.  Currently reading the loopy doc on scrolling. <br /><br />3 dots per CPU clock?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Thu Sep 20, 2012 9:48 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: new to NES, layering simulation effect question</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">exdeath wrote:</div><div class="quotecontent">Currently reading the loopy doc on scrolling.</div><br />It has some good info for when you need to change the vertical scroll mid frame, which is significantly more complex than changing just the horizontal scroll.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">3 dots per CPU clock?</div><br />On NTSC, yes. On PAL it's 3.2 dots.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>infiniteneslives</b> [ Thu Sep 20, 2012 11:14 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: new to NES, layering simulation effect question</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">exdeath wrote:</div><div class="quotecontent">So just started messing with MMC3 IRQs.   Just experimenting with split screen for all of 5 minutes.<br /><br />Got it working but the line seems indefinite. +/- 1 which I've read about.<br />  <br />And the scroll is messed up on the line separating the two screens.<br /><br />So it looks like 119 lines 0 scroll, 1 line like 10-50 scroll then remaining 120 lines 20 scroll.  Just ordered a PowerPak so haven't tried on real hardware yet.</div><br /><br />The accuracy is good with the actual mmc3.  But from what I'm told the power pak's isn't so great.  It tends to jump back and forth a few scan lines on some games...  So keep that in mind, it's not necessarily the mmc3 as much as it's the power pak.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>thefox</b> [ Thu Sep 20, 2012 12:43 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: new to NES, layering simulation effect question</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">infiniteneslives wrote:</div><div class="quotecontent">The accuracy is good with the actual mmc3.  But from what I'm told the power pak's isn't so great.  It tends to jump back and forth a few scan lines on some games...  So keep that in mind, it's not necessarily the mmc3 as much as it's the power pak.</div><br />This might have been true back when PowerPak was released, but I haven't had any problems like that with the loopy's latest mappers (or my own save state mappers). Still good to keep that what you said in mind of course.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>MottZilla</b> [ Thu Sep 20, 2012 12:50 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: new to NES, layering simulation effect question</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Also the MMC5 mapper file for the PowerPAK may not be complete, I don't think it is. So don't assume the PowerPAK running a game with complex operation to mean it will work on the original mapper exactly the same. Simple mappers you can likely count on to operate just about identically, like MMC1.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>exdeath</b> [ Thu Sep 20, 2012 1:53 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: new to NES, layering simulation effect question</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Yeah, well see what happens once I properly implement mid frame scrolling first.<br /><br />Just writing xpos trivially  to $2005 on IRQ doesn't cut it apparently.<br /><br />Trying to get more clarification on the course vs fine scroll and when and where to write them.<br /><br />Ill have to play with nops to experiment with the timing.<br /><br />So the value written to $2005 has a diff meaning during rendering than a simple scroll integer?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>exdeath</b> [ Thu Sep 20, 2012 2:20 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: new to NES, layering simulation effect question</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Oh I get it now.<br /><br />Earlier it was said modifying the palette mid frame was tricky if not impossible due to screwing up the scroll.... Now I know... because its using the same address registers internally while rendering and screwing up the PPUs current location.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Thu Sep 20, 2012 3:26 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: new to NES, layering simulation effect question</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">exdeath wrote:</div><div class="quotecontent">because its using the same address registers internally while rendering and screwing up the PPUs current location.</div><br />Exactly. When you set the scroll during VBlank you are actually setting the initial value of the VRAM address register, which is used during rendering to fetch tiles and such. The only part of the scroll that's not related to the VRAM address register is the fine X scroll, and that's the reason it takes effect immediately on writes to $2005.<br /><br />During rendering, these register have to be manipulated according certain rules:<br /><br />You can write to $2005 freely, but it affects the temporary address register. Since the screen is drawn from top to bottom, every scanline the X part of the VRAM register is reloaded with the temporary register, but the Y part is never reloaded, and this is the reason you can't change the vertical scroll mid frame through $2005 - the value you write is never copied from the temporary register to the address register.<br /><br />In order to modify the Y scroll you have to use $2006, which forces the contents of the temporary register to be copied over to the address register. However, since $2006 was meant for writing/reading data to/from VRAM (pattern tables, name/attribute tables and palettes), it masks off the top 2 bits of the written address (not necessary for accessing $0000-$3FFF), one of which is necessary to control the scroll, meaning you can't fully set the scroll with $2006 alone (that and the fact that the fine X scroll is a separate thing). Hence the need for mixed $2005/$2006 writes.<br /><br />All that complexity is because of the vertical scroll. For the horizontal scroll you should be OK doing what tepples said: set the coarse scroll during HBlank (after cycle 257, which is when the value from the temporary register is copied, meaning the value you wrote will not be used just yet), and then during the next HBlank you set the fine scroll. You will obviously be wasting some time this way, since you can't change the scroll right as the IRQ fires and you have to wait yet another scanline to set the fine scroll, but that's what's require for a clean, unnoticeable split. If you pay attention, you'll see that most commercial games don't have such a clean split (even high profile games like SMB3), and you can easily see glitches because of badly timed scroll changes.<br /><br />IMO, the most notorious case of glitchy scroll changes in a commercial game is Mega Man 3. The stage select screen has very noticeable glitches right above Shadow Man, and so does the top of the weapon selection menu, and at various times when the background is used for special effects the ground is severely affected.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>exdeath</b> [ Thu Sep 20, 2012 4:25 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: new to NES, layering simulation effect question</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />It's definitely a fine scroll issue, as the messed up line is never +/- 8 pixels from the line above it.<br /><br />So I guess that's where I'm missing:<br /><br />1) when, how, and where to write &quot;fine&quot; scroll vs &quot;coarse&quot; scroll.  Do these HAVE to be written separately?  It does not appear that simply writing once to $2005 with appropriate delay is enough;  I just go from overshooting the end of the current line to messing up the next line with a single extra NOP.<br /><br />2) how to determine next hblank knowing that the IRQ is called at dot 260 of the current line.<br /><br />Top part of screen scrolls, and I'm trying to fix the bottom part at scroll $20 on MMC3 IRQ at line 120.  IRQ just acks the mmc3 int, then tries to nop until next hblank before writing $20 to $2005.  As I keep adding nops, I see the line stabilized from left to right with the glitches shrinking to the right, but just when Im down to the last couple pixels, one more NOP and bam the entire next line glitches.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Dwedit</b> [ Thu Sep 20, 2012 4:51 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: new to NES, layering simulation effect question</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />To do mid-screen scrolling for horizontal and vertical scrolling, it's 4 writes:<br /><br />2006/1 ---- NN-- (nametable select)<br />2005/2 VV-- -vvv (upper two bits of coarse V scroll, all bits of fine V scroll)<br />2005/1 ---- -hhh (fine horizontal scrolling) (takes effect immediately)<br />2006/2 VVVH HHHH (lower three bits of coarse V scroll, all bits of coarse H scroll)<br /><br />* The first two writes only affect Loopy_T, so they can happen at any time during the scanline.<br />* The third write (setting fine X) should happen at dot 256 or later. Since writes take 4 CPU cycles (12 PPU dots) to finish, the store to $2005 instruction should begin at dot 244 or later.<br />* The fourth write should happen before dot 304. The store to $2006 instruction should begin before dot 292. <br /><br />There's also another way to do it for just horizontal scrolling:<br />Write to 2005 between dot 256 and dot 304 to set the coarse scroll that will change after the next scanline, and fine scroll that will apply to the next scanline.  So fine scroll applies immediately, and coarse scroll is lagged until the next scanline.<br />Write to 2005 one scanline later between dot 256 and dot 304 to set the coarse and fine scrolling.<br /><br />I prefer the four write method, because you don't need to wait one scanline for it to finish.  Even though you still need to calculate X and Y scrolling bits for the four writes.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Thu Sep 20, 2012 5:03 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: new to NES, layering simulation effect question</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">exdeath wrote:</div><div class="quotecontent">It does not appear that simply writing once to $2005 with appropriate delay is enough;  I just go from overshooting the end of the current line to messing up the next line with a single extra NOP.</div><br />Yeah, one $2005 write isn't enough for a clean split. The X scroll is reset at cycle 257, just after the 256 visible pixels of the scanline, and for the coarse scroll to take effect on the next scanline it has to be changed before that. However, since the fine scroll takes effect immediately, anything before cycle 257 would be during the visible scanline, meaning you'd get glitches at the end of the scanline.<br /><br />You can however do it all in one go with mixed $2005/$2006 writes (as Dwedit explained above).<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">2) how to determine next hblank knowing that the IRQ is called at dot 260 of the current line.</div><br />Use timed code. You can just use NOPs at first (1 scanline is nearly 57 NOPs long) just to see how many cycles you have to burn, and then you can optimize the waiting code with a loop or something. You can never get things 100% synced though, since the CPU waits for the current instruction to finish before answering the IRQ, so your IRQ handler (and NMI handler too)will always jitter a bit, and you have to take that into account when operations have to happen at precise time intervals (I usually aim for the middle of the window, so that a little jittering is still inside the window).<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">As I keep adding nops, I see the line stabilized from left to right with the glitches shrinking to the right, but just when Im down to the last couple pixels, one more NOP and bam the entire next line glitches.</div><br />That matches precisely the explanation I gave above.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>exdeath</b> [ Thu Sep 20, 2012 5:25 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: new to NES, layering simulation effect question</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />OK lets see if I have this right:<br /><br />MMC3 IRQ fires at dot 260 for the current line N after it's done rendering and N+1 is about to start.<br /><br />It's too late to modify coarse scroll for the upcoming line N+1, so I have to write it for N+2.  But I DO have to do it now, or at least before dot 256 of line N+1.<br /><br />In doing so I affect the fine scroll for the soon to start N+1, which is why I have a line artifact that is coarse scrolled to the upper half of my screen but off by +/- 8 pixels because the fine scroll was reset.<br /><br />So when I write the first write to $2005 at the start of the IRQ I need to have the coarse scroll for N+2, but mask in the old fine scroll from the previous line N so that the line N+1 happening immediately after the IRQ, which is unaffected by the coarse scroll change, continues to match the top half of the screen for just one more line while I wait a 1 line delay.<br /><br />Then wait an entire line N+1.<br /><br />Then during the hblank of link N+1, write $2005 again with the same coarse scroll but the new fine scroll.<br /><br />Then my next question is, is there a diagram of the entire horizonal sweep with dot timing?  Is is 341 dots per line where 0-255 is the active line or...?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>exdeath</b> [ Thu Sep 20, 2012 7:54 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: new to NES, layering simulation effect question</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />W00t
+
+		
+			<br clear="all" /><br />
+
+			<table class="tablebg" width="100%" cellspacing="1">
+			<tr>
+				<td><b class="genmed">Attachments: </b></td>
+			</tr>
+			
+				<tr>
+					<td>
+			<span class="genmed">
+				<img src="./styles/subsilver2/imageset/icon_topic_attach.gif" width="14" height="18" alt="" title="" /> 
+				<a href="./download/file.php?id=48">test.zip</a> [4.31 KiB]
+			</span><br />
+			<span class="gensmall">Downloaded 48 times</span>
+		
+
+		<br />
+	</td>
+				</tr>
+			
+			</table>
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>4</strong> of <strong>13</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

@@ -1,0 +1,141 @@
+/* FCE Ultra - NES/Famicom Emulator
+ *
+ * Copyright notice for this file:
+ *  Copyright (C) 2006 CaH4e3
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ *
+ *
+ */
+
+#include "mapinc.h"
+#include "mmc3.h"
+
+static uint8 *CHRRAM = NULL;
+static uint32 CHRRAMSIZE;
+static uint8 PPUCHRBus;
+static uint8 TKSMIR[8];
+
+static void TKSPPU(uint32 A) {
+	A &= 0x1FFF;
+	A >>= 10;
+	PPUCHRBus = A;
+	setmirror(MI_0 + TKSMIR[A]);
+}
+
+static void M353PW(uint32 A, uint8 V) {
+	EXPREGS[2] = (EXPREGS[0] == 3 && ~DRegBuf[0] & 0x80) ? (DRegBuf[6] & 0x0F | 0x10) : 0xFE;
+	EXPREGS[3] = (EXPREGS[0] == 3 && ~DRegBuf[0] & 0x80) ? (DRegBuf[7] & 0x0F | 0x10) : 0xFF;
+
+	uint8 mask = 0x1F;
+	uint8 block = ((EXPREGS[0]) << 5);
+	if (EXPREGS[0] == 2)
+	{
+		mask = 0x0F;
+		block = ((DRegBuf[0] & 0x80) ? 0x10 : 0x00) | ((EXPREGS[0]) << 5);
+	}
+	else
+	{
+		mask = 0x1F;
+		block = ((EXPREGS[0]) << 5);
+	}
+
+	if (MMC3_cmd & 0x40) {
+		setprg8(0xC000, (DRegBuf[6] & mask) | block);
+		setprg8(0x8000, (EXPREGS[2] & mask) | block);
+	}
+	else {
+		setprg8(0x8000, (DRegBuf[6] & mask) | block);
+		setprg8(0xC000, (EXPREGS[2] & mask) | block);
+	}
+	setprg8(0xA000, (DRegBuf[7] & mask) | block);
+	setprg8(0xE000, (EXPREGS[3] & mask) | block);
+}
+
+static void M353CW(uint32 A, uint8 V) {
+
+	if (EXPREGS[0] == 0)
+	{
+		TKSMIR[A >> 10] = V >> 7;
+		if (PPUCHRBus == (A >> 10))
+			setmirror(MI_0 + (V >> 7));
+	}
+
+	if ((EXPREGS[0] == 2) && (DRegBuf[0] & 0x80))
+		setchr8r(0,0);
+	else
+		setchr1(A,(V & 0x7F) | ((EXPREGS[0]) << 7));
+}
+
+static DECLFW(M353Write) {
+	if (A & 0x80) {
+		EXPREGS[0] = (A >> 13) & 0x03;
+		FixMMC3PRG(MMC3_cmd);
+		FixMMC3CHR(MMC3_cmd);
+	} else
+		if (A < 0xC000)
+		{
+			MMC3_CMDWrite(A, V);
+			FixMMC3PRG(MMC3_cmd);
+		}
+		else
+			MMC3_IRQWrite(A, V);
+}
+
+static void M353Power(void) {
+	EXPREGS[0] = 0;
+	EXPREGS[1] = 1;
+	EXPREGS[2] = ~1;
+	EXPREGS[3] = ~0;
+	GenMMC3Power();
+
+	FixMMC3PRG(MMC3_cmd);
+	FixMMC3CHR(MMC3_cmd);
+
+	SetWriteHandler(0x8000, 0xFFFF, M353Write);
+}
+
+static void M353Reset(void) {
+	MMC3RegReset();
+	EXPREGS[0] = 0;
+	EXPREGS[1] = 1;
+	EXPREGS[2] = ~1;
+	EXPREGS[3] = ~0;
+
+	FixMMC3PRG(MMC3_cmd);
+	FixMMC3CHR(MMC3_cmd);
+}
+
+static void M353Close(void) {
+	if (CHRRAM)
+		FCEU_gfree(CHRRAM);
+	CHRRAM = NULL;
+}
+
+void Mapper199_Init(CartInfo *info) {
+	GenMMC3_Init(info, 512, 256, 8, info->battery);
+	cwrap = M353CW;
+	pwrap = M353PW;
+	info->Power = M353Power;
+	info->Close = M353Close;
+	info->Reset = M353Reset;
+
+	CHRRAMSIZE = 8192;
+	CHRRAM = (uint8*)FCEU_gmalloc(CHRRAMSIZE);
+	SetupCartCHRMapping(0x10, CHRRAM, CHRRAMSIZE, 1);
+	AddExState(CHRRAM, CHRRAMSIZE, 0, "CHRR");
+
+	AddExState(EXPREGS, 4, 0, "EXPR");
+}

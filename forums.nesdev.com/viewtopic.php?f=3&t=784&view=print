@@ -1,0 +1,278 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Changes in fine horizontal scroll during scanline rendering</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Changes in fine horizontal scroll during scanline rendering</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=3&amp;t=784">http://forums.nesdev.com/viewtopic.php?f=3&amp;t=784</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Josh G.</b> [ Wed Nov 23, 2005 9:45 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Changes in fine horizontal scroll during scanline rendering</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Quietust posted here previously that changes in the fine horizontal scroll value via $2005 (low 3 bits) take effect immediately, even in the middle of a scanline. The coarse scroll value (high 5 bits) would obviously not be implemented until the next scanline when the tile index would be reloaded. I'm having trouble understanding how changing the fine X scroll value in mid-scanline would work. Would the PPU render the same pixels from a tile twice if it were decremented? I thought the shift register only worked 1 way. I initially assumed that the fine X scroll just told the PPU how many bits to throw away from the left edge of the first tile rendered, but apparently that's not the case. Can anyone shed some light on how this would actually work? It was stated that some games (e.g. SMB3 during the matching subgame) rely upon this behavior. Does Nintendulator currently emulate this?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Quietust</b> [ Wed Nov 23, 2005 11:15 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Changes in fine horizontal scroll during scanline render</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Josh G. wrote:</div><div class="quotecontent">Would the PPU render the same pixels from a tile twice if it were decremented?</div><br /><br />Yes.<br /><br /><div class="quotetitle">Josh G. wrote:</div><div class="quotecontent">I thought the shift register only worked 1 way. I initially assumed that the fine X scroll just told the PPU how many bits to throw away from the left edge of the first tile rendered, but apparently that's not the case.</div><br /><br />When the PPU renders, it uses a series of 16-bit shift registers with 8-bit parallel inputs at the beginning and 8-bit parallel outputs at the end. The fine X scroll simply selects which of the 8 output bit sets to feed to the sprite unit. This also explains why the PPU must fetch TWO tiles in advance at the end of each scanline before it can start rendering - it takes that much data to "prime" the shift register so it can output valid data.<br /><br />And now, a diagram to attempt to illustrate what's going on:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; Input bits, coming from the logic that fetches tiles<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; * * * * * * * *<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; | | | | | | | |<br />===============&nbsp; &nbsp;=============== parallel load happens every 8 pixels<br />== Shift Reg ==&lt;--== Shift Reg == serial shift happens every 1 pixel<br />===============&nbsp; &nbsp;=============== there are 4 of these &#40;tile and attrib bits&#41;<br />| | | | | | | |&nbsp; &nbsp; ***<br />* * * * * * * *&nbsp; &nbsp; \|/ fine horizontal scroll, selects one of those 8 bits<br />|_|_|_|_|_|_|_|_____|____<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;|<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;|<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;Output to sprite comparitor</div><br /><br />I do not know for a fact that this is the way that the PPU works, but, given all current evidence, it is extremely likely that it does work this way.<br /><br /><div class="quotetitle">Josh G. wrote:</div><div class="quotecontent">It was stated that some games (e.g. SMB3 during the matching subgame) rely upon this behavior.</div><br /><br />It does not rely on this behavior, but correct behavior will produce a characteristic graphical glitch at the edge of each scrolling area (which is visible on a real NES).<br /><br /><div class="quotetitle">Josh G. wrote:</div><div class="quotecontent">Does Nintendulator currently emulate this?</div>
+<br />
+<br />It does.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Josh G.</b> [ Thu Nov 24, 2005 8:20 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Thanks! I had to mull over your diagram for about 15 minutes before it all clicked, but I think I get it now.
+<br />
+<br />So... what (if any) aspects of the NES hardware *aren't* currently supported by Nintendulator? Have you reached absolute perfection (in terms of basic CPU/PPU/APU emulation, not weird mappers) yet? It seems like you're getting pretty close.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Quietust</b> [ Thu Nov 24, 2005 10:16 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I still haven't implemented low-level sprite evaluation (I've got some partial code, but it needs some significant changes before it'll work properly) and my audio core is nowhere near perfect - once I get a CopyNES, though, I'll be able to check things more easily.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Anes</b> [ Sat Nov 26, 2005 9:23 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Quietust i have just implemented the pixel processing in that way, but i still dont figure out how the 2 upper bits of the pixel (AT) are fetched.
+<br />Any help?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Quietust</b> [ Sun Nov 27, 2005 1:15 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />The upper 2 bits of each pixel come from the Attribute Table - if your emulator has working video then you should already know where to get it from.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Anes</b> [ Sun Nov 27, 2005 10:36 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />its working but i use precalculated AT BYTE location and SHR amount.
+<br />That's why i was asking.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Quietust</b> [ Mon Nov 28, 2005 12:55 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Anes wrote:</div><div class="quotecontent">its working but i use precalculated AT BYTE location and SHR amount.</div>
+<br />Define "precalculated". The real PPU 'calculates' the attribute byte address/shift based on the nametable address it fetched from immediately prior.
+<br />(when I say 'calculates' I mean 'takes certain groups of bits from the VRAM address and rearranges them')
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

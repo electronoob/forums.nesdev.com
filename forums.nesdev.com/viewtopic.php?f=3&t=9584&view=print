@@ -1,0 +1,417 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Fast apu processing</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Fast apu processing</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=3&amp;t=9584">http://forums.nesdev.com/viewtopic.php?f=3&amp;t=9584</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Zelex</b> [ Fri Dec 07, 2012 9:37 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Fast apu processing</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Ok guys, I here's the problem. I am on a mobile device so performance is at a premium. I don't have enough cpu to emulate the apu at full 1.7mhz and then resample down to 44khz. What's the proper thing to do here? And how can I do it super fast?<br /><br />I'm currently point sampling the waveform at regular intervals, and that works but occasionally does not sound very accurate.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Fri Dec 07, 2012 10:42 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Fast apu processing</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />No need to sacrifice quality, and this is super-fast (faster than anything else I've seen): <a href="http://code.google.com/p/blip-buf/" class="postlink">blip_buf library</a>. <a href="http://slack.net/~ant/bl-synth/" class="postlink">Explanation of how it works.</a>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Dwedit</b> [ Fri Dec 07, 2012 10:59 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Fast apu processing</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />You don't need all 1.7mhz worth of samples, you just need to know when the volume level changes.<br /><br />Here's an example of how to write a catch-up APU that uses linear interpolation.<br />You aren't running each cycle separately and accumulating the average volume, you are calling a function whenever the volume level of each channel would change.<br />This is in pseudocode.  It's currently written for floating point, but it's easy enough to change to use fixed point math. (Best to change 'samples to run' into a 32.32 fixed point number on ARM, the UMULL instruction is a very fast way to divide.)<br />The noise channel will still run the slowest though, since it could change volume as quickly as 4 CPU cycles.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">function run channel (new cpu cycle, new volume)<br />&nbsp; &nbsp;cycles to run = new cpu cycle - last cpu cycle<br />&nbsp; &nbsp;last cpu cycle = new cpu cycle<br />&nbsp; &nbsp;samples to run = cycles to run / (cpu speed / sampling rate)<br />&nbsp; &nbsp;//are we inside a fractional sample?<br />&nbsp; &nbsp;if (position within sample &gt; 0.0)<br />&nbsp; &nbsp; &nbsp; //will we leave the sample?<br />&nbsp; &nbsp; &nbsp; if (position within sample + samples to run &gt;= 1.0)<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;remaining within sample = 1.0 - position within sample<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;accumulated volume += remaining within sample * old volume<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;samples to run -= remaining within sample<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;wave&#91;sample position&#93; = accumulated volume<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;sample position += 1<br />&nbsp; &nbsp; &nbsp; else //we don't leave the sample<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;accumulated volume += samples to run * old volume<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;position within sample += samples to run<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;old volume = new volume<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;return<br /><br />&nbsp; &nbsp;//run whole samples<br />&nbsp; &nbsp;whole samples to run = int(samples to run)<br />&nbsp; &nbsp;for i = 0, i &lt; whole samples to run, i += 1<br />&nbsp; &nbsp; &nbsp; wave&#91;sample position&#93; = old volume<br />&nbsp; &nbsp; &nbsp; sample position += 1<br />&nbsp; &nbsp;samples to run -= whole samples to run<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;//entering a new partial sample<br />&nbsp; &nbsp;if (samples to run &gt; 0.0)<br />&nbsp; &nbsp; &nbsp; accumulated volume = samples to run * old volume<br />&nbsp; &nbsp; &nbsp; position within sample = samples to run<br />&nbsp; &nbsp;else<br />&nbsp; &nbsp; &nbsp; position within sample = 0.0<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;old volume = new volume<br />&nbsp; &nbsp;return<br /></div><br /><br />I see Blargg also posted his code.  He also used band-limited sound (better quality, but slower) as an option instead of just linear interpolation.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Fri Dec 07, 2012 12:47 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Fast apu processing</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">I see Blargg also posted his code. He also used band-limited sound (better quality, but slower) as an option instead of just linear interpolation.</div><br />It can also do linear interpolation, and in my tests, it's faster than even the style of approach you outline above (as well as not requiring any arcane sample calculation so that the APU code is very very clean). If you'd be willing, we can run some benchmarks on whatever portable platform your example is for. Essentially,<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">void run_channel( int new_cpu_cycle, int new_volume ) // your code<br />{<br />&nbsp; &nbsp; int delta = new_volume - old_volume;<br />&nbsp; &nbsp; old_volume = new_volume;<br />&nbsp; &nbsp; blip_add_delta_fast( blip, new_cpu_cycle, delta ); // our waveform changed by delta units at new_cpu_cycle, simple<br />}<br /><br />void blip_add_delta_fast( blip_t*, int time, int delta ) // library does this<br />{<br />&nbsp; &nbsp; int f = time * factor + offset;<br />&nbsp; &nbsp; short* b = buffer + (f &gt;&gt; 15);<br />&nbsp; &nbsp; int d2 = (delta * (f &amp; 0x7FFF)) &gt;&gt; 15;<br />&nbsp; &nbsp; b &#91;0&#93; += delta - d2;<br />&nbsp; &nbsp; b &#91;1&#93; += d2;<br />}</div><br />I've surveyed the alternatives and just can't see much reason to use something that complicates the emulator code and is slower as well.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Fri Dec 07, 2012 1:16 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Fast apu processing</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Droidsound on my Archos 43 Internet Tablet (4.3&quot; PDA running Android 2.2) and on my ASUS Nexus 7 (7&quot; tablet running Android 4.2) uses blargg's GMEPlugin and runs at full speed.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Dwedit</b> [ Fri Dec 07, 2012 1:26 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Fast apu processing</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I see the difference, your code puts in deltas, and my code calculates the final values of the samples (hence the for loop that fills in samples).<br />So the buffer needs to start as zeroes, and get converted into sample values before it's played back.  Sample buffers for a frames worth of time are very tiny, 800 samples for 1/60s at 48000Hz, converting deltas to samples is really fast.<br />Your code is probably a lot better here.<br /><br />All the division in my code is just really multiplication in disguise, so that part of the code is no different.  But taking the fractional and whole parts of the fixed point number and directly using that as array indexes and values looks really spiffy.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Fri Dec 07, 2012 1:36 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Fast apu processing</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Yes, exactly. The algorithm kind of turns everything inside-out, so that the waveform synthesis only has to touch the buffer at points where it changes. And since it's deltas, it doesn't matter what order you do them, or whether they &quot;overlap&quot; (two deltas one clock apart). So you aren't keeping track of which sample you last ran to, and having to fill intermediate samples, or do special things when deltas occur really close together. So much less headaches and special cases where bugs can creep in. And on platforms where there's plenty of CPU, user code can be converted to use full band-limited synthesis by just calling blip_add_delta() (rather than the fast variant).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Drag</b> [ Sun Dec 09, 2012 11:43 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Fast apu processing</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Doesn't any kind of interpolation introduce some latency into the audio output?<br /><br />For instance, to add a band-limited step into the output, you need to copy more than just one sample to the output; you need to copy a couple of samples before the step, then the step itself, and then a couple of samples after the step. With linear interpolation, you just need to copy two samples.<br /><br />The latency would probably be too small to be noticable, unless you're running at a super-low frequency rate. Plus, the size of the buffer itself would probably introduce the most significant latency.<br /><br />This was an issue that was always interesting to me; is there any way to have zero-latency audio output? (Or close to it)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Sun Dec 09, 2012 12:01 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Fast apu processing</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Interpolation requires you know the points to interpolate between before you can interpolate, yes.<br /><br />Synthesis does not necessarily require this. I haven't tried blargg's library, so I don't know what requirements it has in terms of latency, but there are lots of audio processes that don't inherently require latency (IIR filters, for example).<br /><br />However, on a PC, almost all audio is buffered anyway, so this shouldn't be too much of a concern. You can use ASIO to get very low latency buffered audio, if needed. I don't know of any zero-latency audio interfaces, but they could be built, in theory (though it is not good for multitasking, obviously).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Sun Dec 09, 2012 12:41 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Fast apu processing</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Drag, a <a href="http://img176.imageshack.us/img176/3140/minbliter2.png" class="postlink">minimum-phase FIR</a> will give a similar impulse response as an IIR, giving only a few samples latency, even if the FIR is of a high order (64 or more). But this would only matter if you continuously outputted samples to the hardware as they were ready, and the hardware had a really small buffer. This would be really demanding since you would never be able to do much work between calculating samples. I doubt anything but a microcontroller these days even allows unbuffered audio.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>miker00lz</b> [ Sat Dec 15, 2012 11:40 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Fast apu processing</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />As was mentioned already, you absolutely do not and should not need to process the APU stuff at 1.7 MHz. What I do is just determine and keep track of how often each channel's sample gets updated (in terms of CPU ticks) and after every CPU instruction emulated, I check if it's time to do so yet. Likewise, I determine how many samples to create per second by taking the number of CPU ticks per second and dividing by the sample rate. Whenever it's time to create a new sample and put it in the output buffer, all I have to do is mix the sample value from all channels into one sample. That's all.<br /><br />The APU emulation takes nowhere near the CPU power of PPU emulaion. In fact, if you did only the APU stuff and ignored all graphics stuff, it would probably be fast enough to generate the audio full speed on a 386, or possibly even a high-end 286!
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Sat Dec 15, 2012 5:40 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Fast apu processing</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />The APU can generate 1.79 MHz-accurate audio without any speed hit. In fact, it's more cumbersome to do it lower. There's no need to muddy the emulation code with consideration of output samples.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Dwedit</b> [ Sat Dec 15, 2012 5:50 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Fast apu processing</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />But you don't need to explicitly run some loop of code 1.78 million times per second, I think that's what's being said here.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>miker00lz</b> [ Sat Dec 15, 2012 6:26 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Fast apu processing</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Dwedit wrote:</div><div class="quotecontent">But you don't need to explicitly run some loop of code 1.78 million times per second, I think that's what's being said here.</div><br /><br />Yeah, exactly. The results are the same. If I did run a loop at 1.78 million times per second, almost all of that CPU time would be wasted. Might as well just calculate how many CPU ticks occur between an APU channel's tick and the next one, and only update the channel's sample that often and the resolution accuracy of it is still maintained because after every CPU instruction it checks if an update should be made and then it happens.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Sat Dec 15, 2012 7:01 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Fast apu processing</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Turn it inside-out. Have your CPU keep track of the current time. When the APU is about to be written to, tell it to catch up to the current time, then do the write. The APU keeps track of the time of the next amplitude change, and just runs a loop skipping through time adding the appropriate deltas:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">void apu_catchup_square( int end )<br />{<br />&nbsp; &nbsp; while ( time &lt; end )<br />&nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; int new_amp = ...<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; int delta = new_amp - amp;<br />&nbsp; &nbsp; &nbsp; &nbsp; add_delta( time, delta );<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; amp = new_amp;<br />&nbsp; &nbsp; &nbsp; &nbsp; time = time + period;<br />&nbsp; &nbsp; }<br />}</div><br /><br />Processor usage is based on the frequency of the square wave, rather than the clock rate.<br /><br />People have claimed that it's inherently slow to render sound at 1.79 MHz as opposed to lower rates. Is there interest in submitting these algorithms to a performance test that can be run on various platforms to find out what differences there really are?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

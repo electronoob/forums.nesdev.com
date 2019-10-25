@@ -1,0 +1,207 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Questions about code details in the Nerdy Nights tutorial</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Questions about code details in the Nerdy Nights tutorial</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=10524">http://forums.nesdev.com/viewtopic.php?f=2&amp;t=10524</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>2</strong> of <strong>2</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Joe</b> [ Thu Sep 26, 2013 3:50 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Questions about code details in the Nerdy Nights tutoria</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">DRW wrote:</div><div class="quotecontent">What I don't understand here: Let's say my game logic is implemented inside NMI and it takes too long. So, the next NMI interrupt is called. Does that mean that there are now basically two instances of NMI running in parallel? One where I'm right inside my game logic and one that just started? How is this possible?</div>There is no parallel processing. When NMI occurs, it &quot;pauses&quot; whatever is currently executing. At the end of your NMI handler, you use the RTI instruction to &quot;unpause&quot;. This means if another NMI happens while the first one is executing, the new NMI pauses the old NMI.<br /><br />In C-like syntax:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">void Nmi()<br />{<br />&nbsp; &nbsp; if (NextNmiCanBeProcessed)<br />&nbsp; &nbsp; {<br />&nbsp; &nbsp; &nbsp; &nbsp; NextNmiCanBeProcessed = false;<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; WriteToPpu();<br />&nbsp; &nbsp; &nbsp; &nbsp; ReadController();<br />&nbsp; &nbsp; &nbsp; &nbsp; GameLogic();<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; NextNmiCanBeProcessed = true;<br />&nbsp; &nbsp; }<br />}</div><br />When NMI is triggered and there is not another NMI handler currently running, it will write to the PPU, read the controllers, and begin executing the game logic. If another NMI occurs before the first one finishes, the first NMI handler will be paused. But, <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">NextNmiCanBeProcessed</tt> will be false, causing the second NMI handler to exit without doing anything. Once the second NMI handler ends, the first NMI handler will continue from exactly where it was paused. (And once the first NMI handler ends, whatever it interrupted will resume.)<br /><br />It's important to remember that this &quot;pause&quot; analogy is not perfect. The three registers (A, X, and Y) are not saved, so if either NMI routine modifies them without restoring their original values, the &quot;paused&quot; code will not resume properly. The flags are saved, so if you use the BIT instruction to decide if the NMI should run or not, you don't need to worry about accidentally messing up the &quot;paused&quot; code.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Thu Sep 26, 2013 4:01 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Questions about code details in the Nerdy Nights tutoria</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">DRW wrote:</div><div class="quotecontent">What I don't understand here: Let's say my game logic is implemented inside NMI and it takes too long. So, the next NMI interrupt is called. Does that mean that there are now basically two instances of NMI running in parallel?</div><br />I must confess I don't remember whether an NMI will interrupt another NMI... It's a possibility, but I'm not sure it will happen. Hopefully someone will know for sure.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">One where I'm right inside my game logic and one that just started? How is this possible?</div><br />If it does happen, it's like all other interrupts: the status flags and the program counter are pushed into the stack, and the NMI code is called. The problem is that all sorts of things can go wrong in this case, since the status of your game is inconsistent because it the previous frame calculations didn't finish, and as more and more NMIs interrupt the previous ones, the stack will eventually overflow.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Now, let's say we're in GameLogicStep5 and it's time for the next NMI. Originally, I thought that the program flow simply jumps from GameLogicStep5 to the function entry, leaving GameLogic6-10 unexecuted for this time.<br />But if you say that the NMI should set a flag, does this mean that two &quot;instances&quot; of NMI are able to execute simulatenously?</div><br />The CPU can only run one program at a time, so they don't run simultaneously. The first NMI is interrupted (it can be resumed once the one that interrupted it returns with RTI) and a new one begins.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">In this case, the NMI is at GameLogic5. Suddenly, the next NMI happens. While the first NMI is now at GameLogic6, the second NMI is at the if check. While the first NMI is at GameLogic7, the second NMI is at the &quot;don't jump into the conditional code&quot; area. While the first NMI is then at GameLogic8, the second NMI is at the &quot;leave function&quot; location.</div><br />No. The first NMI will stop at GameLogic5, and only after the second NMI &quot;leaves the function&quot; GameLogic5 and the rest of the first NMI will continue.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">If it is not as I described and the NMI simply rips the &quot;program pointer&quot; from its current location and places it at the start of NMI, then how does a flag guarantee that the current NMI just quits itself and the program continues from the right location where it has been before the new NMI jumped in?</div><br />A return address is ALWAYS pushed into the stack. So when an interrupt interrupts another interrupt, you can safely return to the code that was interrupted as long as you don't trash registers or the interrupts pile up to the point of overflowing the stack. But the best thing is to avoid the situation altogether with a flag, which also gives you control of what to do and what not to do (like always running the music code so the music doesn't slow down).<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">The tutorial uses LDA $2002 before copying background, palette and attribute data to the PPU. Is this necessary even though waitvblank is not included here? And would BIT $2002 serve the same purpose in this case again?</div><br />It's not the same purpose. When used before the wait for VBlank loop the purpose is to clear the VBlank flag, so that the wait loop doesn't pick up the middle of a VBlank. When $2002 is read before access to $2006, the purpose is to clear the latch that selects between high and low bytes of $2005/$2006. This is generally unnecessary with well programmed code, because $2005/$2006 are always written in pairs, but some people like to put that $2002 read just to be safe.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Thu Sep 26, 2013 5:03 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Questions about code details in the Nerdy Nights tutoria</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tokumaru wrote:</div><div class="quotecontent">I must confess I don't remember whether an NMI will interrupt another NMI... It's a possibility, but I'm not sure it will happen. Hopefully someone will know for sure.<br /></div>NMIs, being not maskable, can't be masked by their own execution. Thus the only way to prevent reentry is to either disable the source (by writing to $2000) or to use a flag as this thread is recommending.<br /><br /><a href="http://wiki.nesdev.com/w/index.php/PPU_registers#Bit_0_bus_conflict" class="postlink">Blocking NMIs by writing to $2000 has its own problems</a>, however.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Thu Sep 26, 2013 5:17 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Questions about code details in the Nerdy Nights tutoria</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">lidnariq wrote:</div><div class="quotecontent">NMIs, being not maskable, can't be masked by their own execution.</div><br />Cool, good to get confirmation on that.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent"><a href="http://wiki.nesdev.com/w/index.php/PPU_registers#Bit_0_bus_conflict" class="postlink">Blocking NMIs by writing to $2000 has its own problems</a>, however.</div><br />Yeah, and it's less versatile too, since you don't have the option to run high priority tasks (such as playing music or drawing a status bar) even during lag frames.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>DRW</b> [ Tue Oct 01, 2013 1:43 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Questions about code details in the Nerdy Nights tutoria</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Alright, the NMI re-entry I understand now. I've written a notice in my todo list to include a check.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>2</strong> of <strong>2</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

@@ -1,0 +1,444 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Donkey Kong pause behavior</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Donkey Kong pause behavior</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=10&amp;t=8552">http://forums.nesdev.com/viewtopic.php?f=10&amp;t=8552</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>noattack</b> [ Mon Jan 23, 2012 11:47 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Donkey Kong pause behavior</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I'm messing around with Nintendulator for the first time (via VMware), along with Donkey Kong and its disassembly (from romhacking.net). 
+<br />
+<br />A fairly simple behavior is puzzling me: when you pause DK, it waits a few frames and then disables the sprites onscreen. I say 'disabled' with some certainty - according to Nintendulator, the sprites' y-coordinates have not been changed to #FF, so they're still in place, just 'invisible.' My assumption was that sprites were disabled via $2001, but I can't figure out exactly <em>where</em> in the source this happens.
+<br />
+<br />I've found three $2001 references:
+<br />
+<br />1. In the NMI handler, after a controller read. This would be my top candidate:
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">;Read gamepads<br />C886 : 20 1D F5&nbsp; &nbsp;&nbsp; &nbsp;jsr&nbsp; &nbsp;$F51D&nbsp; &nbsp;&nbsp; &nbsp;<br />;Toggle BKG and sprite visibility<br />C889 : A5 11&nbsp; &nbsp;&nbsp; &nbsp;lda&nbsp; &nbsp;$11&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;;<br />C88B : 49 18&nbsp; &nbsp;&nbsp; &nbsp;eor&nbsp; &nbsp;#$18&nbsp; &nbsp;&nbsp; &nbsp;;<br />C88D : 8D 01 20&nbsp; &nbsp;&nbsp; &nbsp;sta&nbsp; &nbsp;$2001&nbsp; &nbsp;&nbsp; &nbsp;;<br /></div><br /><br />2. In a routine that disables the BG:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">;Load local copy of PPU control 2 register<br />D196 : A5 11&nbsp; &nbsp;&nbsp; &nbsp;lda&nbsp; &nbsp;$11&nbsp; &nbsp;&nbsp; &nbsp;;&nbsp; &nbsp;&nbsp; &nbsp;$11 = PPU Control 2 local copy<br />;Disable BKG layer display &#40;clear bit 3&#41;<br />D198 : 29 E7&nbsp; &nbsp;&nbsp; &nbsp;and&nbsp; &nbsp;#$E7&nbsp; &nbsp;;<br />;Update local copy and real PPU register&nbsp; &nbsp;&nbsp; &nbsp;<br />D19A : 8D 01 20&nbsp; &nbsp;&nbsp; &nbsp;sta&nbsp; &nbsp;$2001&nbsp; &nbsp;;<br /></div><br /><br />3. In the initial PPU setup:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">;Set sprite clipping off, bkg clipping off, store local copy in $11&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<br />C7EE : A9 06&nbsp; &nbsp;&nbsp; &nbsp;lda&nbsp; &nbsp;#$06&nbsp; &nbsp;&nbsp; &nbsp;;<br />C7F0 : 8D 01 20&nbsp; &nbsp;&nbsp; &nbsp;sta&nbsp; &nbsp;$2001&nbsp; &nbsp;&nbsp; &nbsp;;<br />C7F3 : 85 11&nbsp; &nbsp;&nbsp; &nbsp;sta&nbsp; &nbsp;$11&nbsp; &nbsp;&nbsp; &nbsp;;<br /></div>
+<br />
+<br />First, am I correct that excerpt one is disabling the sprites on pause? If so, why only the sprites and not the BG? I assume it's contingent upon what's currently loaded in variable $11 (PPU control 2 copy). And finally, why include this behavior? Is it to prevent players from 'planning ahead' while the game is paused? Does arcade DK behave this way? I assume there's no pause on the arcade game...
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Dwedit</b> [ Mon Jan 23, 2012 11:50 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Quick look in RAM viewer reveals that the sprite table isn't changed at all while pausing the game.
+<br />So it uses 2001 to mask out the sprites.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>cpow</b> [ Mon Jan 23, 2012 12:06 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Dwedit wrote:</div><div class="quotecontent">Quick look in RAM viewer reveals that the sprite table isn't changed at all while pausing the game.<br />So it uses 2001 to mask out the sprites.</div>
+<br />
+<br />I also set a breakpoint on the sprite rendering bit in $2001 being set to 0 and find it is indeed set to 0 on a pause.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>noattack</b> [ Mon Jan 23, 2012 12:13 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Thanks for the confirmation. Any clue on where this mask happens? During NMI?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>MottZilla</b> [ Mon Jan 23, 2012 12:20 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />It probably hides the sprites as an indication the game has been paused. It does so after so many frames because first it plays the "game pause jingle" sound effect or music jingle. It may be to stop you from planning your very next move but I doubt that was really the intention. I really think it's just to indicate the game is paused in a very simple and effective way.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>noattack</b> [ Mon Jan 23, 2012 12:32 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">MottZilla wrote:</div><div class="quotecontent">It probably hides the sprites as an indication the game has been paused. It does so after so many frames because first it plays the "game pause jingle" sound effect or music jingle. It may be to stop you from planning your very next move but I doubt that was really the intention. I really think it's just to indicate the game is paused in a very simple and effective way.</div>
+<br />
+<br />Good point. Usually the simpler explanation is the best. I was just leaning more toward the 'prevent planning' angle since the programmers didn't just create a pause overlay, similar to the 'Game Over' screen.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>cpow</b> [ Mon Jan 23, 2012 1:06 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">noattack wrote:</div><div class="quotecontent"><div class="quotetitle">MottZilla wrote:</div><div class="quotecontent">It probably hides the sprites as an indication the game has been paused. It does so after so many frames because first it plays the "game pause jingle" sound effect or music jingle. It may be to stop you from planning your very next move but I doubt that was really the intention. I really think it's just to indicate the game is paused in a very simple and effective way.</div><br /><br />Good point. Usually the simpler explanation is the best. I was just leaning more toward the 'prevent planning' angle since the programmers didn't just create a pause overlay, similar to the 'Game Over' screen.</div>
+<br />
+<br />My original guess before running the game to try anything was that they turned sprites off to clear the area where "PAUSED" would be printed on the screen so that you could see that it was paused.  But, there's no such indication given.  Then I thought perhaps it was done to reduce burn-in on the CRT.  The moveable objects, if left on screen for a long time during an extended pause, would be more noticeably burned-in than the background.  But then, I don't know the history of DK and whether or not the NES version was a direct arcade port.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>noattack</b> [ Mon Jan 23, 2012 4:17 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">cpow wrote:</div><div class="quotecontent">Then I thought perhaps it was done to reduce burn-in on the CRT.  The moveable objects, if left on screen for a long time during an extended pause, would be more noticeably burned-in than the background.  </div>
+<br />
+<br />Interesting idea. Why are sprites more prone to burn vs. BG tiles?
+<br />
+<br />Not sure about the port process. Apparently DK wasn't coded in-house so Nintendo had to reverse engineer the arcade version to code their follow-up, DK Jr. Perhaps they had to do the same to port to the Famicom?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Mon Jan 23, 2012 4:42 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">noattack wrote:</div><div class="quotecontent">Interesting idea. Why are sprites more prone to burn vs. BG tiles?</div>
+<br />Brighter. I don't have a copy of Donkey Kong in front of me to confirm, but I know older games tended to have black backdrops, and I seem to remember things in the background had more dark ($0x) and medium ($1x) colors, reserving bright ($2x) and light ($3x) colors for sprites. (As for grays, $00 is about the same as $1x, and $10 is about the same as $2x.)
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lazigamer</b> [ Wed Jan 25, 2012 2:37 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />It's also possible that when the game pauese its just spinning in a loop waiting for you to press the button to unpause it. Therefore, never writing to $4014 and if that happens the sprites disappear off the screen even though the sprites are not disabled from $2001. The OAM data will disintegrate after a few frames if not updated frequently updated. (I believe Ice climbers does the same thing.) To prove this, you could try a breakpoint at $4014, if its not being written to while paused.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>cpow</b> [ Wed Jan 25, 2012 2:51 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">lazigamer wrote:</div><div class="quotecontent">It's also possible that when the game pauese its just spinning in a loop waiting for you to press the button to unpause it. Therefore, never writing to $4014 and if that happens the sprites disappear off the screen even though the sprites are not disabled from $2001. The OAM data will disintegrate after a few frames if not updated frequently updated. (I believe Ice climbers does the same thing.) To prove this, you could try a breakpoint at $4014, if its not being written to while paused.</div>
+<br />
+<br />Donkey Kong writes to $4014 during pause.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Wed Jan 25, 2012 2:57 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">lazigamer wrote:</div><div class="quotecontent">Therefore, never writing to $4014 and if that happens the sprites disappear off the screen even though the sprites are not disabled from $2001.</div><br />This is not true.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">The OAM data will disintegrate after a few frames if not updated frequently updated.</div>
+<br />OAM only disintegrates when rendering is disabled. I'm not sure if that happens if only sprites are disabled (this is irrelevant though, since your theory is that they are not disabled at all). If rendering is not disabled, the PPU reading from the OAM is enough to keep that memory "alive", DMA's are not required for that. Also, if the OAM was fading, the sprites wouldn't simply disappear, they would glitch up.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>pditincho</b> [ Fri Mar 09, 2012 3:10 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Hello everyone,
+<br />
+<br />I am the one that disassembled partially the DK rom and uploaded it to romhacking. Nice to see that someone thought it would be interesting. Just dropping by to send some regards and to humbly announce that, after a hiatus of a year, I retook the disassembly project for a while. I have a new version which I will be uploading soon.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>noattack</b> [ Sat Mar 10, 2012 8:36 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Great to hear. Definitely post here when you have a new version uploaded. I'd be interested in taking a look.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>pditincho</b> [ Sat Mar 10, 2012 8:37 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I have just uploaded it yesterday. If you have any corrections, suggestions or want to contribute, feel free.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

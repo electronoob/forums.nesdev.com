@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=3&amp;t=8217" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2011-10-21T13:52:37-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=3&amp;t=8217</id>
+<entry>
+<author><name><![CDATA[beannaich]]></name></author>
+<updated>2011-10-21T13:52:37-07:00</updated>
+<published>2011-10-21T13:52:37-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8217&amp;p=85416#p85416</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8217&amp;p=85416#p85416"/>
+<title type="html"><![CDATA[Batman OAM corruption with rapid-fire?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8217&amp;p=85416#p85416"><![CDATA[
+The LDA $4016 was just short-hand, but I'll admit I forgot about the 1-bit at a time thing when I wrote that. Consider it 6502 pseudo-code at best, as I've never actually programmed anything in 6502 assembler.<br /><br />I still find it amazing, that a seemingly small error can have such interesting implications in emulation. It's also always fun to try and figure out why two seemingly unconnected things are logically connected. At first, I had absolutely no clue why spamming a button would cause Batman to freak out, but now it would be weird to think the game <strong>wouldn't</strong> do that!<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4320">beannaich</a> — Fri Oct 21, 2011 1:52 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2011-10-21T09:53:33-07:00</updated>
+<published>2011-10-21T09:53:33-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8217&amp;p=85399#p85399</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8217&amp;p=85399#p85399"/>
+<title type="html"><![CDATA[Batman OAM corruption with rapid-fire?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8217&amp;p=85399#p85399"><![CDATA[
+Similar, but I see a couple problems in code fragment: <ol style="list-style-type: decimal"><li>LDA $4016 gives you one bit, not the whole state. To fix this, replace the LDA $4016 instructions with calls to a subroutine that reads the gamepad once, which in fact is possible without modifying X or Y by using ROL as a loop counter. </li><li>If the first read is the corrupt one and all five reads after that are not corrupt, the state won't be updated. To fix this, move the STA below read, which will wait until two consecutive reads of the same state. </li></ol><br />Possibly fixed (but still untested) code:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">    PHA ; preserve a<br />    TXA<br />    PHA ; preserve x<br />    LDX #$00<br />    JSR readOnce ; get current joypad state<br />read:<br />    STA $11 ; set pad read buffer<br />    JSR readOnce ; get current joypad state<br />    INX<br />    CPX #$05 ; don't waste too much time attempting<br />    BEQ retn<br />    CMP $11 ; pad read buffer<br />    BNE read ; keep trying if the two reads aren't the same<br />    STA $10 ; set pad data to current valid data<br />retn:<br />    PLA<br />    TAX<br />    PLA<br />    RTS<br /><br />readOnce:<br />    LDA #$01<br />    STA $12  ; initialize the output register/loop counter<br />    STA $4016  ; send the strobe pulse<br />    LSR A  ; load a zero<br />    STA $4016  ; finish sending the strobe pulse<br />readBit:<br />    LDA $4016,Y  ; read one player's gamepad<br />    AND #$03  ; mask off non-button bits<br />    CMP #1  ; C &lt;- either D0 or D1 is set<br />    ROL $12  ; add a bit to the output register<br />    BCC readBit ; keep going while initial 1 hasn't been shifted out<br /><br />    LDA $12<br />    RTS<br /></div><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Fri Oct 21, 2011 9:53 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[beannaich]]></name></author>
+<updated>2011-10-21T08:52:45-07:00</updated>
+<published>2011-10-21T08:52:45-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8217&amp;p=85393#p85393</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8217&amp;p=85393#p85393"/>
+<title type="html"><![CDATA[Batman OAM corruption with rapid-fire?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8217&amp;p=85393#p85393"><![CDATA[
+<div class="quotetitle">tepples wrote:</div><div class="quotecontent"><br />That's probably why LJ65 uses only two reads and falls back to the previous frame's input on failure.<br /></div><br />I assume the behavior for that is similar to:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">    PHA ; preserve a<br />    TXA<br />    PHA ; preserve x<br />    LDX #$00<br />    LDA $4016 ; get current joypad state<br />    STA $11 ; set pad read buffer<br />read:<br />    LDA $4016 ; get current joypad state<br />    INX<br />    CPX #$05 ; don't waste too much time attempting<br />    BEQ retn<br />    CMP $11 ; pad read buffer<br />    BNE read ; keep trying if the two reads aren't the same<br />    STA $10 ; set pad data to current valid data<br />retn:<br />    PLA<br />    TAX<br />    PLA<br />    RTS</div><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4320">beannaich</a> — Fri Oct 21, 2011 8:52 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2011-10-21T05:25:11-07:00</updated>
+<published>2011-10-21T05:25:11-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8217&amp;p=85374#p85374</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8217&amp;p=85374#p85374"/>
+<title type="html"><![CDATA[Batman OAM corruption with rapid-fire?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8217&amp;p=85374#p85374"><![CDATA[
+<div class="quotetitle">MottZilla wrote:</div><div class="quotecontent"><br />I suppose they could have had a maximum read-retry variable to fail and assume no input after so many attempts at getting valid data.<br /></div><br />That's probably why LJ65 uses only two reads and falls back to the previous frame's input on failure.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Fri Oct 21, 2011 5:25 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[MottZilla]]></name></author>
+<updated>2011-10-20T23:42:51-07:00</updated>
+<published>2011-10-20T23:42:51-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8217&amp;p=85362#p85362</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8217&amp;p=85362#p85362"/>
+<title type="html"><![CDATA[Batman OAM corruption with rapid-fire?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8217&amp;p=85362#p85362"><![CDATA[
+Yes I suppose someone might construct a turbo function in an actual controller this way. Seems foolish given what is known about consecutive reads. Still I don't blame Batman's programming too much, though I suppose they could have had a maximum read-retry variable to fail and assume no input after so many attempts at getting valid data.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=1726">MottZilla</a> — Thu Oct 20, 2011 11:42 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[beannaich]]></name></author>
+<updated>2011-10-20T12:13:15-07:00</updated>
+<published>2011-10-20T12:13:15-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8217&amp;p=85340#p85340</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8217&amp;p=85340#p85340"/>
+<title type="html"><![CDATA[Batman OAM corruption with rapid-fire?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8217&amp;p=85340#p85340"><![CDATA[
+@MottZilla, I think you're misunderstanding me. What I stated is, if you had a controller that does what my current controller does, only in reality, and plugged it into a real NES, that it would behave the same way when the auto-fire button is pressed. Also, both implementations are easy, so it's not a question of the path of least resistance for me. In my emulator, I can hook all sorts of events, one of them being a "FrameRendered" event. If I wanted to, I could easily just hook my auto-fire state switching method to that event, and voila.<br /><br />@tepples, I'd love to see this actually done, but it seems like too much effort just to prove a point. <img src="http://forums.nesdev.com/images/smilies/icon_wink.gif" alt=";)" title="Wink" /><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4320">beannaich</a> — Thu Oct 20, 2011 12:13 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2011-10-20T10:14:29-07:00</updated>
+<published>2011-10-20T10:14:29-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8217&amp;p=85334#p85334</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8217&amp;p=85334#p85334"/>
+<title type="html"><![CDATA[Batman OAM corruption with rapid-fire?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8217&amp;p=85334#p85334"><![CDATA[
+Such a "specially programmed device to feed bad data" might be as simple as gating A and B button signals with a flip-flop set to toggle on strobe edges. <a href="http://nesdev.com/bbs/viewtopic.php?p=78297#78297" class="postlink">Just ask qbradq</a> <img src="http://forums.nesdev.com/images/smilies/icon_wink.gif" alt=";-)" title="Wink" /><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Thu Oct 20, 2011 10:14 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[MottZilla]]></name></author>
+<updated>2011-10-20T09:59:13-07:00</updated>
+<published>2011-10-20T09:59:13-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8217&amp;p=85332#p85332</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8217&amp;p=85332#p85332"/>
+<title type="html"><![CDATA[Batman OAM corruption with rapid-fire?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8217&amp;p=85332#p85332"><![CDATA[
+I don't understand what you mean by it's so fast. The fastest you can push a button is 30 times per second, every other frame the button is pushed, and on the ones between it is not pushed. This is as easy as having a frame flip-flop variable. <br /><br />I understand why you are doing it this odd way since it is I suppose quite easy to implement but given that it will never be perfect or work right for all games, implementing it the right way (30 or 15 presses per second) is a better idea.<br /><br />The reason Batman and SMB3 have odd behavior and crash is most likely because normally after a couple attempts to read consistent controller data it will succeed and continue on. But with your impossible situation (no rapid fire controller would toggle faster than 30 presses per second) it keeps trying to get the valid controller data, well past the time allotted for it. It may crash because whenever you release the button and allow it to get valid data the current scanline it is on may be vastly different than what it should be. Or the huge delay may have caused somehow program banking register or other program flow errors so it crashes. <br /><br />Believe me, this wouldn't happen under any normal circumstances on real hardware. To get this to happen you would need faulty controllers/controller ports, or a specially programmed device to feed such bad data into the ports.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=1726">MottZilla</a> — Thu Oct 20, 2011 9:59 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[beannaich]]></name></author>
+<updated>2011-10-20T07:40:29-07:00</updated>
+<published>2011-10-20T07:40:29-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8217&amp;p=85325#p85325</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8217&amp;p=85325#p85325"/>
+<title type="html"><![CDATA[Batman OAM corruption with rapid-fire?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8217&amp;p=85325#p85325"><![CDATA[
+<div class="quotetitle">MottZilla wrote:</div><div class="quotecontent"><br />But it was your emulator breaking. The proper way to do rapid fire you've found is to have the switch closed one frame, then open the next frame, and so on. You assumed that games would read joypad data once per frame which not all do. While you might get that behavior if you specifically programmed a device and plugged it into the controller port, it probably is otherwise never going to occur and it isn't Batman's programming at fault.<br /></div><br /><br />If I emulate in a fashion where the state of a button is toggled on a certain number of concurrent reads, you get a *MUCH* faster auto-fire. The magic number for this seems to be 3 reads. 2 reads works for some games, but not for games like Contra, where as every read breaks Batman and SMB 3, but doesn't break games like Mega Man 1-6. 3 reads seems to be the number that works for all games, while still maintaining the quickest possible toggle.<br /><br />Sure, I could emulate this the way it's actually done, and it would work reasonably well, but the way I'm doing it now is much more efficient at it's job. Sometimes accuracy takes a back seat to function, though I may end up adding an option to switch between the two rapid fire behaviors, because I know some people want the most accurate operation.<br /><br /><div class="quotetitle">MottZilla wrote:</div><div class="quotecontent"><br />Still it is an interesting thing to see. Lots of interesting behaviors can happen with various emulation errors.<br /></div><br />I fully understand (I think) why this bug occurs, if you had a controller toggling the state as fast as I was on a real NES, I am almost positive the same thing would occur. But it is indeed interesting what happens, as stated earlier if you do this with SMB 3, it slows down to around half it's normal speed (The happy calypso music sounds eerie as hell at half speed, believe me!). Then when you let go of the rapid fire, the game just crashes entirely, and the screen looks weird, almost as if the scroll register is being written to mid-scanline each scanline.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4320">beannaich</a> — Thu Oct 20, 2011 7:40 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[ccovell]]></name></author>
+<updated>2011-10-18T23:04:12-07:00</updated>
+<published>2011-10-18T23:04:12-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8217&amp;p=85254#p85254</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8217&amp;p=85254#p85254"/>
+<title type="html"><![CDATA[Batman OAM corruption with rapid-fire?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8217&amp;p=85254#p85254"><![CDATA[
+Various photos of Batman in prototype form in old magazines also showed screens with a glitched-up status bar.  IIRC, it also happened when I ran FC batman on an old Famiclone, so this glitch can be triggered in a few different ways.<br /><br />Not helpful, but interesting perhaps.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=355">ccovell</a> — Tue Oct 18, 2011 11:04 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[MottZilla]]></name></author>
+<updated>2011-10-18T22:45:02-07:00</updated>
+<published>2011-10-18T22:45:02-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8217&amp;p=85253#p85253</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8217&amp;p=85253#p85253"/>
+<title type="html"><![CDATA[Batman OAM corruption with rapid-fire?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8217&amp;p=85253#p85253"><![CDATA[
+But it was your emulator breaking. The proper way to do rapid fire you've found is to have the switch closed one frame, then open the next frame, and so on. You assumed that games would read joypad data once per frame which not all do. While you might get that behavior if you specifically programmed a device and plugged it into the controller port, it probably is otherwise never going to occur and it isn't Batman's programming at fault. <br /><br />Still it is an interesting thing to see. Lots of interesting behaviors can happen with various emulation errors.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=1726">MottZilla</a> — Tue Oct 18, 2011 10:45 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[BMF54123]]></name></author>
+<updated>2011-10-18T18:42:17-07:00</updated>
+<published>2011-10-18T18:42:17-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8217&amp;p=85250#p85250</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8217&amp;p=85250#p85250"/>
+<title type="html"><![CDATA[Batman OAM corruption with rapid-fire?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8217&amp;p=85250#p85250"><![CDATA[
+Batman uses an MMC3 IRQ to swap out one of the sprite CHR banks just below the health bar (this is why Batman is never allowed to go that high on the screen). When the game crashes, the swap never occurs, and Batman is rendered using the health bar graphics. The same effect can be observed on a top-loading NES or Famicom by holding the Reset button.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=935">BMF54123</a> — Tue Oct 18, 2011 6:42 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[beannaich]]></name></author>
+<updated>2011-10-17T11:36:20-07:00</updated>
+<published>2011-10-17T11:36:20-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8217&amp;p=85172#p85172</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8217&amp;p=85172#p85172"/>
+<title type="html"><![CDATA[Batman OAM corruption with rapid-fire?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8217&amp;p=85172#p85172"><![CDATA[
+<div class="quotetitle">tepples wrote:</div><div class="quotecontent"><br />As for how Batman screws up: I haven't traced it, but I imagine that rapidly toggling the button will cause certain parts of processing to overflow available frame time, and an incomplete display list gets copied to OAM during the next NMI handler.<br /></div><br /><br />It would make sense that the actual sprites for batman aren't determined until the joypad state is known. in-case of jumping, attacking, etc. wouldn't want to do more than one DMA in-case your prediction is wrong <img src="http://forums.nesdev.com/images/smilies/icon_wink.gif" alt=";)" title="Wink" /><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4320">beannaich</a> — Mon Oct 17, 2011 11:36 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2011-10-17T11:29:40-07:00</updated>
+<published>2011-10-17T11:29:40-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8217&amp;p=85171#p85171</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8217&amp;p=85171#p85171"/>
+<title type="html"><![CDATA[Batman OAM corruption with rapid-fire?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8217&amp;p=85171#p85171"><![CDATA[
+<a href="http://wiki.nesdev.com/w/index.php/Standard_controller#Turbo" class="postlink">Done</a>. Thank you for the suggestion.<br /><br />As for how Batman screws up: I haven't traced it, but I imagine that rapidly toggling the button will cause certain parts of processing to overflow available frame time, and an incomplete display list gets copied to OAM during the next NMI handler.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Mon Oct 17, 2011 11:29 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[beannaich]]></name></author>
+<updated>2011-10-17T11:17:29-07:00</updated>
+<published>2011-10-17T11:17:29-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=8217&amp;p=85170#p85170</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=8217&amp;p=85170#p85170"/>
+<title type="html"><![CDATA[Batman OAM corruption with rapid-fire?]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=8217&amp;p=85170#p85170"><![CDATA[
+If I set the frequency to 30 hz, then the above glitches don't happen. I mainly posted this to confirm it wasn't my emulator breaking, and also as a "wtf?". Batman (And only Batman's sprites) glitch when you toggle $4016 too fast, seems weird, but it probably makes sense if you look at the assembler code.<br /><br />Also, could we get the controller page on the wiki updated with the auto-fire information (The part about the oscillators working at 15-30hz)?<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=4320">beannaich</a> — Mon Oct 17, 2011 11:17 am</p><hr />
+]]></content>
+</entry>
+</feed>

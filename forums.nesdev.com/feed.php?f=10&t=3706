@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=10&amp;t=3706" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2009-02-17T16:26:48-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=10&amp;t=3706</id>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2009-02-17T16:26:48-07:00</updated>
+<published>2009-02-17T16:26:48-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=3706&amp;p=43431#p43431</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=3706&amp;p=43431#p43431"/>
+<title type="html"><![CDATA[DMC channel]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=3706&amp;p=43431#p43431"><![CDATA[
+So the game runs on a CPU inside the cart, and the NES just passes I/O through. <a href="http://en.wikipedia.org/wiki/Super_Game_Boy" class="postlink">Where have I heard that before</a>?<br /><br />But imagine that we don't want to go that far. How much of a synthesizer or sample mixer could fit onto a CPLD? Or would one need an FPGA + level shifters for that?<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Tue Feb 17, 2009 4:26 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[blargg]]></name></author>
+<updated>2009-02-17T14:24:08-07:00</updated>
+<published>2009-02-17T14:24:08-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=3706&amp;p=43429#p43429</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=3706&amp;p=43429#p43429"/>
+<title type="html"><![CDATA[DMC channel]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=3706&amp;p=43429#p43429"><![CDATA[
+And you don't even need dual-ported RAM, just interleaved access (as the SPC-700 does, where the CPU accesses it on the first cycle, and the DSP on the second and third).<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=17">blargg</a> — Tue Feb 17, 2009 2:24 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Bregalad]]></name></author>
+<updated>2009-02-17T13:17:37-07:00</updated>
+<published>2009-02-17T13:17:37-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=3706&amp;p=43427#p43427</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=3706&amp;p=43427#p43427"/>
+<title type="html"><![CDATA[DMC channel]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=3706&amp;p=43427#p43427"><![CDATA[
+Nothing that crazy would be needed !! It doesn't really make sense.<br /><br />And I was talking about raw PCM mixing. DPCM just produce horrible sound ! I don't see how you could play anything meaningfull with it with real time mixing.<br /><br />The ideal would have some mapper that would have an intergreated CPU, and some RAM that are dual ported to the internal CPU and the 6502. This RAM can handle $2006/$2007 updates for VBlank, can can hold the joypad data. Also, the sound code would set some varaibles in this piece of RAM to tell the NES CPU what to write to it's APU registers. On the other side, the NES CPU would also set some flags when it synchronizes with the PPU.<br />Celuis, it's effectively 2 programms runnign at the same time, but they do NOT acess to the same external ports, exept for a small area of dual-ported RAM. For example $5c00-$5fff could be dual ported RAM like on the MMC5.<br /><br />The programm inside the NES (after the init) would be very small (probably 8kb) and could look like something like that :<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">RESET<br />    sei<br />    ........ ;Some initilaisiation code<br />    cli<br />-    jmp -<br /><br />NMI<br />   bit $2002<br />   lda #$00<br />   sta $5xxx   ;The mapper knowns we're in NMI<br />   lda #$5c<br />   sta $4014       ;SpriteDMA from external memory for simplicity<br />   jsr Update20062007  ;Read some buffer from $5d00-$5fff<br />   lda ScrollH<br />   sta $2005<br />   lda ScrollV    ;Those variables reside somewhere at $5d00-$5fff<br />   sta $2005<br />   lda Nametable<br />   sta $2000<br />   lda #$01<br />   sta $5xxx  ;The mapper knowns we're at the end of the NMI<br /><br />   lda $5xxxx  ;Update the PSG sound registers &#40;could be done<br />   sta $4000   ;a more sofisticated way&#41;<br />   lda $5xxx<br />   sta $4001<br />   etc....<br />   rti<br /><br />IRQ              ;Interrupt every scanline ?<br />    ldx SoundIndex<br />    inc SoundIndex<br />    lda $5xxxx,X  ;256-byte ring buffer<br />    sta $4011     ;Write PCM data<br /><br />    ldy RasterFlag,X   ;This system allows to write to any of $2000-$2007 regs<br />    beq +                ;During the frame<br />-    ldx RasterIndex,Y<br />    lda RasterData,Y<br />    sta $2000,X<br />    dey<br />    bne -<br />+  rti<br /></div><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=38">Bregalad</a> — Tue Feb 17, 2009 1:17 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[strangenesfreak]]></name></author>
+<updated>2009-02-17T11:32:10-07:00</updated>
+<published>2009-02-17T11:32:10-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=3706&amp;p=43422#p43422</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=3706&amp;p=43422#p43422"/>
+<title type="html"><![CDATA[DMC channel]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=3706&amp;p=43422#p43422"><![CDATA[
+<div class="quotetitle">tepples wrote:</div><div class="quotecontent"><br />Registers A, X, and Y are internal to the CPU, and mappers can't see them until the CPU puts them on the data bus with the PHA, STA, STX, or STY instruction. The only way I can see that a mapper can "save" register A is by providing a single byte of RAM where the CPU can STA and LDA, and that would appear more complicated than just requiring the CPU to PHA/PLA.<br /><br />Tracking PC also has a problem: how would the mapper distinguish between instruction and data fetches, or between 1-byte and 2-byte instructions, without including the 6502's entire instruction decoder?<br /></div><br />True.  For saving the A register, I was thinking of the mapper watching LDA and other instructions that modify A, but that would cause bus conflicts in certain cases.  I was indeed thinking of the mapper carrying an instruction encoder, which I guess could be just as or more complicated than the sound synthesis.  Still, theoretically, it would be very nice if the mapper could help optimize code in PRG-ROM as much as possible.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3329">strangenesfreak</a> — Tue Feb 17, 2009 11:32 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2009-02-17T07:42:26-07:00</updated>
+<published>2009-02-17T07:42:26-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=3706&amp;p=43420#p43420</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=3706&amp;p=43420#p43420"/>
+<title type="html"><![CDATA[DMC channel]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=3706&amp;p=43420#p43420"><![CDATA[
+<div class="quotetitle">strangenesfreak wrote:</div><div class="quotecontent"><br />If the same mapper also saves A before an interrupt<br /></div><br />Registers A, X, and Y are internal to the CPU, and mappers can't see them until the CPU puts them on the data bus with the PHA, STA, STX, or STY instruction. The only way I can see that a mapper can "save" register A is by providing a single byte of RAM where the CPU can STA and LDA, and that would appear more complicated than just requiring the CPU to PHA/PLA.<br /><br />Tracking PC also has a problem: how would the mapper distinguish between instruction and data fetches, or between 1-byte and 2-byte instructions, without including the 6502's entire instruction decoder?<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Tue Feb 17, 2009 7:42 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[strangenesfreak]]></name></author>
+<updated>2009-02-16T17:56:38-07:00</updated>
+<published>2009-02-16T17:56:38-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=3706&amp;p=43412#p43412</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=3706&amp;p=43412#p43412"/>
+<title type="html"><![CDATA[DMC channel]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=3706&amp;p=43412#p43412"><![CDATA[
+<div class="quotetitle">tepples wrote:</div><div class="quotecontent"><br />Who said anything about X and Y? To work around the air-gap in the expansion port needs about 22 cycles:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">irqhandler:<br />  pha<br />  lda $4111  ; current mixer output<br />  sta $4011<br />  pla<br />  rti<br /></div><br />But a hardware mixer that outputs a DPCM stream on $FFC0 would still waste the NES CPU less (four cycles per eight samples), at the cost of slope overload.<br /></div><br />If the same mapper also saves A before an interrupt, you could load the mapper register that holds A instead of using PHA and PLA, saving 4 cycles but using up an extra byte of ROM.<br /><br />If it also keeps track of the PC, then (assuming the CPU was running off of PRG-ROM) it could simply disable PRG-ROM, generate a jump, and then turn back on ROM instead of requesting an IRQ.  And when it needs to return, it could do an indirect jump off a mapper register carrying the last PC.  This would save 8 cycles without the interrupt timing and RTI, but use up two extra bytes of ROM.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3329">strangenesfreak</a> — Mon Feb 16, 2009 5:56 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2009-02-16T16:48:23-07:00</updated>
+<published>2009-02-16T16:48:23-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=3706&amp;p=43410#p43410</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=3706&amp;p=43410#p43410"/>
+<title type="html"><![CDATA[DMC channel]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=3706&amp;p=43410#p43410"><![CDATA[
+Who said anything about X and Y? To work around the air-gap in the expansion port needs about 22 cycles:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">irqhandler:<br />  pha<br />  lda $4111  ; current mixer output<br />  sta $4011<br />  pla<br />  rti<br /></div><br />But a hardware mixer that outputs a DPCM stream on $FFC0 would still waste the NES CPU less (four cycles per eight samples), at the cost of slope overload.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Mon Feb 16, 2009 4:48 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Celius]]></name></author>
+<updated>2009-02-16T15:32:36-07:00</updated>
+<published>2009-02-16T15:32:36-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=3706&amp;p=43405#p43405</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=3706&amp;p=43405#p43405"/>
+<title type="html"><![CDATA[DMC channel]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=3706&amp;p=43405#p43405"><![CDATA[
+<div class="quotetitle">Bregalad wrote:</div><div class="quotecontent"><br />Well there is 3 ways it could be possible :<br />- An external on-cart CPU does the sound mixing and interrupts the main programm in the NES regularly with the IRQ pin to feed $4011 with music data.<br />- An external on-cart CPU does the game engine logic, while the CPU inside the NES is only used to deal with the PPU, APU and controller input, and does the sound mixing. Some way for communication between CPUs, likely using some interrupts, is achevied to keep everything in sync. That would probably be the most optimal solution but it would be somewhat revolutionary (you get NES dual-core !)<br />- No external on-cart CPU is used, and a normal mapper is used to fire interrupts regularly. The slow 6502 have to do everything, music logic, sound mixing AND game engine, and that while being inerrupted very frequently for $4011 updates so it can probably not do much even if working at 100%.<br /></div><br /><br />It would be awesome to have the second one! It would be awesome to have two programs running at once especially during Vblank! Then again, probably not because $2006 can't hold multiple values and you'd write to $2007 at the same time in both programs and it would be a disaster. But I don't really know how that works, so that might be garbage.<br /><br />Having IRQs interrupting the code regularly would make everything super slow, because not only do you move on to the next sample every IRQ and store it in $4011, you have to back up the A, X, and Y registers. What a waste of cycles..<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=138">Celius</a> — Mon Feb 16, 2009 3:32 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Bananmos]]></name></author>
+<updated>2009-02-16T14:06:49-07:00</updated>
+<published>2009-02-16T14:06:49-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=3706&amp;p=43404#p43404</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=3706&amp;p=43404#p43404"/>
+<title type="html"><![CDATA[DMC channel]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=3706&amp;p=43404#p43404"><![CDATA[
+<div class="quotetitle"><b>Quote:</b></div><div class="quotecontent"><br />I think the effect you guys are talking about is in Battletoads, but I feel it's done very well. It gives more of a feeling to the player of "Oh shit, I just got hit HARD!" It looks like everything stops for the sound, and it's not that long at all. I think it happens when you do a big hit to enemies too, actually. "OHHHH! I just knocked the CRAP out of that guy! Yeah!"<br /><br />Man, I love that game : )<br /></div><br /><br />Don't we all? :P ...but I have to differ here and say that while the RAW PCM playback doesn't interfere with gameplay in single-player mode and even adds charm to it, it can be REALLY annoying in two-player mode because the other player (who isn't getting hit or beating the crap out of an enemy) is paused as well, without warning.<br /><br />Then again, Battletoads is virtually impossible in two-player mode anyway. It's when I actually swallow my pride and equip the cart with a Game Genie, because you're lucky to even find someone who'll want to play it for any substantial amount of time even WITH infinite lives enabled. ;)<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=106">Bananmos</a> — Mon Feb 16, 2009 2:06 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Bregalad]]></name></author>
+<updated>2009-02-16T13:51:42-07:00</updated>
+<published>2009-02-16T13:51:42-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=3706&amp;p=43403#p43403</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=3706&amp;p=43403#p43403"/>
+<title type="html"><![CDATA[DMC channel]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=3706&amp;p=43403#p43403"><![CDATA[
+Well there is 3 ways it could be possible :<br />- An external on-cart CPU does the sound mixing and interrupts the main programm in the NES regularly with the IRQ pin to feed $4011 with music data.<br />- An external on-cart CPU does the game engine logic, while the CPU inside the NES is only used to deal with the PPU, APU and controller input, and does the sound mixing. Some way for communication between CPUs, likely using some interrupts, is achevied to keep everything in sync. That would probably be the most optimal solution but it would be somewhat revolutionary (you get NES dual-core !)<br />- No external on-cart CPU is used, and a normal mapper is used to fire interrupts regularly. The slow 6502 have to do everything, music logic, sound mixing AND game engine, and that while being inerrupted very frequently for $4011 updates so it can probably not do much even if working at 100%.<br />- Same as above but without even using interrupts for $4011 updates, would be completely a pain to write. However, if only one sample is played no mixing is needed and this could be possible, altough a headache (that's what I'm saying in my previous poses).<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=38">Bregalad</a> — Mon Feb 16, 2009 1:51 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Celius]]></name></author>
+<updated>2009-02-16T13:40:06-07:00</updated>
+<published>2009-02-16T13:40:06-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=3706&amp;p=43402#p43402</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=3706&amp;p=43402#p43402"/>
+<title type="html"><![CDATA[DMC channel]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=3706&amp;p=43402#p43402"><![CDATA[
+<div class="quotetitle">Bregalad wrote:</div><div class="quotecontent"><br />With an external microprocessor and IRQ source this should definitely be very possible and not even hard (squeedo comes to mind).<br /></div><br /><br />You mean something that interrupts the code, or something that works on its own and doesn't interrupt the game engine (is that even possible?)? Because it would be cool to have something that doesn't interrupt code, like MMC5's multiplier (though that requires writing and reading).<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=138">Celius</a> — Mon Feb 16, 2009 1:40 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Bregalad]]></name></author>
+<updated>2009-02-16T13:19:38-07:00</updated>
+<published>2009-02-16T13:19:38-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=3706&amp;p=43400#p43400</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=3706&amp;p=43400#p43400"/>
+<title type="html"><![CDATA[DMC channel]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=3706&amp;p=43400#p43400"><![CDATA[
+@blargg : Wow this sure should have been a headache to code.<br />If I were to do some PCM playing and some playengine at the same time, I'd definitely want to have the programm working completely without PCM (and keep a backup of it), then break everything in pieces of about 100 cycles and do that, altough it sounds really tedious if this is a complete game engine !!<br /><br />Now if the NES would be able to play software mixed samples with $4011, play music with normal PSG channel and run a game engine at the same time, it would really have similar sound capabilities as the GBA ! However, the NES is slower, and have less IRQ sources <img src="http://forums.nesdev.com/images/smilies/icon_cry.gif" alt=":cry:" title="Crying or Very sad" /> <br /><br />With an external microprocessor and IRQ source this should definitely be very possible and not even hard (squeedo comes to mind).<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=38">Bregalad</a> — Mon Feb 16, 2009 1:19 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[strangenesfreak]]></name></author>
+<updated>2009-02-16T10:55:58-07:00</updated>
+<published>2009-02-16T10:55:58-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=3706&amp;p=43398#p43398</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=3706&amp;p=43398#p43398"/>
+<title type="html"><![CDATA[DMC channel]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=3706&amp;p=43398#p43398"><![CDATA[
+Gauntlet II plays decent PCM samples and uses sprite DMA in gameplay at the same time, using MMC3 IRQs to update $4011 every 3 scanlines.  It seems to write to sprite DMA at every 5.333 frames (it does a pattern of 4, 8, 4), maybe to reduce distortion caused by the DMA write.  However, forcing the game to update sprite DMA every frame doesn't cause any noticeable aliasing.  This could be because the time for sprite DMA (about 4.5 scanlines) is close to the time per $4011 write (3 scanlines).  I used Nestopia to record the same sound sample played with and without constant sprite DMA.  The sample under constant sprite DMA was just 15% longer than the one without.<br /><br />WWF King of the Ring also plays decent PCM samples during gameplay, using MMC3 IRQs to update $4011 every 2 scanlines, but it skips the VBlank period.  But they still sound decent.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3329">strangenesfreak</a> — Mon Feb 16, 2009 10:55 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[blargg]]></name></author>
+<updated>2009-02-16T10:14:28-07:00</updated>
+<published>2009-02-16T10:14:28-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=3706&amp;p=43397#p43397</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=3706&amp;p=43397#p43397"/>
+<title type="html"><![CDATA[DMC channel]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=3706&amp;p=43397#p43397"><![CDATA[
+Bregalad, my <a href="http://nesdev.com/bbs/viewtopic.php?p=41846#41846" class="postlink">4-channel wavetable player</a> does that. It breaks operations into short blocks which each last exactly 21 cycles (using a short delay to use up cycles if the useful code is less than 21). Between each block is a call to the routine that updates $4011. If it were just playing a single sample without any rate adjustment, it each block could use a lot more than 21 cycles.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=17">blargg</a> — Mon Feb 16, 2009 10:14 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Bregalad]]></name></author>
+<updated>2009-02-16T09:53:06-07:00</updated>
+<published>2009-02-16T09:53:06-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=3706&amp;p=43395#p43395</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=3706&amp;p=43395#p43395"/>
+<title type="html"><![CDATA[DMC channel]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=3706&amp;p=43395#p43395"><![CDATA[
+I think it should be possible technically to do regular writes to $4011 while the main programm is doing something singificant, if the sample rate is low enough and if you don't mind some minor distortion at 60Hz.<br /><br />It may just be insanely difficult to do a programm that stopp so many cycles to write to $4011, likely you would only do a few opperation, write to $4011, etc... and all of it would have to be timed right (altoug if the timing is not *very* exact it's not catastrophic, will just add some noise to the sound that will anyway not be exact). Also it would slow things down dratiscally because the CPU is used to write to $4011 and take a lot of ROM as all loops would have to be unrolled (writing regularly to $4011). In fact it sounds like a nice challenge to me. But I remember writing a programm that does matrix transormation and raster effects at the same time (second version of my Rotation demo) was really a pain.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=38">Bregalad</a> — Mon Feb 16, 2009 9:53 am</p><hr />
+]]></content>
+</entry>
+</feed>

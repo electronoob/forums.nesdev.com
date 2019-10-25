@@ -1,0 +1,165 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Reconciling GB and (S)NES frame rate</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Reconciling GB and (S)NES frame rate</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=20&amp;t=17560">http://forums.nesdev.com/viewtopic.php?f=20&amp;t=17560</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Thu Jul 19, 2018 8:49 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Reconciling GB and (S)NES frame rate</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />The Game Boy and NES/Super NES don't run at the same frame rate: 59.73 Hz vs. 60.10 Hz. This means a solution to use the NES/Super NES PPU to display Game Boy video has to provide some means of converting the two. But it can't just run the Game Boy ahead and pause it at the end of each frame, as the same master clock is also divided to produce analog audio, and pausing that would cause distortion at about 60 Hz.<br /><br />4*341*262-2 = 357366 qpels (quarter pixels, NES/Super NES master clocks) per field<br />456*154 = 70224 GB master clocks per frame<br /><br />Nintendo's solutions drop or duplicate frames. Super Game Boy produces the master clock by dividing the master clock by 5. The resulting refresh rate 945÷44×1000000÷5÷70224 = 61.17 Hz leads to dropped frames. Super Game Boy 2 (Japan only) produces the master clock with a separate 20.97 MHz oscillator that it divides by 5. This produces correct CPU speed, which improves sync under link play, but also duplicated frames.<br /><br />The lowest latency solution would run the Game Boy core at exactly 60.10 Hz. This means dividing the NES or Super NES master clock by 357366/70224 = 5.088943951. This can be approximated as 229/45: add 45 to a counter every qpel, and when it exceeds 229, subtract 229 and pull GB master clock high for 2.5 qpels. That'll finish one GB frame in 357362.13 qpels. Then the NES PPU fetch pattern or Super NES DMA pattern can be used to hard sync the two, allowing the GB to fill the frame buffer. With hard sync, it need not even be a full 5760 byte frame buffer; calculating the minimum size of the needed circular buffer is an exercise for later.<br /><br />The remaining problem is to account for the GB's variable frame rate when display is turned off. As soon as forced blanking is released, the LCD draws exactly one white frame and then starts drawing full frames. But the forced blanking time need not be a multiple of one frame. Would it be acceptable to pause the GB CPU, causing a brief audible pop, every time forced blanking is disabled? It's not as if GB software forces blanking for other than scene transitions, as starting forced blanking mid-frame causes undue wear to the scanline where it's disabled, and there's not quite as much demand to do so to improve video memory bandwidth because VRAM is writable during the (fairly long) hblank.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Thu Jul 19, 2018 11:37 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Reconciling GB and (S)NES frame rate</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />The other option that occurs to me would be to use a simple PLL to tweak the clock seen by the DMG hardware after video is turned back on such that there is some tearing until it's back in phase.<br /><br />Or synthesizing a DMG softcore on an FPGA and making it inauthentically pause the CPU but not the audio generators until vsync realigns.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>adam_smasher</b> [ Thu Jul 19, 2018 11:45 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Reconciling GB and (S)NES frame rate</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />A brief audible pop on screen transitions would be very irritating.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

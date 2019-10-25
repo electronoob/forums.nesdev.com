@@ -1,0 +1,375 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Reading the controller?</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Reading the controller?</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=10&amp;t=3878">http://forums.nesdev.com/viewtopic.php?f=10&amp;t=3878</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>4</strong> of <strong>4</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Tue Apr 08, 2008 1:06 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />CMP checks the whole value.  AND only checks one bit.
+<br />
+<br />When you read key states from $4016/4017, the returned value is actually $40 (button released), or $41 (button pressed)*.  Not $00,$01 like you might expect, so if you do CMP #$01, you will never detect any button presses (since the value is never $01), whereas AND #$01 will work properly.
+<br />
+<br />* usually, anyway.  What's really going on is that $4016/7 leave several of the high bits as open bus, so it is possible for other values to be read back as well -- but that's a hypertechnicality.  The point is, don't use CMP this way.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>electro</b> [ Tue Apr 08, 2008 2:17 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I understand what you're saying about $40 = no press and $41 = press. But in the original code that I'm referring to earlier in this thread we did this before masking the bits:
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent"><br />updatejoy:<br /><br />&nbsp; &nbsp; LDA #1 &nbsp; &nbsp;&nbsp; &nbsp;&nbsp; ; first, strobe the joypad <br />&nbsp; &nbsp; STA $4016 <br />&nbsp; &nbsp; LDA #0 <br />&nbsp; &nbsp; STA $4016<br /><br />&nbsp; &nbsp; LDX #$08&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; set X to 8 &#40;the number of times we want to loop.&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; joybuttons: <br />&nbsp; &nbsp; <br />&nbsp; &nbsp; LDA $4016&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; get button state <br />&nbsp; &nbsp; LSR A&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; shift it into the C flag <br />&nbsp; &nbsp; ROR button_state&nbsp; &nbsp;; rotate C flag into our button_state variable <br /><br />&nbsp; &nbsp; <br />&nbsp; &nbsp; DEX&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; decrement X &#40;our loop counter&#41; <br />&nbsp; &nbsp; BNE joybuttons&nbsp; &nbsp; &nbsp; ; jump back to our loop until X is zero <br /><br /><br />&nbsp; &nbsp; rts<br /></div><br /><br />So we stripped off the low bit of $40 (button not pressed) and $41 (button press).  So now we're comparing the new values stored in the "button_state"? Wouldn't the CMP work in this case?<br /><br />Here's the whole code:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">;Nes Gamepad demo program<br />;-------------------<br /><br />; INES header setup<br /><br /><br />&nbsp; &nbsp;.inesprg 1<br />&nbsp; &nbsp;.ineschr 0&nbsp; &nbsp;; zero because we don't have character data<br />&nbsp; &nbsp;.inesmir 1<br />&nbsp; &nbsp;.inesmap 0&nbsp; <br /><br />&nbsp; &nbsp;.bank 1<br />&nbsp; &nbsp;.org $FFFA<br />&nbsp; &nbsp;.dw 0 &nbsp; &nbsp;&nbsp; &nbsp;; NMI routine<br />&nbsp; &nbsp;.dw start &nbsp; &nbsp;; Reset routine<br />&nbsp; &nbsp;.dw 0&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; IRQ routine<br /><br />&nbsp; &nbsp;.bank 0<br />&nbsp; &nbsp;.org $8000<br /><br />start:<br /><br />key_a&nbsp; &nbsp;&nbsp; &nbsp;EQU&nbsp; &nbsp;%00000001 ; A button press <br />key_b&nbsp; &nbsp;&nbsp; &nbsp;EQU &nbsp; &nbsp;%00000010 ; B <br />key_select&nbsp; &nbsp; &nbsp;EQU &nbsp; &nbsp;%00000100 ; select <br />key_start&nbsp; &nbsp; &nbsp;EQU &nbsp; &nbsp;%00001000 ; start <br />key_up&nbsp; &nbsp; &nbsp;EQU &nbsp; &nbsp;%00010000 ; up arrow <br />key_down&nbsp; &nbsp; &nbsp;EQU &nbsp; &nbsp;%00100000 ; down <br />key_left&nbsp; &nbsp; &nbsp;EQU &nbsp; &nbsp;%01000000 ; left arrow <br />key_right&nbsp; &nbsp; &nbsp;EQU &nbsp; &nbsp;%10000000 ; right<br /><br />ab_pressed&nbsp; &nbsp;EQU&nbsp; &nbsp;%00000011 ; A and B are pressed <br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<br />button_state&nbsp; &nbsp; EQU&nbsp; &nbsp; &nbsp;$00<br /><br /><br />&nbsp; &nbsp; sei&nbsp; &nbsp; &nbsp; &nbsp; ; ignore IRQs<br />&nbsp; &nbsp; cld&nbsp; &nbsp; &nbsp; &nbsp; ; disable decimal mode<br />&nbsp; &nbsp; ldx #$40<br />&nbsp; &nbsp; stx $4017&nbsp; ; disable APU frame IRQ<br />&nbsp; &nbsp; ldx #$ff<br />&nbsp; &nbsp; txs&nbsp; &nbsp; &nbsp; &nbsp; ; Set up stack<br />&nbsp; &nbsp; inx&nbsp; &nbsp; &nbsp; &nbsp; ; now X = 0<br />&nbsp; &nbsp; stx $2000&nbsp; ; disable NMI<br />&nbsp; &nbsp; stx $2001&nbsp; ; disable rendering<br />&nbsp; &nbsp; stx $4010&nbsp; ; disable DMC IRQs<br /><br />vblankwait1:&nbsp; <br />&nbsp; &nbsp; bit $2002<br />&nbsp; &nbsp; bpl vblankwait1<br /><br />&nbsp; &nbsp; ; We now have about 30,000 cycles to burn before the PPU stabilizes.<br />&nbsp; &nbsp; ; Use it to clear RAM.&nbsp; X is still 0...<br />&nbsp; &nbsp; txa<br />clrmem:&nbsp; &nbsp;&nbsp; &nbsp;; this is for the video stuff<br />&nbsp; &nbsp; sta $000,x<br />&nbsp; &nbsp; sta $100,x<br />&nbsp; &nbsp; sta $200,x<br />&nbsp; &nbsp; sta $300,x<br />&nbsp; &nbsp; sta $400,x<br />&nbsp; &nbsp; sta $500,x<br />&nbsp; &nbsp; sta $600,x<br />&nbsp; &nbsp; sta $700,x&nbsp; ; Remove this if you're storing reset-persistent data<br />&nbsp; &nbsp; inx<br />&nbsp; &nbsp; bne clrmem<br />&nbsp; &nbsp;<br />vblankwait2:<br />&nbsp; &nbsp; bit $2002<br />&nbsp; &nbsp; bpl vblankwait2<br /><br /><br />; *** CLEAR SOUND REGISTERS ***<br />&nbsp; &nbsp;<br /><br />&nbsp; &nbsp;lda #$00&nbsp; &nbsp;&nbsp; &nbsp;; clear all the sound registers by setting<br />&nbsp; &nbsp;ldx #$00&nbsp; &nbsp;&nbsp; &nbsp;; everything to 0 in the Clear_Sound loop<br />Clear_Sound:<br />&nbsp; &nbsp;sta $4000,x&nbsp; &nbsp;&nbsp; &nbsp;; store accumulator at $4000 offset by x<br />&nbsp; &nbsp;inx&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; ; increment x<br />&nbsp; &nbsp;cpx #$0F&nbsp; &nbsp;&nbsp; &nbsp;; compare x to $0F<br />&nbsp; &nbsp;bne Clear_Sound&nbsp; &nbsp;&nbsp; &nbsp;; branch back to Clear_Sound if x != $0F<br /><br />&nbsp; &nbsp;lda #$10&nbsp; &nbsp;&nbsp; &nbsp;; load accumulator with $10<br />&nbsp; &nbsp;sta $4010&nbsp; &nbsp;&nbsp; &nbsp;; store accumulator in $4010<br />&nbsp; &nbsp;lda #$00&nbsp; &nbsp;&nbsp; &nbsp;; load accumulator with 0<br />&nbsp; &nbsp;sta $4011&nbsp; &nbsp;&nbsp; &nbsp;; clear these 3 registers that are <br />&nbsp; &nbsp;sta $4012&nbsp; &nbsp;&nbsp; &nbsp;; associated with the delta modulation<br />&nbsp; &nbsp;sta $4013&nbsp; &nbsp;&nbsp; &nbsp;; channel of the NES<br /><br /><br /><br />loop: <br />&nbsp; &nbsp;jsr updatejoy <br /><br />&nbsp; &nbsp;;Check the state of the right key <br />&nbsp; &nbsp;lda button_state <br />&nbsp; &nbsp;cmp #key_right <br />&nbsp; &nbsp;bne right_not_pressed <br />&nbsp; &nbsp;jsr right_is_pressed <br /><br /><br />right_not_pressed: <br />&nbsp; &nbsp; <br />&nbsp; &nbsp;;Check the state of the left button <br />&nbsp; &nbsp;lda button_state <br />&nbsp; &nbsp;cmp #key_left <br />&nbsp; &nbsp;bne left_not_pressed <br />&nbsp; &nbsp;jsr left_is_pressed <br /><br />left_not_pressed:<br /><br />&nbsp; &nbsp;;Check the state of the up arrow<br />&nbsp; &nbsp;lda button_state<br />&nbsp; &nbsp;cmp #key_up<br />&nbsp; &nbsp;bne up_not_pressed<br />&nbsp; &nbsp;jsr up_is_pressed<br /><br />up_not_pressed:<br /><br />&nbsp; &nbsp;;Check if A and B are pressed<br />&nbsp; &nbsp;lda button_state<br />&nbsp; &nbsp;cmp #ab_pressed<br />&nbsp; &nbsp;bne ab_not_pressed<br />&nbsp; &nbsp;jsr ab_is_pressed<br /><br />ab_not_pressed: <br /><br />&nbsp;<br /><br />&nbsp; &nbsp;jmp loop ;Go back and keep reading the joypad forever <br /><br /><br />updatejoy:<br /><br />&nbsp; &nbsp; LDA #1 &nbsp; &nbsp;&nbsp; &nbsp;&nbsp; ; first, strobe the joypad <br />&nbsp; &nbsp; STA $4016 <br />&nbsp; &nbsp; LDA #0 <br />&nbsp; &nbsp; STA $4016<br /><br />&nbsp; &nbsp; LDX #$08&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; set X to 8 &#40;the number of times we want to loop, once fo each button&#41; <br />&nbsp; &nbsp; joybuttons: <br />&nbsp; &nbsp; <br />&nbsp; &nbsp; LDA $4016&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; get button state <br />&nbsp; &nbsp; LSR A&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; shift it into the C flag <br />&nbsp; &nbsp; ROR button_state&nbsp; &nbsp; &nbsp;; rotate C flag into our button_state variable <br /><br />&nbsp; &nbsp; <br />&nbsp; &nbsp; DEX&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; decrement X &#40;our loop counter&#41; <br />&nbsp; &nbsp; BNE joybuttons&nbsp; &nbsp; &nbsp; &nbsp;; jump back to our loop until X is zero <br /><br /><br />&nbsp; &nbsp; rts<br /><br />&nbsp;<br />right_is_pressed: ; play sound when right arrow is pressed.<br /><br /><br />&nbsp; &nbsp; &nbsp; &nbsp; lda #$03&nbsp; &nbsp;; Enable square 1<br />&nbsp; &nbsp;sta $4015<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;lda #$9F&nbsp; &nbsp;; Envelope<br />&nbsp; &nbsp;sta $4000<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;lda #$21&nbsp; &nbsp;; Start tone<br />&nbsp; &nbsp;sta $4003<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;rts<br />&nbsp; &nbsp;<br /><br />&nbsp; &nbsp;<br />left_is_pressed:<br /><br />&nbsp; &nbsp;<br />&nbsp; &nbsp;lda #$03&nbsp; &nbsp;; Enable square 1<br />&nbsp; &nbsp;sta $4015<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;lda #$9F&nbsp; &nbsp;; Envelope<br />&nbsp; &nbsp;sta $4000<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;lda #$21&nbsp; &nbsp;; Start tone<br />&nbsp; &nbsp;sta $4003<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;rts<br /><br />up_is_pressed:<br /><br /><br />&nbsp; &nbsp; &nbsp; &nbsp; lda #$03&nbsp; &nbsp;; Enable square 1<br />&nbsp; &nbsp;sta $4015<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;lda #$9F&nbsp; &nbsp;; Envelope<br />&nbsp; &nbsp;sta $4000<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;lda #$21&nbsp; &nbsp;; Start tone<br />&nbsp; &nbsp;sta $4003<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;rts<br /><br />ab_is_pressed:<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; lda #$0F&nbsp; &nbsp;; Enable all sound channels bits 0-3 of register 4015<br />&nbsp; &nbsp;sta $4015<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;lda #%00000111&nbsp; &nbsp;; Envelope<br />&nbsp; &nbsp;sta $400C&nbsp; &nbsp; &nbsp; &nbsp; ; noise channel<br /><br />&nbsp; &nbsp;lda #%00000001&nbsp; &nbsp;; Start tone<br />&nbsp; &nbsp;sta $400F&nbsp; &nbsp;<br />&nbsp; &nbsp;<br /><br /><br />&nbsp; &nbsp; &nbsp; &nbsp; rts<br /></div>
+<br />
+<br />
+<br />
+<br />Thanks for the help,
+<br />T
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>never-obsolete</b> [ Tue Apr 08, 2008 2:43 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />since all 8 buttons have their state held in button_state, comparing against a bit mask of each of the individual buttons might not work as expected if you don't mask out the others.
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">;Check the state of the right key <br />&nbsp; &nbsp;lda button_state <br />&nbsp; &nbsp;cmp #key_right&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; compare <br />&nbsp; &nbsp;bne right_not_pressed&nbsp; ; branch if not equal to zero <br />&nbsp; &nbsp;jsr right_is_pressed <br /><br />right_not_pressed: <br /></div>
+<br />
+<br />what happens if both right and some other button is pushed? button_state will not equal #key_right, even though right is pushed. unless you want "right_is_pressed" to be called when right and only right is pushed.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>electro</b> [ Tue Apr 08, 2008 2:59 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Yeah, I see what you guys are saying now... Thanks for the help.
+<br />
+<br />
+<br />I was experimenting with detecting 2 simultaneous button presses, so I did this:
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent"><br />ab_pressed EQU&nbsp; %00000011 ; a and b button press<br /><br />;Check if A and B are pressed<br />&nbsp; &nbsp;lda button_state<br />&nbsp; &nbsp;cmp #ab_pressed<br />&nbsp; &nbsp;bne ab_not_pressed<br />&nbsp; &nbsp;jsr ab_is_pressed<br /><br />ab_not_pressed: <br /></div>
+<br />
+<br />Seems to work the way I expected, but something tells me this isn't the best way to do this either.
+<br />
+<br />Thanks again,
+<br />T
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Tue Apr 08, 2008 4:14 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Blah that's what I get for taking things out of context  XD
+<br />
+<br />
+<br />Anyway yeah... what I stay still stands kinda.  The thing is AND only looks at the bits you mask, whereas CMP looks at the whole byte.
+<br />
+<br />so
+<br />
+<br />AND #$01
+<br />BNE blah
+<br />
+<br />will branch if A is pressed... whereas
+<br />
+<br />CMP #$01
+<br />BEQ blah
+<br />
+<br />will branch if A is pressed <em>and all other buttons are released</em>.  Holding left then pressing A, for example, will fail this check.
+<br />
+<br />
+<br />Similarly:
+<br />
+<br />AND #$03
+<br />BNE blah
+<br />
+<br />branches if A or B (or both) is pressed.  Whereas CMP+BEQ will only branch if both are pressed and all other buttons are released.
+<br />
+<br />Basically if you're only interested in a single bit -- then mask out the bit your interested in.
+<br />
+<br />
+<br />If you want to do A+B pressed while ignoring status of other buttons, then you can use a combination of the two:
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">AND #$03&nbsp; ; mask out A+B bits<br />CMP #$03&nbsp; ; see if it equals A+B<br />BEQ a_and_b_pressed<br /></div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>electro</b> [ Tue Apr 08, 2008 4:40 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Thanks.
+<br />
+<br />What about this:
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">;Check if A and B are pressed<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;LDA button_state<br /><br />&nbsp; &nbsp;AND #$03&nbsp; ; mask out A+B bits<br />&nbsp; &nbsp;CMP #$03&nbsp; ; see if it equals A+B<br />&nbsp; &nbsp;BNE ab_not_pressed <br />&nbsp; &nbsp;<br />&nbsp; &nbsp;jsr ab_is_pressed<br /><br />ab_not_pressed: <br /><br /></div><br /><br />The code above works in nintendulator. <br /><br />When I did this (below) previously, it also worked in nintendulator but not on the NES console:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">;Check if A and B are pressed<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;LDA button_state<br />&nbsp; &nbsp;CMP #$03&nbsp; ; see if it equals A+B<br />&nbsp; &nbsp;BNE ab_not_pressed <br />&nbsp; &nbsp;<br />&nbsp; &nbsp;jsr ab_is_pressed<br /><br />ab_not_pressed: <br /></div><br /><br />I understand what you're saying now. <br /><br />With this piece of code above, using only CMP + BNE, it worked the way I expected in nintendulator, When I pressed a and b it did "jsr ab_is_pressed" and the other buttons did not effect it. But this did not work on the console. <br /><br />UPDATE: This (code below) did work nicely on the console.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">;Check if A and B are pressed<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;LDA button_state<br /><br />&nbsp; &nbsp;AND #$03&nbsp; ; mask out A+B bits<br />&nbsp; &nbsp;CMP #$03&nbsp; ; see if it equals A+B<br />&nbsp; &nbsp;BNE ab_not_pressed<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;jsr ab_is_pressed<br /><br />ab_not_pressed: <br /><br /></div>
+<br />
+<br />
+<br />Thanks again for the great help on that!
+<br />
+<br />T
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>electro</b> [ Fri Apr 18, 2008 10:27 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Reading Joy Pad 1 &amp; 2 (cave man way)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Today I decided to try to read the buttons of joypad #2 along with joypad #1.
+<br />
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">;Nes Gamepad demo program<br />;-------------------<br /><br />; INES header setup<br /><br /><br />&nbsp; &nbsp;.inesprg 1<br />&nbsp; &nbsp;.ineschr 0&nbsp; &nbsp;; zero because we don't have character data<br />&nbsp; &nbsp;.inesmir 1<br />&nbsp; &nbsp;.inesmap 0&nbsp; <br /><br />&nbsp; &nbsp;.bank 1<br />&nbsp; &nbsp;.org $FFFA<br />&nbsp; &nbsp;.dw 0 &nbsp; &nbsp;&nbsp; &nbsp;; NMI routine<br />&nbsp; &nbsp;.dw start &nbsp; &nbsp;; Reset routine<br />&nbsp; &nbsp;.dw 0&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; IRQ routine<br /><br />&nbsp; &nbsp;.bank 0<br />&nbsp; &nbsp;.org $8000<br /><br />start:<br /><br />key_a&nbsp; &nbsp;&nbsp; &nbsp;EQU&nbsp; &nbsp;%00000001 ; A button press <br />key_b&nbsp; &nbsp;&nbsp; &nbsp;EQU &nbsp; &nbsp;%00000010 ; B <br />key_select&nbsp; &nbsp; &nbsp;EQU &nbsp; &nbsp;%00000100 ; select <br />key_start&nbsp; &nbsp; &nbsp;EQU &nbsp; &nbsp;%00001000 ; start <br />key_up&nbsp; &nbsp; &nbsp;EQU &nbsp; &nbsp;%00010000 ; up arrow <br />key_down&nbsp; &nbsp; &nbsp;EQU &nbsp; &nbsp;%00100000 ; down <br />key_left&nbsp; &nbsp; &nbsp;EQU &nbsp; &nbsp;%01000000 ; left arrow <br />key_right&nbsp; &nbsp; &nbsp;EQU &nbsp; &nbsp;%10000000 ; right<br /><br /><br />ab_pressed&nbsp; &nbsp;EQU&nbsp; &nbsp;%00000011 ; A and B are pressed <br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<br />button_state&nbsp; &nbsp; EQU&nbsp; &nbsp; &nbsp;$00<br />button_state2&nbsp; &nbsp;EQU&nbsp; &nbsp;$0F<br /><br /><br />&nbsp; &nbsp; sei&nbsp; &nbsp; &nbsp; &nbsp; ; ignore IRQs<br />&nbsp; &nbsp; cld&nbsp; &nbsp; &nbsp; &nbsp; ; disable decimal mode<br />&nbsp; &nbsp; ldx #$40<br />&nbsp; &nbsp; stx $4017&nbsp; ; disable APU frame IRQ<br />&nbsp; &nbsp; ldx #$ff<br />&nbsp; &nbsp; txs&nbsp; &nbsp; &nbsp; &nbsp; ; Set up stack<br />&nbsp; &nbsp; inx&nbsp; &nbsp; &nbsp; &nbsp; ; now X = 0<br />&nbsp; &nbsp; stx $2000&nbsp; ; disable NMI<br />&nbsp; &nbsp; stx $2001&nbsp; ; disable rendering<br />&nbsp; &nbsp; stx $4010&nbsp; ; disable DMC IRQs<br /><br />vblankwait1:&nbsp; <br />&nbsp; &nbsp; bit $2002<br />&nbsp; &nbsp; bpl vblankwait1<br /><br />&nbsp; &nbsp; ; We now have about 30,000 cycles to burn before the PPU stabilizes.<br />&nbsp; &nbsp; ; Use it to clear RAM.&nbsp; X is still 0...<br />&nbsp; &nbsp; txa<br />clrmem:&nbsp; &nbsp;&nbsp; &nbsp;; this is for the video stuff<br />&nbsp; &nbsp; sta $000,x<br />&nbsp; &nbsp; sta $100,x<br />&nbsp; &nbsp; sta $200,x<br />&nbsp; &nbsp; sta $300,x<br />&nbsp; &nbsp; sta $400,x<br />&nbsp; &nbsp; sta $500,x<br />&nbsp; &nbsp; sta $600,x<br />&nbsp; &nbsp; sta $700,x&nbsp; ; Remove this if you're storing reset-persistent data<br />&nbsp; &nbsp; inx<br />&nbsp; &nbsp; bne clrmem<br />&nbsp; &nbsp;<br />vblankwait2:<br />&nbsp; &nbsp; bit $2002<br />&nbsp; &nbsp; bpl vblankwait2<br /><br /><br />; *** CLEAR SOUND REGISTERS ***<br />&nbsp; &nbsp;<br /><br />&nbsp; &nbsp;lda #$00&nbsp; &nbsp;&nbsp; &nbsp;; clear all the sound registers by setting<br />&nbsp; &nbsp;ldx #$00&nbsp; &nbsp;&nbsp; &nbsp;; everything to 0 in the Clear_Sound loop<br />Clear_Sound:<br />&nbsp; &nbsp;sta $4000,x&nbsp; &nbsp;&nbsp; &nbsp;; store accumulator at $4000 offset by x<br />&nbsp; &nbsp;inx&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;; increment x<br />&nbsp; &nbsp;cpx #$0F&nbsp; &nbsp;&nbsp; &nbsp;; compare x to $0F<br />&nbsp; &nbsp;bne Clear_Sound&nbsp; &nbsp;&nbsp; &nbsp;; branch back to Clear_Sound if x != $0F<br /><br />&nbsp; &nbsp;lda #$10&nbsp; &nbsp;&nbsp; &nbsp;; load accumulator with $10<br />&nbsp; &nbsp;sta $4010&nbsp; &nbsp;&nbsp; &nbsp;; store accumulator in $4010<br />&nbsp; &nbsp;lda #$00&nbsp; &nbsp;&nbsp; &nbsp;; load accumulator with 0<br />&nbsp; &nbsp;sta $4011&nbsp; &nbsp;&nbsp; &nbsp;; clear these 3 registers that are <br />&nbsp; &nbsp;sta $4012&nbsp; &nbsp;&nbsp; &nbsp;; associated with the delta modulation<br />&nbsp; &nbsp;sta $4013&nbsp; &nbsp;&nbsp; &nbsp;; channel of the NES<br /><br /><br /><br />loop: <br />&nbsp; &nbsp;jsr updatejoy<br /><br />&nbsp; &nbsp;;Check the state of the right key <br />&nbsp; &nbsp;lda button_state <br />&nbsp; &nbsp;and #key_right <br />&nbsp; &nbsp;beq right_not_pressed <br />&nbsp; &nbsp;jsr right_is_pressed <br /><br /><br />right_not_pressed: <br />&nbsp; &nbsp; <br />&nbsp; &nbsp;;Check the state of the left button <br />&nbsp; &nbsp;lda button_state <br />&nbsp; &nbsp;and #key_left <br />&nbsp; &nbsp;beq left_not_pressed <br />&nbsp; &nbsp;jsr left_is_pressed <br /><br />left_not_pressed:<br /><br />&nbsp; &nbsp;;Check the state of the up arrow<br />&nbsp; &nbsp;lda button_state<br />&nbsp; &nbsp;and #key_up<br />&nbsp; &nbsp;beq up_not_pressed<br />&nbsp; &nbsp;jsr up_is_pressed<br /><br />up_not_pressed:<br /><br />&nbsp; &nbsp;;Check the state of the up arrow<br />&nbsp; &nbsp;lda button_state<br />&nbsp; &nbsp;and #key_down<br />&nbsp; &nbsp;beq down_not_pressed<br />&nbsp; &nbsp;jsr down_is_pressed<br /><br />down_not_pressed:<br /><br /><br />&nbsp; &nbsp;;Check if A and B are pressed<br />&nbsp; &nbsp;lda button_state<br /><br />&nbsp; &nbsp;AND #$03&nbsp; ; mask out A+B bits<br />&nbsp; &nbsp;CMP #$03&nbsp; ; see if it equals A+B<br />&nbsp; &nbsp;BNE ab_not_pressed <br />&nbsp; &nbsp;<br />&nbsp; &nbsp;jsr ab_is_pressed<br /><br />ab_not_pressed: <br /><br />&nbsp; &nbsp;;Check if A is pressed<br />&nbsp; &nbsp;lda button_state<br />&nbsp; &nbsp;AND #key_a&nbsp; ; mask out bits<br />&nbsp; &nbsp;BEQ a_not_pressed <br />&nbsp; &nbsp;jsr a_is_pressed<br /><br />a_not_pressed:<br /><br />&nbsp; &nbsp;;Check if b button is pressed<br />&nbsp; &nbsp;lda button_state<br />&nbsp; &nbsp;and #key_b<br />&nbsp; &nbsp;beq b_not_pressed<br />&nbsp; &nbsp;jsr b_is_pressed<br /><br />b_not_pressed:&nbsp; &nbsp;<br /><br /><br />&nbsp; &nbsp;;Check if select button is pressed<br />&nbsp; &nbsp;lda button_state<br />&nbsp; &nbsp;and #key_select<br />&nbsp; &nbsp;beq select_not_pressed<br />&nbsp; &nbsp;jsr select_is_pressed<br /><br /><br />select_not_pressed:<br /><br /><br />&nbsp; &nbsp;jmp loop ;Go back and keep reading the joypad forever <br /><br /><br /><br /><br />loop2: <br />&nbsp; &nbsp;<br /><br />&nbsp; &nbsp;jsr updatejoy2<br /><br /><br />&nbsp; &nbsp;;Check State of Right Button of Joypad #2<br />&nbsp; &nbsp;lda button_state2 <br />&nbsp; &nbsp;and #key_right <br />&nbsp; &nbsp;beq right_not_pressed_2 <br />&nbsp; &nbsp;jsr right_is_pressed_2 <br /><br /><br />right_not_pressed_2:<br /><br /><br />&nbsp; &nbsp;;check state of A button of joypad #2<br />&nbsp; &nbsp;lda button_state2<br />&nbsp; &nbsp;AND #key_a&nbsp; ; mask out bits<br />&nbsp; &nbsp;BEQ a_not_pressed_2 <br />&nbsp; &nbsp;jsr a_is_pressed_2<br /><br />a_not_pressed_2:&nbsp; &nbsp;<br /><br /><br /><br /><br />&nbsp; &nbsp;;Check state of b button on joypad #2<br />&nbsp; &nbsp;lda button_state2<br />&nbsp; &nbsp;and #key_b<br />&nbsp; &nbsp;beq b_not_pressed_2<br />&nbsp; &nbsp;jsr b_is_pressed_2<br /><br /><br /><br />b_not_pressed_2:&nbsp; &nbsp;<br /><br /><br />&nbsp; &nbsp;<br />&nbsp; &nbsp;;Check the state of the left button of joypad #2 <br />&nbsp; &nbsp;lda button_state2 <br />&nbsp; &nbsp;and #key_left <br />&nbsp; &nbsp;beq left_not_pressed_2 <br />&nbsp; &nbsp;jsr left_is_pressed_2 <br /><br />left_not_pressed_2:<br /><br />&nbsp; &nbsp;;Check the state of the up arrow of joypad #2<br />&nbsp; &nbsp;lda button_state2<br />&nbsp; &nbsp;and #key_up<br />&nbsp; &nbsp;beq up_not_pressed_2<br />&nbsp; &nbsp;jsr up_is_pressed_2<br /><br />up_not_pressed_2:<br /><br />&nbsp; &nbsp;;Check the state of the up arrow of joypad #3<br />&nbsp; &nbsp;lda button_state2<br />&nbsp; &nbsp;and #key_down<br />&nbsp; &nbsp;beq down_not_pressed_2<br />&nbsp; &nbsp;jsr down_is_pressed_2<br /><br />down_not_pressed_2:<br /><br /><br /><br />&nbsp; &nbsp;;Check if select button is pressed<br />&nbsp; &nbsp;lda button_state2<br />&nbsp; &nbsp;and #key_select<br />&nbsp; &nbsp;beq select_not_pressed_2<br />&nbsp; &nbsp;jsr select_is_pressed_2<br /><br /><br />select_not_pressed_2:&nbsp; &nbsp;<br /><br />&nbsp;<br /><br />&nbsp; &nbsp;jmp loop2 ;Go back and keep reading the joypad forever <br /><br /><br />updatejoy:<br /><br />&nbsp; &nbsp; LDA #1 &nbsp; &nbsp;&nbsp; &nbsp;&nbsp; ; first, strobe the joypad <br />&nbsp; &nbsp; STA $4016 <br />&nbsp; &nbsp; LDA #0 <br />&nbsp; &nbsp; STA $4016<br /><br />&nbsp; &nbsp; LDX #$08&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; set X to 8 &#40;the number of times we want to loop, once fo each button&#41; <br />&nbsp; &nbsp; <br />joybuttons: <br />&nbsp; &nbsp; <br />&nbsp; &nbsp; LDA $4016&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; get button state <br />&nbsp; &nbsp; LSR A&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; shift it into the C flag <br />&nbsp; &nbsp; ROR button_state&nbsp; &nbsp; &nbsp;; rotate C flag into our button_state variable <br /><br />&nbsp; &nbsp; <br />&nbsp; &nbsp; DEX&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; decrement X &#40;our loop counter&#41; <br />&nbsp; &nbsp; BNE joybuttons&nbsp; &nbsp; &nbsp; &nbsp;; jump back to our loop until X is zero <br />&nbsp; &nbsp;<br />&nbsp; &nbsp; rts<br />&nbsp; &nbsp;<br /><br /><br /><br /><br />updatejoy2:&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;<br /><br />&nbsp; &nbsp; LDA #1 &nbsp; &nbsp;&nbsp; &nbsp; ; first, strobe the joypad <br />&nbsp; &nbsp; STA $4016 <br />&nbsp; &nbsp; LDA #0 <br />&nbsp; &nbsp; STA $4016<br /><br />&nbsp; &nbsp; LDY #$08&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; set Y to 8 &#40;the number of times we want to loop, once for each button&#41; <br />&nbsp; &nbsp; <br />joybuttons2:&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;<br />&nbsp; &nbsp; <br />&nbsp; &nbsp; LDA $4017&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; get button state of joypad #2 <br />&nbsp; &nbsp; LSR A&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; shift it into the C flag <br />&nbsp; &nbsp; ROR button_state2&nbsp; &nbsp; ; rotate C flag into our button_state2 variable <br /><br />&nbsp; &nbsp; <br />&nbsp; &nbsp; DEY&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ; decrement X &#40;our loop counter&#41; <br />&nbsp; &nbsp; BNE joybuttons2&nbsp; &nbsp; &nbsp; ; jump back to our loop until Y is zero <br /><br /><br />&nbsp; &nbsp; rts<br /><br />&nbsp;<br />right_is_pressed: ; play sound when right arrow is pressed.<br /><br /><br />&nbsp; &nbsp; &nbsp; &nbsp; lda #$0F&nbsp; &nbsp;&nbsp; &nbsp; ; Enable channels<br />&nbsp; &nbsp;sta $4015<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;;lda #%10011101<br />&nbsp; &nbsp;;sta $400C<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;lda #%00111101&nbsp; &nbsp;; mode, period<br />&nbsp; &nbsp;sta $400E<br /><br />&nbsp; &nbsp;lda #%0000000&nbsp; &nbsp; ; duration<br />&nbsp; &nbsp;sta $400F<br /><br />&nbsp; &nbsp;<br /><br />&nbsp; &nbsp;rts<br />&nbsp; &nbsp;<br /><br />&nbsp; &nbsp;<br />left_is_pressed:<br /><br /><br />&nbsp; &nbsp;lda #$0F&nbsp; &nbsp;&nbsp; &nbsp; ; Enable channels<br />&nbsp; &nbsp;sta $4015<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;;lda #%10011111<br />&nbsp; &nbsp;;sta $400C<br />&nbsp; &nbsp;&nbsp; &nbsp;<br />&nbsp; &nbsp;lda #%00010111&nbsp; &nbsp;; mode, period<br />&nbsp; &nbsp;sta $400E<br /><br />&nbsp; &nbsp;lda #%10000000&nbsp; &nbsp;; duration<br />&nbsp; &nbsp;sta $400F<br /><br />&nbsp; &nbsp; &nbsp; &nbsp; rts<br /><br /><br /><br />up_is_pressed:<br /><br /><br /><br />&nbsp; &nbsp;lda #$0F&nbsp; &nbsp;&nbsp; &nbsp; ; Enable channels<br />&nbsp; &nbsp;sta $4015<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;&nbsp; &nbsp;<br />&nbsp; &nbsp;lda #%00111111&nbsp; &nbsp;; mode, period&nbsp; low rumble<br />&nbsp; &nbsp;sta $400E<br /><br />&nbsp; &nbsp;lda #%0000000&nbsp; &nbsp; ; duration<br />&nbsp; &nbsp;sta $400F<br /><br /><br />&nbsp; &nbsp;rts<br /><br /><br />down_is_pressed:<br /><br /><br />&nbsp; &nbsp;lda #$0F&nbsp; &nbsp;&nbsp; &nbsp; ; Enable channels<br />&nbsp; &nbsp;sta $4015<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;<br />&nbsp; &nbsp;lda #%00111110&nbsp; &nbsp;; mode, period<br />&nbsp; &nbsp;sta $400E<br /><br />&nbsp; &nbsp;lda #%11111000&nbsp; &nbsp;; duration<br />&nbsp; &nbsp;sta $400F<br /><br />&nbsp; &nbsp; &nbsp; &nbsp;<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;rts<br /><br /><br /><br />a_is_pressed:&nbsp; &nbsp;<br />&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp;&nbsp; &nbsp;<br /><br />&nbsp; &nbsp;rts<br /><br /><br /><br /><br />b_is_pressed: <br /><br />&nbsp; &nbsp; <br />&nbsp; &nbsp;&nbsp; &nbsp; &nbsp; <br /><br />&nbsp; &nbsp; &nbsp; &nbsp; rts<br /><br /><br /><br />select_is_pressed:<br /><br /><br />&nbsp; &nbsp;rts<br /><br /><br /><br />ab_is_pressed:<br /><br /><br />&nbsp; &nbsp;rts<br /><br /><br />&nbsp; &nbsp;<br />right_is_pressed_2:<br /><br /><br />&nbsp; &nbsp;rts<br /><br /><br /><br />left_is_pressed_2:<br /><br /><br /><br />&nbsp; &nbsp;rts<br /><br /><br />up_is_pressed_2:<br /><br /><br /><br />&nbsp; &nbsp;lda #$0F&nbsp; &nbsp;&nbsp; &nbsp; ; Enable channels<br />&nbsp; &nbsp;sta $4015<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;&nbsp; &nbsp;<br />&nbsp; &nbsp;lda #%00111111&nbsp; &nbsp;; mode, period&nbsp; low rumble<br />&nbsp; &nbsp;sta $400E<br /><br />&nbsp; &nbsp;lda #%0000000&nbsp; &nbsp; ; duration<br />&nbsp; &nbsp;sta $400F<br /><br /><br /><br /><br />&nbsp; &nbsp;rts<br /><br /><br /><br />down_is_pressed_2:<br /><br /><br />&nbsp; &nbsp;rts<br /><br /><br /><br /><br />a_is_pressed_2:<br /><br /><br />&nbsp; &nbsp;lda #$0F&nbsp; &nbsp;&nbsp; &nbsp; ; Enable channels<br />&nbsp; &nbsp;sta $4015<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;lda #%00100111&nbsp; &nbsp;; enable medium looping with a 1 at bit 5<br />&nbsp; &nbsp;sta $400C<br /><br /><br /><br />&nbsp; &nbsp;rts<br /><br /><br /><br /><br />b_is_pressed_2:<br /><br /><br /><br />&nbsp; &nbsp;lda #$0F&nbsp; &nbsp;&nbsp; &nbsp; ; Enable channels<br />&nbsp; &nbsp;sta $4015<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;lda #%00101111&nbsp; &nbsp;; enable slow looping<br />&nbsp; &nbsp;sta $400C<br /><br /><br /><br /><br />&nbsp; &nbsp;rts<br /><br /><br /><br /><br />start_is_pressed_2:<br /><br /><br /><br />&nbsp; &nbsp;rts<br /><br /><br /><br />select_is_pressed_2:<br /><br /><br />&nbsp; &nbsp;jsr start&nbsp; &nbsp; ; Resets sound to the beginning, clears sound registers.&nbsp; &nbsp;<br />&nbsp; &nbsp;<br />&nbsp; &nbsp;rts<br /></div>
+<br />
+<br />I just did the same thing for joypad #1, made separate subroutines for reading joypad #2.
+<br />
+<br />Don't know if this is the right way to do this. Joypad 1 works ok in this code, but joypad #2 doesn't.
+<br />
+<br />Maybe I could have just included (consolidated) the code for joypad #2 in the same subroutines used for reading joypad #1, rather than creating separate subroutines the way I did?
+<br />
+<br />Thanks again,
+<br />T
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Fri Apr 18, 2008 12:12 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Joypad 1 works ok in this code, but joypad #2 doesn't.</div>
+<br />
+<br />Your "loop2" is never being jumped to, so none of that new code is ever being executed.
+<br />
+<br />Be mindful of your program's flow.  You probably don't even want a loop2... since your "loop" is the main program loop, you'd want it to look at both P1 and P2.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>electro</b> [ Fri Apr 18, 2008 4:20 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I see what you're saying. I removed "loop2".  Have it working now, thank you.
+<br />
+<br />Will repost new code.
+<br />
+<br />T
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>4</strong> of <strong>4</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

@@ -1,0 +1,101 @@
+Binary files a53menu-0.05wip1/a53menu.nes and a53menu-0.05wip2/a53menu.nes differ
+diff -r -U3 a53menu-0.05wip1/makefile a53menu-0.05wip2/makefile
+--- a53menu-0.05wip1/makefile	2017-02-25 22:56:00.000000000 -0500
++++ a53menu-0.05wip2/makefile	2017-02-26 15:41:38.166146028 -0500
+@@ -18,7 +18,7 @@
+ # (the \ character) at the end of the line and continue on the next.
+ objlist := \
+   zapkernels quadpcm \
+-  main cartmenu \
++  main cartmenu coredump \
+   vwf_draw vwf7 unpb53 bcd pads mouse ppuclear paldetect \
+   pentlysound pentlymusic musicseq ntscPeriods
+ 
+Only in a53menu-0.05wip2/src: coredump.s
+diff -r -U3 a53menu-0.05wip1/src/main.s a53menu-0.05wip2/src/main.s
+--- a53menu-0.05wip1/src/main.s	2017-02-24 22:58:38.000000000 -0500
++++ a53menu-0.05wip2/src/main.s	2017-02-26 15:20:15.279479613 -0500
+@@ -18,6 +18,7 @@
+ .import clearLineImg, copyLineImg, vwfPuts
+ .import interbank_fetch, interbank_fetch_buf
+ .import quadpcm_test
++.import coredump
+ .importzp lineImgBufLen
+ .exportzp psg_sfx_state
+ 
+@@ -56,7 +57,7 @@
+   sei
+ ldxinstr:
+   ldx #$FF
+-  txs
++  nop ;txs
+   stx ldxinstr+1
+   jmp ($FFFC)
+ .endproc
+@@ -66,7 +67,7 @@
+   sei
+ ldxinstr:
+   ldx #$FF
+-  txs
++  nop ;txs
+   stx ldxinstr+1
+   jmp ($FFFC)
+   .addr nmi, reset, irq
+@@ -118,7 +119,7 @@
+   stx PPUMASK     ; Disable rendering
+   stx $4010       ; Disable DMC IRQ
+   dex             ; Subtracting 1 from $00 gives $FF, which is a
+-  txs             ; quick way to set the stack pointer to $01FF
++  ;txs             ; quick way to set the stack pointer to $01FF
+   bit PPUSTATUS   ; Acknowledge stray vblank NMI across reset
+   bit SNDCHN      ; Acknowledge DMC IRQ
+   lda #$40
+@@ -130,6 +131,28 @@
+   bit PPUSTATUS   ; It takes one full frame for the PPU to become
+   bpl vwait1      ; stable.  Wait for the first frame's vblank.
+ 
++coredump_at_boot_readpad:
++  ldy #$01
++  lda #$00
++  sty $4016
++  sta $4016
++  @readpad_loop:
++    lda $4017
++    ora $4016
++    and #%00000011  ; ignore D2-D7
++    cmp #1          ; CLC if A=0, SEC if A>=1
++    tya
++    rol
++    tay
++  bcc @readpad_loop
++  ; A = Y = pad2
++  cpy #%11000000
++  bne @continue_normally
++    jmp coredump
++  @continue_normally:
++
++  txs
++
+   ; Turn off decimal mode for post-patent famiclones
+   cld
+   jsr pently_init
+diff -r -U3 a53menu-0.05wip1/tools/a53build.py a53menu-0.05wip2/tools/a53build.py
+--- a53menu-0.05wip1/tools/a53build.py	2017-02-25 21:56:28.000000000 -0500
++++ a53menu-0.05wip2/tools/a53build.py	2017-02-26 15:47:47.648439285 -0500
+@@ -517,12 +517,12 @@
+ #
+ # There are essentially two different patches.  The 10-byte patch can
+ # be placed only at $BFF0 or $FFF0.
+-# FFF0: sei ldx #$FF txs stx $FFF2 jmp ($FFFC)
+-# BFF0: sei ldx #$FF txs stx $BFF2 jmp ($FFFC)
++# FFF0: sei ldx #$FF nop stx $FFF2 jmp ($FFFC)
++# BFF0: sei ldx #$FF nop stx $BFF2 jmp ($FFFC)
+ # By the time the JMP operand is fetched, the mapper will have
+ # finished switching to the bank with the menu.
+-fff0_patch_data = b"\x78\xA2\xFF\x9A\x8E\xF2\xFF\x6C\xFC\xFF"
+-bff0_patch_data = b"\x78\xA2\xFF\x9A\x8E\xF2\xBF\x6C\xFC\xFF"
++fff0_patch_data = b"\x78\xA2\xFF\xEA\x8E\xF2\xFF\x6C\xFC\xFF"
++bff0_patch_data = b"\x78\xA2\xFF\xEA\x8E\xF2\xBF\x6C\xFC\xFF"
+ 
+ # The 20-byte patch can be placed anywhere in the ROM.
+ # x000: sei ldx #5

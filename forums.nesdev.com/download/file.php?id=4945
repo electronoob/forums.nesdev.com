@@ -1,0 +1,224 @@
+INCLUDE "gbhw.asm"
+
+SECTION "Vblank", ROM0[$40]
+jp vblank
+
+SECTION "Stat", ROM0[$48]
+jp stat
+
+SECTION "Header", ROM0[$100]
+
+Start::
+    nop
+    jp _Start
+
+SECTION "Home", ROM0[$150]
+
+_Start::
+    di
+    ld a, %11100100
+    ld [rBGP], a
+    ld sp, $fffe
+    call LCDOff
+    call PlaySound
+    call LoadFont
+    call LCDOn
+    ld a, 32
+    ld [rSTAT], a
+    ld a, 3
+    ld [$FFFF], a
+    ei
+.loop
+    halt
+    nop
+    jr .loop
+
+LCDOff::
+    ld a, [$FF44]
+    cp 145
+    jr nz, LCDOff
+    ld a, [$FF40]
+    and $7F
+    ld [$FF40], a
+    ret
+
+LCDOn::
+    ld a, [$FF40]
+    or $80
+    ld [$FF40], a
+    ret
+
+PlaySound::
+    ld a, $0
+    ld [$FF10], a
+    ld a, $80
+    ld [$FF11], a
+    ld a, $F0
+    ld [$FF12], a
+    ld a, $81
+    ld [$FF13], a
+    ld a, $CF
+    ld [$FF14], a
+    ret
+
+PlaySound2::
+    ld a, $0
+    ld [$FF10], a
+    ld a, $80
+    ld [$FF11], a
+    ld a, $80
+    ld [$FF12], a
+    ld a, $81
+    ld [$FF13], a
+    ld a, $CF
+    ld [$FF14], a
+    ret
+
+PlaySound3::
+    ld a, $80
+    ld [$FF16], a
+    ld a, $80
+    ld [$FF17], a
+    ld a, $81
+    ld [$FF18], a
+    ld a, $CF
+    ld [$FF19], a
+    ret
+
+PlaySound4::
+    ld a, 0
+    ld [$FF20], a
+    ld a, $80
+    ld [$FF21], a
+    ld a, $77
+    ld [$FF22], a
+    ld a, $FF
+    ld [$FF23], a
+    ret
+
+PlaySound5::
+    ld a, $80
+    ld [$FF1A], a
+    ld a, 0
+    ld [$FF1B], a
+    ld a, $FF
+    ld [$FF1C], a
+    ld a, $81
+    ld [$FF13], a
+    ld a, $CF
+    ld [$FF14], a
+    ret
+
+LoadFont::
+    ld c, 0
+    ld de, $8010
+
+    ld hl, HexDigits
+    ; Regular
+.loop
+    ld a, [hli]
+    ld [de], a
+    inc de
+    dec c
+    jr nz, .loop
+
+    ; Bold
+.loop2
+    ld a, [hli]
+    ld [de], a
+    inc de
+    dec c
+    jr nz, .loop2
+
+    ; Right Aligned
+    ld hl, HexDigits
+.loop3
+    ld a, [hli]
+    srl a
+    srl a
+    ld [de], a
+    inc de
+    dec c
+    jr nz, .loop3
+    ret
+
+
+HexDigits::
+    INCBIN "hexdigits.2bpp"
+
+vblank::
+    xor a, a
+    ld [$c800], a
+    ld b, $c0
+    ld c, a
+    ld h, $98
+    ld l, a
+    ld e, 3
+.yLoop
+    ; Digit X000
+    ld a, b
+    srl a
+    srl a
+    srl a
+    srl a
+    add $11
+    ld [hli], a
+
+    ; Digit 0X00
+    ld a, b
+    and $F
+    add $11
+    ld [hli], a
+
+    ; Digit 00X0
+    ld a, c
+    srl a
+    srl a
+    srl a
+    srl a
+    add $11
+    ld [hli], a
+
+    ; Digit 000X
+    ld a, c
+    and $F
+    add $11
+    ld [hli], a
+
+    ld d, 8
+.xLoop
+    ld a, [bc]
+    srl a
+    srl a
+    srl a
+    srl a
+    add $21
+    ld [hli], a
+
+    ld a, [bc]
+    and $F
+    inc a
+    ld [hli], a
+
+    inc bc
+    dec d
+    jr nz, .xLoop
+
+    dec e
+    push de
+    ld d, 0
+    ld e, $c
+    add hl, de
+    pop de
+    jr nz, .yLoop
+    reti
+
+stat::
+    ld h, $c0
+    ld a, [$c800]
+    ld l, a
+    inc a
+    ld [$c800], a
+    ldh a, [$44]
+    ld [hl], a
+    reti

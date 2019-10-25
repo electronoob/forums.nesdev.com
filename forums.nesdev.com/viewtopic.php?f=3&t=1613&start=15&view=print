@@ -1,0 +1,182 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Implementation of a Binary Translator (JIT) for the NES</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Implementation of a Binary Translator (JIT) for the NES</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=3&amp;t=1613">http://forums.nesdev.com/viewtopic.php?f=3&amp;t=1613</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>2</strong> of <strong>2</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>mozz</b> [ Tue Jun 06, 2006 11:02 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Ending blocks on branches does make sense, because blocks are then linked together.
+<br />
+<br />You guys should look into <a href="http://www.hpl.hp.com/techreports/1999/HPL-1999-77.html" class="postlink">an old HP project called Dynamo</a>.  It used JIT recompilation of native PA-RISC instructions into more efficient ("dynamically optimized") sequences of native PA-RISC instructions.  Executing PA-RISC binaries under this system was often 5% or more <strong>faster</strong> than just running them on the underlying hardware!
+<br />
+<br />I think there was an X86 version of this project started later under a different name (can't remember what at the moment).  The technique was not dependent on a nice orthogonal RISC instruction set.
+<br />
+<br />Dynamo used interpretation for the first few runs through some code (up to 100 or so?) in order to profile backwards branches and identify the "hot path" through a set of basic blocks.  It then collected these instructions together into "traces" which consisted of several basic blocks stuck back-to-back (i.e. single-entry, multi-exit control flow) and ran a set of linear-time optimizations on the traces to improve their efficiency.  This optimized trace was entered into a trace cache and thereafter, whenever the interpreter wanted to execute the code starting with the basic block at the beginning of the trace, it would just execute the native code in the cache.
+<br />
+<br />Just like laughy, they found that switching from compiled code to the interpreter and back was a huge performance hit, so they implemented block linking (in Dynamo, a branch that exits from a trace would either go back to the interpreter, or to the beginning of a different trace.  If it went to a different trace, they would replace the branch instruction that exits the trace with a direct branch to the new trace.)  That way, you'd spend all your inner loops running directly-linked native code in the trace cache, and only have to go out to the interpreter for rarely-executed code like error handling.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>laughy</b> [ Tue Jun 06, 2006 2:42 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">mozz wrote:</div><div class="quotecontent">Ending blocks on branches does make sense, because blocks are then linked together.<br /></div><br /><br />Linking blocks together will be done no matter what the blocks are ended with: one doesn't have to be at the end of a block to link it to another one. The only differences I know of between a block that ends in a branch and block that ends with a jump is that the blocks which end in branches are easier to implement, and slower since more time will be spent going back and forth between the translator. Also smaller blocks means less flag optimization.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Dynamo used interpretation for the first few runs through some code (up to 100 or so?) in order to profile backwards branches and identify the "hot path" through a set of basic blocks. It then collected these instructions together into "traces" which consisted of several basic blocks stuck back-to-back (i.e. single-entry, multi-exit control flow) and ran a set of linear-time optimizations on the traces to improve their efficiency. This optimized trace was entered into a trace cache and thereafter, whenever the interpreter wanted to execute the code starting with the basic block at the beginning of the trace, it would just execute the native code in the cache.<br /></div>
+<br />
+<br />Yeah I'm starting to think this is needed to catch things like indirect writes to I/O registers and such. Its also a great way to determine which optimizations are good to run a block.
+<br />
+<br />I can also see how running optimizations on traces would be a good idea.
+<br />
+<br />Thanks for the info.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>mozz</b> [ Wed Jun 07, 2006 9:54 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Sorry.  I was thinking of "jump" and "branch" as being the same thing (control transfer instruction, a.k.a. the last instruction of a basic block in the conventional sense).  I guess I should actually read your paper (not just the summary).
+<br /><img src="./images/smilies/icon_biggrin.gif" alt=":grin:" title="Very Happy" />
+<br />
+<br />The reason a "basic block" is considered "basic" is because, control flows linearly from the first instruction in the block to the last.  That makes it easy to reason about (for example) what happens if you move instructions around, or remove one of them, etc.  Thats why basic blocks often show up as an abstraction in algorithms that handle code (data flow analysis, or quick optimizations, or whatever else).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>2</strong> of <strong>2</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

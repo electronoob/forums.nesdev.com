@@ -1,0 +1,223 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - MMC1 simulated in Logisim</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">MMC1 simulated in Logisim</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=9&amp;t=8277">http://forums.nesdev.com/viewtopic.php?f=9&amp;t=8277</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>4</strong> of <strong>4</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>infiniteneslives</b> [ Tue Mar 20, 2012 1:34 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Bregalad wrote:</div><div class="quotecontent">OK so what does happen if I write for example at $2000, then immediately I write at $8000. Is the second write ignored by the MMC1, or is it taken in account.</div><br /><br />My guess is yes it will be ignored.  But I do have that down as one thing to check.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Also you didn't mention the possibility for the shift register to be clocked by R/W logically AND-ed with /ROMSEL.<br /><br />If this were to be the case, R/W would not go high between two consecutive writes, so this means the shift register is not clocked. But if you do what you experimented, that is, if I understood it well, toggle both M2 and R/W (but keep R/W low during write cycles when M2 is high) then the shift register will ignore writes even though R/W is cycling, because /ROMSEL is held low.<br /></div><br /><br />Actually I did account for this.  I didn't explicitly state it but it's what I was implying when I said this:<br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Well what if we DON'T clock M2 but still do everything else normally (for the writes to the MMC1 shift register). It turns out that consecutive writes WILL be acknowledged if we do this. Regardless if M2 is held high or low. This also further proves that PRG R/W can be held low between writes and still get each write acknowledged.</div><br /><br />So for that test I operated PRG /CE and PRG R/W naturally and did a test with M2 held high and another with it low.  Basically if you disconnect M2 you can get it ACKNOWLEDGE consecutive writes.  PRG R/W stayed low for the entirety of several sequential writes and ALL of those writes were acknowledged even though they occured one 'cycle' (less M2 toggling) after another.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">I didn't understand the last bug you mentionned at all. It sounds completely new to me.</div>
+<br />
+<br />Basically it appears to me that the shift register to reg0-3 coping happens partially (bits 4-0) on the STA instruction read the CPU clock cycle preceeding the STA's write cycle.  Then on the write cycle the same bits4-0 plus the final 5th bit from that cycle's write are copied as well.  Additionally It looks like the 5th unaccounted for bit of the first copy during the read cycle is always a 1.  So if the STA instruction is read from a different ROM location (A14-13) than the register location you're trying to write to; you'll end up writting to BOTH registers with that single (5 bit) MMC1 write operation.  Sorry I know it's a bit confusing I'll have to come up with an example...
+<br />
+<br />Yes I've never heard of it either, I think it's safe to say this is the first time it's came to light.  But it's definitely there to some degree, I need to further characterize it.  Once I modify my design a bit it may make more sense as to why it's happening.  I tested it with writing to reg0 and reg3 at the same time.  And additionally I tested it with reg1 and reg2 with similar behavior (I don't know enough to say it's identical for all registers yet but I'm guessing so).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>infiniteneslives</b> [ Thu Mar 22, 2012 1:04 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Good news.  I got my MMC1 working <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" />  Thanks for making your logisim version Bregalad.  I didn't copy it exactly with some of my differences noted previously.   But your design was a great reference and starting point to help me to understand how things worked when the docs left details to be desired.
+<br />
+<br />I'll post my design and everything soon in another thread.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>infiniteneslives</b> [ Fri Apr 06, 2012 10:57 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Well I've still got a bug to figure out with my MMC1 before I publish my design.  Something is wrong when I test out zelda, other SNROM games are fine like metroid but zelda has issues when drawing the first map screen with the cave and everything.
+<br />
+<br />I decided to jump into MMC3 and found something that may be wrong with your MMC3 Bregalad.  I think it's due to some ambiguity in all the MMC3 docs (wiki, kevtris, &amp; disch).  The issue is with the first two CHR registers/bank numbers.
+<br />
+<br />I made the same assumption as Bregalad that those two 7bit wide registers ignore the MSB from PRG D7.  Which is similar to the PRG banks which are only 6 bits wide.  But it appears that they ignore the LSB (PRG D0) as they use CHR A10 in it's place.  All the docs I found were ambiguous as to which 7 of the 8 bits are used for holding the bank number.  I did some agreement with what I'm saying in the mapper 118 wiki impling that D7 is always mapped to CHR A17.  Thinking about it like this makes a little sense now.  Basically Bregalad's design shouldn't shift the first two CHR banks by 1 bit, they should stay as is.  The value of D7 always corresponds to CHR A17.  And all the games I'm testing with look MUCH better after I implemented this change so I'm pretty sure I'm not mistaken.
+<br />
+<br />I know you made mention of it Bregalad, it's probably common knowledge to most, but I think it's worth pointing out that your design WILL NOT WORK as you've posted it because you're clocking your scanline counter with each positive edge of CHR A12.  This behavior really isn't pointed out in Kevtris' docs well and your design led me further down the garden path.  I didn't realize how the MMC3 ignores closely timed CHR A12 posedges until checking things with disch's docs, so a more explanatory note would have been helpful to me at least.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Sat Apr 07, 2012 2:31 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Yeah - in other words the 2kb CHR bank select registers select a 2kb bank, but with the corresponding 1kb bank number, ignoring the LSB, just like the MMC1 in 8kb CHR bank modes uses 4kb page numbers.
+<br />
+<br />This make sense as it simplifies the inside logic.
+<br />
+<br />Only the MMC5 does it the complex way.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>mog123</b> [ Tue May 21, 2013 3:15 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: MMC1 simulated in Logisim</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I'm sorry for bringing this old topic back up, but I'm actually interested in designing a pcb for these, as there are no know, cheap mmc1 replacements and making one involves using cpld's, which maybe aren't that expensive, but learning to implement those would require a bit of time, which i currently don't have much. My question is: I noticed that you're using a lot of splitters out of d-type flipflops, how is that realised? shift registers? Then where is the latch bit?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>4</strong> of <strong>4</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

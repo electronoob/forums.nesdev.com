@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=6&amp;t=691" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2005-10-26T10:25:46-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=6&amp;t=691</id>
+<entry>
+<author><name><![CDATA[Bregalad]]></name></author>
+<updated>2005-10-26T10:25:46-07:00</updated>
+<published>2005-10-26T10:25:46-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=691&amp;p=5947#p5947</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=691&amp;p=5947#p5947"/>
+<title type="html"><![CDATA[NES chords and intervals]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=691&amp;p=5947#p5947"><![CDATA[
+By the way, I made a programm to get the precise pitch on the NES, based from a note number (0-11), an octave number, and some different detune value to made pitch LFO, pitch bends and detunes. I foud fair to publish it there, because people is just talking about that :<br /><br />This routine has 4 steps :<br />- Mix all different fine tunes (LFO, pitch bend and detune) together, to end up with a main detune value<br />- Add the corresponding main note to the fine detune value calculated before and make sure that the final value is in the correct octave range. If it's not, then modity the octave number to make it do.<br />- Add the table pointer to the tune pointer, and read data. Shift it right the number of octaves, if octave isn't minus.<br />- If octave is minus or if the period is above $800, just output with a pitch of $1 to make an inaudible sound, beacause the NES isn't able to produce very low frequenceys.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">;Get a pitch &#40;11 bit period&#41;<br />;NoteOctave= Octave &#40;0-8&#41;<br />;PitchBend= Main pitch bend &#40;-32768 - +32767&#41;<br />;FineTune= Detune index &#40;-128 - +127&#41;<br />;VibFineTune = Vibrato detune index &#40;-128 - +127&#41;<br />;NotePitch = Main pitch &#40;0-12&#41;<br />;Output with PitchL, PitchH = walue to write in the period regs<br /><br /><br />GetPitch<br />   lda #$00<br />   sta PitchH<br />   lda FineTune.w,X<br />   clc<br />   adc LFOFineTune.w,X   ;Add LFO fine tune to main fine tune<br />   sta PitchL      ;Both are 8-bit signed<br />   bpl +<br />   bvs _fineTuneDone<br />   dec PitchH      ;If result is neg and if there is no overflow, the main thing is negative<br />   bne _fineTuneDone<br /><br />+   bvc _fineTuneDone<br />   dec PitchH      ;If result is positive and if there is overflow, the main thing is also negatinve<br /><br />_fineTuneDone<br />   lda PitchBendL.w,X<br />   clc<br />   adc PitchL<br />   sta PitchL<br />   lda PitchBendH.w,X<br />   adc PitchH      ;Add pitch bend &#40;16 bit signed&#41; to get a 16 bit signed result<br /><br />   asl PitchL<br />   rol A<br />   asl PitchL<br />   rol A<br />   asl PitchL<br />   rol A         ;Multiply the whole detune index by 8<br /><br />            ;Add the note to the main pitch, then divide by 8<br />            ;This is the equivelent to multiply note by 32<br />   clc<br />   adc NotePitch<br />   bmi _octaveAdjustNeg<br />_octaveAdjustPos<br />   cmp #$0c<br />   bcc _octaveAdjustDone<br />   sec<br />   sbc #$0c      ;Add as many octaves than needed scince the detunes is higher than one octave<br />   inc NoteOctave      ;To avoid geting out of the pitch table because the detune would change the octave<br />   jmp _octaveAdjustPos<br /><br />_octaveAdjustNeg<br />   clc<br />   adc #$0c      ;Same but remove octaves if the pitch goes one or more octave below<br />   dec NoteOctave      ;Note than PitchH is forcely positive from now<br />   cmp #$0c<br />   bcs _octaveAdjustNeg<br /><br />_octaveAdjustDone<br /><br />                lsr A<br />   ror PitchL<br />   lsr A<br />   ror PitchL<br />   sta PitchH<br /><br />   lda PitchL<br />   clc<br />   adc #&lt;PeriodTbl<br />   sta PitchL<br />   lda PitchH      ;Load the pointer instead of pitch variables<br />   adc #&gt;PeriodTbl<br />   sta PitchH<br /><br />   ldy #$00<br />   lda &#91;Pitch&#93;,Y<br />   pha<br />   iny<br />   lda &#91;Pitch&#93;,Y<br />   sta PitchH<br />   pla<br /><br />   ldy NoteOctave<br />   bmi _PitchOutofRange<br />   beq _octaveZero<br />   cpy #$05<br />   bcs _veryHighOctave<br />-   lsr PitchH<br />   ror A<br />   dey<br />   bne -<br />_octaveZero<br />   sta PitchL<br />   lda PitchH<br />   cmp #$08   ;If the period is over 11 bits, the pitch is out of range<br />   bcc +<br />_PitchOutofRange<br />   lda #$01<br />   sta PitchL   ;Make an unaudible tone if pitch is out of range<br />   lsr A<br />   sta PitchH<br />+   rts<br /><br />_veryHighOctave<br />-   asl A<br />   rol PitchH<br />   iny<br />   cpy #$08<br />   bcc -<br />   lda PitchH<br />   sta PitchL<br />   lda #$00<br />   sta PitchH<br />   rts<br /></div><br />About the table, the values should be CPUSpeed/2^(n/384)*32.7*16, where n equals 0, then 1, then 2, up to 384 for each entry on the table.<br />If someone want to use it, I'll just post the some .dw line it does for NTSC, however, it's wrong in pal. (I used Excel to have those values fastly).<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">   .dw 3420, 3414, 3408, 3402, 3396, 3390, 3383, 3377, 3371, 3365, 3359, 3353, 3347, 3341, 3335, 3329<br />   .dw 3323, 3317, 3311, 3305, 3299, 3293, 3287, 3281, 3275, 3269, 3263, 3258, 3252, 3246, 3240, 3234<br /><br />   .dw 3228, 3223, 3217, 3211, 3205, 3199, 3194, 3188, 3182, 3176, 3171, 3165, 3159, 3153, 3148, 3142<br />   .dw 3136, 3131, 3125, 3119, 3114, 3108, 3103, 3097, 3091, 3086, 3080, 3075, 3069, 3064, 3058, 3053<br /><br />   .dw 3048, 3042, 3037, 3031, 3026, 3020, 3015, 3009, 3004, 2998, 2993, 2988, 2982, 2977, 2972, 2966<br />   .dw 2961, 2956, 2950, 2945, 2940, 2934, 2929, 2924, 2918, 2913, 2908, 2903, 2897, 2892, 2887, 2882<br /><br />   .dw 2877, 2871, 2866, 2861, 2856, 2851, 2846, 2840, 2835, 2830, 2825, 2820, 2815, 2810, 2805, 2800<br />   .dw 2795, 2790, 2785, 2780, 2775, 2770, 2765, 2760, 2755, 2750, 2745, 2740, 2735, 2730, 2725, 2720<br /><br />   .dw 2715, 2710, 2705, 2700, 2696, 2691, 2686, 2681, 2676, 2671, 2667, 2662, 2657, 2652, 2647, 2643<br />   .dw 2638, 2633, 2628, 2624, 2619, 2614, 2609, 2605, 2600, 2595, 2591, 2586, 2581, 2577, 2572, 2567<br /><br />   .dw 2563, 2558, 2553, 2549, 2544, 2540, 2535, 2531, 2526, 2521, 2517, 2512, 2508, 2503, 2499, 2494<br />   .dw 2490, 2485, 2481, 2476, 2472, 2467, 2463, 2459, 2454, 2450, 2445, 2441, 2436, 2432, 2428, 2423<br /><br />   .dw 2419, 2415, 2410, 2406, 2401, 2397, 2393, 2389, 2384, 2380, 2376, 2371, 2367, 2363, 2359, 2354<br />   .dw 2350, 2346, 2342, 2337, 2333, 2329, 2325, 2321, 2316, 2312, 2308, 2304, 2300, 2296, 2291, 2287<br /><br />   .dw 2283, 2279, 2275, 2271, 2267, 2263, 2259, 2254, 2250, 2246, 2242, 2238, 2234, 2230, 2226, 2222<br />   .dw 2218, 2214, 2210, 2206, 2202, 2198, 2194, 2190, 2186, 2182, 2178, 2175, 2171, 2167, 2163, 2159<br /><br />   .dw 2155, 2151, 2147, 2143, 2139, 2136, 2132, 2128, 2124, 2120, 2116, 2113, 2109, 2105, 2101, 2097<br />   .dw 2094, 2090, 2086, 2082, 2079, 2075, 2071, 2067, 2064, 2060, 2056, 2052, 2049, 2045, 2041, 2038<br /><br />   .dw 2034, 2030, 2027, 2023, 2019, 2016, 2012, 2008, 2005, 2001, 1998, 1994, 1990, 1987, 1983, 1980<br />   .dw 1976, 1973, 1969, 1965, 1962, 1958, 1955, 1951, 1948, 1944, 1941, 1937, 1934, 1930, 1927, 1923<br /><br />   .dw 1920, 1916, 1913, 1910, 1906, 1903, 1899, 1896, 1892, 1889, 1886, 1882, 1879, 1875, 1872, 1869<br />   .dw 1865, 1862, 1858, 1855, 1852, 1848, 1845, 1842, 1838, 1835, 1832, 1829, 1825, 1822, 1819, 1815<br /><br />   .dw 1812, 1809, 1806, 1802, 1799, 1796, 1793, 1789, 1786, 1783, 1780, 1776, 1773, 1770, 1767, 1764<br />   .dw 1761, 1757, 1754, 1751, 1748, 1745, 1742, 1738, 1735, 1732, 1729, 1726, 1723, 1720, 1717, 1713</div><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=38">Bregalad</a> — Wed Oct 26, 2005 10:25 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Bregalad]]></name></author>
+<updated>2005-10-25T13:17:10-07:00</updated>
+<published>2005-10-25T13:17:10-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=691&amp;p=5902#p5902</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=691&amp;p=5902#p5902"/>
+<title type="html"><![CDATA[NES chords and intervals]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=691&amp;p=5902#p5902"><![CDATA[
+<div class="quotetitle">tepples wrote:</div><div class="quotecontent"><br />That's because you're just used to the logarithmic one, with its wide-ass major 3rd and its narrow minor 3rd. Renaissance and Baroque music was written for just tuning or well temperament, not the modern equal temperament.<br /></div><br />Interesting, heh. I just found the logarithmic one sounding better.<br />Some people simply asked why there is 12 notes in an octave... and some answered it is because it's where both rational temperament and lograrithmic temperament were so close.<br />Anyway, the fact that there is 2 possible way of tuning should be mentionned.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=38">Bregalad</a> — Tue Oct 25, 2005 1:17 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2005-10-25T12:55:32-07:00</updated>
+<published>2005-10-25T12:55:32-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=691&amp;p=5896#p5896</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=691&amp;p=5896#p5896"/>
+<title type="html"><![CDATA[NES chords and intervals]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=691&amp;p=5896#p5896"><![CDATA[
+<div class="quotetitle">Bregalad wrote:</div><div class="quotecontent"><br />I've found a site explaining that in details and where there was sample tunes with both tuning method. And I founded the rational one pretty bad, while the logarithmic one sound better.<br /></div><br />That's because you're just used to the logarithmic one, with its wide-ass major 3rd and its narrow minor 3rd. Renaissance and Baroque music was written for just tuning or well temperament, not the modern equal temperament.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Tue Oct 25, 2005 12:55 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Bregalad]]></name></author>
+<updated>2005-10-25T12:17:39-07:00</updated>
+<published>2005-10-25T12:17:39-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=691&amp;p=5892#p5892</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=691&amp;p=5892#p5892"/>
+<title type="html"><![CDATA[NES chords and intervals]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=691&amp;p=5892#p5892"><![CDATA[
+<div class="quotetitle">tepples wrote:</div><div class="quotecontent"><br />An octave is a 2:1 ratio (e.g. 2034 and 1017). A perfect fifth is a 3:2 ratio (e.g. 1017 and 678), and its complement is a perfect fourth, a 4:3 ratio (e.g. 1356 and 1017).<br /></div><br />Not exactly.<br />Just try the formula :<br />2^(6/12)=1.49831 VS 3/2=1.50000<br />Pretty close, but NOT exactly the same value...<br />the same is valid about :<br />2^(5/12)=1.33484 VS 4/3=1.33333<br />very close but not the exact same. I've found a site explaining that in details and where there was sample tunes with both tuning method. And I founded the rational one pretty bad, while the logarithmic one sound better.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=38">Bregalad</a> — Tue Oct 25, 2005 12:17 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Anonymous]]></name></author>
+<updated>2005-10-25T08:56:31-07:00</updated>
+<published>2005-10-25T08:56:31-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=691&amp;p=5878#p5878</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=691&amp;p=5878#p5878"/>
+<title type="html"><![CDATA[NES chords and intervals]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=691&amp;p=5878#p5878"><![CDATA[
+Thanks for the help. I used the same formulas to make a table of note frequencies and periods in the registers for both the square and triangle channels. I sort of understand the Wolf dissonance (not being any sort of musician). However the same chords played on my keyboard sound much better than on the NES (at least FCEUD emulation, I haven't put it into my devcart yet). I guess it could either be the emulation, the NES sound itself or the Wolf note or some combination. I suppose with a little bit of study I could alter the periods to avoid the Wolf problem. By the way, I made a table with 4 octaves (C2-B6) and the corresponding square and triangle periods if anybody wants it.<br />Lloyd Gordon<p>Statistics: Posted by Guest — Tue Oct 25, 2005 8:56 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2005-10-24T20:38:40-07:00</updated>
+<published>2005-10-24T20:38:40-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=691&amp;p=5862#p5862</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=691&amp;p=5862#p5862"/>
+<title type="html"><![CDATA[NES chords and intervals]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=691&amp;p=5862#p5862"><![CDATA[
+Want to know the true formula behind note periods?<br /><br />The 2A03 is clocked at M2 = 1789773 Hz (on NTSC), and if you write the 11-bit period p to the period register of a square wave channel, the square wave channels repeat once every 16*p CPU cycles, for a frequency of f = M2/(16*p). So if you want a given period p that will produce a given frequency f, it's p = M2/(16*f).<br /><br />The frequency of the lowest valid note on the NES is 55 Hz, an A that's a bit more than 2 octaves below middle C. By the formula above, this is a period of 2034.<br /><br />An octave is a 2:1 ratio (e.g. 2034 and 1017). A perfect fifth is a 3:2 ratio (e.g. 1017 and 678), and its complement is a perfect fourth, a 4:3 ratio (e.g. 1356 and 1017).<br /><br />There are twelve semitones in an octave. To calculate their frequencies, you can use the rule of equal temperament. Given frequency f0 of the lowest valid note and an interval above it measuring n semitones, the frequency of this note is f = f0 * 2^(semitone number/12). Invert the formula for period: p = p0 / 2^(semitone number/12)<br /><br /><a href="http://forum.gbadev.org/viewtopic.php?p=56562#56562" class="postlink">This post by 0xtob</a> and my post a few column inches down should clarify things. Sample source code was posted <a href="http://nesdev.com/bbs/viewtopic.php?t=502" class="postlink">here</a>.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Mon Oct 24, 2005 8:38 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Celius]]></name></author>
+<updated>2005-10-24T20:11:43-07:00</updated>
+<published>2005-10-24T20:11:43-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=691&amp;p=5858#p5858</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=691&amp;p=5858#p5858"/>
+<title type="html"><![CDATA[NES chords and intervals]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=691&amp;p=5858#p5858"><![CDATA[
+Are you coding your sound? well if you are, I have that problem too. There's something weird about balancing things out with 4002 and 4003. I have fixed values in 4003 like this:<br /><br />music:<br /> .db $90,$80,$70,$60,$50,$40,$30,$20,$30,$40,$50,$60,$70,$80,$90<br /><br />I have that for a B flat scale that I have at the beggining of my basic minigame. This is what's going on in 4002:<br /><br /><br />musicc:<br />.db $BF,$B5,$A0,$90,$80,$7A,$6A,$60,$6A,$7A,$80,$90,$A0,$B5,$BF,$BF,$00<br /><br />I could understand like musicc going down a value of $8 for like a halfstep, and $F for a wholestep, but I don't know why it did had to be set up like this. When I tried going down 8 for a halfstep and F for a wholestep, it got way screwed up, and there were all sorts of wrong notes, and it did not work at all. I have no idea why.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=138">Celius</a> — Mon Oct 24, 2005 8:11 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Anonymous]]></name></author>
+<updated>2005-10-24T19:10:46-07:00</updated>
+<published>2005-10-24T19:10:46-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=691&amp;p=5855#p5855</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=691&amp;p=5855#p5855"/>
+<title type="html"><![CDATA[NES chords and intervals]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=691&amp;p=5855#p5855"><![CDATA[
+I'm making my own game and I wanted some music. I found some sheet music for "Little Brown Jug". The music sounded pretty good. I wanted to make it sound better so I tried adding chords or intervals. I've been trying a combination of triangle and both square wave channels playing together in Perfect Fifth (seven semitones above root) intervals and major and minor chords. The Perfect Fifth interval sounds good but both chords sound sort of muddy and dissonant. Any ideas why? I thought chords would sound nice just as they do on my keyboard. Is it because of weird harmonics from square waves? Thanks for any help.<p>Statistics: Posted by Guest — Mon Oct 24, 2005 7:10 pm</p><hr />
+]]></content>
+</entry>
+</feed>

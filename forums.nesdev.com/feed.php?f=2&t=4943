@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=2&amp;t=4943" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2009-03-11T14:36:18-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=2&amp;t=4943</id>
+<entry>
+<author><name><![CDATA[Disch]]></name></author>
+<updated>2009-03-11T14:36:18-07:00</updated>
+<published>2009-03-11T14:36:18-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=4943&amp;p=44147#p44147</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=4943&amp;p=44147#p44147"/>
+<title type="html"><![CDATA[my first ASM code, comments, advices, all welcome]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=4943&amp;p=44147#p44147"><![CDATA[
+Congrats on jumping into assembly!  =D  Here some misc tips:<br /><br />The PPU address auto-increments after every write to $2007, so you don't have to write to $2006 for every byte.<br /><br />Also, it's typically better to have a downcounter so you can just BEQ/BNE rather than doing an extra CPX.  Plus a loop of length 0 is automatically treated as a loop of length 256 because the condition isn't checked until the end -- so you don't need a special case.<br /><br />Example of a quick routine to copy X bytes from '(src)' to PPU address 'dest':<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">LDA dest+1<br />STA $2006<br />LDA dest<br />STA $2006<br /><br />LDY #0<br /><br />@loop:<br />  LDA &#40;src&#41;,Y<br />  STA $2007<br />  INY<br />  DEX<br />  BNE @loop<br /><br />RTS<br /></div><br /><br />Note that if X is zero, this loops 256 times, because X=FF after the first DEX<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=33">Disch</a> — Wed Mar 11, 2009 2:36 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Petruza]]></name></author>
+<updated>2009-03-11T14:21:05-07:00</updated>
+<published>2009-03-11T14:21:05-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=4943&amp;p=44146#p44146</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=4943&amp;p=44146#p44146"/>
+<title type="html"><![CDATA[my first ASM code, comments, advices, all welcome]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=4943&amp;p=44146#p44146"><![CDATA[
+I'm rewriting my library in assembler, although optimization is not a priority right now, I just wanted to give asm a try, and I'm liking it.<br />Here I post my very first asm routine ever, for anyone who wants to comment, correct, point out some errors, give some advice or anything.<br /><br />The main idea is to copy a memory chunk from RAM to VRAM, a byte is used for the length so up to 256 bytes can be copied.<br />There will be anothe function to copy more than 256, but that will have to implement a 2 byte counter, spending more cpu cycles per loop.<br /><br />A special case is used to be able to copy exactly 256 bytes, which is when the length is set to 0. Do you consider this is useful? it means more bytes, more cpu cycles and more jumps just for one case, which I'm not sure will occur very often.<br /><br />Note: _param_p0, _param_w0 and _param_b0 are set to the given arguments in a C macro function called by the user which in turn calls this routine. This speeds things a little by using zero page vars instead of an argument stack, and also because I was too lazy to investigate how does cc65 operate that stack. <img src="http://forums.nesdev.com/images/smilies/icon_wink.gif" alt=":wink:" title="Wink" /><br />(recursion and being called from an interrupt won't ocurr for this type of functions, so there's no problem of the zero page vars being corrupted)<br /><br />here's the code:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">; void _copy_VRAM&#40; byte* source, word dest , byte length &#41;<br /><br />; Copies memory from source in RAM to dest in VRAM up to length bytes&#40;*&#41;<br /><br />; &#91; byte* source   &#93;: pointer in RAM to data to be copied<br />; &#91; word dest         &#93;: address in VRAM where data should be copied<br />; &#91; byte length      &#93;: how many bytes should be copied<br />;    &#40;*&#41; if length is in range &#91;1..255&#93; copies that many bytes<br />;            else, if length is 0, copies 256 bytes<br /><br />.importzp _param_p0, _param_w0, _param_b0<br /><br />.export   __copy_VRAM<br /><br />source   = _param_p0 ; 2 bytes<br />dest      = _param_w0 ; 2 bytes<br />length   = _param_b0<br /><br />.proc __copy_VRAM<br /><br />   ldy #0 ; y used to index source data<br />   ldx #0 ; x used as counter<br /><br />   cpx length<br />   beq @copy_256_bytes ; if length is 0, copy 256 bytes<br />   <br />@loop:<br /><br />; if counter X reached length, stop<br />   cpx length<br />   beq @end<br /><br />; skip first compare, to copy 256 bytes<br />@copy_256_bytes_entry:<br />   <br />; dest's high byte<br />   lda dest+1<br />   sta $2006<br /><br />; dest's low byte<br />   lda dest<br />   sta $2006<br /><br />; copy data from source<br />   lda &#40;source&#41;,y<br />   sta $2007<br />   <br />; 2 byte increment of dest<br />   inc dest<br />   bne @no_overflow <br />   inc dest+1<br />@no_overflow:<br /><br />   inx<br />   iny<br />   jmp @loop<br /><br />; If length is 0, copies 256 bytes<br />; start counter X in -1 &#40;$FF&#41; to make one more cycle than usual<br />; and skip first comparison to avoid &#40; $FF = $FF &#41; which would exit<br />; and not copy any byte at all<br />@copy_256_bytes:<br />   ldx #$FF<br />   stx length<br />   jmp @copy_256_bytes_entry<br /><br />@end:   <br />   rts<br />   <br />.endproc</div><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3773">Petruza</a> — Wed Mar 11, 2009 2:21 pm</p><hr />
+]]></content>
+</entry>
+</feed>

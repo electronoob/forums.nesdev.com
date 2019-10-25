@@ -1,0 +1,432 @@
+#include	"..\DLL\d_iNES.h"
+#include	"resource.h"
+#include	"DIPConfig.h"
+
+namespace
+{
+uint8 IRQenabled, IRQmode, IRQcounterL, IRQcounterH, IRQxor;
+uint16 IRQaddr;
+uint8 Mul1, Mul2;
+uint8 BankMode, Mirror, MirBank, ExtBank;
+uint8 PRGbanks[4];
+uint16_n CHRbanks[8];
+uint16_n Nametables[4];
+uint8 TestRegister;
+uint8 DIPSwitch;
+uint8 ExtendedMirroring;
+FCPUWrite _CPUWrite[0x10];
+FPPURead _PPURead[0x10];
+uint8 LatchState[2];
+
+uint8 ReverseBits (uint8 bits)
+{
+	uint8 out = 0;
+	if (bits & 0x01) out |= 0x40;
+	if (bits & 0x02) out |= 0x20;
+	if (bits & 0x04) out |= 0x10;
+	if (bits & 0x08) out |= 0x08;
+	if (bits & 0x10) out |= 0x04;
+	if (bits & 0x20) out |= 0x02;
+	if (bits & 0x40) out |= 0x01;
+	return out;
+}
+
+void	SyncPRG (void) {
+	int PRGMode =BankMode &3;
+	int PRGShift= 3 -((PRGMode==3)? 2: PRGMode);
+	int PRGLast =(BankMode &4)? ((PRGMode ==3)? ReverseBits(PRGbanks[3]): PRGbanks[3]): 0x7F;
+	int PRGBase =0;
+	int PRGMask =0x7F;
+	switch (ROM->INES_MapperNum) {
+		case 90:
+		case 209:
+		case 211:
+			PRGBase = (ExtBank &6) <<6;
+			break;
+		case 281:
+			PRGBase = (ExtBank &1) <<6;
+			PRGMask = 0x3F;
+			break;
+		case 282:
+			PRGBase = (ExtBank &6) <<5;
+			PRGMask = 0x3F;
+			break;
+	}
+	PRGBase >>= PRGShift;
+	PRGMask >>= 3 -PRGMode;
+	switch (PRGMode) {
+		case 0:	EMU->SetPRG_ROM32(0x8, PRGLast     &PRGMask |PRGBase);
+			break;
+		case 1:	EMU->SetPRG_ROM16(0x8, PRGbanks[1] &PRGMask |PRGBase);
+			EMU->SetPRG_ROM16(0xC, PRGLast     &PRGMask |PRGBase);
+			break;
+		case 2:	EMU->SetPRG_ROM8(0x8,  PRGbanks[0] &PRGMask |PRGBase);
+			EMU->SetPRG_ROM8(0xA,  PRGbanks[1] &PRGMask |PRGBase);
+			EMU->SetPRG_ROM8(0xC,  PRGbanks[2] &PRGMask |PRGBase);
+			EMU->SetPRG_ROM8(0xE,  PRGLast     &PRGMask |PRGBase);
+			break;
+		case 3:	EMU->SetPRG_ROM8(0x8,  ReverseBits(PRGbanks[0]) &PRGMask |PRGBase);
+			EMU->SetPRG_ROM8(0xA,  ReverseBits(PRGbanks[1]) &PRGMask |PRGBase);
+			EMU->SetPRG_ROM8(0xC,  ReverseBits(PRGbanks[2]) &PRGMask |PRGBase);
+			EMU->SetPRG_ROM8(0xE,  PRGLast                  &PRGMask |PRGBase);
+			break;
+	}
+	if (BankMode &0x80) { // Which game uses this???
+		EMU->DbgOut(L"PRG at 6000!");
+		EMU->SetPRG_ROM8(0x6, (PRGbanks[3] <<PRGShift) | (3 >>PRGShift) &PRGMask |PRGBase);
+	} else {
+		EMU->SetPRG_OB4(0x6);
+		EMU->SetPRG_OB4(0x7);
+	}
+
+}
+
+void	SyncCHR (void) {
+	int	CHRMode =(BankMode & 0x18) >>3;
+	int	CHRMask =0xFF;
+	int	CHRBase =0;
+
+	switch (ROM->INES_MapperNum) {
+		case 90:
+		case 209:
+		case 211:
+			if (ExtBank &0x20)
+				CHRMask =0xFFFF;
+			else 
+				CHRBase =(ExtBank &0x01) | ((ExtBank &0x18) >>2);
+			break;
+		case 281:
+			CHRBase =ExtBank &1;
+			break;
+		case 282:
+			CHRBase =(ExtBank &0x01) | ((ExtBank &8) >>2);
+			break;
+	}
+	CHRBase <<=5 +CHRMode;
+	CHRMask >>=3 -CHRMode;
+	
+	switch (CHRMode) {
+		case 0:	EMU->SetCHR_ROM8(0, CHRbanks[0].s0 &CHRMask |CHRBase);
+			break;
+		case 1:	EMU->SetCHR_ROM4(0, CHRbanks[LatchState[0]].s0 &CHRMask |CHRBase);
+			EMU->SetCHR_ROM4(4, CHRbanks[LatchState[1]].s0 &CHRMask |CHRBase);
+			break;
+		case 2:	for (int i =0; i <8; i+=2)
+				EMU->SetCHR_ROM2(i, CHRbanks[i].s0 &CHRMask |CHRBase);
+			break;
+		case 3:	for (int i =0; i <8; i++)
+				EMU->SetCHR_ROM1(i, CHRbanks[i].s0 &CHRMask |CHRBase);
+			break;
+	}
+}
+
+void	SyncNametables (void) {
+	if (ExtendedMirroring) for (int i = 0; i < 4; i++) {
+		if ((BankMode & 0x40) || ((Nametables[i].b0 ^ MirBank) & 0x80)) {
+			EMU->SetCHR_ROM1(0x8 | i, (ExtBank & 0x20) ? Nametables[i].s0 : (Nametables[i].b0 | ((ExtBank & 0x1F) << 8)));
+			EMU->SetCHR_ROM1(0xC | i, (ExtBank & 0x20) ? Nametables[i].s0 : (Nametables[i].b0 | ((ExtBank & 0x1F) << 8)));
+		} else {
+			EMU->SetCHR_NT1(0x8 | i, Nametables[i].b0 & 1);
+			EMU->SetCHR_NT1(0xC | i, Nametables[i].b0 & 1);
+		}
+	} else switch (Mirror &3) {
+		case 0:	EMU->Mirror_V();	break;
+		case 1:	EMU->Mirror_H();	break;
+		case 2:	EMU->Mirror_S0();	break;
+		case 3:	EMU->Mirror_S1();	break;
+	}
+}
+
+int	MAPINT	SaveLoad (STATE_TYPE mode, int offset, unsigned char *data) {
+	for (int i = 0; i < 4; i++) SAVELOAD_BYTE(mode, offset, data, PRGbanks[i]);
+	for (int i = 0; i < 8; i++) SAVELOAD_WORD(mode, offset, data, CHRbanks[i].s0);
+	for (int i = 0; i < 4; i++) SAVELOAD_WORD(mode, offset, data, Nametables[i].s0);
+	SAVELOAD_BYTE(mode, offset, data, IRQenabled);
+	SAVELOAD_BYTE(mode, offset, data, IRQmode);
+	SAVELOAD_BYTE(mode, offset, data, IRQcounterL);
+	SAVELOAD_BYTE(mode, offset, data, IRQcounterH);
+	SAVELOAD_BYTE(mode, offset, data, IRQxor);
+	SAVELOAD_WORD(mode, offset, data, IRQaddr);
+	SAVELOAD_BYTE(mode, offset, data, BankMode);
+	SAVELOAD_BYTE(mode, offset, data, Mirror);
+	SAVELOAD_BYTE(mode, offset, data, MirBank);
+	SAVELOAD_BYTE(mode, offset, data, ExtBank);
+	SAVELOAD_BYTE(mode, offset, data, Mul1);
+	SAVELOAD_BYTE(mode, offset, data, Mul2);
+	SAVELOAD_BYTE(mode, offset, data, DIPSwitch);
+	SAVELOAD_BYTE(mode, offset, data, ExtendedMirroring);
+	SAVELOAD_BYTE(mode, offset, data, TestRegister);
+	SAVELOAD_BYTE(mode, offset, data, LatchState[0]);
+	SAVELOAD_BYTE(mode, offset, data, LatchState[1]);
+	if (mode == STATE_LOAD) {
+		SyncPRG();
+		SyncCHR();
+		SyncNametables();
+	}
+	return offset;
+}
+
+void	IRQcount (void) {
+	unsigned char mask;
+	if (IRQmode & 0x4)
+		mask = 0x7;
+	else	mask = 0xFF;
+	if ((IRQmode & 0xC0) == 0x80)
+	{
+		IRQcounterL--;
+		if ((IRQcounterL & mask) == mask)
+		{
+			IRQcounterH--;
+			if (IRQcounterH == 0xFF)
+				EMU->SetIRQ(0);
+		}
+	}
+	if ((IRQmode & 0xC0) == 0x40)
+	{
+		IRQcounterL++;
+		if (!(IRQcounterL & mask))
+		{
+			IRQcounterH++;
+			if (!IRQcounterH)
+				EMU->SetIRQ(0);
+		}
+	}
+}
+void	MAPINT	CPUCycle (void) {
+	if (IRQenabled && ((IRQmode & 0x3) == 0)) IRQcount();
+}
+void	MAPINT	PPUCycle (int Addr, int Scanline, int Cycle, int IsRendering) {
+	if (IRQenabled && ((IRQmode & 0x3) == 1)) 	{
+		if (!(IRQaddr & 0x1000) && (Addr & 0x1000)) IRQcount();
+		IRQaddr = Addr;
+	}
+}
+void	MAPINT	CPUWrite (int Bank, int Addr, int Val) {
+	if (IRQenabled && ((IRQmode & 0x3) == 3)) IRQcount();
+	_CPUWrite[Bank](Bank, Addr, Val);
+}
+int	MAPINT	PPURead (int Bank, int Addr) {
+	if (IRQenabled && ((IRQmode & 0x3) == 2)) IRQcount();
+	int result = _PPURead[Bank](Bank, Addr);
+	if (ExtBank &0x80) {
+		if (Bank == 3) {
+			if ((Addr & 0x3F8) == 0x3D8)
+				LatchState[0] = 0;
+			else if ((Addr & 0x3F8) == 0x3E8)
+				LatchState[0] = 2;
+			else	return result;
+			if ((BankMode & 0x18) == 0x08)
+				SyncCHR();
+		}
+		else if (Bank == 7) {
+			if ((Addr & 0x3F8) == 0x3D8)
+				LatchState[1] = 4;
+			else if ((Addr & 0x3F8) == 0x3E8)
+				LatchState[1] = 6;
+			else	return result;
+			if ((BankMode & 0x18) == 0x08)
+				SyncCHR();
+		}
+	}
+	return result;
+}
+
+int	MAPINT	Read5 (int Bank, int Addr) {
+	switch (Addr & 0x803) {
+		case 0x000:	return DIPSwitch <<6 | (*EMU->OpenBus & 0x3F);
+		case 0x800:	return (Mul1 *Mul2) & 0xFF;
+		case 0x801:	return (Mul1 *Mul2) >> 8;
+		case 0x803:	return TestRegister;
+	}
+	return -1;
+}
+
+void	MAPINT	Write5 (int Bank, int Addr, int Val) {
+	switch (Addr & 0x803) {
+		case 0x800:	Mul1 =Val; break;
+		case 0x801:	Mul2 =Val; break;
+		case 0x803:	TestRegister =Val; break;
+	}
+}
+void	MAPINT	Write8 (int Bank, int Addr, int Val) {
+	PRGbanks[Addr &3] = Val;
+	SyncPRG();
+}
+void	MAPINT	Write9 (int Bank, int Addr, int Val) {
+	CHRbanks[Addr &7].b0 = Val;
+	SyncCHR();
+}
+void	MAPINT	WriteA (int Bank, int Addr, int Val) {
+	CHRbanks[Addr &7].b1 = Val;
+	SyncCHR();
+}
+void	MAPINT	WriteB (int Bank, int Addr, int Val) {
+	if (Addr &4)
+		Nametables[Addr & 3].b1 = Val;
+	else	
+		Nametables[Addr & 3].b0 = Val;
+	SyncNametables();
+}
+void	MAPINT	WriteC (int Bank, int Addr, int Val){
+	switch (Addr &7) {
+	case 0:	IRQenabled = Val &1;
+		if (!IRQenabled) EMU->SetIRQ(1);
+		break;
+	case 1:	IRQmode = Val;
+		break;
+	case 2:	IRQenabled = 0;
+		EMU->SetIRQ(1);	break;
+	case 3:	IRQenabled = 1;
+		break;
+	case 4:	IRQcounterL = Val ^ IRQxor;
+		break;
+	case 5:	IRQcounterH = Val ^ IRQxor;
+		break;
+	case 6:	IRQxor = Val;
+		break;
+	case 7:	// Prescaler
+		break;
+	}
+}
+void	MAPINT	WriteD (int Bank, int Addr, int Val) {
+	switch (Addr & 3) {
+		case 0:	BankMode = Val; break;
+		case 1:	Mirror = Val; break;
+		case 2: MirBank = Val; break;
+		case 3:	ExtBank = Val; break;
+	}
+	if (ROM->INES_MapperNum ==209) ExtendedMirroring =(BankMode &0x20)? 1: 0;
+	if (ROM->INES_MapperNum ==281 || ROM->INES_MapperNum ==282) ExtendedMirroring =(Mirror &0x08)? 1: 0;
+	SyncPRG();
+	SyncCHR();
+	SyncNametables();
+}
+
+unsigned char	MAPINT	Config (CFG_TYPE mode, unsigned char data) {
+	switch (mode) {
+		case CFG_WINDOW:
+			DIPSwitch = DIPConfig::Window(DIPSwitch);
+			return TRUE;
+			break;
+		case CFG_QUERY:
+			break;
+		case CFG_CMD:
+			break;
+	}
+	return FALSE;
+}
+
+BOOL	MAPINT	Load (void) {
+	DIPSwitch =DIPConfig::Init();
+	return TRUE;
+}
+
+void	MAPINT	Reset (RESET_TYPE ResetType) {
+	DIPConfig::Reset(ResetType);
+	EMU->SetCPUReadHandler(0x5, Read5);
+	EMU->SetCPUWriteHandler(0x5, Write5);
+	EMU->SetCPUWriteHandler(0x8, Write8);
+	EMU->SetCPUWriteHandler(0x9, Write9);
+	EMU->SetCPUWriteHandler(0xA, WriteA);
+	EMU->SetCPUWriteHandler(0xB, WriteB);
+	EMU->SetCPUWriteHandler(0xC, WriteC);
+	EMU->SetCPUWriteHandler(0xD, WriteD);
+
+	if (ResetType == RESET_HARD) {
+		ExtendedMirroring =(ROM->INES_MapperNum ==211)? 1: 0;
+		IRQenabled = IRQmode = IRQcounterL = IRQcounterH = IRQxor = 0;
+		IRQaddr = 0;
+		BankMode = Mirror = MirBank = ExtBank = 0;
+		for (int i = 0; i < 8; i++)
+			CHRbanks[i].s0 = 0x00;
+		for (int i = 0; i < 4; i++)
+			Nametables[i].s0 = 0;
+		for (int i = 0; i < 4; i++)
+			PRGbanks[i] = 0x00;
+		Mul1 = Mul2 = 0;
+	}
+	LatchState[0] = 0;
+	LatchState[1] = 4;
+	for (int i = 0; i < 16; i++) {
+		_CPUWrite[i] = EMU->GetCPUWriteHandler(i);
+		EMU->SetCPUWriteHandler(i, CPUWrite);
+		_PPURead[i] = EMU->GetPPUReadHandler(i);
+		EMU->SetPPUReadHandler(i, PPURead);
+		EMU->SetPPUReadHandlerDebug(i, _PPURead[i]);
+	}
+	SyncPRG();
+	SyncCHR();
+	SyncNametables();
+}
+uint16 MapperNum90 = 90;
+uint16 MapperNum209 = 209;
+uint16 MapperNum211 = 211;
+uint16 MapperNum281 = 281;
+uint16 MapperNum282 = 282;
+} // namespace
+
+const MapperInfo MapperInfo_090 = {
+	&MapperNum90,
+	_T("J.Y. Company without extended mirroring"),
+	COMPAT_FULL,
+	Load,
+	Reset,
+	NULL,
+	CPUCycle,
+	PPUCycle,
+	SaveLoad,
+	NULL,
+	Config
+};
+const MapperInfo MapperInfo_209 = {
+	&MapperNum209,
+	_T("J.Y. Company with selectable extended mirroring"),
+	COMPAT_FULL,
+	Load,
+	Reset,
+	NULL,
+	CPUCycle,
+	PPUCycle,
+	SaveLoad,
+	NULL,
+	Config
+};
+const MapperInfo MapperInfo_211 = {
+	&MapperNum211,
+	_T("J.Y. Company with extended mirroring"),
+	COMPAT_FULL,
+	Load,
+	Reset,
+	NULL,
+	CPUCycle,
+	PPUCycle,
+	SaveLoad,
+	NULL,
+	Config
+};
+const MapperInfo MapperInfo_281 = {
+	&MapperNum281,
+	_T("JY-052"),
+	COMPAT_FULL,
+	Load,
+	Reset,
+	NULL,
+	CPUCycle,
+	PPUCycle,
+	SaveLoad,
+	NULL,
+	Config
+};
+const MapperInfo MapperInfo_282 = {
+	&MapperNum281,
+	_T("JY-105/JY-114"),
+	COMPAT_FULL,
+	Load,
+	Reset,
+	NULL,
+	CPUCycle,
+	PPUCycle,
+	SaveLoad,
+	NULL,
+	Config
+};

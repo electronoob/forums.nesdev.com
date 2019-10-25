@@ -1,0 +1,249 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - where is the controls and movement in this open source code</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">where is the controls and movement in this open source code</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=17385">http://forums.nesdev.com/viewtopic.php?f=2&amp;t=17385</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>adjh</b> [ Tue May 22, 2018 7:19 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>where is the controls and movement in this open source code</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />; iNES Header<br />;    .inesprg 1   ; 1x 16KB bank of PRG code<br />;    .ineschr 1   ; 1x 8KB bank of CHR data<br />;    .inesmap 0   ; mapper 0 = NROM, no bank swapping<br />;    .inesmir 1   ; background mirroring (ignore for now)<br /><br /><br />; $0000-0800 - Internal RAM, 2KB chip in the NES<br />; $2000-2007 - PPU access ports<br />; $4000-4017 - Audio and controller access ports<br />; $6000-7FFF - Optional WRAM inside the game cart<br />; $8000-FFFF - Game cart ROM    <br /><br />; iNES Header<br />; The 16 byte iNES header gives the emulator all the information about the game including mapper, graphics mirroring, and PRG/CHR sizes. You can include all this inside your asm file at the very beginning.<br />  .inesprg 1   ; 1x 16KB PRG code<br />  .ineschr 1   ; 1x  8KB CHR data<br />  .inesmap 0   ; mapper 0 = NROM, no bank swapping<br />  .inesmir 1   ; background mirroring<br />  <br /><br /><br />;; DECLARE SOME VARIABLES HERE<br />  .rsset $0000  ;;start variables at ram location 0 in zero page memory<br /><br />loopCount     .rs 1 ; count the loop<br />playerx       .rs 1 ; players x pos<br />playervx      .rs 1 ; players x vel<br />playery       .rs 1 ; players y pos<br />playervy      .rs 1 ; player  y vel (negative is up)<br />controller1   .rs 1 ; controller 1 button vector<br /><br />gravity       .rs 1 ; gravity<br /><br /><br />ground        .rs 1 ; y value of the ground<br />inAir         .rs 1 <br /><br />enemyx        .rs 1<br />enemyy        .rs 1<br /><br />backgroundLo  .rs 1<br />backgroundHi  .rs 1<br />counterLo     .rs 1<br />counterHi     .rs 1<br /><br /><br />scroll     .rs 1  ; horizontal scroll count<br />nametable  .rs 1  ; which nametable to use, 0 or 1<br />columnLow  .rs 1  ; low byte of new column address<br />columnHigh .rs 1  ; high byte of new column address<br />sourceLow  .rs 1  ; source for column data<br />sourceHigh .rs 1<br />columnNumber .rs 1  ; which column of level data to draw<br /><br /><br />;;;;;;;;;;;;;;;<br />; NES is powererd on<br />;    <br />  .bank 0 ; NESASM arranges things into 8KB chunks, this is chunk 0<br />  .org $C000 ; Tells the assembler where to start in this 8kb chunk<br />RESET:<br />  SEI          ; disable IRQs<br />  CLD          ; disable decimal mode, meant to make decimal arithmetic &quot;easier&quot;<br />  LDX #$40<br />  STX $4017    ; disable APU frame IRQ<br />  LDX #$FF<br />  TXS          ; Set up stack<br />  INX          ; now X = 0<br />  STX $2000    ; disable NMI<br />  STX $2001    ; disable rendering<br />  STX $4010    ; disable DMC IRQs<br /><br />vblankwait1:       ; First wait for vblank to make sure PPU is ready<br />  BIT $2002<br />  BPL vblankwait1<br /><br />;; Helper to wipe memory<br />clrmem:<br />  LDA #$00<br />  STA $0000, x<br />  STA $0100, x<br />  STA $0300, x<br />  STA $0400, x<br />  STA $0500, x<br />  STA $0600, x<br />  STA $0700, x<br />  LDA #$FE<br />  STA $0200, x    ;move all sprites off screen<br />  INX<br />  BNE clrmem<br />   <br />vblankwait2:      ; Second wait for vblank, PPU is ready after this<br />  BIT $2002<br />  BPL vblankwait2<br /><br />;;;;;;;;;;;;;;;;;;;;;;<br />; Load game pallets<br />LoadPalettes:<br />  LDA $2002             ; read PPU status to reset the high/low latch<br />  LDA #$3F              ; max out 0011 1111<br />  STA $2006             ; write the high byte of $3F00 address<br />  LDA #$00<br />  STA $2006             ; write the low byte of $3F00 address<br />  LDX #$00              ; start out at 0<br />LoadPalettesLoop:<br />  LDA palette, x        ; load data from address (palette + the value in x)<br />                          ; 1st time through loop it will load palette+0<br />                          ; 2nd time through loop it will load palette+1<br />                          ; 3rd time through loop it will load palette+2<br />                          ; etc<br />  STA $2007             ; write to PPU<br />  INX                   ; X = X + 1<br />  CPX #$20              ; Compare X to hex $10, decimal 16 - copying 16 bytes = 4 sprites<br />  BNE LoadPalettesLoop  ; Branch to LoadPalettesLoop if compare was Not Equal to zero<br /><br /><br />LoadSprites:<br />  LDX #$00              ; start at 0<br />LoadSpritesLoop:<br />  LDA playersprite, x        ; load data from address (sprites +  x)<br />  STA $0200, x          ; store into RAM address ($0200 + x)<br />  INX                   ; X = X + 1<br />  CPX #$1C              ; Compare X to hex $20, decimal 32<br />  BNE LoadSpritesLoop   ; Branch to LoadSpritesLoop if compare was Not Equal to zero<br />                        ; if compare was equal to 32, keep going down<br /><br /><br />;; Background is 960 bytes 240 * 4<br />LoadBackground:<br />  LDA $2002             ; read PPU status to reset the high/low latch<br />  LDA #$20<br />  STA $2006             ; write the high byte of $2000 address<br />  LDA #$00<br />  STA $2006             ; write the low byte of $2000 address<br />  LDX #$00              ; start out at 0<br /><br />  ;; we need to copy more that 256<br />  LDA #LOW(background)<br />  STA backgroundLo<br />  LDA #HIGH(background)<br />  STA backgroundHi<br />  ;; 960 bytes = $03C0<br />  LDA #$C0;<br />  STA counterLo<br />  LDA #$03<br />  STA counterHi<br /><br />  LDY #$00; keep y zero, we jut need y to be init to 0 for indirect index mode to work in the square bracket<br />LoadBackgroundLoop:<br />  LDA [backgroundLo], y ; load data from background<br />  STA $2007             ; write to PPU data port to copy to background data<br />  LDA backgroundLo      ; load the low byte of the background address into A<br />  CLC                   ; clear the carry bit<br />  ADC #$01              ; add 1 to A<br />  STA backgroundLo      ; store A back into the mem addr<br />  LDA backgroundHi      ; load the high byte of the background address into A<br />  ADC #$00              ; add 0, but if there is a carry (overflow) add 1<br />  STA backgroundHi      ; inc poitner to the next byte if necessary<br /><br />  LDA counterLo         ; load the counter low byte<br />  SEC                   ; set cary flag<br />  SBC #$01              ; subtract with carry by 1<br />  STA counterLo         ; store the low byte of the counter<br />  LDA counterHi         ; load the high byte<br />  SBC #$00              ; sub 0, but there is a carry<br />  STA counterHi       ; decrement the loop counter<br /><br />  LDA counterLo         ; load the low byte<br />  CMP #$00              ; see if it is zero, if not loop<br />  BNE LoadBackgroundLoop<br />  LDA counterHi<br />  CMP #$00              ; see if the high byte is zero, if not loop<br />  BNE LoadBackgroundLoop  ; if the loop counter isn't 0000, keep copying<br /><br /><br />  ;LDA background, x     ; load data from address (background + the value in x)<br />  ;STA $2007             ; write to PPU<br />  ;INX                   ; X = X + 1<br />  ;CPX #$80              ; Compare X to hex $80, decimal 128 - copying 128 bytes<br />  ;BNE LoadBackgroundLoop  ; Branch to LoadBackgroundLoop if compare was Not Equal to zero<br />                        ; if compare was equal to 128, keep going down<br /><br />LoadAttribute:<br />  LDA $2002             ; read PPU status to reset the high/low latch<br />  LDA #$23<br />  STA $2006             ; write the high byte of $23C0 address<br />  LDA #$C0<br />  STA $2006             ; write the low byte of $23C0 address<br />  LDX #$00              ; start out at 0<br />LoadAttributeLoop:<br />  LDA attribute, x      ; load data from address (attribute + the value in x)<br />  STA $2007             ; write to PPU<br />  INX                   ; X = X + 1<br />  CPX #$40              ; Compare X to hex $40, decimal 64<br />  BNE LoadAttributeLoop  ; Branch to LoadAttributeLoop if compare was Not Equal to zero<br />                        ; if compare was equal to 128, keep going down<br /><br /><br />;  PPUCTRL ($2000)<br />;  76543210<br />;  | ||||||<br />;  | ||||++- Base nametable address<br />;  | ||||    (0 = $2000; 1 = $2400; 2 = $2800; 3 = $2C00)<br />;  | |||+--- VRAM address increment per CPU read/write of PPUDATA<br />;  | |||     (0: increment by 1, going across; 1: increment by 32, going down)<br />;  | ||+---- Sprite pattern table address for 8x8 sprites (0: $0000; 1: $1000)<br />;  | |+----- Background pattern table address (0: $0000; 1: $1000)<br />;  | +------ Sprite size (0: 8x8; 1: 8x16)<br />;  |<br />;  +-------- Generate an NMI at the start of the<br />;            vertical blanking interval vblank (0: off; 1: on)              <br />  LDA #%10010000   ; enable NMI, sprites from Pattern Table 0, background from Pattern Table 1<br />  STA $2000<br /><br />;  PPUMASK ($2001)<br />;  binary byte flags<br />;  76543210<br />;  ||||||||<br />;  |||||||+- Grayscale (0: normal color; 1: AND all palette entries<br />;  |||||||   with 0x30, effectively producing a monochrome display;<br />;  |||||||   note that colour emphasis STILL works when this is on!)<br />;  ||||||+-- Disable background clipping in leftmost 8 pixels of screen<br />;  |||||+--- Disable sprite clipping in leftmost 8 pixels of screen<br />;  ||||+---- Enable background rendering<br />;  |||+----- Enable sprite rendering<br />;  ||+------ Intensify reds (and darken other colors)<br />;  |+------- Intensify greens (and darken other colors)<br />;  +-------- Intensify blues (and darken other colors)<br />  LDA #%00011110   ; enable sprites, enable background, no clipping on left side<br />  STA $2001<br /><br /><br />;;;;;;;;;;;;;;;;;;;;<br />; Initialze some game state variables<br />InitialzeState:<br />  LDA #$80   ; player x offset<br />  STA playerx<br /><br />  LDA #$00   ; player y offset<br />  STA playery<br />  LDA #$C8   ; player y offset<br />  STA ground  <br /><br />  LDA #$00   ; controller state<br />  STA controller1<br />  STA playervx;<br />  STA playervy;<br />  STA loopCount<br /><br />  LDA #$03<br />  STA gravity<br /><br /><br /><br /><br />Forever:<br />  JMP Forever     ;jump back to forever MAINLOOP will interrupt for game logic, infinite loop to keep the rom from exiting<br /> <br />;; Game main loop<br />MAINLOOP: ; non-maskable interrupt (draw screen)<br />  ;; Needs to be done every frame<br />  ;; Load graphics into PPU from the memory<br />  LDA #$00   ; load 1 bytes of 0 in A<br />  STA $2003  ; set the low byte (00) of the RAM address<br />  LDA #$02   ; load 1 byte of $02, <br />  STA $4014  ; set the high byte (02) of the RAM address, start the transfer<br /><br />  ;; Draw game first<br />  JSR Draw <br />  <br />  ;; Update game<br />  JSR Update <br /><br />  RTI        ; return from interrupt<br /><br /><br />;;;;;;;;;;;;;;;;;;;;;;<br />; Draw sprite to screen<br />Draw:<br />  <br />  JSR DrawPlayer<br /><br />  ;;This is the PPU clean up section, so rendering the next frame starts properly.<br />  LDA #%10010000   ; enable NMI, sprites from Pattern Table 0, background from Pattern Table 1<br />  STA $2000<br />  LDA #%00011110   ; enable sprites, enable background, no clipping on left side<br />  STA $2001<br />  LDA #$00        ;;tell the ppu there is no background scrolling<br />  STA $2005<br />  STA $2005<br /><br />  RTS<br /><br /><br />;;;;;;;;;;;;;;;;;;;;;<br />; Draw Sprites <br />DrawPlayer:<br />  LDX #$00              ; start at 0 <br />  LDY #$00              ; start at 0<br />DrawPlayerLoop:<br />  <br />  LDA $0203, x          ; load current x sprite position<br />  CLC  <br />  LDA playerspriteoffset, y    ; add player x with sprite offset<br />  ADC playerx <br />  INY                   ; increment sprite offset coutner<br />  STA $0203, x          ; store into RAM address ($0203 + x)<br /><br />  LDA $0200, x          ; load current y sprite position<br />  CLC<br />  LDA playerspriteoffset, y   ; add player y with sprite offset<br />  ADC playery<br />  INY<br />  STA $0200, x          ; store into RAM address ($0200 + x)<br />  INX                   ; X = X + 4 loop to the next sprite<br />  INX<br />  INX<br />  INX <br />  CPX #$1C              ; Compare X to hex $1C, decimal 28 meaning all 7 Player sprites done<br />  BNE DrawPlayerLoop   ; Branch to LoadSpritesLoop if compare was Not Equal to zero<br />                        ; if compare was equal to 32, keep going down<br />  RTS<br /><br />DrawEnemey:<br />  LDX #$00              ; start at 0 <br />  LDY #$00              ; start at 0<br />DrawEnemyLoop:<br />  <br />  LDA $0203, x          ; load current x sprite position<br />  CLC  <br />  LDA enemyspriteoffset, y    ; add player x with sprite offset<br />  ADC enemyx<br />  INY                   ; increment sprite offset coutner<br />  STA $0203, x          ; store into RAM address ($0203 + x)<br /><br />  LDA $0200, x          ; load current y sprite position<br />  CLC<br />  LDA playerspriteoffset, y   ; add player y with sprite offset<br />  ADC enemyy<br />  INY<br />  STA $0200, x          ; store into RAM address ($0200 + x)<br />  INX                   ; X = X + 4 loop to the next sprite<br />  INX<br />  INX<br />  INX <br />  CPX #$08              ; Compare X to hex $1C, decimal 28 meaning all 7 Player sprites done<br />  BNE DrawEnemyLoop   ; Branch to LoadSpritesLoop if compare was Not Equal to zero<br />                        ; if compare was equal to 32, keep going down<br />  RTS<br /><br />Update:<br />    JSR LatchController<br />    JSR PollController<br />    JSR ReadLeft<br />    JSR ReadRight<br />    JSR ReadA<br />    INC loopCount<br />    JSR UpdatePlayerPosition<br />    RTS<br /><br /><br />UpdatePlayerPosition:<br />  CLC<br />  LDA loopCount<br />  CMP #$0A<br />  BNE SkipGravity<br />  LDA gravity<br />  ADC playervy<br />  STA playervy<br />  LDA #$00<br />  STA loopCount<br />SkipGravity:<br />  LDA playervy<br />  CLC<br />  ADC playery<br />  STA playery  <br />  CMP ground<br />  BCS PutPlayerOnGround<br />PlayerOnGroundDone: <br />  LDA playervx<br />  CLC<br />  ADC playerx<br />  STA playerx <br />  RTS<br />PutPlayerOnGround:<br />  LDA ground<br />  STA playery<br />  LDA #$00<br />  STA playervy<br />  STA inAir<br />  JMP PlayerOnGroundDone<br /><br /><br />LatchController:<br />  LDA #$01<br />  STA $4016<br />  LDA #$00<br />  STA $4016       ; tell both the controllers to latch buttons<br />  RTS<br /><br />;;;;;;;;;;;;;;;;;;<br />; Read controller input into byte vector<br />; 76543210<br />; ||||||||<br />; |||||||+- RIGHT button<br />; ||||||+-- LEFT Button<br />; |||||+--- DOWN Button<br />; ||||+---- UP Button<br />; |||+----- START Button<br />; ||+------ SELECT Button<br />; |+------- B Button<br />; +-------- A Button<br /><br />PollController:<br />  LDX #$00   ; 8 buttons total<br />PollControllerLoop:<br />  LDA $4016  ; player 1 - A <br />  LSR A      ; shift right<br />  ROL controller1    ; rotate left button vector in mem location $0003<br />  INX<br />  CPX #$08<br />  BNE PollControllerLoop<br />  RTS<br /><br />ReadRight: <br />  LDA controller1  ; controller1 1 - A button<br />  AND #%00000001  ; only look at bit 0<br />  BEQ ReadRightDone   ; branch to ReadADone if button is NOT pressed (0)<br />                  ; add instructions here to do something when button IS pressed (1)<br />  LDA $0203       ; load sprite X position<br />  CLC             ; make sure the carry flag is clear<br />  LDA playerx <br />  ADC #$02<br />  STA playerx;<br />ReadRightDone:        ; handling this button is done<br />  RTS<br />  <br /><br />ReadLeft: <br />  LDA controller1       ; controller1 1 - B button<br />  AND #%00000010  ; only look at bit 0<br />  BEQ ReadLeftDone   ; branch to ReadBDone if button is NOT pressed (0)<br />                  ; add instructions here to do something when button IS pressed (1)<br />  LDA $0203       ; load sprite X position<br />  CLC<br />  LDA playerx<br />  ADC #$FE <br />  STA playerx<br />ReadLeftDone:        ; handling this button is done<br />  RTS<br /><br />ReadA: <br />  LDA controller1       ; controller1 1 - B button<br />  AND #%10000000  ; only look at bit 0<br />  BEQ ReadADone   ; branch to ReadBDone if button is NOT pressed (0)<br />                  ; add instructions here to do something when button IS pressed (1)  <br />  LDA inAir<br />  CMP #$01<br />  BEQ ReadADone<br /><br />  LDA ground<br />  STA playery<br />  LDA #$FA<br />  STA playervy<br /><br />  LDA #$01<br />  STA inAir<br /><br />ReadADone:        ; handling this button is done<br />  RTS<br /><br />;;;;;;;;;;;;;;  <br />; Data initialization<br />; .db command is a macro for storing bytes in memory without having to write<br />; LDA (byte)<br />; STA (mem)<br />  <br />  .bank 1<br />  .org $E000<br />palette:<br />  ;; Background Palletes (0-3)<br />  .db $08,$1A,$38,$18, $08,$02,$38,$3C, $08,$1C,$15,$14, $08,$02,$38,$2A<br />  ;;  Character Palletes (0-3)<br />  .db $21,$2C,$11,$15, $0F,$35,$36,$37, $0F,$39,$3A,$3B, $0F,$3D,$3E,$0F<br /><br />playersprite:<br />; 1st byte encodes the y position<br />; 2nd byte encodes the tile index loaded into the PPU <br />; 3rd byte encodes any sprite attributes<br />;  76543210<br />;  |||   ||<br />;  |||   ++- Color Palette of sprite.  Choose which set of 4 from the 16 colors to use<br />;  |||<br />;  ||+------ Priority (0: in front of background; 1: behind background)<br />;  |+------- Flip sprite horizontally<br />;  +-------- Flip sprite vertically<br />; 4th byte encodes the x position<br /><br />     ;vert tile attr horiz<br />  .db $80, $00, $00, $80   ;sprite 0<br />  .db $80, $01, $00, $88   ;sprite 1<br />  .db $80, $02, $00, $90   ;sprite 2<br />  .db $88, $10, $00, $80   ;sprite 3<br />  .db $88, $11, $00, $88   ;sprite 4<br />  .db $88, $12, $00, $90   ;sprite 5<br />  .db $90, $21, $00, $88   ;sprite 6<br /><br />playerspriteoffset:<br />      ;x   y<br />  .db $F8, $F0; (-8, -16)<br />  .db $00, $F0; (0,  -16)<br />  .db $08, $F0; (8 , -16)<br />  .db $F8, $F8; (-8, -8) <br />  .db $00, $F8; (0,  -8)<br />  .db $08, $F8; (8,  -8)<br />  .db $00, $00; (0,  0)  <br /><br /><br />enemyspriteframe1:<br />  .db $F0, $04, $00, $00<br />  .db $F0, $05, $00, $08<br /><br />enemyspriteframe2:<br />  .db $F0, $14, $00, $00<br />  .db $F0, $15, $00, $08<br /><br />enemyspriteoffset:<br />  .db $00, $00<br />  .db $00, $08<br /><br />background:<br />  ; nametable 960 bytes long for the background<br />  ;.db $10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10<br />  ;.db $10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10<br /><br />  ;.db $10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10<br />  ;.db $10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10<br /><br />  ;.db $10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10<br />  ;.db $10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10<br /><br />  ;.db $10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10<br />  ;.db $10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10<br /><br />  .db $11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11  ;;row 1<br />  .db $11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11  ;;all sky<br />  <br />  .db $11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11  ;;row 1<br />  .db $11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11  ;;all sky<br />  <br />  .db $11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11  ;;row 1<br />  .db $11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11  ;;all sky<br />  <br />  .db $11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11  ;;row 1<br />  .db $11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11  ;;all sky<br />  <br /><br />  .db $11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11  ;;row 1<br />  .db $11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11  ;;all sky<br />  <br />  .db $11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11  ;;row 1<br />  .db $11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11  ;;all sky<br />  <br />  .db $11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11  ;;row 1<br />  .db $11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11  ;;all sky<br /><br /><br />  .db $11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11  ;;row 1<br />  .db $11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11  ;;all sky<br /><br />  <br />  .db $11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11  ;;row 1<br />  .db $11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11  ;;all sky<br /><br />  <br />  .db $11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11  ;;row 1<br />  .db $11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11  ;;all sky<br /><br />  <br />  .db $11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11  ;;row 1<br />  .db $11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11  ;;all sky<br /><br /><br />  <br />  .db $11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11  ;;row 1<br />  .db $11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11  ;;all sky<br /><br /><br />  <br />  .db $11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11  ;;row 1<br />  .db $11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11  ;;all sky<br /><br />  <br />  .db $11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11  ;;row 1<br />  .db $11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11  ;;all sky<br />  <br />  .db $11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11  ;;row 1<br />  .db $11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11  ;;all sky<br />  <br />  .db $11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11  ;;row 1<br />  .db $11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11  ;;all sky<br />  <br />  .db $11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11  ;;row 1<br />  .db $11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11  ;;all sky<br />  <br />  .db $11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11  ;;row 1<br />  .db $11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11  ;;all sky<br /><br />  <br />  .db $11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11  ;;row 1<br />  .db $11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11  ;;all sky<br /><br />    <br />  .db $11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11  ;;row 1<br />  .db $11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11  ;;all sky<br />  <br />  .db $11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11  ;;row 1<br />  .db $11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11  ;;all sky<br /><br />  <br />  .db $11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11  ;;row 1<br />  .db $11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11  ;;all sky<br /><br />  <br />  .db $11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11  ;;row 1<br />  .db $11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11  ;;all sky<br /><br />  <br />  .db $11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11  ;;row 1<br />  .db $11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11  ;;all sky<br /><br />  <br />  .db $11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11  ;;row 1<br />  .db $11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11  ;;all sky<br /><br />  <br />  .db $11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11  ;;row 1<br />  .db $11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11,$11  ;;all sky<br /><br />  .db $00,$01,$00,$01,$00,$01,$00,$01,$00,$01,$00,$01,$00,$01,$00,$01<br />  .db $00,$01,$00,$01,$00,$01,$00,$01,$00,$01,$00,$01,$00,$01,$00,$01  ;;ground<br /><br />  .db $10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10<br />  .db $10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10  ;; dirt<br /><br />  .db $10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10<br />  .db $10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10  ;; dirt<br />  <br />  .db $10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10<br />  .db $10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10  ;; dirt<br /><br />attribute:<br />   ; 64 bytes following a nametable<br />  ;.db $C7,$00,$00,$00, $00,$00,$00,$00<br />  .db $00,$00,$00,$00, $00,$00,$00,$00<br />  .db $00,$00,$00,$00, $00,$00,$00,$00<br />  .db $00,$00,$00,$00, $00,$00,$00,$00<br />  .db $00,$00,$00,$00, $00,$00,$00,$00<br />  .db $00,$00,$00,$00, $00,$00,$00,$00<br />  .db $00,$00,$00,$00, $00,$00,$00,$00<br />  .db $00,$00,$00,$00, $00,$00,$00,$00<br />  .db $00,$00,$00,$00, $00,$00,$00,$00<br /><br /><br /><br /><br />; Load in level columns<br />; The first 32 bytes is the first column and so on, each byte is sprite index<br />;columnData:<br />  ;.incbin &quot;level.bin&quot;<br /><br />; Load column sprite attributes<br />; TODO how is this defined?<br />;attribData:<br />  ;.incbin &quot;attr.bin&quot;<br /><br /><br />;;;;;;;;;;;;;;  <br />; Define interrupt vectors at the top of memory $FFFF<br />; Basically registering callbacks for different functions NMI, RESET, IRQ<br />; .org means starting at $FFFA<br />; .dw means store dataword, in the NES that means 16 bits 2 bytes<br />; stores in little endian order, superior ordering <img src="./images/smilies/icon_wink.gif" alt=";)" title="Wink" /> least sig byte first<br /><br />  .bank 1<br />  .org $FFFA     ;first of the three vectors starts here<br />nescallback:<br />  ; after this $FFFA + 2 = $FFFC<br />  .dw MAINLOOP      ;when an NMI happens (once per frame if enabled) the <br />                   ;processor will jump to the label NMI:<br />  ; after this $FFFC + 2 = $FFFE<br />  .dw RESET      ;when the processor first turns on or is reset, it will jump<br />                   ;to the label RESET:<br />  ; after this $FFFC + 1 = $FFFF <br />  .dw 0          ;external interrupt IRQ is not used in this tutorial<br />  <br />  <br />;;;;;;;;;;;;;;  <br />; Load in external sprite or audio data<br />  <br />  .bank 2<br />  .org $0000<br />  .incbin &quot;art.chr&quot;   ;includes 8KB graphics file
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Quietust</b> [ Tue May 22, 2018 7:33 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: where is the controls and movement in this open source c</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />You already posted this exact code <a href="https://forums.nesdev.com/viewtopic.php?f=2&amp;t=17343" class="postlink">two weeks ago</a>, and you apparently didn't bother to read any of our responses...
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>koitsu</b> [ Tue May 22, 2018 7:39 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: where is the controls and movement in this open source c</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />To others:<br /><br /><span style="font-size: 150%; line-height: normal">Do not reply to this person.</span><br /><br />I suspect they are a spammer/forum data harvester who is capable of reading English and figuring out &quot;contextually&quot; what is relevant to the forum/board in question, thus look like a real person.<br /><br />I've flagged the post as spam and explained my logic (pseudo-forensics) to the forum admins, and provided advice on how to stop it from recurring.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Memblers</b> [ Tue May 22, 2018 9:16 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: where is the controls and movement in this open source c</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Based on the IP address and other provided info, I would be surprised if it was a spam account.  Though anything is possible.<br /><br />There is a question included this time, so there is some progress, heheh.  Much better to post source code as an attachment, or at least inside CODE tags, as said in the previous thread.<br /><br />I think this is from the Nerdy Nights tutorial, maybe?  If so, you should read the articles, it should explain what's going on.  But the movement and control parts seem to be the ReadLeft, ReadRight, etc subroutines.  And UpdatePlayerPosition.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>adjh</b> [ Wed May 23, 2018 4:36 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: where is the controls and movement in this open source c</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I'm new at using any forum and I am not spam.   I am sorry I posted the whole code again and it will not happen again.  your responses did help me the last time I asked a question thank you. I will reread the tutorials.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Wed May 23, 2018 5:49 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: where is the controls and movement in this open source c</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><a href="https://stackoverflow.com/help/mcve" class="postlink">&quot;How to create a Minimal, Complete, and Verifiable example&quot;</a> might help in the future.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>OmegaMax</b> [ Wed May 23, 2018 4:58 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: where is the controls and movement in this open source c</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />;; Update game<br />JSR Update                            <br />;----------------------<br /><br />Update:<br />JSR LatchController                  <br />JSR PollController                      <br />JSR ReadLeft                            ;&lt;--<br />JSR ReadRight                           ;&lt;--<br />JSR ReadA                                ;&lt;--<br />INC loopCount<br />JSR UpdatePlayerPosition             ;&lt;--<br />RTS
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

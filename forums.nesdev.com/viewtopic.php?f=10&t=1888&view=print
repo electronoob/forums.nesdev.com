@@ -1,0 +1,331 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Waiting for a scanline</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Waiting for a scanline</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=10&amp;t=1888">http://forums.nesdev.com/viewtopic.php?f=10&amp;t=1888</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>visy</b> [ Sat Aug 12, 2006 4:26 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Waiting for a scanline</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I'm working on a little test demo to gain some understanding into the NES hardware (having learned to program in assembly on the C-64). I'd like to program a full-blown demoscenish demo with some simple effects I've done on different platforms.
+<br />
+<br />What I'd like to know is what is the best/easiest/fastest/whatever way to wait for a scanline? What I mean is, that I'd like, for example, to show on the top half a scrolling picture (one 4k of CHR-ROM) and on the bottom half some text (the other half).
+<br />
+<br />Now, I know that I can change the "graphics page" by using $2000. But how can I change it in midscreen? Also, should this also enable me to use different values for scrolling ($2005) on the different halves of the screen?
+<br />
+<br />EDIT: I'm talking about raster splits, of course.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Dwedit</b> [ Sat Aug 12, 2006 5:52 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Using MMC3 IRQs is probably one of the easiest ways to do it, you can tell the mapper how many scanlines to wait, and it does it.  You must have backgrounds coming from a different pattern table than sprites (usually BG on the left, sprites on the right).  It's not exact, but it was good enough for many NES games.
+<br />
+<br />The other ways to wait for specific numbers of scanlines involve hardcoding the number of cycles to wait, or using sprite 0 hit.  Sprite 0 hit is only once per frame, and it has to hit a BG tile.
+<br />
+<br />Sorry for the lack of examples, I don't know how to program for the NES.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Sat Aug 12, 2006 10:19 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Before you start, make a demo with sprites moving around.
+<br />
+<br />First, set up sprite 0 such that an opaque pixel of sprite 0 overlaps an opaque background pixel just above where you want to put the split. (There are some quirks: if sprite or background rendering is turned off, it won't trigger, and if the overlap is only at x=255, it won't trigger.)
+<br />
+<br />Second, wait for the raster to get to that point. The PPU will signal this by setting PPUSTATUS ($2002) bit 6 to 0 (at the top of the screen) and then 1 (at the desired raster time). The BIT opcode places bit 6 of the operand in the V flag, so do this:
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">; wait for sprite 0 overlap flag to become 0<br />; &#40;at the top of the screen&#41;<br />@waitSpr0Off:<br />&nbsp; bit PPUSTATUS<br />&nbsp; bvs @waitForSpr0Off<br /><br />; wait for sprite 0 overlap flag to become 1<br />; &#40;at the desired raster point&#41;<br />@waitSpr0On:<br />&nbsp; bit PPUSTATUS<br />&nbsp; bvc @waitForSpr0On<br /></div>
+<br />Finally, change your scroll position by writing to PPUSCROLL ($2005) and PPUADDR ($2006). <a href="http://nesdev.com/loopyppu.zip" class="postlink">Loopy's "skinny" doc</a> and its successors should help you understand how these two registers work.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Memblers</b> [ Sat Aug 12, 2006 12:06 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />If you want to do vertical scrolling after the split, it's slightly trickier.  Horizontal is easy though.
+<br />
+<br />Sprite #0 hit get you to the first point (a little timed code after the hit detect will get you into hblank, that takes a little experimention).  I just wanted to add that if you want to wait for a scanline after that, the simplest way is to used timed code that waits for 113.666 cycles per scanline.
+<br />
+<br />In a loop, you can wait .666 cycles (averages out) like so:
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp;lda counter<br />&nbsp;clc<br />&nbsp;adc #85<br />&nbsp;bcc :+<br />:&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; branch to nowhere<br />&nbsp;sta counter<br /></div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>visy</b> [ Sun Aug 13, 2006 5:02 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Thanks for your help, works perfectly.
+<br />
+<br /><!-- m --><a class="postlink" href="http://babibu.opintanner.fi/twoway.nes">http://babibu.opintanner.fi/twoway.nes</a><!-- m -->
+<br />
+<br />Now the Hoff will never stop <img src="./images/smilies/icon_wink.gif" alt=";)" title="Wink" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>visy</b> [ Tue Aug 22, 2006 10:42 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Is there a similar method of scanline timing on PAL?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Quietust</b> [ Tue Aug 22, 2006 11:24 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">visy wrote:</div><div class="quotecontent">Is there a similar method of scanline timing on PAL?</div>
+<br />
+<br />Yeah, you just need different timing values in your loops.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>visy</b> [ Thu Aug 24, 2006 10:20 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />What I'm now trying to implement are stable bouncing / expanding rasterbars with background color + raster timing. Is sprite-0 hit the best way to do this?
+<br />
+<br />This is the logic I was thinking:
+<br />
+<br />1. wait for sprite-0 off (top of screen)
+<br />2. wait for sprite-0 on (starting point for timing)
+<br />3. wait a few raster lines
+<br />4. set horizontal color
+<br />5. waste enough cycles to pass the screen horizontally
+<br />6. next line, continue from 4 until rasterbar(s) drawn.
+<br />
+<br />Does that seem correct? I've tried to make a loop that waits for the exact number of cycles, but somehow i always get gray-colored flickering parts on the horizontal lines (which, of course, look _pretty_ ugly).
+<br />
+<br />All this really makes me miss the C-64 and raster interrupts <img src="./images/smilies/icon_wink.gif" alt=";)" title="Wink" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Memblers</b> [ Thu Aug 24, 2006 11:28 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I don't know where the gray-color parts could be coming from, unless you're accidentally (or purposely) enabling the grayscale mode.  Otherwise there is gray in your palette.  If you shut the screen off manually (I think you won't need to, but I suppose you could do the whole thing with the screen off), whatever palette byte the VRAM pointer is set to will be used as the background color.  I'd recommend using Nintendulator's debugger to step through the code, it has the very handy feature of telling you when it's in hblank.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

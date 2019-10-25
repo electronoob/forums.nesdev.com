@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=3&amp;t=6464" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2011-01-18T18:12:58-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=3&amp;t=6464</id>
+<entry>
+<author><name><![CDATA[Luke]]></name></author>
+<updated>2011-01-18T18:09:24-07:00</updated>
+<published>2011-01-18T18:09:24-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6464&amp;p=72895#p72895</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6464&amp;p=72895#p72895"/>
+<title type="html"><![CDATA[MMC3 Timing]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6464&amp;p=72895#p72895"><![CDATA[
+You are correct.  I actually screwed up the logging in Nintendulator, the real output is this:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">E421  EA        NOP                             A:10 X:00 Y:00 P:21 SP:FB CYC:251 SL:-1<br />E422  EA        NOP                             A:10 X:00 Y:00 P:21 SP:FB CYC:257 SL:-1<br />E2BC  06 20     ASL $20 = 10                    A:10 X:00 Y:00 P:25 SP:F8 CYC:284 SL:-1<br />E2BE  8D 00 E0  STA $E000 = FF                  A:10 X:00 Y:00 P:24 SP:F8 CYC:299 SL:-1<br />E2C1  40        RTI                             A:10 X:00 Y:00 P:24 SP:F8 CYC:311 SL:-1<br /></div><br /><br />So it looks like my real problem is that my CPU is off by one cycle somehow.  I'm going to pare down my original post to get rid of the extraneous parts now.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3699">Luke</a> — Tue Jan 18, 2011 6:09 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[cpow]]></name></author>
+<updated>2011-01-18T17:52:22-07:00</updated>
+<published>2011-01-18T17:52:22-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6464&amp;p=72894#p72894</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6464&amp;p=72894#p72894"/>
+<title type="html"><![CDATA[MMC3 Timing]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6464&amp;p=72894#p72894"><![CDATA[
+<div class="quotetitle">Luke wrote:</div><div class="quotecontent"><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">E423  E6 20     INC $20 = 10                    A:10 X:00 Y:00 P:20 SP:FB CYC:262 SL:-1<br />E2BC  06 20     ASL $20 = 11                    A:10 X:00 Y:00 P:24 SP:F8 CYC:298 SL:-1      <br /></div><br /><br />The INC instruction does not actually get executed, but it still appears to consume 5 CPU cycles! (Cycle count goes from 262 to 298 = 36 PPU cycles = 12 CPU cycles = 7 for IRQ handling, 5 presumably for INC $20.)  Can anyone explain this?<br /></div><br /><br />I think the = 10 after the INC and the = 11 after the ASL conflict with your assumption that the INC $20 does not occur.  If I understand the trace correctly it is showing you the value of memory location $20 in both cases.  Obviously, in the second print, an INC has occurred.  Thus, the INC opcode was fetched prior to the IRQ being driven deep enough into the processor to be noticed.  INC finishes, IRQ follows INC...<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3705">cpow</a> — Tue Jan 18, 2011 5:52 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Luke]]></name></author>
+<updated>2011-01-18T18:12:58-07:00</updated>
+<published>2011-01-18T15:34:30-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6464&amp;p=72892#p72892</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6464&amp;p=72892#p72892"/>
+<title type="html"><![CDATA[MMC3 Timing]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6464&amp;p=72892#p72892"><![CDATA[
+This seems like a good place for some more MMC3 timing talk...<br /><br />I have been hammering away on MMC3 code and think I'm doing most things properly, but I've been struggling with the issue of IRQs and how soon they should be handled by the CPU after they are asserted.  My current code handles an IRQ on the next instruction after the IRQ was issued, and although some games still have problems (e.g. Incredible Crash Test Dummies) all of blargg's MMC3 tests pass, including the timing test. Here is a log of the code for test #3 right where the IRQ gets asserted:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">.<br />.<br />&#40;000, 211&#41; - PC E4E6 - JSR $E41C<br />&#40;000, 229&#41; - PC E41C - LDA #$10<br />&#40;000, 235&#41; - PC E41E - STA $20<br />&#40;000, 244&#41; - PC E420 - CLI<br />&#40;000, 250&#41; - PC E421 - NOP<br />&#40;000, 256&#41; - PC E422 - NOP<br /><br />&#40;000, 261&#41; - IRQ generated by MMC3<br /><br />&#40;000, 283&#41; - PC E2BC - ASL $20      ; First instruction of IRQ handler<br />&#40;000, 298&#41; - PC E2BE - STA $E000<br />&#40;000, 310&#41; - PC E2C1 - RTI<br />.<br />.<br /></div><br /><br />I am 99% sure that the CPU times and the IRQ generation time are correct (EDIT: they aren't.  CPU should be 251, 257, ... instead of 250, 256, ... <img src="http://forums.nesdev.com/images/smilies/icon_redface.gif" alt=":oops:" title="Embarassed" />).  The IRQ cycle could be 260 but it shouldn't matter for this example.<br /><br />Although this passes, it doesn't make sense to me because the IRQ is generated on cycle 261, which is during the last cycle of the second NOP instruction.  I've been under the impression that <a href="http://nesdev.com/bbs/viewtopic.php?p=14694#14694" class="postlink">IRQs asserted during the last cycle of a CPU instruction get handled after the next instruction finishes</a>.  When I implemented this additional bit of logic, some of the problematic MMC3 games start working but I fail test #3:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">.<br />.<br />&#40;000, 211&#41; - PC E4E6 - JSR $E41C<br />&#40;000, 229&#41; - PC E41C - LDA #$10<br />&#40;000, 235&#41; - PC E41E - STA $20<br />&#40;000, 244&#41; - PC E420 - CLI<br />&#40;000, 250&#41; - PC E421 - NOP<br />&#40;000, 256&#41; - PC E422 - NOP<br /><br />&#40;000, 261&#41; - IRQ generated by MMC3<br /><br />&#40;000, 262&#41; - PC E423 - INC $20      ; Gets executed because op was fetched during cycle 259, IRQ asserted starting cycle 261<br /><br />&#40;000, 298&#41; - PC E2BC - ASL $20      ; First instruction of IRQ handler<br />&#40;000, 313&#41; - PC E2BE - STA $E000<br />&#40;000, 325&#41; - PC E2C1 - RTI<br />.<br />.<br /></div><br />Executing the INC instruction causes the test to fail, but this approach seems more intuitively correct to me.  Does anyone know what the correct behavior should be?  Am I missing something obvious? <img src="http://forums.nesdev.com/images/smilies/icon_confused.gif" alt=":?" title="Confused" /><br /><br />EDIT 1: My CPU timing is off by one cycle, I think if I correct that and keep the "Check for IRQ on last cycle of instruction" change the test will pass and all will be well.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3699">Luke</a> — Tue Jan 18, 2011 3:34 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2010-06-06T05:34:26-07:00</updated>
+<published>2010-06-06T05:34:26-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6464&amp;p=62499#p62499</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6464&amp;p=62499#p62499"/>
+<title type="html"><![CDATA[MMC3 Timing]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6464&amp;p=62499#p62499"><![CDATA[
+<div class="quotetitle">Bregalad wrote:</div><div class="quotecontent"><br />If BG uses the right pattern table, A12 will constantly toggles as the PPU will fetch pattern table data (A12 high) and name table data (A12 low). So, the scan line counter should be toggled ~36 times per scanline under this configuration. Or am I missing something ?<br /></div><br />What you're missing is that the rise would be less than 12 or so dots after the fall, and after the low-pass, the counter would see only one rise.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Sun Jun 06, 2010 5:34 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Bregalad]]></name></author>
+<updated>2010-06-06T00:57:20-07:00</updated>
+<published>2010-06-06T00:57:20-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6464&amp;p=62490#p62490</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6464&amp;p=62490#p62490"/>
+<title type="html"><![CDATA[MMC3 Timing]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6464&amp;p=62490#p62490"><![CDATA[
+If BG uses the right pattern table, A12 will constantly toggles as the PPU will fetch pattern table data (A12 high) and name table data (A12 low). So, the scan line counter should be toggled ~36 times per scanline under this configuration. Or am I missing something ?<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=38">Bregalad</a> — Sun Jun 06, 2010 12:57 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[cpow]]></name></author>
+<updated>2010-06-05T16:14:21-07:00</updated>
+<published>2010-06-05T16:14:21-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6464&amp;p=62466#p62466</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6464&amp;p=62466#p62466"/>
+<title type="html"><![CDATA[MMC3 Timing]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6464&amp;p=62466#p62466"><![CDATA[
+<div class="quotetitle">blargg wrote:</div><div class="quotecontent"><br />Looking at source/4-scanline_timing.s, I see that $2000=$10 makes the scanline 0 interrupt occur 256 PPU clocks earlier<br /></div><br /><br />Right, that makes sense.<br /><br />My understanding: $2000 = $08: IRQ fires on cycle 260 of scanline.  $2000 = $10: IRQ fires on cycle 4 of scanline.  This is because 260 and 4 (difference...256) are the first time on the scanline where A12 will rise to fetch the tile slice to be rendered for sprite ($2000 = $08) or background ($2000 = $10).<br /><br />EDIT: For $2000 = $10 I suppose it fires twice per scanline, once at cycle 4 and once at cycle 324 ?<br /><br />My failure message is: Scanline 0 IRQ should occur later when $2000 = $08.  Failed #2.<br /><br />Doesn't that mean that it is expecting the IRQ to fire on 260 but for some reason it looks like it is happening earlier than that?<br /><br /><div class="quotetitle">blargg wrote:</div><div class="quotecontent"><br />And then for scanline 1, it occurs 341-21 PPU clocks later, rather than 341 PPU clocks later you'd expect.<br /></div><br /><br />That makes sense for $2000 = $10 but not for $2000 = $08.  My failure message (see above) isn't for $10.<br /><br />For $2000 = $10 I would expect an IRQ at cycle 4 of scanline 0 and then cycle 324 (4+341-21) of the same scanline since that would be the first bg preroll (tepples' term) fetch cycle where A12 rises again.<br /><br />For $2000 = $08 the bg preroll fetches shouldn't impact the IRQ counter because they would not cause A12 rises...so the next opportunity for A12 rise would be dot 260 of the next scanline, wouldn't it?<br /><br /><div class="quotetitle">blargg wrote:</div><div class="quotecontent"><br />I just double-checked that this passes on my SMB3 and Crystalis cartridges (Crystalis uses the MMC6-behaving MMC3). Maybe someone else has some ideas as to why this occurs. I wrote the error messages so you could just adjust your timing until it passes, similar to how I originally got the tests passing on the NES. <img src="http://forums.nesdev.com/images/smilies/icon_smile.gif" alt=":)" title="Smile" /><br /></div><br /><br />My other concern is how I could be passing one version of your test but failing another.  I'm going to gather some data and reply with it.<br /><br />My IRQ generation logic ignores A12 rises &lt; 9 cycles after a prior A12 rise.  If the A12 rise is not being ignored it will clock the IRQ counter.<br /><br />I pass tests 1, 2, and 3 of both of your MMC3 test ROM collections.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3705">cpow</a> — Sat Jun 05, 2010 4:14 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[tepples]]></name></author>
+<updated>2010-06-05T10:50:01-07:00</updated>
+<published>2010-06-05T10:50:01-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6464&amp;p=62451#p62451</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6464&amp;p=62451#p62451"/>
+<title type="html"><![CDATA[MMC3 Timing]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6464&amp;p=62451#p62451"><![CDATA[
+0-247: bg fetches<br />248-255: dummy bg fetches (the PPU never uses this data)<br />256-319: sprite pattern fetches<br />320-335: bg preroll (fetching first two nametable and pattern slivers for the next line)<br />336-340: PPU halted<br /><br />21 dots are the length of the preroll and halt. Might this have something to do with it?<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=9">tepples</a> — Sat Jun 05, 2010 10:50 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[blargg]]></name></author>
+<updated>2010-06-05T09:31:33-07:00</updated>
+<published>2010-06-05T09:31:33-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6464&amp;p=62445#p62445</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6464&amp;p=62445#p62445"/>
+<title type="html"><![CDATA[MMC3 Timing]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6464&amp;p=62445#p62445"><![CDATA[
+Looking at source/4-scanline_timing.s, I see that $2000=$10 makes the scanline 0 interrupt occur 256 PPU clocks earlier than for $2000=$08. And then for scanline 1, it occurs 341-21 PPU clocks later, rather than 341 PPU clocks later you'd expect. I just double-checked that this passes on my SMB3 and Crystalis cartridges (Crystalis uses the MMC6-behaving MMC3). Maybe someone else has some ideas as to why this occurs. I wrote the error messages so you could just adjust your timing until it passes, similar to how I originally got the tests passing on the NES. <img src="http://forums.nesdev.com/images/smilies/icon_smile.gif" alt=":)" title="Smile" /><br /><br />As for running at reset, I mean loading up the test ROM code, then being able to press reset and have it run from its reset vector normally. This was difficult to arrange before some recent modifications I made. I'd still like to be able to run them at power on the above MMC3 carts, but that'd be difficult.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=17">blargg</a> — Sat Jun 05, 2010 9:31 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[cpow]]></name></author>
+<updated>2010-06-05T08:40:01-07:00</updated>
+<published>2010-06-05T08:40:01-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=6464&amp;p=62444#p62444</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=6464&amp;p=62444#p62444"/>
+<title type="html"><![CDATA[MMC3 Timing]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=6464&amp;p=62444#p62444"><![CDATA[
+Apologies for hijacking jwdonal's MMC3 thread.  I'll start my own...<br /><br />Blargg, first of all, thanks for churning out test ROM updates!  Much appreciated.  However, my elation at passing your old MMC3 timing test ROM was cut short (less than 24 hours!) by the release of your updated MMC3 timing test ROM.<br /><br />I fail the new timing test because my scanline 0 IRQ should occur later for $2000 = $08...<br /><br />Shouldn't the IRQ occur on cycle 260 of the pre-render scanline if $2000 is $08 and the IRQ counter is decremented to 0 at that point?  This appears to be the case in both test ROMs.  My A12 0-&gt;1 transition is occuring on cycle 260 of the pre-render scanline.<br /><br />However, the IRQ handler of the old test ROM executes into scanline 0 whereas the much shorter IRQ handler of the new test ROM does not.<br /><br />Back to the drawing board...<br /><br />I'm also not sure what you meant by being able to run these tests at reset, or why that would matter?<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3705">cpow</a> — Sat Jun 05, 2010 8:40 am</p><hr />
+]]></content>
+</entry>
+</feed>

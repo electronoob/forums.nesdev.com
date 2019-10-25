@@ -1,0 +1,228 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - NSF Questions</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">NSF Questions</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=6&amp;t=11065">http://forums.nesdev.com/viewtopic.php?f=6&amp;t=11065</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>natt</b> [ Sun Mar 02, 2014 10:51 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>NSF Questions</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I'm a relative outsider to a lot of this stuff, and I haven't had any dealings with NSF before; this is my first time looking at the format.  So some of these questions may have obvious answers that I just didn't think of... but anyway.  Looking at the NSF specification on the wiki, I have some questions from the perspective of an implementer:<br /><br />Where does player code go?  Looking at the memory map, it seems like all I have to work with is $4080:$5bff, but with that being peppered by IO ports here and there to complicate things.  If you're not supporting FDS, MMC5 or N163 audio, it get somewhat simpler, but that means you wouldn't be able to support tunes using those expansions..  With expansions on, it seems like the largest contiguous region of memory available is about 2KiB, and it would take a lot of work to decode it properly.<br /><br />Where does player data go?  I get to have a few things on the stack, but that's it; the rest of $0000:$07ff and $6000:$7fff is reserved for the tune.  The player doesn't even get 2 bytes of zero page space to put a tmp pointer into?  What?  As above, it seems like the only option is to put about 2KiB or so of ram awkwardly sandwiched into $4080:$5bff somewhere, being careful to stay clear of the IO ports.<br /><br />How am I supposed to make standards-compliant RAM access?  Tunes are not supposed to read or write in $0800:$1fff, and that's space is not supposed to contain a mirror of $0000:$07ff.  There's no way to enforce that; the cart doesn't control any of that.  The best thing I can think of is watching for accesses to $0800:$1fff and then crashing the whole operation when one occurs.  For that matter, why is this rule in place?  Are there really famiclones out there that don't mirror the main RAM in this way?<br /><br />How does banking with interrupt vectors work?  $fffa:$ffff is reserved for the player, so I get to put interrupt vectors there.  But that's also part of $e000:$ffff, which needs to be swappable on demand in response to the IO port at $5fff.  That means that those 6 bytes need to be separately decoded and passed to part of some other RAM or ROM bank?  That's a lot of silicon.<br /><br />Why 4KiB PRG banking?  Amongst the other stumbling blocks, this one isn't bad at all; I just don't understand what possible motivation there was for it.  If you're writing tunes from scratch, you can easily make do with 8KiB banking only; you have a massive amount of space and banks to work with even with that.  If you're extracting tunes from existing NES games, not one single mapper ever in the history of mankind that I'm aware of ever provided finer PRG banking than 8KiB.  (And if there is some obscure oddball pirate original that does, that couldn't have possibly been what anyone was thinking of when they designed this spec.)  So the ported tunes don't need 4KiB banking.<br /><br />What am I supposed to do with a play routine that doesn't return?  My thought would be that the simple user interface of the player could be handled entirely in NMI, and the play scheduling would be handled in IRQ (the board would have some custom M2 counter with reload that could be used to handle the fine grained timing that tunes require).  The main thread would simply do this:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">1. Check and see if the NMI routine set a new song to play.&nbsp; If so, call init with the new song number.<br />2. Check and see if the IRQ routine set a memory flag indicating that an IRQ has occured.&nbsp; If so, call the play routine.<br />3. Goto 1<br /></div><br /><br />But that would have the possibility of NMI and IRQ occurring while the tune is in its play function, which isn't allowed, because it would have the player using stack space that's expressly reserved for the tune.  The player only has $01f0:$01ff as its reserved stack space; the rest is for the tune.  If i get an NMI or IRQ inside play, S would presumably be in the reserved range, and so the CPU writing the NMI/IRQ return vector would already be a disallowed function.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Sun Mar 02, 2014 11:53 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: NSF Questions</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">natt wrote:</div><div class="quotecontent">How am I supposed to make standards-compliant RAM access?  Tunes are not supposed to read or write in $0800:$1fff, and that's space is not supposed to contain a mirror of $0000:$07ff.  There's no way to enforce that; the cart doesn't control any of that.  The best thing I can think of is watching for accesses to $0800:$1fff and then crashing the whole operation when one occurs.  For that matter, why is this rule in place?  Are there really famiclones out there that don't mirror the main RAM in this way?<br /></div>That one's easy. NSFs that access outside of that range aren't compliant with the standard, and so are invalid NSFs. You don't need to support them.<br />Writing to mirrors of RAM is forbidden for the same reason that using any part of the PPU is forbidden.<br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">How does banking with interrupt vectors work?  $fffa:$ffff is reserved for the player, so I get to put interrupt vectors there.  But that's also part of $e000:$ffff, which needs to be swappable on demand in response to the IO port at $5fff.  That means that those 6 bytes need to be separately decoded and passed to part of some other RAM or ROM bank?  That's a lot of silicon.<br /></div>Detecting (and so switching to ROM vectors) six bytes really isn't that bad. It's a 74133 and a 7432.<br /><br />As far as I can tell, the original implementation of the NSF format was kevtris's <a href="http://kevtris.org/Projects/hardnes/" class="postlink">hardNES</a>, and many of the oddnesses come from a certain level of &quot;dude, I have all these resources in this FPGA, why don't I use them?&quot;.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>zzo38</b> [ Sun Mar 02, 2014 12:15 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: NSF Questions</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">natt wrote:</div><div class="quotecontent">Where does player code go?  Looking at the memory map, it seems like all I have to work with is $4080:$5bff, but with that being peppered by IO ports here and there to complicate things.</div>It is OK to map ROM over write-only registers, and this ROM does not have to be contiguous either. In addition, any registers the player uses internally can be mapped in the same area, if they are write-only.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Where does player data go?  I get to have a few things on the stack, but that's it; the rest of $0000:$07ff and $6000:$7fff is reserved for the tune.  The player doesn't even get 2 bytes of zero page space to put a tmp pointer into?  What?  As above, it seems like the only option is to put about 2KiB or so of ram awkwardly sandwiched into $4080:$5bff somewhere, being careful to stay clear of the IO ports.</div>That shouldn't be necessary. While the song is not playing, you can use any of the RAM for your own use. While it is playing, only the registers and the small part of the stack can be used; remember also that self modifying codes are possible.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">How am I supposed to make standards-compliant RAM access?  Tunes are not supposed to read or write in $0800:$1fff, and that's space is not supposed to contain a mirror of $0000:$07ff.  There's no way to enforce that; the cart doesn't control any of that.  The best thing I can think of is watching for accesses to $0800:$1fff and then crashing the whole operation when one occurs.  For that matter, why is this rule in place?  Are there really famiclones out there that don't mirror the main RAM in this way?</div>The rule is probably for implementations that aren't on a Famicom cartridge. What is in $0800:$1FFF and what happens when you read/write it is undefined behavior; it doesn't matter what the player does with it (including demons in your nose), so making it mirror $0000:$07FF is OK, and so is mirroring $5000:$5FFF at $1000:$1FFF since it will never be accessed anyways.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">How does banking with interrupt vectors work?  $fffa:$ffff is reserved for the player, so I get to put interrupt vectors there.  But that's also part of $e000:$ffff, which needs to be swappable on demand in response to the IO port at $5fff.  That means that those 6 bytes need to be separately decoded and passed to part of some other RAM or ROM bank?  That's a lot of silicon.</div>Yes, you need to do that, unfortunately. However you don't necessarily need all of $FFFA:$FFFF, depending on how the player is implemented. Switching in an entire bank and only when it needs to interrupt, may interfere with DPCM.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">What am I supposed to do with a play routine that doesn't return?  My thought would be that the simple user interface of the player could be handled entirely in NMI, and the play scheduling would be handled in IRQ (the board would have some custom M2 counter with reload that could be used to handle the fine grained timing that tunes require).</div>Some players seem to not implement the timing in the header. However, yes you could use a custom M2 counter, and just turn off NMI during playing. A play/init routine that doesn't return should not be interrupted. The stop function could either require you to push RESET, or make it a switch on the cartridge itself, or connect to the Famicom expansion port (which provides IRQ signal; one of the other signals will be used too so that the program can check that you used this). Unlike the Commodore 64, the Famicom does not have a key to generate an interrupt signal.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Sun Mar 02, 2014 2:38 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: NSF Questions</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />If you're looking for an example implementation of an NSF player, Loopy has put the source for the PowerPak's NSF player on his site:<br /><a href="http://home.comcast.net/~olimar/NES/" class="postlink">http://home.comcast.net/~olimar/NES/</a><br /><br />1. The top of the stack is a convenient place to put a small amount of player data, e.g. you can use $01F0-01FF if you just lower the startup position of the stack by 16 bytes.<br /><br />2. The NSF mapper design is based on being able to support rips from all existing NES games, as such it was supposed to be a superset of all of them. I'm not entirely certain why 4k banking is used (I can think of many mappers that bank 4k CHR, but I don't recall any that do 4k PRG), but you are certainly going to need it to support a lot of existing NSFs, whether they are rips or new music.<br /><br />3. The 6 byte vector table is problematic for some players. The TNS-HFC cartridge, for example, overwrites the top 6 bytes of the bank that starts up in $FXXX and doesn't support switching of that bank. There are plenty of NSFs that do need to swap that bank, however, especially recent Famitracker NSFs that bankswitch DPCM (this behaviour will be changed in the next release of Famitracker, though, since the TNS-HFC's limitation has become known).<br /><br />4. The CopyNES maps in player code at $2000, if I recall, but this requires a hardware modification. Loopy's NSF player (see link above) maps player code at $4000.<br /><br />5. The reason NSFs are forbidden to write to mirror regions like $0800-1FFF is to make hardware player design easier. If you know that NSFs are going to avoid doing certain things, it can simplify your implementation of a player. You don't have to make RAM access that only works at $0000-$07FF, you just need to make it work at that range, and whether or not it mirrors is up to you. You could even put more RAM and/or your player code in the unused regions if your hardware design permits!<br /><br />6. A non returning PLAY routine is a problem for most hardware players. The PowerPak's UI becomes unresponsive when playing such a tune, for example. PCM playing NSFs produced by SuperNSF or Deflemask are commonly found that do this. You can try to run your player UI with an IRQ, but this will very likely produce an audible regular interruption in the sound playback.<br /><br />7. The one thing I'm surprised you didn't ask about is the playback speed. I'm not sure why this went into the NSF spec; to date I have only found one NSF rip that used a nonstandard speed, and it ran at 30hz (could easily have put divider stub code in the rip for this instead of accomidating with this specification). Recently some people have enjoyed experimenting with playback rates well above 60hz for various effects, but it is something that is poorly supported in hardware players. The TNS-HFC, for example, uses the NMI for its playback rate, so this part of the spec is ignored (&quot;overclocked&quot; NSFs will play too slow). The PowerPak's NSF mapper implements a pollable timer for this. You could also implement this as an IRQ based timer, since NSFs are forbidden to mess with IRQs. I personally favour PowerPak's solution, since it also permits an interesting workaround exploited by Deflemask for its PCM playback.<br /><br />It's also kinda funny that when Disch implemented the NSFe format, he removed the playback speed from the specification. His reasoning for doing this was that every existing rip was specifying 60Hz rather than the NES' 60.1Hz, so removing it from the spec allowed the player to control the speed and thus use the &quot;true&quot; playback rate instead. For practical purposes, this doesn't matter much; the tempo difference is insignificant to the listener, it really only comes up when trying to synchronize things, in which case there is often just as much reason to use 60Hz as 60.1Hz, depending on your purposes.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>natt</b> [ Mon Mar 03, 2014 11:32 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: NSF Questions</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Thanks for all the responses; I'm getting a better idea of what I can and can't do now.<br /><br />It seems like any sort of updating user interface, even of the simplest sort, would be very difficult to make work?  Assuming it needs to write a few bytes of nametable space, then that update has to happen in vblank.  But even for play functions that return, play could return at any time and is being called against an M2 counter which is not at all synchronized with vblank.<br /><br />So when the play function returns to your code, you have to figure out that you are:<br /><br />1) in vblank (or able to wait for vblank without violating #3)<br />2) have enough time left in vblank to pull off whatever update you need to do<br />3) have enough time left before play is next scheduled to happen to pull off whatever update you need to do<br /><br />Number #2 requires you to have some sort of ppu synchronized timer that detects end of frame and then counts cpu cycles into vblank.  You can't use NMI to trigger starting a second cycle counter because that could cause an NMI to occur during the play routine, which is not allowed.  You can't wait for the beginning of vblank because that might cause you to miss your next play routine.<br /><br />Even if perfectly implemented, I could see your user interface being very unresponsive in many tunes; imagine a tune that specifies 60hz (not 60.1hz) updates.  Then then tune will slowly oscillate timing relative to vblank, such that there are long stretches of time where every call of the play routine blocks out vblank and you can't get any UI updates in at all.<br /><br />And then there are all of the tunes that don't ever return from play and none of this will work on.  &quot;Press the restart button on your NES deck to change tunes&quot; seems like the best solution.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Mon Mar 03, 2014 2:29 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: NSF Questions</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />What the PowerPak does is update the screen to show the title and track when the track is selected. Other than that there is no need to update graphics, so NMI does not have to be used. It just polls the controller and responds to it and spins in a loop polling the timer for when to call PLAY. This works pretty well, it just means a non-returning PLAY prevents any further input (have to reset to recover control).<br /><br />If you wanted to do a GUI thing, e.g. update a time display, you can use the NMI. The only thing about using the NMI, though, is a non-returning PLAY situation is even worse than before, because now will be interrupting a little chunk out at 60hz, creating a buzz through any constantly playing PCM sound. You could respond to user input via the NMI here let the user continue despite the non-returning PLAY, but it comes at the expense of poorer sound quality.<br /><br />If you want optimal sound quality on a NES based NSF player, there's really no way to respond to input or update graphics if PLAY doesn't return.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

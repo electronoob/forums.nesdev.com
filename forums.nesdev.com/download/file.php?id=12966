@@ -1,0 +1,642 @@
+Game Doctor Theory of Operation, by NewRisingSun(2018-06-16)
+============================================================
+
+1. The booting process
+----------------------
+1.1. Power-up state
+-------------------
+The copier sits between the Famicom Disk System's RAM Adapter and the console.
+At power-up, the copier remains asleep, and the FDS BIOS (residing at $E000-
+$FFFF) reads data blocks from any inserted diskette into its 32 KiB of PRG-RAM
+at CPU $6000-$DFFF and 8 KiB of CHR-RAM at PPU $0000-$1FFF.
+
+A copier-targeted diskette will soon present a block that wants to be loaded to
+CPU address $4FFF. As soon as the FDS BIOS stores the first byte of that block
+to that address, the copier wakes up and switches in its replacement BIOS at
+$E000-$FFFF. Because the "STA ($0A),Y" instruction which stores any bytes read
+from disk into CPU address space is at offset $E53A in Nintendo's original FDS
+BIOS, the entry point into the copier's replacement BIOS will be $E53C. The byte
+that caused this will be the first byte of an eight-byte Copier Info Block
+(Table 1), named Info Flags herein.
+
+  Table 1: Copier Info Block
+  $0    Info Flags
+        7654 3210
+        ---------
+        ITL. ....
+        ||+------- Custom Loader present
+        ||          0: No custom loader, load using copier BIOS
+        ||          1: Custom loader, JMP $0403 after encountering Copier
+        ||             Info Block and JSR $0406 before starting game
+        |+-------- Trainer present
+        |           0: No trainer at all, or not with init routine at $7003
+        |           1: Standard-format trainer at $7000 with RTS-returning
+        |              init routine at $7003 present
+        +--------- Ignore metadata
+                    0: Faithfully interpret file metadata
+                    1: Ignore file metadata, follow idiosyncratic rules
+                    
+  $1    Initial banking mode and mirroring
+        7654 3210
+        ---------
+        BBBM ....
+        |||+------ Select initial nametable mirroring type
+        |||         0: Vertical
+        |||         1: Horizontal
+        +++------- Select initial banking mode
+                    0: UNROM
+                    1: Custom
+                    2: UOROM
+                    3: Reverse UOROM
+                    4: GNROM
+                    5: CNROM-256
+                    6: CNROM-128 (old)/Namco 108 (new)
+                    7: NROM-128 (old)/Unknown (new)
+        The initial nametable mirroring type cannot be one-screen mirroring,
+        because this byte is always written to $42FF.
+        
+  $2[5] Game Catalogue Number (can be ASCII or tile numbers)
+  
+  $7    Side count, meaning number of disks minus one. If metadata are ignored
+        (Info flags bit 7 set) *and* the value stored here is zero, a default
+        value dependent on the initial banking mode is used.
+        Mode            Side count
+        ----            ----------
+        0 (UNROM)       1
+        1 (Custom)      3
+        2 (UOROM)       3
+        3 (Rev. UOROM)  3
+        4 (GNROM)       2
+        5 (CNROM-256)   0
+        6 (CNROM-128)   0
+        7 (NROM-256)    0
+  ------
+  $8 bytes
+
+1.2. Loading
+------------
+1.2.1 Custom Loader
+-------------------
+If a custom loader is present (Info Flags bit 5 set), control will transfer to
+it by JMPing to $0403. This custom loader must have been loaded by the FDS BIOS
+as a normal file before the Copier Info Block is encountered. With Info Flags
+bit 5 clear, the copier's own BIOS then proceeds to read the remaining data
+blocks of the current and all subsequent disk sides. The data on the disk is
+still in the same basic format as a normal licensed Nintendo disk, meaning each
+side starts with block types 1 and 2, following by alternating block types 3
+and 4. The meanings of some of the fields in the file header (block type 3)
+differ a bit though.
+
+1.2.2 BIOS Loader, metadata-interpreting variant
+------------------------------------------------
+If Info Flags bit 7 is clear, the file count (block type 2) must correctly
+indicate the actual number of files on each side, and the file header fields
+must be filled correctly:
+
+Table 2: File header when metadata is not ignored (Info Flags bit 7 clear)
+$0      Must be $03, indicating a file header block.
+$1      File number. Ignored by BIOS, and usually not filled correctly.
+$2      File indicate code. Ignored by BIOS, and usually not filled correctly.
+$3[8]   File name. Ignored by BIOS, usually just contains "CARDGAME".
+$B[w]   File address. CHR-RAM data usually has bit 15 set, but BIOS does
+        not care either way.
+$D[w]   File size. CHR-RAM data can come as a single 32 KiB block and
+        must be read in 8 KiB portions, with bank register updates in-between.
+$F      File type and high address bits.
+        CPU data:
+        7654 3210
+        ---------
+        BBBB BBB0
+        |||| |||+- Indicate CPU data block
+        ++++-+++-- Select 32 KiB PRG-RAM bank
+        
+        PPU data:
+        7654 3210
+        ---------
+        BBBB BBB1
+        |||| |||+- Indicate PPU data block
+        ++++-+++-- Select 8 KiB CHR-RAM bank
+--------
+$10 bytes
+
+It is not unusual that CPU data is only stored as 16 KiB blocks, so the file
+address field must definitely be interpreted.
+
+1.2.3 BIOS Loader, metadata-ignoring variant
+--------------------------------------------
+If Info Flags bit 7 is set, almost all fields of the file header are ignored and
+substituted with quite idiosyncratic default values. In particular, the file size
+field in the file header often is filled with nonsensical values, which serves as
+a kind of copy-protection, because copy utilities unaware of it will parse the
+disk incorrectly.
+
+The only file header information that is used is block type 3, and bit 0 of the
+file type (offset $E), indicating whether the file is to be loaded into CPU or
+PPU address space. For all the other fields, the following values are used:
+
+File type "CPU data":
+- File size is always 32768 bytes, regardless of what the file header says.
+- File address is always $8000.
+- The 32 KiB bank depends on the initial banking mode:
+  
+  a) Initial banking modes 5-7: 3,0,1,2.
+  b) Otherwise: 0,1,2,3...
+  
+  This order means that CNROM and NROM games will have their PRG data at the
+  *end* of the first 128 KiB bank. Some 64 or 128 KiB games will indicate an
+  initial banking mode of 5 but switch to a different banking mode at run-time,
+  yet still expect the banks to have been correctly loaded in the 3,0,1,2 bank
+  order, so it is not safe to just trim away the first 96 KiB!
+  
+  The Venus Turbo Game Doctor BIOS can only load up to four disk sides in the
+  metadata-ignoring variant.
+
+File type "PPU data":
+- File size is always 32768 if the specified side count was non-zero. Otherwise
+  it will depend on the initial banking mode:
+
+  Table 3: Assumed PPU data block sizes when metadata ignored and specified side
+           count was zero
+        Initial         PPU data
+        banking mode    block size
+        ------------    ----------
+        0 (UNROM)       0 (CHR-RAM is only filled at run-time) 
+        1 (Custom)      0 (CHR-RAM is only filled at run-time)
+        2 (UOROM)       0 (CHR-RAM is only filled at run-time)
+        3 (Rev. UOROM)  0 (CHR-RAM is only filled at run-time)
+        4 (GNROM)       32768
+        5 (CNROM-256)   32768
+        6 (CNROM-128)   16384
+        7 (NROM-256)    8192
+
+- File address will always be $8000 (meaning $0000).
+- As with the CPU 32 KiB bank, the PPU 8 KiB bank depends on initial banking
+  mode:
+
+  a) Initial banking modes 5-7: 3,0,1,2.
+  b) Otherwise: 0,1,2,3...
+  
+The only other datum that the metadata-ignoring BIOS loader needs is the file
+count in the disk header. It is faithfully applied, with one exception: if Info
+Flags bit 6 is set, it will expect a block type 5 after all files of the first
+side have been read *and* the disk side count has not been specified. This block
+is not included in the disk header's file count and so can be considered hidden
+from unaware disk copy utilities.
+
+  Table 4: Trainer data block
+  $0    Must be $05, indicating a trainer data block.
+  $1    512-byte trainer loaded to CPU $7000.
+
+Note that a game may well include a trainer, loaded to $7000 or someplace else,
+at the beginning of the first disk before the copier info block has been
+encountered. This trainer will not be invoked before game execution starts,
+though.
+
+1.3. Initialization
+-------------------
+1.3.1 Venus Game Saver data at $6000; switching from transfer to execution mode
+-------------------------------------------------------------------------------
+Once all sides have been read, BIOS checks for the presence of a game-specific
+signature at $6000 that would have been placed there by the Venus Game Saver:
+If the five bytes at $6007..$600B match the Game Catalogue Number (bytes $2..6
+of the Copier Info Block) and the byte $600C matches #0 XORed with every one of
+these five bytes, a JSR to $6000 is performed. Otherwise, BIOS puts those values
+there, so that the game state may be saved using the Venus Game Saver. (I don't
+quite know how the Venus Game Saver works *exactly*).
+
+Next, BIOS copies what little code it still needs to CPU $0700, so it can switch
+to cartridge mode, disabling the BIOS at CPU $E000-$FFFF, by writing to $42FF.
+
+1.3.2 Initial banking mode; "old" versus "new" banking modes 6 and 7
+--------------------------------------------------------------------
+Because either Bung or Venus at some point redefined the old CNROM-128/NROM-256
+modes to something Namco-108-ish, the Venus Turbo Game Doctor BIOS uses a
+heuristic to tell if a game wants the old or new modes 6/7 at startup: if the
+specified disk count was zero, it assumes old modes and sets mode 5 (CNROM-256)
+instead, duplicating CHR-RAM banks as necessary; if the specified disk count was
+nonzero, the mode gets set exactly as specified.
+
+This heuristic will fail if a game starts with an initial mode other than 6/7
+but switches to it later on. No actual CNROM-128/NROM-256 games do such a
+thing, but releases from Far FrontEast (or somebody close to them) do: set
+modes 6/7 at run-time, verify the "old" behavior, and freeze or even overwrite
+the disk if the verification fails. Venus would later return the favor by having
+their releases verify "new" mode 6 behavior or by checking BIOS strings or other
+idiosyncratic behavior, such as reading register $4420.
+
+1.3.3 Initialization routines
+-----------------------------
+Lastly, BIOS transfers control to a part of the game code:
+- If Info Flags bit 6 is set, JSR $7003 is performed.
+- If Info Flags bits 6 and 7 are clear but bit 5 is set, indicating a custom
+  loader, a JSR $0406 is performed.
+- Finally, a JMP ($FFFC) is performed.
+
+2. Banking Modes
+----------------
+2.1 2M Banking Modes (Bung Game Doctors and descendants)
+----------------------------------------------------------------
+The 2M (256 KiB PRG) banking modes all operate on a simple data latch that
+responds in the CPU $8000-$FFFF range. The banking mode is initially set by the
+BIOS based on the Copier Info Block, and at run-time by the game writing to
+$42FE/$42FF.
+
+Changing the banking mode causes the existing latch value to be reapplied with
+the new mode-specific interpretation of the latch's bits, as are any subsequent
+writes to the latch. If the banking mode is changed from a mode that allows the
+current 8 KiB CHR-RAM bank to be selected to a mode with no CHR bank selection,
+the current bank just remains in place. BIOS initializes the latch and initial
+CHR bank to #$00.
+
+Note that setting latch bit 7 has no effect, so no banks beyond 256 KiB can be
+directly selected (hence 2M "megabit" modes), and all 512 KiB games are either
+required to use the 4M PRG banking mode, or set $4411 bit 5 on later Game
+Doctor models, which will force the entire $8000-$FFFF to the second 256 KiB.
+
+The latch is disabled when write-enabling PRG-RAM by writing to $42FC, so
+writing to CPU $8000-$FFFF either changes PRG-RAM content or the latch, but
+never both.
+
+Mode 0: UNROM
+        CPU $8000-$BFFF: 16 KiB bank selected by latch D0..D2
+        CPU $C000-$FFFF: 16 KiB bank fixed to #7
+        PPU $0000-$1FFF: Unchanged
+        
+Mode 1: Custom
+        CPU $8000-$BFFF: 16 KiB bank selected by latch D2..D6
+        CPU $C000-$FFFF: 16 KiB bank fixed to #7
+        PPU $0000-$1FFF: 8 KiB bank selected by latch D0..D1
+
+Mode 2: UOROM
+        CPU $8000-$BFFF: 16 KiB bank selected by latch D0..D3
+        CPU $C000-$FFFF: 16 KiB bank fixed to #15
+        PPU $0000-$1FFF: Unchanged
+
+Mode 3: Reverse UOROM
+        CPU $8000-$BFFF: 16 KiB bank fixed to #15
+        PPU $0000-$1FFF: Unchanged
+        CPU $C000-$FFFF: 16 KiB bank selected by latch D0..D3
+
+Mode 4: GNROM
+        CPU $8000-$FFFF: 32 KiB bank selected by latch D4..D6
+        PPU $0000-$1FFF: 8 KiB bank selected by latch D0..D1
+        PPU $0000-$1FFF: Unchanged
+
+Mode 5: CNROM-256
+        CPU $8000-$FFFF: 32 KiB bank fixed to #7
+        PPU $0000-$1FFF: 8 KiB bank selected by latch D0..D1
+
+Mode 6: CNROM-128 (excluding Venus Turbo Game Doctor)
+        CPU $8000-$FFFF: 32 KiB bank fixed to #3
+        PPU $0000-$1FFF: 8 KiB bank selected by latch D0
+        
+Mode 7: NROM-256 (excluding Venus Turbo Game Doctor)
+        CPU $8000-$FFFF: 32 KiB bank fixed to #3
+        PPU $0000-$1FFF: Unchanged
+
+Notes:
+- On the Bung and Venus Game Doctors, CHR-RAM is write-protected simply while
+  2M Modes 4-7 are selected, even if 4M Modeis active. A few games use this for
+  effect. On the Magicards, CHR-RAM becomes protected as soon as 2M Modes 4-7
+  are selected, becomes write-enabled as soon as 2M Mode 1 is active, and only
+  when the latch is written to while 2M Modes 0, 2 or 3 are active. F4040
+  (Karnov) goes out of its way to check for this particular idiosyncracy, and
+  will display copy incorrect graphics data into CHR-RAM if the check fails.
+- On the Bung Super Game Doctor 4M and descendants, $43FE/$43FF bits 0 and 1
+  provide direct access to the 8 KiB CHR bank number independent of the selected
+  2M Mode.
+- On the Venus Turbo Game Doctor, $4400-$4407 bits 5-7 still apply, providing a
+  kind of "outer 32 KiB bank number", even as $4400-$4407 bits 0-4 do not, with
+  bits 3-4 being replaced with the two respective latch/$43FE bits, and bits 0-2
+  just being PA10-PA12 from the cartridge connector. This is used by the Venus
+  Turbo Game Doctor BIOS in transfer mode.
+- As mentioned before, the CNROM and NROM modes require their 32 KiB bank to be
+  loaded at the end of the first 128 KiB bank.
+- Even as an image may initially only come with 128 KiB, it can always happen
+  that it switches to another mode and starts using PRG-RAM above that. For
+  example, F3008 (Xevious) is loaded in Mode 4 (GNROM) with 128 KiB PRG-ROM and
+  32 KiB CHR-ROM. Because the game originally used the Namco 108 chip, which
+  provided finer CHR banking than GNROM's 8 KiB, the game uses 4M PRG mode (2.3)
+  and updates CHR-RAM selectively as needed. To do that, it first must copy the
+  CHR-ROM data into PRG-RAM above 128 KiB.  
+
+2.2 Redefined 2M modes 6 and 7 (Venus Turbo Game Doctor)
+--------------------------------------------------------
+These exist on the Venus Turbo Game Doctors and possibly on the Super Game
+Doctor/4M, but not on Magicards from Front FarEast.
+
+Mode 6: Pseudo Namco 108
+(new)   CPU $8000-$9FFF: 8 KiB bank selected by latch D0..D3
+        CPU $A000-$BFFF: 8 KiB bank selected by latch D4..D7
+        CPU $C000-$FFFF: 16 KiB bank fixed to #7
+        PPU $0000-$1FFF: Unchanged
+Mode 7: ?
+(new)   No game has been yet encountered that uses this mode, so nothing is
+        known about it. But because some releases from Front FarEast verify the
+        old mode's behavior, there must be a new mode 7 as well.
+
+2.3 4M PRG Banking Mode (Bung Super Game Doctor 4M and descendants)
+-------------------------------------------------------------------
+This mode cannot be active at start-up, as there is no Copier Info Block field
+for it, and so can only be activated at run time. It is enabled by writing to
+$43FE and disabled by writing to $43FF, or alternatively on the Venus Turbo
+Game Doctor, by setting bit 7 of register $4411. Registers $42FE/$42FF still
+apply, but only in terms of nametable mirroring and mode-specific CHR-RAM
+write-protection.
+        CPU $8000-$9FFF: 8 KiB bank selected by writing to $8000-$9FFF D2..D7
+        CPU $A000-$BFFF: 8 KiB bank selected by writing to $A000-$BFFF D2..D7
+        CPU $C000-$DFFF: 8 KiB bank selected by writing to $C000-$DFFF D2..D7
+        CPU $E000-$FFFF: 8 KiB bank selected by writing to $E000-$FFFF D2..D7
+        PPU $0000-$1FFF: 8 KiB bank selected by writing to $8000-$FFFF D0..D1
+Note that the registers for the four 8 KiB PRG banks accept and retain a value
+even when 4M PRG Mode is not active. This means that first writing bank numbers
+to $8000/$A000/$C000/$E000 and *then* enabling 4M mode by writing to $43FE is
+possible and actually quite common. Also note that D0..D1 will select an 8 KiB
+CHR-RAM bank regardless of the mode set via $42FE/$42FF.
+
+2.4 4M CHR Banking Mode (Venus Turbo Game Doctor)
+-------------------------------------------------
+Enabled by setting bit 6 of register $4411. When active, the CHR-specific latch
+bits as well as $43FE/$43FF bits 0-1 have no effect, and all CHR bank numbers
+come from eight independent CHR banking registers.
+        PPU $0000-$03FF: 1 KiB bank selected by writing to $4400 D0..D7
+        PPU $0400-$07FF: 1 KiB bank selected by writing to $4401 D0..D7
+        PPU $0800-$0BFF: 1 KiB bank selected by writing to $4402 D0..D7
+        PPU $0C00-$0FFF: 1 KiB bank selected by writing to $4403 D0..D7
+        PPU $1000-$13FF: 1 KiB bank selected by writing to $4404 D0..D7
+        PPU $1400-$17FF: 1 KiB bank selected by writing to $4405 D0..D7
+        PPU $1800-$1BFF: 1 KiB bank selected by writing to $4406 D0..D7
+        PPU $1C00-$1FFF: 1 KiB bank selected by writing to $4407 D0..D7
+
+2.5 4M PRG Banking Mode (Magicard)
+----------------------------------
+Basically FFE's counterpart to 2.3. Enabled by writing to $43FC and
+disabled by writing to $43FD. Note that the Magicards also support the
+Super Game Doctor 4M's 4M PRG Banking mode (2.3). The only difference
+between the two is that the $4504-$4507 registers leave the CHR bank
+alone.
+        CPU $8000-$9FFF: 8 KiB bank selected by writing to $4504 D0..D5
+        CPU $A000-$BFFF: 8 KiB bank selected by writing to $4505 D0..D5
+        CPU $C000-$DFFF: 8 KiB bank selected by writing to $4506 D0..D5
+        CPU $E000-$FFFF: 8 KiB bank selected by writing to $4507 D0..D5
+        
+2.6 4M CHR Banking Mode (Magicard)
+----------------------------------
+Basically FFE's counterpart to 2.4. Enabled by writing $47 to $4500
+(it's not clear which bit triggers this mode; it must be either D0 or D2).
+        PPU $0000-$03FF: 1 KiB bank selected by writing to $4510 D0..D7
+        PPU $0400-$07FF: 1 KiB bank selected by writing to $4511 D0..D7
+        PPU $0800-$0BFF: 1 KiB bank selected by writing to $4512 D0..D7
+        PPU $0C00-$0FFF: 1 KiB bank selected by writing to $4513 D0..D7
+        PPU $1000-$13FF: 1 KiB bank selected by writing to $4514 D0..D7
+        PPU $1400-$17FF: 1 KiB bank selected by writing to $4515 D0..D7
+        PPU $1800-$1BFF: 1 KiB bank selected by writing to $4516 D0..D7
+        PPU $1C00-$1FFF: 1 KiB bank selected by writing to $4517 D0..D7
+
+2.7 Unknown modes
+-----------------
+A few ROM images exist that write to 42FF/43FF registers in their trainer,
+but otherwise write to Nintendo MMC1, MMC3 or Jaleco SS8806-ish registers. It's
+not known which copier model can directly simulate these ASICs or how such
+behavior would be activated.
+
+3. Hardware registers
+---------------------
+3.1. Game Doctor and descendants
+--------------------------------
+$42FE   Select 2M banking mode and one-screen mirroring
+        7654 3210
+        ---------
+        BBBM ....
+        |||+------ Select nametable for one-screen mirroring (0/1)
+        +++------- Select banking mode
+                    0: UNROM
+                    1: Custom
+                    2: UOROM
+                    3: Reverse UOROM
+                    4: GNROM
+                    5: CNROM-256
+                    6: CNROM-128 (old)/Namco 108 (new)
+                    7: NROM-128 (old)/Unknown (new)
+
+$42FF   Select 2M banking mode and two-screen mirroring
+        7654 3210
+        ---------
+        BBBM ....
+        |||+------ Select nametable mirroring type
+        |||         0: Vertical
+        |||         1: Horizontal
+        +++------- Select banking mode
+                    0: UNROM
+                    1: Custom
+                    2: UOROM
+                    3: Reverse UOROM
+                    4: GNROM
+                    5: CNROM-256
+                    6: CNROM-128 (old)/Namco 108 (new)
+                    7: NROM-128 (old)/Unknown (new)
+
+3.2 Super Game Doctor and descendants
+-------------------------------------
+$4100   CPU Cycle Counter Low Byte
+        Writing $00 twice seem to acknowledge pending IRQs and disable counting.
+$4101   CPU Cycle Counter High Byte
+        If bit 15 is set, the counter increases on every M2 cycle. When it
+        flips to zero, an IRQ is generated.
+        
+        If bit 15 is clear but the counter value is nonzero, a different kind
+        of counter is active. It's not known what exactly clocks it; counting
+        down on every 72th rise of PA13 seems to roughly work with the only
+        known game that uses this method: the Bung release of Super Mario
+        Brothers 3. That game only writes to $4100, not to $4101.
+
+3.3 Super Game Doctor 4M and descendants
+----------------------------------------
+$43FE/  Extended bank register (write only)
+$43FF   D~7654 3210     A~FEDC BA98 7654 3210
+          ---------       -------------------
+          ..||.|.||       0100 0011 1111 111|
+            || | ||                         +- Select 4M Mode
+            || | ||                             0: Enabled
+            || | ||                             1: Disabled
+            || | ++- CHR-RAM A13/A14 (8 KiB bank)
+            || +---- Select PRG-RAM A17 (128 KiB bank)
+            ++------ Select PRG-RAM A15/A16 (32/64 KiB bank)
+        Power-on value: $80
+        Note that 32 KiB/64 KiB/128 KiB CHR banks are set via $4400-$4407.
+
+3.4 Venus-specific Turbo Game Doctor registers
+----------------------------------------------
+$4400   Select 1 KiB CHR bank at PPU $0000-$03FF
+$4401   Select 1 KiB CHR bank at PPU $0400-$07FF
+$4402   Select 1 KiB CHR bank at PPU $0800-$0BFF
+$4403   Select 1 KiB CHR bank at PPU $0C00-$0FFF
+$4404   Select 1 KiB CHR bank at PPU $1000-$13FF
+$4405   Select 1 KiB CHR bank at PPU $1400-$17FF
+$4406   Select 1 KiB CHR bank at PPU $1800-$1BFF
+$4407   Select 1 KiB CHR bank at PPU $1C00-$1FFF
+        Bits 5-7 always apply; bits 0-4 only when $4411 bit 6 is set.
+        The default value of all registers is $E0, so that pattern data
+        for loading screens in transfer mode stay untouched until the last
+        disk side has been read, after which they are no longer necessary.
+
+$440C   Set CPU Cycle Counter Target MSB, and acknowledge pending IRQ.
+$440D   Set CPU Cycle Counter Target LSB
+        When the target's bit 15 is set, the counter increases on every M2 cycle
+        until it reaches the target value, upon which an IRQ is generated.
+
+        Clearing bit 15 resets the counter to zero, and causes the next
+        writes to update the target register immediately. If a new target is
+        written without first clearing bit 15, the target is only updated
+        on the next scanline end, and the counter reset only if it exceeds
+        the new target. [NRS: Seems kind of cranky? At least that's what K148
+        Abarenbou Tengu's title screen needs. Need to check K148 and R006 on
+        real hardware.]
+
+$4410   Operation Mode/Switch Register (read/write)
+        D~7654 3210
+          ---------
+          .S.. IIBM
+           |   |||+- Memory Map
+           |   |||    0: Disk Mode: PRG from $8000-$DFFF/$6000-$7FFF, BIOS
+           |   |||    1: Cartridge mode: PRG from $8000-$FFFF, no BIOS
+           |   ||+-- BIOS select
+           |   ||     0: FDS BIOS
+           |   ||     1: Copier BIOS
+           |   |+--- BTIN0
+           |   +---- BTIN1
+           +-------- SAVESW. Related to the Venus Game Saver.
+           
+        Notes:
+        1. CPU $4800-$4FFF is a mirror of the copier BIOS' $E800-$EFFF unless
+           $4411 bit 3 is set.
+        2. The initial read from $FFFC/$FFFD after a reset is always taken from 
+           the copier BIOS, regardless of bit 0/1's setting. The vector will
+           point into the $4800-$4FFF range.
+
+$4411   Extra bank register (read/write)
+        D~7654 3210
+          ---------
+          4CP. BWww
+          |||  ||++- Select 8 KiB WRAM bank number
+          |||  |+--- Select WRAM type
+          |||  |      0: 32 KiB from FDS RAM Adapter
+          |||  |      1: 32 KiB from Turbo Game Doctor/Venus Game Saver ("ARAM")
+          |||  +---- Select BIOS at CPU $4800-$4FFF
+          |||         0: Venus Turbo Game Doctor, mirror of $E800-$EFFF
+          |||         1: Venus Game Saver
+          ||+------- Select PRG-RAM A18 (256 KiB bank)
+          |+-------- CHR-RAM mode
+          |           0: Legacy: CHR-RAM A10-A12 from PA10-PA12,
+          |                      CHR-RAM A13-A14 selected via $43FF D0-D1,
+          |                      CHR-RAM A15-A17 selected via $4400-$4407 D5-D7
+          |           1: New: CHR-RAM A10-A17 selected via $4400-$4407 D0-D7
+          +--------- PRG-RAM mode
+                      0: 4M Mode disabled (same as writing to $43FF)
+                      1: 4M Mode enabled (same as writing to $43FE)
+        
+        Notes:
+        1. In Cartridge Mode:
+           CPU $6000-$7FFF: Selected WRAM bank and type.
+           In Disk Mode:
+           CPU $4000-$5FFF: Selected FDS RAM Adapter bank ($4xxx overriden)
+           CPU $6000-$7FFF: If bit 2 clear: last 8 KiB PRG-"ROM" bank ("DRAM").
+                            If bit 2 set: Selected "ARAM" bank.
+        2. Notes that when choosing the FDS RAM adapter as WRAM type, the bank
+           numbers correspond to the following address ranges of a normal FDS:
+           0    CPU $8000-$9FFF
+           1    CPU $A000-$BFFF
+           2    CPU $C000-$DFFF
+           3    CPU $6000-$7FFF
+           Therefore, to select the 8 KiB WRAM bank into which trainers were
+           loaded (CPU $6000-$7FFF) before encounting the Copier Info Block,
+           bank 3 must be selected.
+$4412   Scratch Register 1 (read/write)
+$4413   Scratch Register 2 (read/write)
+
+$4414   (read only) Returns $43FF &0xF3.
+$4415   (read only) Unknown; test mode needs it to return &0xF3 ==0x80.
+
+$4420   Returns content of the CHR register ($4400-$4407) AND $1BF that was last
+        addressed by the PPU. Used mostly by a few TGD releases to lock out
+        other copiers.
+        
+3.5 Front Fareast-specific Magicard registers
+---------------------------------------------
+$43FC   Enable FFE-specific 4M mode (PRG $4504-$4507, CHR $4510-$4517)
+$43FD   Disable FFE-specific 4M mode (also via $43FF)
+        Note that the *value* written to $43FC/$43FD will still be written
+        to the extended bank register ($43FE/$43FF), as it merely extends
+        that register using an additional address bit.
+        
+$4500   Mode register
+        D~7654 3210
+        -----------
+          OOWW IPPP
+          |||| |+++- CHR Mode [descriptions from Fan-Wen Yang]
+          |||| |      2: 4M Mode (?)
+          |||| |      5: 2M, VRAM EXT (?)
+          |||| |      7: 2M (?)
+          |||| +---- Select $4502/4503 IRQ counter source
+          ||||        0: M2
+          ||||        1: PPU A12 (unfiltered)
+          ||++------ WRAM mode/bank (?)
+          ++-------- Operation mode
+                      0: FDS Mode
+                      1: Cartridge Mode
+                      2: Transfer Mode
+                      3: ?
+                      
+$4501   Disable counting and acknowledge IRQ
+$4502   Set counter low byte
+$4503   Set counter high byte and start counting
+        The counter's clock source is set by $4500 bit 3.
+        If enabled, if the counter value is not $FFFF, it is increased,
+        otherwise an IRQ is generated and counting is disabled.
+
+        Fan-Wen Yang claims that the IRQ is generated when the counter reaches
+        $0000, and that the counter is then reloaded with the originally-written
+        value. This is contradicted by "Digital Devil Story - Megami Tensei II",
+        which unusually writes to $4503 before writing to $4502. This means that
+        counting begins before the low byte has been written, and if it starts
+        counting from $FFFF rather than $0000, the low byte will immediately
+        overflow and increase the high byte as well, causing the effective
+        period to be about 256 cycles shorter than written. DDS2 *depends* on
+        this to look correctly, and this result is impossible to achieve with
+        FWY's description.
+        
+$4504   Select 8 KiB bank at CPU $8000-$9FFF
+$4505   Select 8 KiB bank at CPU $A000-$BFFF
+$4506   Select 8 KiB bank at CPU $C000-$DFFF
+$4507   Select 8 KiB bank at CPU $E000-$FFFF
+$4510   Select 1 KiB bank at PPU $0000-$03FF
+$4511   Select 1 KiB bank at PPU $0400-$07FF
+$4512   Select 1 KiB bank at PPU $0800-$0BFF
+$4513   Select 1 KiB bank at PPU $0C00-$0FFF
+$4514   Select 1 KiB bank at PPU $1000-$13FF
+$4515   Select 1 KiB bank at PPU $1400-$17FF
+$4516   Select 1 KiB bank at PPU $1800-$1BFF
+$4517   Select 1 KiB bank at PPU $1C00-$1FFF
+
+3.6 FFE File Format
+-------------------
+$0[8]   Copier Info Block, differences to Table 1:
+  $0    Info Flags
+        7654 3210
+        ---------
+        ITSS ....
+        ||++------ PRG/CHR-ROM size (if $7!=$AA)
+        ||          0 (00b): Not specified, use initial banking mode to determine
+        ||          1 (01b): 128 KiB in first 256 KiB half, 256 KiB in second 256 KiB half, no CHR-ROM
+        ||          2 (10b): 256 KiB in first 256 KiB half, 128 KiB in second 256 KiB half, no CHR-ROM
+        ||          3 (11b): 256 KiB in first 256 KiB half, 256 KiB in second 256 KiB half, no CHR-ROM
+        |+-------- Trainer present
+        |           0: No
+        |           1: Yes
+        +--------- No meaning
+  $3    Number of 8 KiB PRG-ROM banks if $7==$AA
+  $4    Number of 8 KiB CHR-ROM banks if $7==$AA
+  $7    $AA: Offsets $3 and $4 contain valid values
+  $8    $AA (signature, sometimes missing)
+  $9    $BB (signature, sometimes missing)
+  $A    File type: 0=ROM, 1=RTS

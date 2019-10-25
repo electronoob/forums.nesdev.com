@@ -1,0 +1,472 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - DMC IRQs</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">DMC IRQs</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=6521">http://forums.nesdev.com/viewtopic.php?f=2&amp;t=6521</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>7</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>never-obsolete</b> [ Tue Jun 22, 2010 10:09 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>DMC IRQs</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />So I'm playing around with splitting the screen twice without a mapper. The first split will use sprite0 and be around scanline 32. The second split will be around scanline 208. I'm trying to use the dmc irq to approximate it since it doesn't have to be exact (I'm extending vblank for chr-ram writes).
+<br />
+<br />
+<br />The main loop (without all the init code):
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp;; ...<br /><br />&nbsp; &nbsp;ldx #$40&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; ; <br />&nbsp; &nbsp;stx PORT2&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; ;<br />&nbsp; &nbsp;ldx #0&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; ;<br />&nbsp; &nbsp;stx SND_CLOCK&nbsp; &nbsp;&nbsp; &nbsp;; &nbsp; &nbsp;<br />&nbsp; &nbsp;; ...<br /><br />&nbsp; &nbsp;cli<br />_loop:<br />&nbsp; &nbsp;jmp _loop<br /></div><br /><br /><br />This is the code called during the nmi handler. The sample is located at $C000 and is $401 bytes of $00.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp;lda sndChannelEnable&nbsp; &nbsp;&nbsp; &nbsp;; disable dmc channel<br />&nbsp; &nbsp;and #$0F&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;;<br />&nbsp; &nbsp;sta SND_CLOCK&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; ;<br /><br />&nbsp; &nbsp;lda #%10001111&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;; set sample ctrl<br />&nbsp; &nbsp;sta SND_DMC_CTRL&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; ;<br />&nbsp; &nbsp;lda #$00&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp; ; set dac<br />&nbsp; &nbsp;sta SND_DMC_DA&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;;<br />&nbsp; &nbsp;lda #$00&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp; ; set sample addr<br />&nbsp; &nbsp;sta SND_DMC_ADDR&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; ;<br />&nbsp; &nbsp;lda #$40&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp; ; set sample length<br />&nbsp; &nbsp;sta SND_DMC_DL&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;;<br /><br />&nbsp; &nbsp;lda sndChannelEnable&nbsp; &nbsp;&nbsp; &nbsp;; enable dmc channel<br />&nbsp; &nbsp;ora #$10&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; &nbsp; ;<br />&nbsp; &nbsp;sta sndChannelEnable&nbsp; &nbsp;&nbsp; &nbsp;;<br />&nbsp; &nbsp;sta SND_CLOCK&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; ;<br /></div><br /><br /><br />The IRQ handler is empty for now:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">IRQBRK:<br />&nbsp; &nbsp;sei<br />&nbsp; &nbsp;rti<br /></div>
+<br />
+<br />
+<br />I've been able to split the screen with mapper IRQs, but I'm not sure if I'm initializing the APU correctly. Any thoughts?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Tue Jun 22, 2010 11:14 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />A while back, I made a demo that does two splits, and does it to within a granularity less than one scanline. I plan to post it tonight to see what someone else can do with it.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Tue Jun 22, 2010 11:55 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: DMC IRQs</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">never-obsolete wrote:</div><div class="quotecontent"><div class="codetitle"><b>Code:</b></div><div class="codecontent">IRQBRK:<br />&nbsp; &nbsp;sei<br />&nbsp; &nbsp;rti<br /></div><br /></div>
+<br />
+<br />That will deadlock your program.
+<br />
+<br />1)  I is already set by the IRQ.  The SEI does nothing.
+<br />2)  RTI will pull status from the stack, resulting in I being cleared again
+<br />3)  Because RTI will clear I, another IRQ will occur immediately, causing a deadlock in the IRQ handler.
+<br />
+<br />You need to acknowledge the IRQ.  I forget how this is done on the DMC.  I think you just read $4015, but you'll have to double-check.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Tue Jun 22, 2010 12:08 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />For the first part of your code, I'm not familiar with those weird labels so I can't help you.
+<br />
+<br />Like Dish says, you MUST acknownledge an IRQ before doing cli or rti or any instruction that will return else it will be an endless loop of IRQs (the only exeption is an IRQ triggered by a brk instruction but here it's clearly not the case).
+<br />
+<br />In the case of DMC IRQs, you should read $4015 before returning. If DMC is your only source of IRQ, you can just discard the result and assume the source of the IRQ was the DMC, else you'd have to acknownledge all possible source of IRQs, and check if their bit was set, and act accordingly,
+<br />
+<br />I recommend to do something like this in your IRQ handler :
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">IRQ<br />&nbsp; &nbsp; bit $4015<br />&nbsp; &nbsp; bvs _noDMC&nbsp; &nbsp; ;This line can be deleted if DMC is the only possible IRQ source<br />&nbsp; &nbsp; lda GrayScale_toggle<br />&nbsp; &nbsp; eor #$01<br />&nbsp; &nbsp; sta GrayScale_toggle<br />&nbsp; &nbsp; ora #$1e<br />&nbsp; &nbsp; sta $2001<br />_noDMC<br />&nbsp; &nbsp;rti<br /></div>
+<br />
+<br />This will toggle grayscale mode each IRQ. If you have correctly 2 splitpoint, the middle of your screen between both splitpoints should be gray.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>never-obsolete</b> [ Tue Jun 22, 2010 12:54 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />D'oh, I forgot about acknowledging the irq. Thanks for the heads up.
+<br />
+<br />@Tepples: I'll wait to see your example. I have a feeling I'm not setting up the DMC registers correctly.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Tue Jun 22, 2010 3:16 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />It turned out that I had lost half the source code for this effect when my laptop died a few months ago.  But I still had the working ROM on my PowerPak, and I managed to teach myself enough about <a href="http://www.cc65.org/snapshot-doc/da65.html" class="postlink">da65</a> to recreate working source code.
+<br />
+<br /><a href="http://pics.pineight.com/nes/dpcm_split.zip" class="postlink">DPCM Split</a>
+<br />Mapper 0, runs on PowerPak. README file inside archive explains how it works. It still has glitches that someone like blargg might be able to help find and fix.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Thu Jun 24, 2010 1:56 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Your technique is interesting. If I understand well, you play a 1-byte sample, and count the cycles before the first IRQ, to compensate for the jittering.
+<br />
+<br />The problem is that you have to wait a dozen of IRQs for a dozen of scanline, so if this technique were to be used for a longer time between both split, this constant stream of useless IRQs would waste very significant CPU time for nothing (and half-killing the purpose of interrupts, although it's still better than waste ALL the CPU time).
+<br />Would this technique work as well if you play a 1-byte sample, count the # of cycles before the interrupt, then play a 17 or 33 byte sample to have only 2 IRQs in total ?
+<br />
+<br />Another thing is that you use sprite-0 hit (with 7-cycle jitter I guess) for the first split, and start your IRQ technique from there. If you'd instead reverse the thing, and use IRQ for the first split and sprite 0 for the second, you could do that technique with 3 cycle jitter instead, and it could perform better. Altough of course this will waste 100% of CPU time between the 1st and 2nd split instead of between the top and the 1st split, so it all depends of what you'd want to achieve.
+<br />
+<br />EDIT : Yet another thing is that you could, in the first loop, wait for $4015.7 to rise, while having the I flag set. This would prevent the IRQ, and possibly (possybly not ?) increase accuracy of the code and simplify the code inside the IRQ (that would only execute once per frame).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Thu Jun 24, 2010 4:44 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Bregalad wrote:</div><div class="quotecontent">The problem is that you have to wait a dozen of IRQs for a dozen of scanline, so if this technique were to be used for a longer time between both split, this constant stream of useless IRQs would waste very significant CPU time for nothing</div><br />It's significant, but the 37 cycles out of 432 still fall within my 10% of CPU time budget.<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">irq_handler:<br />&nbsp; bit $4015&nbsp; ; acknowledge dpcm irq<br />&nbsp; inc irqs<br /><br />&nbsp; ; schedule another IRQ<br />&nbsp; pha<br />&nbsp; lda enable_timer<br />&nbsp; sta $4015<br />&nbsp; pla&nbsp; <br />&nbsp; rti<br /></div><br />And it's not entirely useless to know how much time I have left before the IRQ fires.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Would this technique work as well if you play a 1-byte sample, count the # of cycles before the interrupt, then play a 17 or 33 byte sample to have only 2 IRQs in total ?</div><br />Playing a 17-byte sample would allow skipping the first IRQs if the splits are far enough apart ((17+1)*8*54 = 7776 CPU cycles or 69 scanlines). But the demo's splits are only about 10 bytes apart, and it would be two more instructions in the IRQ to handle switching to 1-byte samples after the initial 17- or 33-byte sample. I'll consider it in the second.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Altough of course this will waste 100% of CPU time between the 1st and 2nd split instead of between the top and the 1st split, so it all depends of what you'd want to achieve. </div><br />What motivated my development of this technique was trying to display a background picture that needs more than 4 KiB of CHR while decompressing a page of text to put into the next picture. Here, sprite 0 would be in a fixed place (doesn't matter where as long as it's present), and the code would wait for the end of vblank by waiting for sprite 0 flag to turn off.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">EDIT : Yet another thing is that you could, in the first loop, wait for $4015.7 to rise, while having the I flag set.</div>
+<br />The number of cycles in the loop that measures the IRQ jitter has to match the number of cycles in the loop that compensates, and it takes more time to read $4015 than the zero-page variable that the IRQ handler updates.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Thu Jun 24, 2010 5:27 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">What motivated my development of this technique was trying to display a background picture that needs more than 4 KiB of CHR while decompressing a page of text to put into the next picture. Here, sprite 0 would be in a fixed place (doesn't matter where as long as it's present), and the code would wait for the end of vblank by waiting for sprite 0 flag to turn off.</div>
+<br />That's right, and no offense tepples, but the way you're using IRQ with this "inc variable" method you're polling completley kills the purpose of an IRQ, which is to free the main CPU to do another task.
+<br />Doing it is completely dumb - you'd as well have the main code doing a loop timed between the split and the result would be the same.
+<br />
+<br />Yet I understand that this is a proof of concept, but you should have the main code doing something else than polling available in order to have this any useful.
+<br />So the IRQ handler will need not only to acknownledge, but also to handle the split and the loop that comensate the jitering. That's why I suggest you wait a fake IRQ just by polling $4015 after the first split (in our case) - this should simplify code and avoid an if/else statement in your IRQ routine.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Thu Jun 24, 2010 6:14 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Bregalad wrote:</div><div class="quotecontent"><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">What motivated my development of this technique was trying to display a background picture that needs more than 4 KiB of CHR while decompressing a page of text to put into the next picture.</div><br />That's right, and no offense tepples, but the way you're using IRQ with this "inc variable" method you're polling completley kills the purpose of an IRQ, which is to free the main CPU to do another task.</div><br />I understand that, but finalizing the code for this other task may take weeks. I have a day job, my workouts, and sometimes younger cousins who visit over summer break.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">So the IRQ handler will need not only to acknownledge, but also to handle the split and the loop that comensate the jitering.</div>
+<br />It doesn't wait for IRQ ten times; it waits for the number of elapsed IRQs to reach 10. So even if I do something that takes the time of eight IRQs to complete before I jump into that loop, I can still get into the loop in time. But now I bet tokumaru is itching to remind me that "something" may occasionally exceed this time, causing an occasional glitch. So my ultimate plan is to move more of the scroll split processing into the IRQ handler, which should add two cycles to the "just count" case.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Thu Aug 12, 2010 9:57 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />As the late Tourette's Guy channeling the late Robert Stack would have put it, "<a href="http://www.youtube.com/watch?v=TcGJJ-egB40" class="postlink">UPDATE!</a>"
+<br />
+<br />I got the whole effect to run in the NMI and IRQ handlers. <a href="http://pics.pineight.com/nes/dpcmletterbox.zip" class="postlink">This version</a> is a rock-solid letterbox generator for NTSC NES.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Thu Aug 12, 2010 11:22 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Are you saying that with your method it is possible to use DMC IRQ's for effects that were only possible with special mappers? That's awesome!
+<br />
+<br />Is it precise enough to allow you to change the scroll mid-frame without artifacts? If yes, I'd say you just did a great thing for the NESDEV community. I always wanted a method to do raster effects without having to use mappers or 100% of the CPU time.
+<br />
+<br />And if you keep sample playback disabled during VBlank and a while after that I guess you can read the controller then, without having to worry about corruption, right?
+<br />
+<br />EDIT: I imagine it would be hard to make this effect dynamic, right? I mean, if you need the split to move up and down as opposed to keeping it steady.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Thu Aug 12, 2010 12:01 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Congratluation tepples, this is really great.
+<br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent"> <br />Are you saying that with your method it is possible to use DMC IRQ's for effects that were only possible with special mappers? That's awesome!</div><br />Yeah he's saying this. I think it only works if there is a sprite zero hit first tough. Also I'm not sure if it's possible to get 3 or more splitpoints that way, but anyways 2 is still much better than just 1 without any mapper.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">And if you keep sample playback disabled during VBlank and a while after that I guess you can read the controller then, without having to worry about corruption, right?</div>
+<br />You can read the controller multiple times anyway so I don't think this is a problem unless you're like REALLY tight on timing.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tokumaru</b> [ Thu Aug 12, 2010 12:10 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Bregalad wrote:</div><div class="quotecontent">I think it only works if there is a sprite zero hit first tough.</div><br />He said that the purpose of the sprite hit was to time the first IRQ, and that you don't need it if your NMI handler is constant-timed (like mine is).<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">You can read the controller multiple times anyway</div><br />Well, you can, but why would you? I'd rather have my NMI handler read the controllers before doing any DMC IRQ stuff and use that one read for the rest of the frame.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">so I don't think this is a problem unless you're like REALLY tight on timing.</div>
+<br />I don't like the idea of indefinitely reading the controllers until 2 consecutive read match, so I'd rather just read it when it's safe to do so.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Dwedit</b> [ Thu Aug 12, 2010 12:39 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Could the DMC technique be used for screen masking for vertical mirroring?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>7</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

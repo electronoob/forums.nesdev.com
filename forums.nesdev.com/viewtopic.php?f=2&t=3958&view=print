@@ -1,0 +1,441 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - PPU warmup is real</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">PPU warmup is real</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=3958">http://forums.nesdev.com/viewtopic.php?f=2&amp;t=3958</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Fri Mar 07, 2008 11:06 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>PPU warmup is real</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I've been doing some power/reset research and have found justification for the "PPU warmup" code. I tested the following after power and reset to see if the PPU address was set to $1111. After power, it failed 50% of the time (10 trials). After reset, it failed 11% of the time (50 trials).
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">reset:&nbsp; sei&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;; Standard init<br />&nbsp; &nbsp; &nbsp; &nbsp; cld<br />&nbsp; &nbsp; &nbsp; &nbsp; ldx #$FF<br />&nbsp; &nbsp; &nbsp; &nbsp; txs<br />&nbsp; &nbsp; &nbsp; &nbsp; inx<br />&nbsp; &nbsp; &nbsp; &nbsp; stx $2000<br />&nbsp; &nbsp; &nbsp; &nbsp; stx $2001<br />:&nbsp; &nbsp; &nbsp; &nbsp;bit $2002&nbsp; &nbsp; &nbsp; &nbsp;; wait for VBL flag<br />&nbsp; &nbsp; &nbsp; &nbsp; bpl :-<br />:&nbsp; &nbsp; &nbsp; &nbsp;bit $2002&nbsp; &nbsp; &nbsp; &nbsp;; wait for VBL flag again<br />&nbsp; &nbsp; &nbsp; &nbsp; bpl :-<br />&nbsp; &nbsp; &nbsp; &nbsp; lda #$11&nbsp; &nbsp; &nbsp; &nbsp; ; VADDR=$1111<br />&nbsp; &nbsp; &nbsp; &nbsp; sta $2006<br />&nbsp; &nbsp; &nbsp; &nbsp; sta $2006</div><br />The VBL flag is set about half the time at power, and 11% of the time at reset (when reset is pressed while the flag is set, most likely). The VBL flag is next set at reset+27383 CPU clocks. Writes to $2006 are ignored until reset+29658 CPU clocks. So merely waiting until two $2002 reads have the high bit set isn't enough if you plan on writing to $2006 immediately after. Adding one more $2002 read makes it work every time after power and reset:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">reset:&nbsp; ...<br />&nbsp; &nbsp; &nbsp; &nbsp; bit $2002&nbsp; &nbsp; &nbsp; &nbsp;; clear VBL flag &#40;ADDED&#41;<br />&nbsp; &nbsp; &nbsp; &nbsp; <br />:&nbsp; &nbsp; &nbsp; &nbsp;bit $2002&nbsp; &nbsp; &nbsp; &nbsp;; wait for VBL flag<br />&nbsp; &nbsp; &nbsp; &nbsp; bpl :-<br />:&nbsp; &nbsp; &nbsp; &nbsp;bit $2002&nbsp; &nbsp; &nbsp; &nbsp;; wait for VBL flag again<br />&nbsp; &nbsp; &nbsp; &nbsp; bpl :-<br />&nbsp; &nbsp; &nbsp; &nbsp; ...</div>
+<br />$2006 isn't the only register I've found to be ignored like this, just one example that justifies this warmup wait.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>dvdmth</b> [ Fri Mar 07, 2008 12:34 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: PPU warmup is real</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">blargg wrote:</div><div class="quotecontent">The VBL flag is set about half the time at power, and 11% of the time at reset (when reset is pressed while the flag is set, most likely).</div>
+<br />I thought there was a commercial game that required VBL to be set at power-up to boot, because it wrote $80 to $4017 to prevent frame IRQ's (which won't work if an IRQ is pending).  Are you saying this game will fail to boot 50% of the time at power-up?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Fri Mar 07, 2008 12:59 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />$4017 controls the APU IRQ. That's unrelated to the PPU and the VBL flag.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Fri Mar 07, 2008 1:42 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />The game in question is either Ironsword, Time Lord, or something like that.  The reason VBL status at powerup matters in that case is because the game does a warm up loop where it waits for it to be set twice <em>before</em> writing to $4017.  Also it doesn't disable IRQs when it writes to $4017, it simply switches to the 5-step mode -- but since it doesn't disable or acknowledge them, if an IRQ tripped before it switched modes, that IRQ will be pending for the whole game which causes it to muck up.
+<br />
+<br />If VBL is clear at powerup, then the game effectively waits two full frames at startup (or at least more than one full frame) which ensures a frame IRQ will trip.  But if VBL is set, then it will only wait for one full frame (or less) making it still possible to slip the mode change in before the IRQ happens.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Celius</b> [ Fri Mar 07, 2008 1:42 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Funny you should mention this, because when I started to really understand most things about NESdev, I decided to wait 3 Vblanks instead of 2 to be safe. So ever since then, I've waited 3 Vblanks, and now I know I should  <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" /> .
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Fri Mar 07, 2008 7:55 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Very interesting. I decided to convert those timings from CPU cycles to NTSC scanlines, and I saw some interesting correlations:
+<br /><ul><li>If power-on to first true vblank is 27383 cycles, that's close to 241 lines. This would be expected if the PPU starts at the top left pixel, going through all 240 active lines and the post-render line. </li><li>If power-on to first successful VRAM transaction is 29658 cycles, that's close to 261 lines, ending at the pre-render line. </li></ul>
+<br />Another thing you might want to check out: Spinning on $2002 might miss a vblank if the start of vblank and the $2002 read happen on exactly the same CPU cycle. Does NMI (lda #$80 sta $2000) work predictably before 30,000 CPU cycles? Or must programs spin on $2002 and potentially miss several vblanks in a row?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Sat Mar 08, 2008 7:29 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />This code sometimes allowed an IRQ through at power. It didn't at reset if the APU mode was $80 before reset, so a game with this sort of code at reset that used mode $80 exclusively would reset reliably, even if it failed at power. I used an APU-based timer to find out how long the two VBL loops waited total and it was usually ~27331 clocks, only occasionally ~57113.
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">reset:<br />:&nbsp; &nbsp;bit $2002&nbsp; &nbsp;; wait for VBL flag<br />&nbsp; &nbsp; bpl :-<br />:&nbsp; &nbsp;bit $2002&nbsp; &nbsp;; wait for VBL flag again<br />&nbsp; &nbsp; bpl :-<br />&nbsp; &nbsp; lda #$80<br />&nbsp; &nbsp; sta $4017<br />&nbsp; &nbsp; cli<br />&nbsp; &nbsp; sei</div>
+<br />For whatever reason, the VBL flag was set most of the time at power today. Does the game in question sometimes fail to work on a NES until reset is pressed?
+<br />
+<br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">Does NMI (lda #$80 sta $2000) work predictably before 30,000 CPU cycles? Or must programs spin on $2002 and potentially miss several vblanks in a row?</div>
+<br />A $2002 spin loop will never wait more than VBL period*2, since it can never suppress two VBL flag settings in a row. Writes to $2000 before +29658 are also ignored, so NMI can't be used immediately either. $2007 works immediately, just $2006 doesn't. So you can begin accessing VRAM $0001 upwards immediately (what PPUADDR powers up with).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Sat Mar 08, 2008 8:15 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">For whatever reason, the VBL flag was set most of the time at power today. Does the game in question sometimes fail to work on a NES until reset is pressed?<br /></div>
+<br />Anyway, if you have ever played real games with a real nes and an unmodified cartridge connector, you have to reset the system and re-inster the cartridge so many times before getting the game to work that it would be impossible to tell if this is due to hardware or software fault.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Zepper</b> [ Sat Mar 08, 2008 8:52 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />...or even if you need to (re)blow it. <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Sat Mar 08, 2008 9:11 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">blargg wrote:</div><div class="quotecontent">Writes to $2000 before +29658 are also ignored, so NMI can't be used immediately either.</div>
+<br />So much for commercial games that write 0 to $2000 in their init code. It's a good thing you're discovering this now before I start propagating half-truths in the tutorial that I've been working on. Thanks again for this research.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Sat Mar 08, 2008 9:31 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">So much for commercial games that write 0 to $2000 in their init code.</div>
+<br />Initializing these things is a good idea if one wants the code to be more compatible with NES clones (including inaccurate NES emulators). SEI, CLD, writing $00 to $2000, $2001, $4010, and $4015, $40 to $4017, and reading $4015 afterwards are all good ideas along these lines.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>dvdmth</b> [ Sat Mar 08, 2008 10:32 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Does the VRAM address start out at $0001 after reset, or just after power?
+<br />
+<br />Are any registers besides $2002 and $2007 usable before the end of the first VBlank period?
+<br />
+<br />What is the initial state of the other $2002 bits (sprite hit and overflow)?
+<br />
+<br />In short, how are all of the PPU registers set at power and/or reset?
+<br />
+<br />Incidentally, some commercial games I looked at write zero to $2000 and $2001 repeatedly within the $2002 warmup loop(s).  Also, one of the MMC5 games I examined watied much longer at this time (around 16 VBlanks IIRC).  Writing to $2000 and $2001 is probably more important with the Famicom than with the NES, since its state after reset is more volatile (I'm not sure if the Famicom PPU gets reset at all).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Mon Mar 10, 2008 12:39 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />At least Dragon Warrior tries to write to $2006 possibly only one frame after powerup (however, I don't know big the issue is if the write fail). The game seems to write to pattern tables, even tough the game uses CHRROM, which has no effect, since /WR isn't even connected to cartridges with CHRROM. Weird.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bananmos</b> [ Mon Mar 10, 2008 2:55 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Hmm... I wonder if the PowerPak suffers from this as well, since it will often fail at power-up, just showing a single-colored screen.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>dvdmth</b> [ Tue Mar 11, 2008 11:57 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Bananmos wrote:</div><div class="quotecontent">Hmm... I wonder if the PowerPak suffers from this as well, since it will often fail at power-up, just showing a single-colored screen.</div>
+<br />No, the PowerPak waits three VBlanks in the reset code.  It also initializes the FPGA before doing anything with the PPU, which adds further delay.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

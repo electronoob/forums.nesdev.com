@@ -1,0 +1,270 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - MMC3 write protection</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">MMC3 write protection</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=10535">http://forums.nesdev.com/viewtopic.php?f=2&amp;t=10535</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Wed Sep 25, 2013 5:15 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>MMC3 write protection</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />MMC3 is supposed to have a register at $A001 that write-protects PRG RAM (WRAM) at $6000-$7FFF but still allows it to be read. According to <a href="http://wiki.nesdev.com/w/index.php/MMC3#PRG_RAM_protect_.28.24A001-.24BFFF.2C_odd.29" class="postlink">the wiki</a>, $00 is open bus, $80 is read/write, and $C0 is read-only. But I'm having trouble verifying that this protection is in place. Here's the code I tried:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">MMC3_WRAM_ENABLE = $A001<br />MMC3_WRAM_OFF = $00<br />MMC3_WRAM_RW = $80<br />MMC3_WRAM_RO = $C0<br /><br />.proc mmc3_test_wram_protection<br /><br />&nbsp; ; make sure writes at least take <br />&nbsp; ldy #MMC3_WRAM_RW<br />&nbsp; sty MMC3_WRAM_ENABLE<br />&nbsp; ldx #$6B&nbsp; ; the &quot;bad&quot; value<br />&nbsp; lda #$B6&nbsp; ; the &quot;good&quot; value<br />&nbsp; sta $6000<br />&nbsp; cmp $6000<br />&nbsp; bne protproblem<br /><br />&nbsp; ; make sure writes don't take if set to read-only<br />&nbsp; ldy #MMC3_WRAM_RO<br />&nbsp; sty MMC3_WRAM_ENABLE<br />&nbsp; stx $6000<br />&nbsp; cmp $6000<br />&nbsp; bne roproblem<br /><br />&nbsp; ; make sure it can't be read from open bus<br />&nbsp; ldy #MMC3_WRAM_OFF<br />&nbsp; sty MMC3_WRAM_ENABLE<br />&nbsp; cmp $6000<br />&nbsp; beq protproblem<br /><br />&nbsp; ; test for $6000/$E000 glitch (Crystalis map corruption bug)<br />&nbsp; ldy #MMC3_WRAM_RW<br />&nbsp; sty MMC3_WRAM_ENABLE<br />&nbsp; stx MMC3_IRQ_DISABLE<br />&nbsp; cmp $6000<br />&nbsp; bne protproblem<br /><br />&nbsp; lda #0<br />&nbsp; rts<br />protproblem:<br />&nbsp; lda #MAPTEST_WRAMEN<br />&nbsp; rts<br />roproblem:<br />&nbsp; lda #MAPTEST_WRAMRO<br />&nbsp; rts<br />.endproc<br /></div><br />On both FCEUX 2.2.0 and my PowerPak, I get MAPTEST_WRAMRO returned instead of 0. I've stepped through this subroutine in FCEUX 2.2.0's debugger to make sure the problem happens in this subroutine, not some unrelated defect in the test harness. But if you want, I can give you a minimal buildable program that demonstrates this. At this point I want to know if the problem is in my emulator and flash device or all in my head.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Wed Sep 25, 2013 5:29 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: MMC3 write protection</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />FCEUX (as-of 2.2.1) completely ignores the RAM protection register. The only thing that it does on writes to $A001 is set a variable A001B, which in turn is only used in its mapper 49 code.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Wed Sep 25, 2013 5:57 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: MMC3 write protection</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Apparently the Linux port of Nestopia has been fixed, and the test runs as expected.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Wed Sep 25, 2013 6:42 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: MMC3 write protection</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Also verified on my Crystalis cart:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">; When run with Crystalis cart:<br />; 00 60 61 12 34 <br />; C0 12 34 12 34 <br />; 80 56 78 56 78 <br /><br />.include &quot;shell.inc&quot;<br /><br />MMC3_WRAM_ENABLE = $A001<br />MMC3_WRAM_OFF&nbsp; &nbsp;= $00<br />MMC3_WRAM_RW&nbsp; &nbsp; = $80<br />MMC3_WRAM_RO&nbsp; &nbsp; = $C0<br /><br />wram = $6000<br /><br />main:<br />&nbsp; &nbsp; &nbsp; &nbsp; lda #MMC3_WRAM_OFF<br />&nbsp; &nbsp; &nbsp; &nbsp; jsr test_wram<br />&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; lda #MMC3_WRAM_RO<br />&nbsp; &nbsp; &nbsp; &nbsp; jsr test_wram<br />&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; lda #MMC3_WRAM_RW<br />&nbsp; &nbsp; &nbsp; &nbsp; jsr test_wram<br />&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; rts<br /><br />test_wram:<br />&nbsp; &nbsp; &nbsp; &nbsp; pha<br />&nbsp; &nbsp; &nbsp; &nbsp; ; Set initial values<br />&nbsp; &nbsp; &nbsp; &nbsp; mov MMC3_WRAM_ENABLE,#MMC3_WRAM_RW<br />&nbsp; &nbsp; &nbsp; &nbsp; mov $6000,#$12<br />&nbsp; &nbsp; &nbsp; &nbsp; mov $6100,#$34<br />&nbsp; &nbsp; &nbsp; &nbsp; pla<br />&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; ; Change to mode being tested<br />&nbsp; &nbsp; &nbsp; &nbsp; ; and try writing<br />&nbsp; &nbsp; &nbsp; &nbsp; jsr print_a<br />&nbsp; &nbsp; &nbsp; &nbsp; sta MMC3_WRAM_ENABLE<br />&nbsp; &nbsp; &nbsp; &nbsp; mov $6000,#$56<br />&nbsp; &nbsp; &nbsp; &nbsp; mov $6100,#$78<br />&nbsp; &nbsp; &nbsp; &nbsp; jsr print_wram<br />&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; ; See what's in WRAM now<br />&nbsp; &nbsp; &nbsp; &nbsp; mov MMC3_WRAM_ENABLE,#MMC3_WRAM_RW<br />&nbsp; &nbsp; &nbsp; &nbsp; jsr print_wram<br />&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; jsr print_newline<br />&nbsp; &nbsp; &nbsp; &nbsp; rts<br /><br />print_wram:<br />&nbsp; &nbsp; &nbsp; &nbsp; lda $6000<br />&nbsp; &nbsp; &nbsp; &nbsp; jsr print_a<br />&nbsp; &nbsp; &nbsp; &nbsp; lda $6100<br />&nbsp; &nbsp; &nbsp; &nbsp; jsr print_a<br />&nbsp; &nbsp; &nbsp; &nbsp; rts</div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>thefox</b> [ Thu Sep 26, 2013 9:06 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: MMC3 write protection</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />The reason the write protection probably isn't implemented in many emulators is the fact that MMC6 also has overlapping write protection registers at the same address, but they behave differently than in MMC3. As we all know MMC3 and MMC6 share the same iNES mapper number. If the behavior of MMC3 is implemented, StarTropics will/may cease to work (this is why I didn't implement said bits in my PowerPak save state mappers).<br /><br />See <!-- m --><a class="postlink" href="http://wiki.nesdev.com/w/index.php/MMC6">http://wiki.nesdev.com/w/index.php/MMC6</a><!-- m -->
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Thu Sep 26, 2013 11:21 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: MMC3 write protection</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">thefox wrote:</div><div class="quotecontent">If the behavior of MMC3 is implemented, StarTropics will/may cease to work</div><br />The extant MMC6 games are StarTropics, StarTropics 2, and StarTropics 2 (&quot;BLOCKS&quot; version). These can be recognized by PRG hashes or by an NES 2.0 RAM size of 1024 bytes. But when I specify NES 2.0 RAM size of 8192 bytes, I expect MMC3 behavior.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Thu Sep 26, 2013 11:32 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: MMC3 write protection</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />And FCEUX still hasn't implemented diddly nor squat of NES2.0.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Fri Sep 27, 2013 12:33 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: MMC3 write protection</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />So I can accept that emulators that don't support NES 2.0 are likely to lack support for MMC3 read-only mode in order to get the MMC6 games working. This made me wonder what other MMC3-class mappers have unimplemented WRAM features on popular emulators. So I decided to implement the corresponding test for the FME-7. As I understand it, here's how it's supposed to work:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">76543210&nbsp; Reg 8: Bank at $6000-$7FFF<br />EE.BBBBB<br />|| +++++- Select 8K bank at $6000-$7FFF<br />++------- 0: ROM; 3: RAM; something else: open bus<br /></div><br />But Nestopia 1.45, FCEUX 2.2.0, James Holodnak's nesemu2 0.6.1, and the PowerPak all appear to keep ROM banked in when the register is set to open bus. I call this subroutine and instead of getting 0, I get MAPTEST_WRAMEN.<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">FME7_SELECT = $8000<br />FME7_DATA = $A000<br />FME7_PRGBANK&nbsp; = 8<br />FME7_PRGBANK_ROM = $00&nbsp; ; these are OR'd with the bank number<br />FME7_PRGBANK_OFF = $40&nbsp; ; but only in FME7_PRGBANK+0<br />FME7_PRGBANK_RAM = $C0<br /><br />; CONSTANT_01 is a ROM address in $E000-$FFFF that contains $01.<br />; This is its location mirrored into the $6000 window.<br />WRAM_LOC = CONSTANT_01 - $8000<br /><br />.proc fme7_test_wram_protection<br />&nbsp; lda has_wram<br />&nbsp; beq skip_test<br /><br />&nbsp; ; Write to last bank of RAM<br />&nbsp; lda #FME7_PRGBANK+0<br />&nbsp; sta FME7_SELECT<br />&nbsp; lda #FME7_PRGBANK_RAM|$3F<br />&nbsp; sta FME7_DATA<br />&nbsp; lda #2<br />&nbsp; sta WRAM_LOC<br />&nbsp; cmp WRAM_LOC<br />&nbsp; bne protproblem2<br /><br />&nbsp; ; Read last bank of ROM<br />&nbsp; lda #FME7_PRGBANK_ROM|$3F<br />&nbsp; sta FME7_DATA<br />&nbsp; lda WRAM_LOC<br />&nbsp; cmp CONSTANT_01<br />&nbsp; bne roproblem<br /><br />&nbsp; ; Read open bus<br />&nbsp; lda #FME7_PRGBANK_OFF|$3F<br />&nbsp; sta FME7_DATA<br />&nbsp; lda WRAM_LOC&nbsp; ; open_bus should be $7F<br />&nbsp; cmp #3&nbsp; &nbsp; &nbsp; &nbsp; ; 0: most ROM banks; 1: last ROM bank; 2: last RAM bank<br />&nbsp; bcc protproblem<br /><br />skip_test:<br />&nbsp; lda #0<br />have_result:<br />&nbsp; ldy #FME7_PRGBANK_RAM|$3F<br />&nbsp; sty FME7_DATA<br />&nbsp; rts<br />protproblem:<br />&nbsp; lda #MAPTEST_WRAMEN<br />&nbsp; bne have_result<br />roproblem:<br />&nbsp; lda #MAPTEST_WRAMRO<br />&nbsp; bne have_result<br />protproblem2:<br />&nbsp; lda #MAPTEST_WRAMEN2<br />&nbsp; bne have_result<br />.endproc<br /></div><br /><br />An aside: PowerPak appears to implement the proposal for large PRG RAM on FME-7. I was surprised when my other test program found four banks of usable PRG RAM instead of just one.<br /><br /><br /><strong>EDIT 1:</strong> I had l_oliveira test on a modded Sunsoft cart. It appears I had a mistaken value for FME7_PRGBANK_OFF. It might need to be $40, not $80. Let me try again.<br /><br /><strong>EDIT 2:</strong> That was in fact the problem. I have corrected the code above.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

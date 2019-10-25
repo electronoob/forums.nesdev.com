@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=2&amp;t=10544" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2013-09-29T15:34:33-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=2&amp;t=10544</id>
+<entry>
+<author><name><![CDATA[lidnariq]]></name></author>
+<updated>2013-09-27T13:55:58-07:00</updated>
+<published>2013-09-27T13:55:58-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10544&amp;p=118768#p118768</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10544&amp;p=118768#p118768"/>
+<title type="html"><![CDATA[Re: NSF, CA65, MUSE]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10544&amp;p=118768#p118768"><![CDATA[
+And that explains everything. Letting loadaddr move around (rather than being fixed to $8000) was what was breaking everything. And now that I know what to look for, I found that in the wiki page on NSF<br /><br />&lt;sigh&gt; Thanks!<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3512">lidnariq</a> — Fri Sep 27, 2013 1:55 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[doppelganger]]></name></author>
+<updated>2013-09-27T13:28:03-07:00</updated>
+<published>2013-09-27T13:28:03-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10544&amp;p=118764#p118764</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10544&amp;p=118764#p118764"/>
+<title type="html"><![CDATA[Re: NSF, CA65, MUSE]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10544&amp;p=118764#p118764"><![CDATA[
+Well, I can help you out with at least one of these things.<br /><br />The load address in the NSF file tells the NSF player the beginning of that section of memory where the NSF code is loaded.  The load address is *not* used as an address to any subroutine.  The init address, on the other hand, is the address to the init routine, which is executed only once (when a song begins playing).  Ideally, everything that prepares a song to be played should be executed in the init routine.  These two addresses may or may not be the same depending on where the init routine is located.<br /><br />Let's say, for example, you have all your sound data and code at $8000-$bfff.  Let's say you have a bunch of music data at $8000, and your init routine starts at $a000.  In this particular case, the load address would be set to $8000 and the init address would be set to $a000.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=119">doppelganger</a> — Fri Sep 27, 2013 1:28 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[lidnariq]]></name></author>
+<updated>2013-09-29T15:34:33-07:00</updated>
+<published>2013-09-27T13:04:23-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=10544&amp;p=118761#p118761</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=10544&amp;p=118761#p118761"/>
+<title type="html"><![CDATA[NSF, CA65, MUSE]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=10544&amp;p=118761#p118761"><![CDATA[
+EDIT: this was originally a &quot;help&quot; post. The first response fixed where I was confused, so now it you can just consider it a &quot;here's how I built an NSF file using MUSE and CA65&quot;.<br /><br /><s>So I was trying to make an NSF, given the original source to a specific game <a href="http://forums.nesdev.com/viewtopic.php?p=118759#p118759" class="postlink">I helped with</a> earlier. And I discovered there must be some subtlety to the unbanked NSF format that I&#39;m completely misunderstanding.</s><br /><br />I made a .cfg that looks like:<div class="codetitle"><b>Code:</b></div><div class="codecontent">MEMORY {<br />    # First, the parts that are specified in the image, in the order they're needed:<br /><br />    # NSF Cartridge Header<br />    HEADER: start = $0, size = $80, file = %O, fill = yes;<br /><br />    ROM0: start = $8000, size = $8000, file = %O, define = yes;<br /><br />    # Then, RAM definitions:<br />    ZP: start = $0, size = $100, type = rw, define = yes;<br /><br />    # standard 2k SRAM (-zeropage)<br />    SRAM: start = $0200, size = $0600, define = yes;<br />}<br /><br />SEGMENTS {<br />    HEADER:   load = HEADER,          type = ro;<br />    CODE:     load = ROM0,            type = ro,  define = yes, align=256;<br />    MUSE:     load = ROM0,            type = ro,  define = yes, align=256;<br />    BSS:      load = SRAM,            type = bss, define = yes;<br />    ZEROPAGE: load = ZP,              type = zp;<br />}</div><br /><br />And a little tiny asm source that looks like<div class="codetitle"><b>Code:</b></div><div class="codecontent">;;; cl65 -d -vm -l nsf.lst -g -t nes -C nsf.cfg -m nsf.map -Ln nsf.lbl -o driar.nsf nsf.asm<br /><br />.segment &quot;HEADER&quot;<br />   .import __ROM0_START__<br />   .macro pad32 str<br />    .if (.strlen(str) &gt; 31)<br />     .error &quot;pad32 given too long input&quot;<br />    .endif<br />    .byte str,0<br />    .res 31-.strlen(str)<br />   .endmacro<br />   <br />   .byte &quot;NESM&quot;,$1a<br />   .byte 1     ; version<br />   .byte 10    ; number of songs<br />   .byte 1     ; starting song<br />   .word __ROM0_START__ ;;; This is where I was wrong. loadaddr should be the start of the ROM0 segment<br />   .word initaddr<br />   .word playaddr<br />   ;; ....0123456789a123456789b123456789c1<br />   pad32 &quot;Driar Soundtrack&quot;<br />   pad32 &quot;David Eriksson&quot;<br />   pad32 &quot;©2012 David Eriksson&quot;<br />   .word 16639 ; Real NTSC rate<br />   .byte 0,0,0,0,0,0,0,0 ; disable bankswitching<br />   .word 19997   ; Real PAL rate<br />   .byte 3   ; Prefer PAL, compatible with both<br />   .byte 0   ; no expansion audio<br />   .word 0,0<br /><br />.BSS<br />MUSE_RAM: .res 256<br />.ZEROPAGE<br />MUSE_ZEROPAGE: .res 7<br />savedA: .byte 0<br />savedX: .byte 0<br /><br />.segment &quot;CODE&quot;<br />.proc initaddr<br />   stx savedX<br />   sta savedA<br /><br />   lda #&lt;musedata<br />   ldx #&gt;musedata<br />   jsr MUSE_init<br />   <br />   lda #15<br />   jsr MUSE_setVolume<br />   ;; X=1 if PAL, 0 if NTSC<br />   lda savedX<br />   eor #1<br />   asl<br />   asl<br />   asl<br />   asl<br />   ;; now A=0 if PAL, 16 if NTSC<br />   jsr MUSE_setFlags<br />   ;; A=desired song number<br />   lda savedA<br />   jsr MUSE_startMusic<br />   rts<br />.endproc<br /><br />.proc playaddr<br />   jsr MUSE_update<br />   rts<br />.endproc<br />.segment &quot;CODE&quot;<br />.include &quot;sound.inc&quot;<br /><br />.segment &quot;MUSE&quot;<br />   .align 256<br />   .include &quot;muse-ca65.inc&quot;</div><br /><s>So there are two major things I don&#39;t understand:<br />1- What&#39;s the difference between loadaddr and initaddr in an unbanked NSF? I originally thought I should put MUSE_init in loadaddr, and MUSE_startMusic in initaddr, but then it doesn&#39;t work at all. What works is what I have above, where loadaddr is moot and initaddr does everything. Why would that be the case?<br />2- If I reorder the above segments, such that sound.inc or muse-ca65.inc or both come before my little stub code, and thus the address of loadaddr, initaddr, and playaddr are no longer at $80xx, once again, it doesn&#39;t work at all. Why does this break things?</s><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=3512">lidnariq</a> — Fri Sep 27, 2013 1:04 pm</p><hr />
+]]></content>
+</entry>
+</feed>

@@ -1,0 +1,417 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Sweep unit questions</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Sweep unit questions</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=3&amp;t=10056">http://forums.nesdev.com/viewtopic.php?f=3&amp;t=10056</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>3</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ulfalizer</b> [ Tue Apr 30, 2013 5:08 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Sweep unit questions</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />After reading <!-- m --><a class="postlink" href="http://wiki.nesdev.com/w/index.php/APU_Sweep">http://wiki.nesdev.com/w/index.php/APU_Sweep</a><!-- m --> the detailed behavior of the sweep unit still isn't clear to me, so here's a a few questions:<br /><br /><ol style="list-style-type: decimal"><li>Wiki says <em>&quot;when the channel's current period is less than 8 or the target period is greater than $7FF, the channel is silenced (0 is sent to the mixer) but the channel's current period remains unchanged.&quot;</em> Does that mean that if the current period is &lt;8, the sweep unit won't ever modify it, even if it's a sweep towards longer periods? The wiki makes it sound that way, but it seems weird. Also, is it really looking at the current period as opposed to the target period?<br /></li><li>Does manually writing a period &lt;8 to e.g. $4002/$4003 also silence the channel? (This should be greater than ~14KHz for the pulse channels.)<br /></li><li>When sweep over/underflow occurs, what different ways are there to get the channel to play again? Will you need to cause a new target period to be calculated by writing to $4001/$4005? Can you also write a new period to $4002/$4003 that would cause the target period to not over/underflow and wait for the sweep unit to be clocked? Any other ways to un-silence the channel? </li></ol>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Tue Apr 30, 2013 7:05 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Sweep unit questions</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I looked at my APU doc and found clarification.<br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent">----------<br />Sweep Unit<br />----------<br /><br />The sweep unit can adjust a square channel's period periodically. It contains a<br />divider and a shifter.<br /><br />A channel's second register configures the sweep unit:<br /><br />    eppp nsss       enable, period, negate, shift<br /><br />The divider's period is set to p + 1.<br /><br />The shifter continuously calculates a result based on the channel's period. The<br />channel's period (from the third and fourth registers) is first shifted right<br />by s bits. If negate is set, the shifted value's bits are inverted, and on the<br />second square channel, the inverted value is incremented by 1. The resulting<br />value is added with the channel's current period, yielding the final result.<br /><br />When the sweep unit is clocked, the divider is *first* clocked and then if<br />there was a write to the sweep register since the last sweep clock, the divider<br />is reset.<br /><br />When the channel's period is less than 8 or the result of the shifter is<br />greater than $7FF, the channel's DAC receives 0 and the sweep unit doesn't<br />change the channel's period. Otherwise, if the sweep unit is enabled and the<br />shift count is greater than 0, when the divider outputs a clock, the channel's<br />period in the third and fourth registers are updated with the result of the<br />shifter.</div><br />The style of writing I used in the APU doc is to minimize implied things or redundancy. Above it says that if <s>result</s> <strong>raw period</strong> &lt; 8 or result &gt; $7FF, the DAC receives 0, and the sweep unit won't change the channel's period. Otherwise... (i.e. the rest of the paragraph is void <em>unless</em> <s>result</s> <strong>raw period</strong> &gt;= 8 and result &lt;= $7FF).<br /><br />I can verify this next time I've got my NES RE machine on, so you can update the Wiki.<br /><br />I intended for the APU reference pages on the Wiki to contain just a concise but complete description of APU operation, without <em>any</em> practical usage notes, not even &quot;this means that ...&quot; (since such statements are a kludge when the description could be made clearer and not need a clarifying comment). I think that mixing it all together leads to a more watered-down language that leaves unanswered questions.<br /><br />EDIT: fixed error in my paraphrasing of the quoted doc.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ulfalizer</b> [ Tue Apr 30, 2013 7:38 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Sweep unit questions</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">blargg wrote:</div><div class="quotecontent">Above it says that if result &lt; 8 or result &gt; $7FF, the DAC receives 0, and the sweep unit won't change the channel's period.</div><br /><br />It doesn't say &quot;result &lt; 8&quot; though, but &quot;current period &lt; 8&quot;. If the current period is &gt;=8 and the result would be &lt;8, then &quot;when the channel's period is less than 8 [...] the sweep unit doesn't change the channel's period&quot; implies that the period would be changed by the sweep unit, while &quot;result &lt; 8&quot; implies that it wouldn't be changed. So which one is it?<br /><br /><div class="quotetitle">blargg wrote:</div><div class="quotecontent">I intended for the APU reference pages on the Wiki to contain just a concise but complete description of APU operation, without <em>any</em> practical usage notes, not even &quot;this means that ...&quot; (since such statements are a kludge when the description could be made clearer and not need a clarifying comment). I think that mixing it all together leads to a more watered-down language that leaves unanswered questions.</div><br /><br />I mostly agree with this.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Dwedit</b> [ Tue Apr 30, 2013 8:40 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Sweep unit questions</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />The sweep unit will silence the channel <strong><em>whether you're using the sweep unit or not</em></strong>.  So just having the wrong byte written to the sweep register is enough to disable the longest periods (lowest frequencies).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Tue Apr 30, 2013 8:54 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Sweep unit questions</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">ulfalizer wrote:</div><div class="quotecontent"><div class="quotetitle">blargg wrote:</div><div class="quotecontent">Above it says that if result &lt; 8 or result &gt; $7FF, the DAC receives 0, and the sweep unit won't change the channel's period.</div><br /><br />It doesn't say &quot;result &lt; 8&quot; though, but &quot;current period &lt; 8&quot;. If the current period is &gt;=8 and the result would be &lt;8, then &quot;when the channel's period is less than 8 [...] the sweep unit doesn't change the channel's period&quot; implies that the period would be changed by the sweep unit, while &quot;result &lt; 8&quot; implies that it wouldn't be changed. So which one is it?</div><br />It's what the APU doc says, and not my erroneous paraphrasing in the post above. I don't know all the details of the APU anymore; I have to go by the docs like anyone (perfect example of why redundancy is to be avoided).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ulfalizer</b> [ Tue Apr 30, 2013 9:06 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Sweep unit questions</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Dwedit wrote:</div><div class="quotecontent">The sweep unit will silence the channel <strong><em>whether you're using the sweep unit or not</em></strong>.  So just having the wrong byte written to the sweep register is enough to disable the longest periods (lowest frequencies).</div><br /><br />Yeah, that much is clear. I wonder if that was intentional or another NES hw bug. The 2A03 prolly just has sweep addition result overflow/underflow lines internally that always silence the channel if high...
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ulfalizer</b> [ Tue Apr 30, 2013 9:39 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Sweep unit questions</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />In Visual 2A03 it looks like the pulse channels are <em>always</em> silenced when the timer &lt; 8, even when the sweep isn't involved at all. Should check if something similar is going on for the triangle channel...<br /><br />It's too bad stuff involving the frame counter is a pita to check in Visual 2A03. :/
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>lidnariq</b> [ Tue Apr 30, 2013 10:31 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Sweep unit questions</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I believe the triangle is known to not be silenced by too-high or too-low periods; the silencing operation seems to be part of the sweep units.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ulfalizer</b> [ Tue Apr 30, 2013 11:02 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Sweep unit questions</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">lidnariq wrote:</div><div class="quotecontent">I believe the triangle is known to not be silenced by too-high or too-low periods; the silencing operation seems to be part of the sweep units.</div><br /><br />Okay.<br /><br />Can't get the triangle to work in Visual 2A03 (tri_out never changes even with tri_on/en both high), so hard to confirm. <img src="./images/smilies/icon_confused.gif" alt=":?" title="Confused" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Wed May 01, 2013 10:56 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Sweep unit questions</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I updated my old apu_sweep tests and added them to the wiki.<br /><br />EDIT: added test that checks minimum period behavior. It's as documented. If channel's raw period &lt; 8, then channel's DAC receives 0 and sweep won't modify channel's period. This the only minimum period behavior; it doesn't matter whether the shifter result &lt; 8. All this is verified by the test so try implementing the alternative interpretations you can come up with and see whether they pass.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ulfalizer</b> [ Wed May 01, 2013 3:41 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Sweep unit questions</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Thanks!<br /><br />By the way, a channel silenced through overflow/underflow does not affect the flag status you get from $4015, right?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Wed May 01, 2013 4:56 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Sweep unit questions</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />If only it did, then these tests wouldn't require listening. Only the length counter reaching 0 affects $4015 read. Basically a channel has many things that can force the DAC to receive 0 (which letting everything else in the channel continue to run -- less hardware to achieve this). This silencing is one of them. I need to learn how to read those decaps so I can look at the circuit that achieves this.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ulfalizer</b> [ Wed May 01, 2013 5:15 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Sweep unit questions</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Looking at Visual 2A03 the wiki seems a bit off in some of the descriptions, though the visible behavior might still be equivalent (and to be fair the wiki only claims to present an &quot;abstract model&quot;).<br /><br />For example, <!-- m --><a class="postlink" href="http://wiki.nesdev.com/w/index.php/APU_Length_Counter">http://wiki.nesdev.com/w/index.php/APU_Length_Counter</a><!-- m --> says that the length counter is forced to zero when disabling a channel via $4015, but it actually seems to be unaffected. Rather, each channel has an <em>enabled</em> bit (from $4015) and an <em>active</em> bit (e.g. sq0_en and sq0_on). The <em>active</em> bit is set and cleared e.g. when the length counter is loaded and reaches zero, respectively. The <em>active</em> bit also seems to be what you get back from $4015 reads, which suggests that overflow isn't simply clearing it. <img src="./images/smilies/icon_sad.gif" alt=":(" title="Sad" /><br /><br />I can't read the decaps either. All I've done so far is to trace node values.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ulfalizer</b> [ Wed May 01, 2013 5:23 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Sweep unit questions</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />For future reference and in case anyone wants to experiment, here's how to confirm that the square channel is silenced when the timer &lt; 8. (It only tests the first pulse channel, but it'd be weird if the second one was different.)<br /><br />Edit: Confirmed that the second pulse channel works the same way.<br /><br />Test program:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">// Enable pulse<br />LDA #$01&nbsp; &#91;A9 01&#93;<br />STA $4015 &#91;8D 15 40&#93;<br />// Set pulse volume, use constant volume<br />LDA #$1F&nbsp; &#91;A9 1F&#93;<br />STA $4000 &#91;8D 00 40&#93;<br />// Set pulse timer low<br />LDA #$08&nbsp; &#91;A9 08&#93;<br />STA $4002 &#91;8D 02 40&#93;<br />// Set pulse length counter and timer high (to zero)<br />LDA #$F8&nbsp; &#91;A9 F8&#93;<br />STA $4003 &#91;8D 03 40&#93;<br />// Loop endlessy<br />CLC&nbsp; &nbsp; &nbsp; &nbsp;&#91;18&#93;<br />BCC #$FE&nbsp; &#91;90 FE&#93;</div><br /><br />Corresponding Visual 2A03 URL:<br /><br /><!-- m --><a class="postlink" href="http://www.qmtpro.com/~nes/chipimages/visual2a03/?graphics=false&amp;logmore=Execute,sq0_en,sq0_on,sq0_p,sq0_t,sq0_out&amp;a=0&amp;d=a9018d1540a91f8d0040a9088d0240a9f88d03401890fe">http://www.qmtpro.com/~nes/chipimages/v ... 03401890fe</a><!-- m --><br /><br /><em>a=0d=a901...</em> puts the program at address 0. <em>logmore</em> specifies some nodes to trace (a list of nodes can be found in nodenames.js). When run, you only see sq0_out ever being non-zero if the timer &gt;= 8.<br /><br />Edit: A guess would be that the output condition is something like <em>active bit set</em> <strong>AND</strong> <em>timer &gt;= 8</em> <strong>AND NOT</strong> <em>carry out from sweep unit addition</em>. The sweep unit period update condition might be just the last two. I wonder if Quietust could confirm this and maybe add some node names...
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Wed May 01, 2013 6:22 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Sweep unit questions</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />So $4015 writes set an enabled flag (basically, it remembers the last write to $4015). I take it that writing 0 clears the active flag, but writing 1 doesn't affect the active flag. And then, writing the third channel register when the enabled flag is set sets the active flag, the length counter is only clocked when the active flag is set, and the length counter reaching 0 clears the active flag (really, it probably loads the counter with one less than the count, so that it wrapping around is it &quot;reaching 0&quot;, so it's just the carry out the top that clears the active flag). I suppose this makes sense from a hardware view, rather than having to check whether the length counter is 0 on a $4015 read etc.<br /><br />This kind of thing makes sense in a description of the hardware implementation, since it's important for understanding the schematic, but from a behavior POV, it just adds complication. I'm torn though because claiming that writing to $4015 can clear a length counter to 0 is an outright lie. Essentially the abstract description becomes a micro-optimization of things to reduce the number of variables in the abstract model.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>3</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

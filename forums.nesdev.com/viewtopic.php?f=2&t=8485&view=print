@@ -1,0 +1,383 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - RLE tool for NES</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">RLE tool for NES</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=8485">http://forums.nesdev.com/viewtopic.php?f=2&amp;t=8485</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>3gengames</b> [ Mon Jan 02, 2012 4:45 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>RLE tool for NES</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Too tired to type it all up, all information is in this download somewhere:
+<br />
+<br /><!-- m --><a class="postlink" href="http://www.mediafire.com/?glfsch484xu185y">http://www.mediafire.com/?glfsch484xu185y</a><!-- m -->
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Kasumi</b> [ Mon Jan 02, 2012 7:24 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Why aren't you using zero page addressing for all the RAM you have? 
+<br />
+<br />For instance, CompressFlag is at $0301. This means it takes 4 cycles each time that cmp is needed. If it was on the zero page it would take 3 cycles. Let's say there are 18 "runs" of data. You lose 18 cycles for absolutely no reason. You're not tight on RAM, so why? The same with BIT DecompressSettings. Every time you do that, you lose a cycle because DecompressSettings is not on the zero page. 
+<br />
+<br />And in case you do decide to move those things to zero page, unfortunately nesasm doesn't give you the gains automatically.
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">;You have to put &lt; before each zero page RAM label that you want to use zero page addressing for<br />;So do<br />BIT &lt;DecompressSettings<br />;rather than<br />BIT DecompressSettings<br />;And when that byte is on the zero page, it will be faster.<br />CMP &lt;CompressFlag<br />INC &lt;DecompressOutput<br />;etc<br /></div><br />Unless you are tight on zero page RAM you should do the above. It not only makes things faster, it also means your code takes up less space.<br /><br />Generally, you have to choose between making your code faster or making it smaller. If you want small code, you have the right idea. But if you want fast code, avoid doing anything in a loop that doesn't need to be done.<br /><br />Will the value of DecompressSettings EVER change during this subroutine? It doesn't look like it. So checking it is a waste of time for EVERY SINGLE run. <br /><br />If I were you, I would check DecompressSettings immediately after you jsr to the subroutine, and then branch to a loop that never increments if the minus bit is clear, and always does if the bit is set. This means you have to duplicate some code, but it also means you only check DecompressSettings ONCE per routine.<br /><br />In fact, you could ignore DecompressSettings entirely, and just make two separate routines. Think about it this way: The user has to set beforehand which one they're using. So why not save the writes required to do that, and just have them jsr to a different routine?<br /><br />This plan saves the cycles for the write (6 cycles), and 4 cycles for every time BIT DecompressSettings would have happened. <br /><br />This is a little strange in your C code.<br /><br />You know you can just do <br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">while&#40;1&#41;<br /></div><br />Right?<br />Or even just<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">while&#40;AlwaysOne&#41;<br /></div><br />There's no need for <br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">while&#40;AlwaysOne == 1&#41;<br /></div>
+<br />
+<br />Still, not bad for a generic solution. I'll mess with it a bit more and see if I can find anything else.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>3gengames</b> [ Mon Jan 02, 2012 7:30 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Yeah, I thought about everything you said before. I didn't make two routines because it just seemed like a waste, but it will make it faster and honestly I can make a bunch of programs and the user can select. I'll separate the two routines, it does make sense. And I don't know how everyone else uses their ZP, but I only use it for pointers and not much else, I put them in normal RAM because it seemed file, but yes adding the ZP addressing labels in and then moving them to ZP would work too. And I didn't even tink about the INC ZP for the other addresses, yikes! I'll fix that for this version, and then later I'll write the other decompressed programs possibly tonight, or tomorrow or sometimes soon. It should be cake, but I've been programming this for 2 days and don't want to mess with it anymore, heh. <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" /> Thanks for the feedback! <img src="./images/smilies/icon_biggrin.gif" alt=":D" title="Very Happy" /> And I guess I could have just done that for the while loop, but I felt safer just comparing it to a number, in case I had a case where it needed set to 0 and not have a break to exit it in an if inside it.
+<br />
+<br />ETA: Took ZP variables and put them into ZP mode and then moved more to ZP (All except a scratchpad byte for Y in the middle of the run decompression program, move it to ZP if you wish) and that's about it. I'll get those seperated routines done later. Anyone see anything else that can be improved on? <img src="./images/smilies/icon_biggrin.gif" alt=":D" title="Very Happy" />
+<br />
+<br />*Use the newer version. Details in first post.*
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>koitsu</b> [ Mon Jan 02, 2012 11:34 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />FWIW, I used a similar methodology in the FF2e intro code for Neo Demiforce.  ROM space was extremely limited, and the title/intro screen (raw) was too large, so I RLE'd it.  I did the compression of it by hand (yes really!), and wrote the decompression routine.  It saved something like 200 bytes, which was enough.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bisqwit</b> [ Tue Jan 03, 2012 2:03 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>LZMPi</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I recently needed to compress something (though my need went away before I actually used the decompressor), and I stumbled upon <a href="http://codebase64.org/doku.php?id=base:lzmpi_compression" class="postlink">LZMPi compress</a>, an LZ variant. It was written for the Commodore 64, but I ported it for the NES.
+<br />
+<br />It needs 64 bytes of RAM for history buffer tables ($6C0..$6FF), 35 bytes for run-time generated code (because NES's program memory is read-only), and 10…12 bytes of memory for other variables ($D0..$FF).
+<br />
+<br />Source code:
+<br /><!-- m --><a class="postlink" href="http://bisqwit.iki.fi/src/lzmpi_nes.zip">http://bisqwit.iki.fi/src/lzmpi_nes.zip</a><!-- m -->
+<br />Includes a compressor in C++, a decompressor in C++, and a decompressor in 6502 assembler.
+<br />The assembler program can be assembled with <a href="http://bisqwit.iki.fi/source/nescom.html" class="postlink">nescom</a>, but I have not tested yet whether it actually runs.
+<br />The decompressor, with default settings, takes up 0x1F9 bytes of ROM space (505 decimal).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>3gengames</b> [ Tue Jan 03, 2012 3:11 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />After an hour, I'm back to this tab. <img src="./images/smilies/icon_biggrin.gif" alt=":D" title="Very Happy" /> Lots of reading on that LZ-type compression, seems simple but damn effective for stuff like text in games, really nice to see. I'll get those 6502 decompressing programs written later, but I may dabble with that LZ-type compression some too, that seems like something else to learn for sure. <img src="./images/smilies/icon_biggrin.gif" alt=":D" title="Very Happy" /> Good stuff. If anybody else has sourced compression tools they'd like to share, post them here, I don't mind. I think a topic dedicated to just compression tools for games is a good idea, if anyone has more post them. <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" />
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Dwedit</b> [ Tue Jan 03, 2012 3:15 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />So when do I start porting Aplib to the 6502?  I've already gotten it working on the ARM and Z80.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>3gengames</b> [ Tue Jan 03, 2012 3:19 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />If you want to, go for it? I don't want anybody porting the tools for no reason or because there's a thread like this, just maybe post them if you have them done.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Shiru</b> [ Tue Jan 03, 2012 3:22 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />aPLib is <a href="http://jiggawatt.org/badc0de/decrunch/" class="postlink">already ported</a> to 6502.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>3gengames</b> [ Tue Jan 03, 2012 7:45 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />New update posted soon in first post.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Bregalad</b> [ Thu Jan 05, 2012 4:11 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Wooow.
+<br />All this talk about compression made me think I should eventually do my ultimate compression tools project discussed <a href="http://nesdev.com/bbs/viewtopic.php?t=8045&amp;highlight=compression" class="postlink">here</a>.
+<br />
+<br />The problem with compression is not only the complexity of the compression itself, but the complexity to choose which compression to use.
+<br />Various algorithms use various RAM amounts, are more or less CPU intensive, compress more or less the data and of course the size of the decompression code itself have to be taken into account because if it is too long it will kill the purpose of compressing data ! This is especially a problem with the Huffman tree in Huffman compression.
+<br />
+<br />Another thing to take into account is if you want to compress different source of data in the same game using the same algorithm, so that you only store the decompression code once.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Thu Jan 05, 2012 8:26 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Bregalad wrote:</div><div class="quotecontent">Another thing to take into account is if you want to compress different source of data in the same game using the same algorithm, so that you only store the decompression code once.</div>
+<br />Unless the decompression code needs to access data in multiple banks, and your mapper uses 32 KiB bankswitching, and you don't have enough available RAM in $0300-$07FF to copy the code into RAM every time. Then you need to repeat the code in every bank that has compressed data. I've almost run into this with one of my multicart menu projects; I ended up moving things around so that I could load about half a kilobyte of decompression code into RAM.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

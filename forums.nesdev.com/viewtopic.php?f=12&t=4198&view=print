@@ -1,0 +1,347 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Game Doctor SF3 - BIOS Exploit</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Game Doctor SF3 - BIOS Exploit</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=12&amp;t=4198">http://forums.nesdev.com/viewtopic.php?f=12&amp;t=4198</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>neviksti</b> [ Tue Jul 01, 2008 1:43 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Game Doctor SF3 - BIOS Exploit</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I finally found out how to trick the SF3 into letting a program running on the copier have access to all the copier memory and registers.  The SF7 "super mode" injected code directly by injecting a brk statement, and then switching the memory mapping to "bios mode" temporarily.  Instead the SF3 inserts code at every NMI.
+<br />
+<br />I tried my trick from before of setting the stack to a carefully chosen invalid location and it didn't work.  Also I read the NMI vector and nothing happenned.  So how does it know when to switch to bios mode?
+<br />
+<br />Well it is amazingly specific.  It looks to see 4 decreasing accesses to $00:0000-1FFF and <em>then</em> the NMI vector.  Normal code running on the processor can't cause this to happen, only an interrupt.
+<br />
+<br />However, a carefully chosen sequence of DMA can do it.  Run this code (obviously best done from RAM) and you'll switch to "BIOS" mode.
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp; &nbsp;LDY #$3e90<br />&nbsp; &nbsp;STY $4300&nbsp; &nbsp;&nbsp; &nbsp;; &#40;B&#41; PPU -&gt; &#40;A&#41; CPU, auto decrement, read 1 reg, $213e &#40;ppu status flag&#41;<br />&nbsp; &nbsp;LDY #$1F00<br />&nbsp; &nbsp;STY $4302&nbsp; &nbsp;&nbsp; &nbsp;; &#40;A&#41; offset<br />&nbsp; &nbsp;LDY #$0004<br />&nbsp; &nbsp;STY $4305&nbsp; &nbsp;&nbsp; &nbsp;; number of bytes to transfer<br />&nbsp; &nbsp;LDA #$00<br />&nbsp; &nbsp;STA $4304&nbsp; &nbsp;&nbsp; &nbsp;; bank address = $00<br /><br />&nbsp; &nbsp;LDY #$3e00<br />&nbsp; &nbsp;STY $4310&nbsp; &nbsp;&nbsp; &nbsp;; &#40;A&#41; CPU -&gt; &#40;B&#41; PPU, auto increment, write 1 reg, $213e &#40;ppu status flag&#41;<br />&nbsp; &nbsp;LDY #$FFEA<br />&nbsp; &nbsp;STY $4312&nbsp; &nbsp;&nbsp; &nbsp;; &#40;A&#41; offset &#40;native mode NMI vector&#41;<br />&nbsp; &nbsp;LDY #$0002<br />&nbsp; &nbsp;STY $4315&nbsp; &nbsp;&nbsp; &nbsp;; number of bytes to transfer<br />&nbsp; &nbsp;LDA #$00<br />&nbsp; &nbsp;STA $4314&nbsp; &nbsp;&nbsp; &nbsp;; bank address = $00<br /><br />&nbsp; &nbsp;LDA #$03<br />&nbsp; &nbsp;STA $420B&nbsp; &nbsp;&nbsp; &nbsp;;start DMA transfer<br /></div>
+<br />
+<br />I haven't looked around much yet.  But here's first impressions:
+<br />bank $00:
+<br />..$8000-$8FFF appears to be the copier registers for $40 then repeated constantly.
+<br />..$9000-$FFFF ROM
+<br />bank $01-03: ROM
+<br />bank $04: ?? some memory
+<br />bank $05: ?? same memory as $04 ??
+<br />bank $06: probably copier SRAM
+<br />bank $07: probably DRAM
+<br />
+<br />Everything else seems unmapped.
+<br />Some registers probably control mapping in of the external cartridge for dumping reasons.
+<br />
+<br />EDIT:  Here's an example of the exploit with a memory viewer, so you can play with the copier registers.  Let me know what you find out.
+<br />
+<br /><!-- m --><a class="postlink" href="http://neviksti.com/SNES/SF2exp3">http://neviksti.com/SNES/SF2exp3</a><!-- m -->
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Tue Jul 01, 2008 2:49 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Game Doctor SF3 - BIOS Exploit</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">neviksti wrote:</div><div class="quotecontent">So how does it know when to switch to bios mode?<br /><br />Well it is amazingly specific.  It looks to see 4 decreasing accesses to $00:0000-1FFF and <em>then</em> the NMI vector.</div>
+<br />I seem to remember some topic on this board about ways to expand interrupt handling on the NES in which someone suggested something similar. Can anyone dig it up?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>kammedo</b> [ Thu Jul 03, 2008 2:53 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Do you still have the information about the GDSF7 exploit?
+<br />It would be intresting and helpfull to have it..
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>neviksti</b> [ Thu Jul 03, 2008 11:45 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Sure I guess.
+<br />Here's a chunk from the SF7 code which explains everything
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">exploit_setup:<br />&nbsp; &nbsp;; exploit code will actually be run from WRAM<br />&nbsp; &nbsp;; to get a &quot;real time save&quot; routine to initiate, we need to:<br />&nbsp; &nbsp;;&nbsp; &nbsp; &nbsp;1&#93; ..wait..<br />&nbsp; &nbsp;;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;It appears that there is some kind of timer in the SF7.<br />&nbsp; &nbsp;;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;It only allows the copier to interrupt the flow of code roughly<br />&nbsp; &nbsp;;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;once per VBlank.&nbsp; _Also_, it requires a little time before the<br />&nbsp; &nbsp;;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;very first &quot;saver routine&quot; interrupt.&nbsp; This confused me quite<br />&nbsp; &nbsp;;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;a bit at first because removing code that didn't seem to matter<br />&nbsp; &nbsp;;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;would cause the exploit to fail.&nbsp; Just keep it in mind.<br />&nbsp; &nbsp;;&nbsp; &nbsp; &nbsp;2a&#93; write #$01 to $4016<br />&nbsp; &nbsp;;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;or<br />&nbsp; &nbsp;;&nbsp; &nbsp; &nbsp;2b&#93; read $4219<br /><br />&nbsp; &nbsp;;move code to WRAM<br />&nbsp; &nbsp;ldx #ExploitCode<br />&nbsp; &nbsp;ldy #$0000<br />-&nbsp; &nbsp;lda.w $8000,X&nbsp; &nbsp;&nbsp; &nbsp;;Address adjusted<br />&nbsp; &nbsp;sta.w $0000,Y<br />&nbsp; &nbsp;inx<br />&nbsp; &nbsp;iny<br />&nbsp; &nbsp;cpx #ExploitCodeEnd<br />&nbsp; &nbsp;bne -<br /><br /><br />&nbsp; &nbsp;;----- try to goto $00:0001<br />&nbsp; &nbsp;ldx #$B030&nbsp; &nbsp;;Setup the stack to a carefully chosen &quot;invalid&quot; value<br />&nbsp; &nbsp;txs<br /><br />&nbsp; &nbsp;lda #$01<br />&nbsp; &nbsp;sta $4016&nbsp; &nbsp;;dummy write to trigger a SF7 &quot;save state feature routine&quot; <br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;;&nbsp; &nbsp;the invalid stack makes the bank value wrong &#40;code does a PHA / PLB&#41;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;;&nbsp; &nbsp;so joypad is read incorrectly &#40;accessing ROM instead of SF7 RAM&#41;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;;&nbsp; &nbsp;it thinks the user requested something &#40;regardless of actual joypad presses&#41;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;;&nbsp; &nbsp;it starts into some routines, at the first return it &quot;pulls&quot; the<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;;&nbsp; &nbsp; &nbsp; return address from ROM because of where the stack is pointed<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;;&nbsp; &nbsp;thus, it ends up at our code in WRAM<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;;&nbsp; &nbsp; &nbsp;&#40;if you don't trick the SF7 joypad read, it will return to the wrong place<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;;&nbsp; &nbsp; &nbsp; due to the incorrect stack ... but it will return in cartridge mode&#41;<br /><br />&nbsp; &nbsp;;jmp.l $000001 ;--test in emulators<br /></div>
+<br />
+<br />NOTE: I am really not sure if the execution is redirected to $00:0000 or $00:0001 as the code comments claim.  I always set many instructions at the beginning of $0000 to NOP just in case.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>kammedo</b> [ Fri Jul 04, 2008 1:05 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">neviksti wrote:</div><div class="quotecontent">Sure I guess.<br />Here's a chunk from the SF7 code which explains everything<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">exploit_setup:<br />&nbsp; &nbsp;; exploit code will actually be run from WRAM<br />&nbsp; &nbsp;; to get a &quot;real time save&quot; routine to initiate, we need to:<br />&nbsp; &nbsp;;&nbsp; &nbsp; &nbsp;1&#93; ..wait..<br />&nbsp; &nbsp;;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;It appears that there is some kind of timer in the SF7.<br />&nbsp; &nbsp;;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;It only allows the copier to interrupt the flow of code roughly<br />&nbsp; &nbsp;;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;once per VBlank.&nbsp; _Also_, it requires a little time before the<br />&nbsp; &nbsp;;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;very first &quot;saver routine&quot; interrupt.&nbsp; This confused me quite<br />&nbsp; &nbsp;;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;a bit at first because removing code that didn't seem to matter<br />&nbsp; &nbsp;;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;would cause the exploit to fail.&nbsp; Just keep it in mind.<br />&nbsp; &nbsp;;&nbsp; &nbsp; &nbsp;2a&#93; write #$01 to $4016<br />&nbsp; &nbsp;;&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;or<br />&nbsp; &nbsp;;&nbsp; &nbsp; &nbsp;2b&#93; read $4219<br /><br />&nbsp; &nbsp;;move code to WRAM<br />&nbsp; &nbsp;ldx #ExploitCode<br />&nbsp; &nbsp;ldy #$0000<br />-&nbsp; &nbsp;lda.w $8000,X&nbsp; &nbsp;&nbsp; &nbsp;;Address adjusted<br />&nbsp; &nbsp;sta.w $0000,Y<br />&nbsp; &nbsp;inx<br />&nbsp; &nbsp;iny<br />&nbsp; &nbsp;cpx #ExploitCodeEnd<br />&nbsp; &nbsp;bne -<br /><br /><br />&nbsp; &nbsp;;----- try to goto $00:0001<br />&nbsp; &nbsp;ldx #$B030&nbsp; &nbsp;;Setup the stack to a carefully chosen &quot;invalid&quot; value<br />&nbsp; &nbsp;txs<br /><br />&nbsp; &nbsp;lda #$01<br />&nbsp; &nbsp;sta $4016&nbsp; &nbsp;;dummy write to trigger a SF7 &quot;save state feature routine&quot; <br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;;&nbsp; &nbsp;the invalid stack makes the bank value wrong &#40;code does a PHA / PLB&#41;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;;&nbsp; &nbsp;so joypad is read incorrectly &#40;accessing ROM instead of SF7 RAM&#41;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;;&nbsp; &nbsp;it thinks the user requested something &#40;regardless of actual joypad presses&#41;<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;;&nbsp; &nbsp;it starts into some routines, at the first return it &quot;pulls&quot; the<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;;&nbsp; &nbsp; &nbsp; return address from ROM because of where the stack is pointed<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;;&nbsp; &nbsp;thus, it ends up at our code in WRAM<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;;&nbsp; &nbsp; &nbsp;&#40;if you don't trick the SF7 joypad read, it will return to the wrong place<br />&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;;&nbsp; &nbsp; &nbsp; due to the incorrect stack ... but it will return in cartridge mode&#41;<br /><br />&nbsp; &nbsp;;jmp.l $000001 ;--test in emulators<br /></div><br /><br />NOTE: I am really not sure if the execution is redirected to $00:0000 or $00:0001 as the code comments claim.  I always set many instructions at the beginning of $0000 to NOP just in case.</div>
+<br />
+<br />Oh, good old stack manipulations <img src="./images/smilies/icon_wink.gif" alt=";)" title="Wink" />
+<br />Thanks neviksti, I'll try to see if this can get the setup running. We definitely need to talk more about the GDSF7, I would be intrested in exploring more of its internals! I don't know if you remember, but I emailed you about that as well.
+<br />
+<br />EDIT : so I guess the way of working is something like that :
+<br />
+<br />a) you trigger a pad crossing
+<br />b) on the VBlank, the GDSF7 checks the pads and does a PLB from the stack, but being the stack pointed to *your* position, it pops *your* address from it and consequently jumps to your location.
+<br />
+<br />Correct?
+<br />
+<br />EDIT 2 : 
+<br />
+<br />suppose I get the reset vector of FEoEZ (which is easy) and set up a program to switch there - should work, shouldnt it?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>neviksti</b> [ Fri Jul 04, 2008 1:31 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">kammedo wrote:</div><div class="quotecontent">Thanks neviksti, I'll try to see if this can get the setup running.</div><br />?? What exactly is wrong with your setup?  I don't see how this would help fix anything.<br /><br /><div class="quotetitle">kammedo wrote:</div><div class="quotecontent">EDIT : so I guess the way of working is something like that :<br /><br />a) you trigger a pad crossing<br />b) on the VBlank, the GDSF7 checks the pads and does a PLB from the stack, but being the stack pointed to *your* position, it pops *your* address from it and consequently jumps to your location.<br /><br />Correct?</div><br />I'm not sure what you mean by "a)", and as for "b" vblank is not involved (nmi is not even activated here) and the order you wrote is not quite right.<br /><br />When SF7 sees the joypads being read, it literally inserts code by replying to the next opcode requests with a BRK command... at this point it is in "bios mode".  So the interrupt vector is taken from the bios code and the interrupt code in the bios is executed.  One of the first things it does is lda #$06 / pha / plb  in order to make the databank $06 which is the copier's SRAM.  It doesn't want to mess with any of the SNES memory so as not to mess with the running game it interrupted... therefore it uses its SRAM for everything -&gt; including where it stores the joypad data it reads in.  It then checks the stored joypad data, but since it isn't actually reading RAM, it doesn't get the joypad data but some data in the ROM.  It so happens this causes it to execute some routine.  To return from the routine it tries to execute RTS, and this pulls an address from the "stack" (actually data in the ROM) and ends up transferring execution to my code in RAM.<br /><br />Make sense?<br /><br /><br />EDIT:<br /><div class="quotetitle">kammedo wrote:</div><div class="quotecontent">EDIT 2 : <br /><br />suppose I get the reset vector of FEoEZ (which is easy) and set up a program to switch there - should work, shouldnt it?</div>
+<br />I'm sorry.  I'm not understanding what you are trying to do at all.
+<br />
+<br />The exploit is not needed to do any of the SPC7110 dumping.  All the dumps so far were done on the SF3 before I figured out this exploit.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>kammedo</b> [ Fri Jul 04, 2008 1:43 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">neviksti wrote:</div><div class="quotecontent">When SF7 sees the joypads being read, it literally inserts code by replying to the next opcode requests with a BRK command... at this point it is in "bios mode".  So the interrupt vector is taken from the bios code and the interrupt code in the bios is executed.  One of the first things it does is lda #$06 / pha / plb  in order to make the databank $06 which is the copier's SRAM.  It doesn't want to mess with any of the SNES memory so as not to mess with the running game it interrupted... therefore it uses its SRAM for everything -&gt; including where it stores the joypad data it reads in.  It then checks the stored joypad data, but since it isn't actually reading RAM, it doesn't get the joypad data but some data in the ROM.  It so happens this causes it to execute some routine.  To return from the routine it tries to execute RTS, and this pulls an address from the "stack" (actually data in the ROM) and ends up transferring execution to my code in RAM.<br /></div>
+<br />
+<br />Sure, clear as the sky.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Fri Jul 04, 2008 11:19 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">neviksti wrote:</div><div class="quotecontent">One of the first things it does is lda #$06 / pha / plb  in order to make the databank $06 which is the copier's SRAM.  It doesn't want to mess with any of the SNES memory so as not to mess with the running game it interrupted...</div>
+<br />(tangent) Doesn't the PHA modify RAM in the SNES in a way that the game could be affected by?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>neviksti</b> [ Fri Jul 04, 2008 12:28 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">blargg wrote:</div><div class="quotecontent">(tangent) Doesn't the PHA modify RAM in the SNES in a way that the game could be affected by?</div>
+<br />Yes it is possible to detect, however I don't know of any instruction that changes the databank except PLB.
+<br />
+<br />The only way they could have fixed it would be to map some SRAM into bank 0 and use that for their temporary stack.  The copier already has the capability to do this, so it could indeed be avoided.  But the assumption that there is room on the stack is a reasonable assumption... rarely if ever would a programmer store data literally right below the stack.
+<br />
+<br />EDIT: Just remembered, MVN and MVP also affect the databank register.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

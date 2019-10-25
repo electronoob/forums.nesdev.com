@@ -1,0 +1,417 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Sprite OAM issue? (updated: bug in own code)</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Sprite OAM issue? (updated: bug in own code)</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=9840">http://forums.nesdev.com/viewtopic.php?f=2&amp;t=9840</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>GradualGames</b> [ Sat Feb 23, 2013 5:30 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Sprite OAM issue? (updated: bug in own code)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />*edit* Sorry for the double post on this, folks. Everything below constitutes me misidentifying a very simple bug in my own code. Perhaps it is good to leave posts like this in the forum for others to learn from  <img src="./images/smilies/icon_smile.gif" alt=":)" title="Smile" /> <br /><br />*edit* To avoid spamming the forum with an additional thread I'll just update this one. I've since weeded out OAM as the source of the bug I've described. I think it may actually be a bus conflict bug. I use the wiki's recommended best practice for switching banks with UnROM:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">&nbsp;.segment &quot;CODE&quot;<br />&nbsp;bankswitch:<br />&nbsp; &nbsp; &nbsp;lda banktable, y&nbsp; &nbsp; &nbsp; &nbsp; ;read a byte from the banktable<br />&nbsp; &nbsp; &nbsp;sta banktable, y&nbsp; &nbsp; &nbsp; &nbsp; ;and write it back, switching banks<br />&nbsp; &nbsp; &nbsp;sty current_bank&nbsp; &nbsp; &nbsp; &nbsp; ;store the current bank in RAM<br />&nbsp; &nbsp; &nbsp;rts<br /></div> <br /><br />And, in one part of my code, I'm doing this inside a loop with rendering off, but also at the end of nmi to update the sound engine. I'm switching to the same bank in all cases, yet I've determined that sometimes I am switched to the wrong bank---but only in the main thread. Thus, it seems like allowing the bankswitch code to get interrupted by nmi can screw up the mapper. I'm certain that I saw a comment by tepples about this some many months ago, but I was not able to find it.<br /><br /><strong>Original post (with bug misidentified):</strong><br /><br />One bug that shook out of investigating scroll glitch hiding has me a bit puzzled. When I load a location on a map, at a high level, I am currently doing this:<br /><br />-turn off graphics (both bg and sprites) (assume palette is all black, safely, by now)<br />-upload all nametable data we want to see when we fade the palette back in. Each chunk of nametable data (row or column) is also accompanied by a sprite OAM command (this stuck around from being adapted from a vblank routine)<br />-turn on graphics safely and then fade in the palette<br /><br />So, 99% of the time, this works. But there's a strange bug there where nametable data gets corrupted. I've narrowed it down (I think) to calling sprite OAM with graphics and sprites disabled. When I protected the sprite OAM with a flag like the rest of my data, and only use it when actually ready to show something, the bug I mentioned goes away.<br /><br />I know I read some comments in a few threads about sprite OAM itself getting corrupted with bg and sprites disabled, but in this case other data in the PPU seems to get corrupted. <br /><br />The weird thing is, this bug was not present before adding all the extra cycle padding for hiding scrolling glitches. This makes me wonder if it is a pretty rare edge case and is simply working by coincidence (without the new code), and I *should not* be using sprite OAM outside of vblank (with gfx and sprites off), under any circumstances?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>3gengames</b> [ Sat Feb 23, 2013 6:02 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Sprite OAM gotcha with rendering disabled?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />There's some sort of OAM refresh bug. They talked about it in your scrolling forum post IIRC. You need to disable at the end of the scanline I believe. Don't know the specifics. Did you scour the wiki?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>GradualGames</b> [ Sat Feb 23, 2013 6:11 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Sprite OAM gotcha with rendering disabled?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I haven't found much information that seems to match the precise situation I ran into, which involves updating OAM multiple times in a row with graphics turned off (causing nametable artifacts). It seems to be a very rare edge case. I had to put FCEUX on 400% speed and go in and out of a house in my game at least 20 times to see it happen. I saw it happen on a real system a few times, as well. When I avoid updating OAM outside of vblank (again, with graphics OFF, I never thought this was a problem before), the problem vanishes. I guess someone must know about this bug because it appears to be emulated.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>3gengames</b> [ Sat Feb 23, 2013 6:16 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Sprite OAM gotcha with rendering disabled?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Edited. And why would you update OAM lots of times out of VB? Sounds like a complete waste.<br /><br />ETA: Nevermind. I read it wrong. Any video of it? Does it happen on FCEUX ever?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>GradualGames</b> [ Sat Feb 23, 2013 6:22 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Sprite OAM gotcha with rendering disabled?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">3gengames wrote:</div><div class="quotecontent">Edited. And why would you update OAM lots of times out of VB? Sounds like a complete waste.</div><br /><br />I recently adapted my column/row upload routine. I wanted to be able to indirectly call this routine from vblank during gameplay, or call it while loading a full screen of graphics with the palette turned off. I left the call to upload sprite OAM so that I didn't need to either protect OAM with a flag or make a new version of the ppu upload routine, thinking it was harmless. The transition looked very smooth/fast. But---apparently it was not harmless! It is fascinating what sort of bugs shake out during development.<br /><br />As for the scrolling registers, that was my first suspect for this bug, because I've seen issues like that before. In fact, I suppose it is possible this is still working by coincidence and it is still something to do with when I am updating the scrolling registers. I'm not 100% sure! I do know I cannot reproduce the bug anymore, though. Is it okay to update scrolling registers with rendering turned off? I had been under the impression for a long time you could do anything you wanted with graphics off, except update the palette. *edit* 3gengames, why did you remove your comment, it was relevant, I think.<br /><br />As for video of it, yes it happens in FCEUX. You can actually see it happen once in the video I uploaded in the scroll glitch hiding thread. I may have to annotate the video to point it out. When I get time tomorrow I will do this or maybe you will spot it easily.<br /><br />*edit*<br /><br />Bug annotated here: <a href="http://youtu.be/P-Jfc0ekgms?t=53s" class="postlink">The bug</a><br /><br />I did look for a while at where I was updating scroll registers. In padding cpu cycles for glitch hiding, I thought I might have been putting updates to $2006 and $2005 too close to the end of vblank. But I modified this so the padding comes after modifying the scroll regs, so I don't think that can be the bug (it still behaved roughly the same). I still can't reproduce this bug after avoiding all unnecessary OAM updates. I'm happy obviously but if anyone knows more about this it'd sure be interesting to learn.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Sik</b> [ Sun Feb 24, 2013 1:58 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Sprite OAM gotcha with rendering disabled?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />If FCEUX does it too then doesn't that make it more likely a bug in your own code? Because if this was a hardware bug I doubt FCEUX would be emulating it (given how it would seem to be a really edge case).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>GradualGames</b> [ Sun Feb 24, 2013 8:43 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Sprite OAM gotcha with rendering disabled?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />You may be right. I'm still curious about what is going on here. While I can't reproduce it anymore, I don't think I'm done with it. *edit* You're right. It is a bug in my code. I can reproduce it by padding cpu cycles where I had been doing the unnecessary OAM updates. Thanks for encouraging me to reconsider what the problem was! *edit* I think I may have determined that this is a bus conflict issue, I've updated the OP with more information.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Tue Feb 26, 2013 12:18 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Sprite OAM issue? (updated: bug in own code)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />So, what was the problem, exactly?<br /><br />Were you getting an occasional NMI directly between these two lines?<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">sta banktable, y<br />sty current_bank&nbsp; </div><br /><br />i.e. it's already switched to a new bank, but the code that now runs in NMI thinks it's still at the old bank and doesn't switch back to it like it should?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>GradualGames</b> [ Tue Feb 26, 2013 12:32 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Sprite OAM issue? (updated: bug in own code)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />This is a duplicate of <a href="http://forums.nesdev.com/viewtopic.php?f=2&amp;t=9845" class="postlink">bg and sprites off, nmi on, main thread writes to PPU</a>. It was the same bug.  On the other hand, thinking about possible mapper issues helped me improve the robustness of my UnROM macros. For example, I previously had this:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">.macro switch_bank_ldy bank<br />&nbsp; ldy bank<br />&nbsp; lda bank_table,y<br />&nbsp; sta bank_table,y<br />&nbsp; sta current_bank<br />.endmacro<br /></div><br /><br />But, since I have bankswitching both in the main thread and vblank routines, I thought I could run into a problem where the vblank routine might save current_bank on stack, switch to the bank vblank needs, then pull current_bank and switch back to it all before the main thread does a sta current_bank (potentially returning to main thread with wrong bank selected). So I moved to this:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">.macro switch_bank_ldy bank<br />&nbsp; ldy bank<br />&nbsp; sty current_bank<br />&nbsp; lda bank_table,y<br />&nbsp; sta bank_table,y<br />.endmacro<br /><br /></div><br /><br />Which should elminate that potential problem. So, while this was not the bug, thinking about possibly having a mapper issue helped me improve my code anyway.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Tue Feb 26, 2013 12:54 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Sprite OAM issue? (updated: bug in own code)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Furthermore, saving Y keeps the code correct when you rearrange the banks for watermarking (5040 possibilities for banks 0-6 in UNROM or 1.3 trillion for UOROM).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>GradualGames</b> [ Tue Feb 26, 2013 1:04 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Sprite OAM issue? (updated: bug in own code)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">tepples wrote:</div><div class="quotecontent">Furthermore, saving Y keeps the code correct when you rearrange the banks for watermarking (5040 possibilities for banks 0-6 in UNROM or 1.3 trillion for UOROM).</div><br /><br />Nice, didn't think of that. I'm hoping to look into watermarking sometime soon in order to recruit some beta-testers. One idea I had floating around was to find sequences of code whose order do not matter, re-order them uniquely for each beta tester, and then keep track of which beta tester is associated with which harmless permutation of the code. Even if someone tampers with the rom, they are unlikely to un-do watermarking like this since it is totally inconspicuous. I know there had been a discussion of watermarking in depth here some months back; not sure if that was one of the proposed ideas or not.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>3gengames</b> [ Tue Feb 26, 2013 1:11 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Sprite OAM issue? (updated: bug in own code)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I already wrote a very customized too set for windows to scramble all my stuff. (although it'll most likely get rewritten for python/bash/linux when I write my NES assembler) It scans the main code to look for html-like tags like &lt;is&gt; (insert subroutines) and then randomizes what subroutines to put there. It happens multiple places in the code so it'll be all spaced out Then there's other codes that shove ascii cart number data in to it and then the final dump routine which just puts all subroutine not put in to the source. Then I compile a ROM for every program generated. Collect the ROMS, split them all, and put them in to 2 folders numbered. I do this to make sure game genies don't work, and I can easily identify the ROM from which it came from and blacklist them from purchasing any more content in the future. Although it's not something I'd give out. But I may make a program on Linux later accompanied by my assembler (if I ever decide to create one/when I decide to) to do it. But that's how I do it. With some C programming and some batch and a lot of passing numbers, it isn't too bad to program honestly. It took me like 2 hours to get it doing all that stuff first rewrite.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>rainwarrior</b> [ Tue Feb 26, 2013 1:13 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Sprite OAM issue? (updated: bug in own code)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Do you need <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">current_bank</tt> at all? Why not just always switch to the requested bank?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>GradualGames</b> [ Tue Feb 26, 2013 1:16 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Sprite OAM issue? (updated: bug in own code)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">rainwarrior wrote:</div><div class="quotecontent">Do you need <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">current_bank</tt> at all? Why not just always switch to the requested bank?</div><br /><br />I use current_bank to allow my sound update routine to run at the end of vblank and not have to know anything about what the main thread is doing. That's the main reason I have it. And, I mentioned pushing current_bank on the stack in vblank---I actually removed that push/pull as well, since all I need to do is temporarily switch to the music bank, then restore current_bank for the benefit of the main thread.<br /><br />*edit* I forgot, I also use current_bank for various trampoline routines that perform map collision for entities. I don't want the trampoline routine to only be able to be called from the current entity bank, for example. I actually have several entity banks, each which use this routine, so it makes a lot of sense to save/restore the current bank in these sorts of situations, as well as the sound update within vblank scenario I already mentioned.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>tepples</b> [ Tue Feb 26, 2013 1:30 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: Sprite OAM issue? (updated: bug in own code)</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">GradualGames wrote:</div><div class="quotecontent">One idea I had floating around was to find sequences of code whose order do not matter, re-order them uniquely for each beta tester, and then keep track of which beta tester is associated with which harmless permutation of the code. Even if someone tampers with the rom, they are unlikely to un-do watermarking like this since it is totally inconspicuous. I know there had been a discussion of watermarking in depth here some months back; not sure if that was one of the proposed ideas or not.</div><br />It was. <a href="http://forums.nesdev.com/viewtopic.php?t=6197" class="postlink">I released a tool to do just that</a>, and Concentration Room 0.02 uses it.<br /><br /><div class="quotetitle">GradualGames wrote:</div><div class="quotecontent">all I need to do is temporarily switch to the music bank, then restore current_bank for the benefit of the main thread.</div><br />I just added this NMI handler use case to the <a href="http://wiki.nesdev.com/w/index.php/Programming_UNROM#Bankswitching" class="postlink">Programming UNROM</a> page on the wiki.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>2</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

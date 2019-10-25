@@ -1,0 +1,228 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - When does the 6502 CPU cycle?</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">When does the 6502 CPU cycle?</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=3&amp;t=10694">http://forums.nesdev.com/viewtopic.php?f=3&amp;t=10694</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ArsonIzer</b> [ Sat Nov 16, 2013 4:40 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>When does the 6502 CPU cycle?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I'm halfway-ish done making my PPU cycle-specific, but I'm still wondering when the CPU needs to let the PPU cycle 3 times. Basically, what I have right now, is that the PPU's tick() method (basically just calls cycle() 3x) is called in: <br /><br />- CPU's memory.read method<br />- CPU's memory.write method<br />- Whenever an additional cycle is required when branching/page crossing<br /><br />Now, I have implemented dummy memory.reads to get that extra cycle in 1-byte operations, which makes sense. The things that confuse me are instructions like Zero Page ASL (OP $06) because they require 5 cycles, and here is what I might be misunderstanding (or not): <br /><br />- Cycle 1: Fetching OP from PC (check)<br />- Cycle 2: Fetching zero page address from PC + 1 (check)<br />- Cycle 3: Fetching data from zero page address (check)<br />- Cycle 4: Writing altered data back to memory (check)<br />- Cycle 5: ??????? (not check)<br /><br />Now, if I had to guess, this 5th cycle would actually be the 4th cycle (so between the above mentioned cycle 3 and 4), and basically this cycle is where all the shifting and flag checking would happen. If that's the case, then my (Java) code looks something like this:<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">public void executeInstruction() { <br />&nbsp; &nbsp; int op = memory.read(PC++); //CPU cycles once, PPU cycles 3 times<br />..... //something something something<br />&nbsp; &nbsp; switch(op) { <br />.....<br />&nbsp; &nbsp; case 0x06: //ASL with zero page addressing<br />&nbsp; &nbsp; &nbsp; &nbsp; asl(getZeroAddress());<br />&nbsp; &nbsp; &nbsp; &nbsp; break;<br />.....<br />}<br /><br />.....<br />.....<br />.....<br /><br />public void asl(int address) { <br />&nbsp; &nbsp; int data = memory.read(address); //CPU cycles once, PPU cycles 3 times<br />&nbsp; &nbsp; data &lt;&lt;= 1;<br />&nbsp; &nbsp; checkCarry(data);<br />&nbsp; &nbsp; checkZero(data);<br />&nbsp; &nbsp; checkSign(data);<br />&nbsp; &nbsp; data &amp;= 0xFF;<br />&nbsp; &nbsp; ppu.tick(); //CPU cycled once, let the PPU cycle 3 times<br />&nbsp; &nbsp; memory.write(address, data); //CPU cycles once, PPU cycles 3 times<br />}<br />.....<br />.....<br />.....<br />public int getZeroAddress() { <br />&nbsp; &nbsp; return memory.read(PC++); //CPU cycles once, PPU cycles 3 times<br />}</div><br /><br />Is this correct, or am I misunderstanding something?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ArsonIzer</b> [ Sat Nov 16, 2013 8:48 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: When does the 6502 CPU cycle?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Never mind. <br /><br />There's a very handy document (<a href="http://users.telenet.be/kim1-6502/6502/hwman.html#AA" class="postlink">http://users.telenet.be/kim1-6502/6502/hwman.html#AA</a>) which describes exactly for which operations in combination with certain addressing modes a dummy read/write happens (appendix A). In the case of ASL, a dummy write happens after the data is read, i.e. the same data which is read is written back to memory without alteration. <br /><br />Just for the people who didn't know (doubtful, but still).<br /><br />Anyway, this still leaves me with a question, if I may put it in the same thread which is only partially related: <br /><br />The aforementioned document (appendix A, page 4, section 2.5) speaks of this: <br /><br />&quot;Carry is 0 or 1 as required from previous add operation&quot;<br /><br />What does this imply? I get that for some operations, when a page boundary is crossed, a previous read will be discarded as faulty, and a new read will be done, making the discarded read effectively a dummy read. The thing I just don't get is what the carry has to do with it. Can anyone answer this for me?
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Sat Nov 16, 2013 11:45 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: When does the 6502 CPU cycle?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />The 6502's 8-bit adder has a carry output for multi-byte operations. The address calculation logic examines this after adding the low byte and index register to determine whether a page crossing occurred and it needs to increment the high byte and redo the access.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ArsonIzer</b> [ Sat Nov 16, 2013 2:52 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: When does the 6502 CPU cycle?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">blargg wrote:</div><div class="quotecontent">The 6502's 8-bit adder has a carry output for multi-byte operations. The address calculation logic examines this after adding the low byte and index register to determine whether a page crossing occurred and it needs to increment the high byte and redo the access.</div><br /><br />Ah, so we're not talking about the same carry as in the 6502's processor status register. Good to know, I was confused as to what the heck the carry flag had anything to do with this operation. Thanks.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Sat Nov 16, 2013 4:50 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: When does the 6502 CPU cycle?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />Yeah, the entities in the bus-level description are typically not visible at the architectural level (e.g. ADH, ADL).
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>ArsonIzer</b> [ Sat Nov 16, 2013 5:25 pm ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b>Re: When does the 6502 CPU cycle?</b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />I suppose so. I haven't seen these things before in any other 6502 documentation. It's nice to know though, because that information made my CPU core a step closer to the real deal ^^
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>1</strong> of <strong>1</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

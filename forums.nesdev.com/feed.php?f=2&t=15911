@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-gb">
+<link rel="self" type="application/atom+xml" href="http://forums.nesdev.com/feed.php?f=2&amp;t=15911" />
+
+<title>nesdev.com</title>
+<subtitle>NES Development and Strangulation Records message boards</subtitle>
+<link href="http://forums.nesdev.com/index.php" />
+<updated>2017-05-26T14:46:40-07:00</updated>
+
+<author><name><![CDATA[nesdev.com]]></name></author>
+<id>http://forums.nesdev.com/feed.php?f=2&amp;t=15911</id>
+<entry>
+<author><name><![CDATA[russellsprouts]]></name></author>
+<updated>2017-05-26T14:46:40-07:00</updated>
+<published>2017-05-26T14:46:40-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=15911&amp;p=196704#p196704</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=15911&amp;p=196704#p196704"/>
+<title type="html"><![CDATA[Re: NORTH]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=15911&amp;p=196704#p196704"><![CDATA[
+There are some trade-offs, but I wonder if the primitives could get by with just 2 bytes of fixed zero page, and a larger red zone? Fixed bytes have a 1 cycle speed advantage, but you can still use the useful (indirect, x) addressing mode in the red zone. If (indirect), y addressing is needed, then they can use the fixed bytes.<br /><br />The hardest part would be to deal with cases where a primitive needs more than 1 pointer that uses indirect, y addressing, but you could probably work around it.<br /><br />The code for an interrupt handler that leaves an arbitrary red zone is mostly the same as above. It just uses this code instead of a string of inx or dex:<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">    txa<br />    clc<br />    adc #redzone<br />    tax<br /></div><p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=7399">russellsprouts</a> — Fri May 26, 2017 2:46 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[russellsprouts]]></name></author>
+<updated>2017-05-24T18:11:21-07:00</updated>
+<published>2017-05-24T18:11:21-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=15911&amp;p=196546#p196546</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=15911&amp;p=196546#p196546"/>
+<title type="html"><![CDATA[Re: NORTH]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=15911&amp;p=196546#p196546"><![CDATA[
+That makes sense. Saving and restoring 8 bytes on the stack for every interrupt wouldn't be ideal. That's a lot of overhead. My code above assumes only 2 bytes that need to be saved.<br /><br />Having a separate N also forces you to have different versions of the primitives that use N depending on whether it's an interrupt or not. That would preclude code sharing between interrupt code and normal code.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=7399">russellsprouts</a> — Wed May 24, 2017 6:11 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Garth]]></name></author>
+<updated>2017-05-24T16:07:17-07:00</updated>
+<published>2017-05-24T16:07:17-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=15911&amp;p=196536#p196536</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=15911&amp;p=196536#p196536"/>
+<title type="html"><![CDATA[Re: NORTH]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=15911&amp;p=196536#p196536"><![CDATA[
+That's true about the stack pointer (extra overhead notwithstanding), but there's at least one more consideration (and maybe more will come to me after I post, LOL).  Forth typically has a scratchpad area called N which primitives can use however they like, as long as they are completely done with it when they finish.  They cannot use it to pass data to another primitive, or to hold data there for the next time the same primitive runs.  On the 6502, 8 bytes seems to be enough for N.  It is put in ZP for efficiency, although its being in ZP also means you can use the extra ZP addressing modes in N if necessary.  If you allow interrupt service to start without letting the primitive finish, then you'll also need to push all 8 bytes of N.  You could have a separate N for interrupts, but then you would be consuming more precious ZP space, and interrupts would not be nestable, meaning you can't have a more-urgent interrupt that would be quick to service cut in on a lower-priority interrupt that may take longer to service.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=8130">Garth</a> — Wed May 24, 2017 4:07 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[russellsprouts]]></name></author>
+<updated>2017-05-24T15:17:56-07:00</updated>
+<published>2017-05-24T15:17:56-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=15911&amp;p=196531#p196531</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=15911&amp;p=196531#p196531"/>
+<title type="html"><![CDATA[Re: NORTH]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=15911&amp;p=196531#p196531"><![CDATA[
+Regarding letting interrupts use the same stack. I don't think you need to do anything fancy. The only rule is that the stack pointer needs to be accurate at all times -- you should never read from an unreserved part of the stack.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">lda STACK-1, x ; not allowed (assuming stack grows down)</div><br /><br />But it would be totally fine to read from any part of the reserved stack<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">lda STACK+1, x ; ok</div><br /><br />The interrupt handler would need to have a type of ( -- ), that is, it should leave the stack undisturbed once it returns, and not read the current data on the stack. It would also need to save any temporaries the code uses and restore them once it's done.<br /><br />The interrupt handler could also leave a small <a href="https://en.wikipedia.org/wiki/Red_zone_(computing)" class="postlink">red zone</a>.<br />Basically, it could leave a small (say 2 byte) buffer below the stack data of the normal code. That would allow normal code to use STACK-1, x and STACK-2, x, but no further. This could potentially cut down on the amount of stack pointer manipulation.<br /><br />Here's the interrupt handler I'm thinking of. Assume for simplicity x is the stack pointer and STACK only holds 8 bit values.<br /><br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">irq:<br />    ; save registers<br />    pha<br />    tya<br />    pha<br /><br />    ; reserve 2 bytes for temporaries, 2 bytes of red zone<br />    dex<br />    dex<br />    dex<br />    dex<br /><br />    ; save temporaries<br />    lda TMP1<br />    sta STACK, x<br />    lda TMP2<br />    sta STACK+1, x<br /><br />    ; do stuff... should preserve x by the end<br /><br />    ; restore temporaries<br />    lda STACK+1, x<br />    sta TMP2<br />    lda STACK, x<br />    sta TMP1<br />    <br />    ; free stack space<br />    inx<br />    inx<br />    inx<br />    inx<br /><br />    ; restore registers<br />    pla<br />    tay<br />    pla<br /><br />    rti<br /></div><br /><br />Does this make sense?<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=7399">russellsprouts</a> — Wed May 24, 2017 3:17 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[pubby]]></name></author>
+<updated>2017-05-09T17:58:25-07:00</updated>
+<published>2017-05-09T17:58:25-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=15911&amp;p=195459#p195459</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=15911&amp;p=195459#p195459"/>
+<title type="html"><![CDATA[Re: NORTH]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=15911&amp;p=195459#p195459"><![CDATA[
+<div class="quotetitle">Garth wrote:</div><div class="quotecontent"><br />Might it be that you're using assembly language for different and less-complex jobs?<br /></div><br />That's true, too.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=7486">pubby</a> — Tue May 09, 2017 5:58 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Garth]]></name></author>
+<updated>2017-05-09T16:40:10-07:00</updated>
+<published>2017-05-09T16:40:10-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=15911&amp;p=195455#p195455</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=15911&amp;p=195455#p195455"/>
+<title type="html"><![CDATA[Re: NORTH]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=15911&amp;p=195455#p195455"><![CDATA[
+<div class="quotetitle">pubby wrote:</div><div class="quotecontent"><br />Admittedly I wasn't trying to say very much. It was just a personal observation then when I write assembly, my subroutines rarely nest more than 2 or 3 layers deep. With, FORTH, my subroutine nest much deeper. So maybe that saves bytes, maybe it doesn't. Probably it falls into the &quot;subjective&quot; category.<br /></div><br />Might it be that you're using assembly language for different and less-complex jobs?  My last major assembly-language project was on a PIC16 microcontroller which only has an 8-level return stack, and toward the end I was constantly overrunning it and had to find relevant places I could straight-line things that wouldn't run me out of program memory (whose limit I was also pushing).  If the PIC16 would let you store data on the return stack, I could have used it even quite a lot deeper.  (The PIC16 is really mickey-mouse compared to the 6502, BTW.)  I don't think my assembly nests any less deep than my Forth; but my Forth work has definitely influenced my assembly.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=8130">Garth</a> — Tue May 09, 2017 4:40 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[pubby]]></name></author>
+<updated>2017-05-09T16:20:05-07:00</updated>
+<published>2017-05-09T16:20:05-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=15911&amp;p=195454#p195454</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=15911&amp;p=195454#p195454"/>
+<title type="html"><![CDATA[Re: NORTH]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=15911&amp;p=195454#p195454"><![CDATA[
+<div class="quotetitle">rainwarrior wrote:</div><div class="quotecontent"><br />speculating about Pubby's comment about code reuse.<br /></div><br />Admittedly I wasn't trying to say very much. It was just a personal observation then when I write assembly, my subroutines rarely nest more than 2 or 3 layers deep. With, FORTH, my subroutine nest much deeper. So maybe that saves bytes, maybe it doesn't. Probably it falls into the &quot;subjective&quot; category.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent"><br />Similar but maybe less rigidly than something like Haskell?<br /></div><br />I think the most enlightening statement I've heard is that stack languages model function composition by default. So &quot;[foo bar qux baz]&quot; can be read as the composition of four functions. You can do this in Haskell too, but it requires a decent amount of type plumbing, operator overloads, and it's not always flexible.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=7486">pubby</a> — Tue May 09, 2017 4:20 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Garth]]></name></author>
+<updated>2017-05-09T02:27:40-07:00</updated>
+<published>2017-05-09T02:27:40-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=15911&amp;p=195415#p195415</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=15911&amp;p=195415#p195415"/>
+<title type="html"><![CDATA[Re: NORTH]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=15911&amp;p=195415#p195415"><![CDATA[
+<div class="quotetitle">rainwarrior wrote:</div><div class="quotecontent"><br />Why does &quot;token threading&quot; take the name &quot;threading&quot;?<br /></div><br />I suppose it's like using a needle to pull a thread through a group of beads, where each &quot;bead&quot; is an instruction.  Dr. Brad Rodriguez who's a big name in the field of Forth has an article on five different threading methods at <!-- m --><a class="postlink" href="http://www.bradrodriguez.com/papers/moving1.htm">http://www.bradrodriguez.com/papers/moving1.htm</a><!-- m --> .  The three most common are indirect-threaded code (or ITC) which I use regularly), direct-threaded code (DTC), and subroutine-threaded code (STC).  STC is mostly a list of JSR's, but since it's essentially machine language, you can mix in non-JSR code as well, and select your balance of JSRs versus straightlining for speed.  ITC and DTC are mostly lists of addresses, meaning they only take two bytes (instead of three) per instruction.  Token threading takes only one byte for all the most commonly used instructions.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent"><br />I am seeing a lot of things around claiming that FORTH is good for &quot;small&quot; systems with limited resources<br /></div><br />It is, but it has also been used for a lot of big systems, including (but not limited to) database, spacecraft, space shuttle experiments, airport facilities handling, and hospital &amp; banking management.  You can get a fairly powerful system in a small memory footprint too, although the kernel takes a certain amount of memory (probably not less than a few K for a rudimentary one) before the application goes in.  A tiny application might be smaller in assembly language since it doesn't need the Forth kernel; but past a certain point, Forth's program memory savings start to pay off nicely.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent"><br />Though, since this is a static compilation project, and not using a bytecode interpreter, I'm not sure it compares the same way anymore.<br /></div><br />You can still get a huge advantage in development time once you get your system set up.  I hope I don't sound like I'm trying to make anyone do things any certain way though.  I've used a few algebraic languages, and most recently as I've tried to learn C, I have been realizing that some people's brains seem to be destined to think one way more than the other (algebraic versus RPN), like it's inborn, not just a matter of background.  I definitely do better in RPN.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent"><br />Being simple to implement is also a big advantage on its own<br /></div><br />True, and probably any mid-level 6502 programmer who wants to apply himself can understand the innards of Forth, including the compiler (which is only a couple hundred bytes or less!).<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent"><br />and it's not like we have a good optimizing 6502 compiler for <em>any</em> language at the moment. <img src="http://forums.nesdev.com/images/smilies/icon_razz.gif" alt=":P" title="Razz" /><br /></div><br />So true (and I'm especially thinking of cc65).<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent"><br />I can also see how the language's constraints push you toward many short &quot;word&quot; definitions, reusing them hierarchically with the return stack, and favours using the stacks to solve most of your problems. Similar but maybe less rigidly than something like Haskell? Of course, a deep stack has a significant memory footprint here as well when you've got less than 2k to work with. I'd imagine the rigid structure is well suited to static analysis for compiler optimization too, but again there's nothing to compare against anyway.<br /></div><br />I've done tests to see how much stack space I was using with the most intensive Forth application I could think of, with IRQs serviced in high-level Forth, plus NMIs going too and serviced in assembly, and it was not even 20% of ZP and page 1.  The only truly multitasking projects I've done were cooperative and without a multitasking OS, so they weren't hard on stacks at all.  It is easy though to do a round-robin cooperative multitasking OS even on the 6502 though, by dividing the stack space into sections and assigning a section to each task.  Then the number of tasks is limited by the stack space.  Three would be no sweat at all.  Six might be done with care.  Beyond that, you'll have to do a lot of analysis, or be copying out sections of dormant tasks to higher memory to make room for active tasks.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=8130">Garth</a> — Tue May 09, 2017 2:27 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[rainwarrior]]></name></author>
+<updated>2017-05-09T00:37:59-07:00</updated>
+<published>2017-05-09T00:37:59-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=15911&amp;p=195403#p195403</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=15911&amp;p=195403#p195403"/>
+<title type="html"><![CDATA[Re: NORTH]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=15911&amp;p=195403#p195403"><![CDATA[
+It was mostly a continuation of my previous post, speculating about Pubby's comment about code reuse. I knew the FORTH definition of &quot;word&quot; but maybe your post got me thinking about it a little more.<br /><br /><br />Why does &quot;token threading&quot; take the name &quot;threading&quot;? Does it have anything to do with threads as concurrently executed code, or does it have a different meaning in this context? What you described sounds like a normal bytecode size optimization (which I've seen in several bytecode formats)-- maybe the extreme case could be a huffman bit encoding based on frequency of use rather than working at the byte level? <img src="http://forums.nesdev.com/images/smilies/icon_wink.gif" alt=";)" title="Wink" /><br /><br /><br />I am seeing a lot of things around claiming that FORTH is good for &quot;small&quot; systems with limited resources, though most of them seem to talk about how small the interpreter and bytecode implementation are. I can see how it has relatively good value for size of interpreter vs. code utility, at least, as a language with a very small definition. Though, since this is a static compilation project, and not using a bytecode interpreter, I'm not sure it compares the same way anymore. Being simple to implement is also a big advantage on its own, though, and it's not like we have a good optimizing 6502 compiler for <em>any</em> language at the moment. <img src="http://forums.nesdev.com/images/smilies/icon_razz.gif" alt=":P" title="Razz" /><br /><br />I can also see how the language's constraints push you toward many short &quot;word&quot; definitions, reusing them hierarchically with the return stack, and favours using the stacks to solve most of your problems. Similar but maybe less rigidly than something like Haskell? Of course, a deep stack has a significant memory footprint here as well when you've got less than 2k to work with. I'd imagine the rigid structure is well suited to static analysis for compiler optimization too, but again there's nothing to compare against anyway.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=5165">rainwarrior</a> — Tue May 09, 2017 12:37 am</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Garth]]></name></author>
+<updated>2017-05-08T23:52:33-07:00</updated>
+<published>2017-05-08T23:52:33-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=15911&amp;p=195402#p195402</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=15911&amp;p=195402#p195402"/>
+<title type="html"><![CDATA[Re: NORTH]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=15911&amp;p=195402#p195402"><![CDATA[
+rainwarrior, I take it you are addressing multiple people here.  My own last post was just giving some background to answer the implied question about why the term &quot;words&quot; is used in Forth.  Parts of the Forth approach can be taken even in assembly language though, and you can also cut into and out of assembly at any point in an otherwise Forth program.<br /><br />One of the Forth threading methods is called &quot;token threading,&quot; where all the most commonly used words are given a one-byte token in the compilation instead of the two-byte address of the code to run for each word.  Then there must be an interpreter that looks up the execution address from a table at run time.  This slows it down but reduces the binary size.  Assuming you allow for more than 256 words, at least one byte value must be reserved to tell this interpreter that next you're going to give an address or at least a second token byte, instead of it being a one-byte token.  If you implement this, you can still add words at any time.<br /><br />You can indeed do self-modifying code in Forth, but the more common way to redefine words is to just write your new version.  Anytime there's compilation or there's interpretation of the input stream, FIND searches for the word in the current context, beginning with the most recently defined word in the context, and working backwards.  That way the most recently defined version will be found first, ending the search.  That one could even be defined in terms of the last previous defined version.  If you decide you don't like the new one and you want to go back to the old one, you can just FORGET the new one, and the dictionary pointer is put back to point where it did right before you defined that newest one.<br /><br />Parenthetical note:  FIND normally runs only during compilation or when you're interpreting the text input stream, not when compiled code is running; so if you redefine a word that other already-defined word is using, that word will also have to be redefined to use the new one, or you'll need to modify it.  Several approaches are possible, and none of them require re-compiling very much, which is one reason Forth's interactive development goes so fast.<br /><br />If desired, you can have more stacks than just the return stack (which is in page 1 on the 6502) and the data/parameter stack (which is normally in page 0 on the 6502).  The most common third stack is a floating-point stack (although it's also common to handle floating-point operations on the normal data stack if there's no separate floating-point stack).  You could add a complex-number stack, even a string stack, or whatever you like.<br /><br /><div class="quotetitle"><b>Quote:</b></div><div class="quotecontent"><br />My main thought here is just that nothing is out of bounds in assembly. You can use everybody's tricks at once.<br /></div><br />Absolutely.  Go for it.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=8130">Garth</a> — Mon May 08, 2017 11:52 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[rainwarrior]]></name></author>
+<updated>2017-05-08T23:02:20-07:00</updated>
+<published>2017-05-08T23:02:20-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=15911&amp;p=195398#p195398</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=15911&amp;p=195398#p195398"/>
+<title type="html"><![CDATA[Re: NORTH]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=15911&amp;p=195398#p195398"><![CDATA[
+I guess interpreted FORTH should have a form of &quot;self modifying code&quot;, because you can redefine old dictionary entries, right? This doesn't seem to apply to this compiled FORTH implementation, though, which appears to have a static dictionary at run-time. This is an interesting language feature to me, though, at least, even if not relevant here.<br /><br />I can also see how having a separate parameter stack and execution stack makes a lot of argument wrangling very simple compared to most other languages. I guess part of that is only having one &quot;type&quot;, as well, though that seems to be as much a help as hindrance...<br /><br />Writing the smallest possible code would likely involve a bytecode interpreter, again not part of this implementation, but there are other examples of this (e.g. <a href="https://en.wikipedia.org/wiki/SWEET16" class="postlink">SWEET16</a>).<br /><br />My main thought here is just that nothing is out of bounds in assembly. You can use everybody's tricks at once. You can use a separate parameter stack as a convention if you like. You can make bytecodes if it'll make things smaller. Maybe you would argue that once you have a bytecode interpreter you're not actually writing in &quot;assembly&quot; anymore, but I don't really want to have an argument about the definition, I'm just wondering if there's really something special in FORTH that you were making reference to that I'm not understanding.<br /><br />I mean, if it was really a statement about code text size, that's fine, I'd agree, I just misunderstood the context because I thought we were talking about binary size. If it was a statement about the &quot;FORTH mindset&quot; producing better code, then that's some subjective thing that I probably don't care to argue about.<br /><br /><br />At any rate, I'm looking forward to seeing what you make with it. I'd really like to know what a larger well written game in FORTH looks like.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=5165">rainwarrior</a> — Mon May 08, 2017 11:02 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[Garth]]></name></author>
+<updated>2017-05-08T21:57:07-07:00</updated>
+<published>2017-05-08T21:57:07-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=15911&amp;p=195394#p195394</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=15911&amp;p=195394#p195394"/>
+<title type="html"><![CDATA[Re: NORTH]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=15911&amp;p=195394#p195394"><![CDATA[
+<div class="quotetitle">pubby wrote:</div><div class="quotecontent"><br />For whatever reason, FORTH people like to call subroutines &quot;words&quot;<br /></div><br />Everything in Forth is a word except the data itself.  Even <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">.</tt> <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">,</tt> <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">@</tt> <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">!</tt> <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">&quot;</tt> <tt style="margin-left: 2px; margin-right: 2px; padding:3px; background-color: #3355aa; color: white;">&#40;</tt> etc. are words, just with very short names since they're used constantly, and there is no real punctuation, nor syntax.  For example, a variable may not seem like a &quot;word&quot; or routine, but it is one that puts the address of the variable's data space on the data stack.  I wouldn't doubt if with some modern, very complex processors, that may take only a single assembly-language instruction.<br /><br />Anyway, all words have definitions, and the whole collection of them is called the &quot;dictionary.&quot;  A word can have different meanings in different contexts, just as the word &quot;ball&quot; has one meaning in the context of dance, another in the context of baseball, and another in the context of football.  AND has a different meaning in the assembler context (if you've included an assembler in your Forth—and BTW, macro capability is automatic in even a very simple Forth assembler), and another meaning in the Forth context.  Not surprisingly, CONTEXT, VOCABULARY, and DEFINITIONS are standard Forth words.<br /><br />Everything you write extends the dictionary, and your words become every bit as much a part of the language itself as the original kernel's words.  (&quot;Language&quot;...&quot;dictionary&quot;...&quot;vocabulary&quot;... see the theme?)  You can write new functions, program-flow structures, or anything else, even new operators, and they become part of the dictionary.  The compiler looks up the words in the dictionary.  When it finds each word, if it finds that the word is not immediate, it lays down the addresses of the code to run it.  But if it <span style="text-decoration: underline">is</span> immediate, it executes it right then, and that word can optionally take temporary control of the compiler.  It makes for a system with virtually no limits.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=8130">Garth</a> — Mon May 08, 2017 9:57 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[rainwarrior]]></name></author>
+<updated>2017-05-08T21:49:22-07:00</updated>
+<published>2017-05-08T21:49:22-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=15911&amp;p=195393#p195393</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=15911&amp;p=195393#p195393"/>
+<title type="html"><![CDATA[Re: NORTH]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=15911&amp;p=195393#p195393"><![CDATA[
+<div class="quotetitle">pubby wrote:</div><div class="quotecontent"><br />Without inlining, _call is only 3 bytes (it's just a jsr or jmp). Maybe you were looking at <em>.proc call</em> (library code) by mistake?<br /></div><br />Yes, that was the mistake I made, sorry.<br /><br />My ~2k estimate was that your NMI vector is at $C8BC (2236 bytes), and it seemed from the CFG/etc that everything above that address should be from &quot;north.inc&quot; and &quot;example.inc&quot;. Was there something else in that block that I missed?<br /><br /><div class="quotetitle">pubby wrote:</div><div class="quotecontent"><br />FORTH can reuse code better than 6502 assembly, for example.<br /></div><br />What code reuse feature is present in FORTH that is missing in assembly?<br /><br />I mean, the text of assembly code is hella verbose, but the ability to <em>reuse</em> the binary code is extreme... you can jsr/jmp right into the middle of a subroutine or loop, for example. Self modifying code makes a ton of interesting reuse patterns possible too.<br /><br />As far as &quot;code reuse&quot; language features, I'd think of things like lambdas, lisp macros, polymorphism, generics/templates etc. but does FORTH have stuff like that? What power of reuse are you invoking? (This is not a rhetorical question, my knowledge of FORTH is limited and I'd be happy to be educated.)<br /><br />Like if we're talking about the text size of code, there's no argument here that you can do tons more with less text, but when you get down to the size of the binary code... I really don't believe anything has the power that assembly does? I'm having trouble imagining what you meant by that.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=5165">rainwarrior</a> — Mon May 08, 2017 9:49 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[pubby]]></name></author>
+<updated>2017-05-08T20:46:46-07:00</updated>
+<published>2017-05-08T20:46:46-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=15911&amp;p=195390#p195390</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=15911&amp;p=195390#p195390"/>
+<title type="html"><![CDATA[Re: NORTH]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=15911&amp;p=195390#p195390"><![CDATA[
+<div class="quotetitle">rainwarrior wrote:</div><div class="quotecontent"><br />I notice that the two most common macros <em>__push</em> and <em>__call</em> are ~11 bytes each. This seems to be adding up quickly. This <strong>example.nes</strong> already appears to be using ~2k of compiled code? (Am I estimating this correctly?)<br /></div><br />Without inlining, _call is only 3 bytes (it's just a jsr or jmp). Maybe you were looking at <em>.proc call</em> (library code) by mistake?<br /><br />Looking at the map file, the example NORTH code compiles to about ~1200 bytes. Disabling inlining and using zeropage stack drops it to ~600 bytes. Using a space efficient __push theoretically drops it to ~450. The library code adds a few hundred bytes on top of this.<br /><br />Like you said, it's hard to know how these numbers would scale when writing a real program. FORTH can reuse code better than 6502 assembly, for example.<br /><br />Oh, and there's also sonder's NES forth: <a href="https://forums.nesdev.com/viewtopic.php?f=2&amp;t=10371" class="postlink">Eight</a>. It uses bytecode and was optimized for space, so maybe that would be good to compare to.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=7486">pubby</a> — Mon May 08, 2017 8:46 pm</p><hr />
+]]></content>
+</entry>
+<entry>
+<author><name><![CDATA[rainwarrior]]></name></author>
+<updated>2017-05-08T19:39:50-07:00</updated>
+<published>2017-05-08T19:39:50-07:00</published>
+<id>http://forums.nesdev.com/viewtopic.php?t=15911&amp;p=195384#p195384</id>
+<link href="http://forums.nesdev.com/viewtopic.php?t=15911&amp;p=195384#p195384"/>
+<title type="html"><![CDATA[Re: NORTH]]></title>
+
+<content type="html" xml:base="http://forums.nesdev.com/viewtopic.php?t=15911&amp;p=195384#p195384"><![CDATA[
+<div class="quotetitle">pubby wrote:</div><div class="quotecontent"><br /><div class="quotetitle">rainwarrior wrote:</div><div class="quotecontent">If you're willing, it might be useful to see the assembly output (example.inc?) to understand an example of how things get translated, for people that don't have make and haskell (or other dependencies?) ready to go.<br /></div><br /><!-- m --><a class="postlink" href="https://pastebin.com/raw/f1WcCYfr">https://pastebin.com/raw/f1WcCYfr</a><!-- m --></div><br />Thanks for this. Really helps understand what's going on.<br /><br /><br /><br />Ah, I'm realizing that these are all macros, and there is no bytecode, like I had initially assumed.<br /><br />I notice that the two most common macros <em>__push</em> and <em>__call</em> are ~11 bytes each. This seems to be adding up quickly. This <strong>example.nes</strong> already appears to be using ~2k of compiled code? (Am I estimating this correctly?)<br /><br />I mean, it's a speed vs size tradeoff of course, but I've usually found that size is the more precious resource on the NES, and speed can be addressed by selectively optimizing problem areas in assembly.<br /><br />Anyhow, I know it's still very early, I'm not trying to criticize the design, just I was quite surprised to see that it translates directly into unrolled native code.<p>Statistics: Posted by <a href="http://forums.nesdev.com/memberlist.php?mode=viewprofile&amp;u=5165">rainwarrior</a> — Mon May 08, 2017 7:39 pm</p><hr />
+]]></content>
+</entry>
+</feed>

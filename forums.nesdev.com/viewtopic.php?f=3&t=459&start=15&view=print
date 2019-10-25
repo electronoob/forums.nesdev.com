@@ -1,0 +1,160 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html dir="ltr" lang="en-gb">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Language" content="en-gb">
+<title>nesdev.com :: View topic - Where does execution start for NES programs?</title>
+
+<style type="text/css">
+<!--
+
+body {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+}
+
+img {
+	border: 0;
+}
+
+td {
+	font-family: Verdana,serif;
+	font-size: 10pt;
+	line-height: 150%;
+}
+
+.code, .codecontent, 
+.quote, .quotecontent {
+	margin: 0 5px 0 5px;
+	padding: 5px;
+	font-size: smaller;
+	border: black solid 1px;
+}
+
+.quotetitle {
+	color: black;
+	display : block;
+	font-weight: bold;
+}
+
+.forum {
+	font-family: Arial,Helvetica,sans-serif;
+	font-weight: bold;
+	font-size: 18pt;
+}
+
+.topic {
+	font-family: Arial,Helvetica,sans-serif;
+	font-size: 14pt;
+	font-weight: bold;
+}
+
+.gensmall {
+	font-size: 8pt;
+}
+
+hr {
+	color: #888;
+	height: 3px;
+	border-style: solid;
+}
+
+hr.sep {
+	color: #aaa;
+	height: 1px;
+	border-style: dashed;
+}
+//-->
+</style>
+
+</head>
+<body>
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td colspan="2" align="center"><span class="Forum">nesdev.com</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/">http://forums.nesdev.com/</a></span></td>
+</tr>
+<tr>
+	<td colspan="2"><br /></td>
+</tr>
+<tr>
+	<td><span class="topic">Where does execution start for NES programs?</span><br /><span class="gensmall"><a href="http://forums.nesdev.com/viewtopic.php?f=3&amp;t=459">http://forums.nesdev.com/viewtopic.php?f=3&amp;t=459</a></span></td>
+	<td align="right" valign="bottom"><span class="gensmall">Page <strong>2</strong> of <strong>2</strong></span></td>
+</tr>
+</table>
+
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>blargg</b> [ Wed Aug 03, 2005 12:28 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" />The first thing that stands out is that you're using char for your ROM. A compiler can implement this as signed or unsigned, but it's usually signed so this is probably a source of problems. I recommend adding some printf() calls in the future to look at intermediate data. It also doesn't look like this is the code you ran, since it has errors.
+<br />
+<br />I coded up the following and it prints $8000 for the reset vector (I changed it to read 32K of ROM). I put in error checking because without it any errors would appear as an incorrect vector. I also made the rom data static since my compiler didn't like having so much data on the stack; in an emulator it should be allocated dynamically with malloc() or similar.
+<br />
+<br /><div class="codetitle"><b>Code:</b></div><div class="codecontent">void print_vector&#40;&#41;<br />&#123;<br />&nbsp; &nbsp; static unsigned char rom &#91;32 * 1024L&#93;;<br />&nbsp; &nbsp; FILE* file = fopen&#40; &quot;rom.nes&quot;, &quot;rb&quot; &#41;;<br />&nbsp; &nbsp; if &#40; !file &#41;<br />&nbsp; &nbsp; &nbsp; &nbsp; return;<br />&nbsp; &nbsp; <br />&nbsp; &nbsp; if &#40; fseek&#40; file, 16, SEEK_SET &#41; &#41;<br />&nbsp; &nbsp; &nbsp; &nbsp; goto error;<br />&nbsp; &nbsp; <br />&nbsp; &nbsp; if &#40; !fread&#40; rom, 1, sizeof rom, file &#41; &#41;<br />&nbsp; &nbsp; &nbsp; &nbsp; goto error;<br />&nbsp; &nbsp; <br />&nbsp; &nbsp; &#123;<br />&nbsp; &nbsp; &nbsp; &nbsp; unsigned offset = 0x8000;<br />&nbsp; &nbsp; &nbsp; &nbsp; unsigned reset = rom &#91;0xfffd - offset&#93; * 0x100 +<br />&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; rom &#91;0xfffc - offset&#93;;<br />&nbsp; &nbsp; &nbsp; &nbsp; <br />&nbsp; &nbsp; &nbsp; &nbsp; printf&#40; &quot;Reset vector: $%04x\n&quot;, reset &#41;;<br />&nbsp; &nbsp; &#125;<br />&nbsp; &nbsp; <br />error:<br />&nbsp; &nbsp; fclose&#40; file &#41;;<br />&#125;<br /></div>
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+	<hr width="85%" />
+
+	<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+	<tr>
+		<td width="10%" nowrap="nowrap">Author:&nbsp;</td>
+		<td><b>Disch</b> [ Wed Aug 03, 2005 7:11 am ]</td>
+	</tr>
+	<tr>
+		<td width="10%" nowrap="nowrap">Post subject:&nbsp;</td>
+		<td><b></b></td>
+	</tr>
+	<tr>
+		<td colspan="2"><hr class="sep" /><div class="quotetitle">Albeit wrote:</div><div class="quotecontent">Is the first bank loaded into $C000 and the second loaded into $8000? Do the banks actually come after one another in the cartridge rom? Am I doing something wrong?</div>
+<br />
+<br />For mapper 0 ROMs with 32k PRG (like Super Mario Bros), the first 16k goes at $8000 and the second 16k goes at $C000.
+<br />
+<br />To add to some things blargg said and for a few more things:
+<br />
+<br />- 'char' may be signed, which you don't want.  Use 'unsigned char' or a typedef of that ('BYTE' perhaps?).  You want unsigned 8-bit vars.
+<br />
+<br />- fread() is much much better for reading large chunks of data.  fscanf() isn't the best way to go (if you even just want an individual byte -- fgetc() would even be better than fscanf() -- but for this use fread())
+<br />
+<br />- don't be afraid to use hex in your code.  I see a lot of hex-&gt;dec conversions... some of which are errornerous.  Instead of "16384" for 16k, why not "0x4000"?  you know the reset vector is at $FFFC, so why not use "0xFFFC"?  the conversion to "16302" is not only harder to read... but also <em>wrong</em> (even after the subtraction)
+<br />
+<br />- the PRG comes before the CHR in the .nes file... so you've got the right idea.
+
+		
+
+		</td>
+	</tr>
+	</table>
+
+
+<hr width="85%" />
+
+<table width="85%" cellspacing="3" cellpadding="0" border="0" align="center">
+<tr>
+	<td><span class="gensmall">Page <strong>2</strong> of <strong>2</strong></span></td>
+	<td align="right"><span class="gensmall">All times are UTC - 7 hours </span></td>
+</tr>
+<tr>
+	<td colspan="2" align="center"><span class="gensmall">Powered by phpBB&reg; Forum Software &copy; phpBB Group<br />http://www.phpbb.com/</span></td>
+</tr>
+</table>
+
+</body>
+</html>

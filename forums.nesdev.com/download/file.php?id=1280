@@ -1,0 +1,526 @@
+;----------------------------------------------------------------
+; constants
+;----------------------------------------------------------------
+
+PRG_COUNT = 1 ;1 = 16KB, 2 = 32KB
+MIRRORING = %0001 ;%0000 = horizontal, %0001 = vertical, %1000 = four-screen
+
+PPU_CTRL = $2000
+  NT_2000 = $00
+  NT_2400 = $01
+  NT_2800 = $02
+  NT_2C00 = $03
+  VRAM_DOWN = $04
+  OBJ_0000 = $00
+  OBJ_1000 = $08
+  OBJ_8X16 = $20
+  BG_0000 = $00
+  BG_1000 = $10
+  VBLANK_NMI = $80
+
+PPU_MASK = $2001
+  LIGHTGRAY = $01
+  BG_OFF = $00
+  BG_CLIP = $08
+  BG_ON = $0A
+  OBJ_OFF = $00
+  OBJ_CLIP = $10
+  OBJ_ON = $14
+  TINT_R = $20
+  TINT_G = $40
+  TINT_B = $80
+
+PPU_STATUS = $2002
+OAM_ADDR = $2003
+OAM_DATA = $2004
+PPU_SCROLL = $2005
+PPU_ADDR = $2006
+PPU_DATA = $2007
+
+DMC_FREQ = $4010
+DMC_RAW = $4011
+DMC_START = $4012
+DMC_LEN = $4013
+
+OAM_DMA = $4014
+SND_CHN = $4015
+JOY1 = $4016
+JOY2 = $4017
+
+
+
+KEY_A      = %10000000
+KEY_B      = %01000000
+KEY_SELECT = %00100000
+KEY_START  = %00010000
+KEY_UP     = %00001000
+KEY_DOWN   = %00000100
+KEY_LEFT   = %00000010
+KEY_RIGHT  = %00000001
+
+;----------------------------------------------------------------
+; variables
+;----------------------------------------------------------------
+
+.enum $0000
+  temp:                     .dsb 4
+  p1_pad:                   .dsb 1
+  p2_pad:                   .dsb 1
+  p1_last_pad:              .dsb 1
+  p2_last_pad:              .dsb 1
+  second_timer:             .dsb 4  ; 0.32 fixed point
+  nmis:                     .dsb 2
+  irqs:                     .dsb 2
+  secs:                     .dsb 2
+  btns:                     .dsb 2
+  tv_system:                .dsb 1
+  render_ok:                .dsb 1
+.ende
+
+;----------------------------------------------------------------
+; iNES header
+;----------------------------------------------------------------
+
+   .db "NES", $1a ;identification of the iNES header
+   .db PRG_COUNT ;number of 16KB PRG-ROM pages
+   .db $01 ;number of 8KB CHR-ROM pages
+   .db $00|MIRRORING ;mapper 0 and mirroring
+   .dsb 9, $00 ;clear the remaining bytes
+
+;----------------------------------------------------------------
+; program bank(s)
+;----------------------------------------------------------------
+
+.fillvalue $ff
+.base $10000-(PRG_COUNT*$4000)
+
+DPCM_sample:
+  .dsb 16+1, $00
+
+RST:
+  sei               ; Disable interrupts
+  ldx #$00
+  stx PPU_CTRL      ; Disable NMI and set VRAM increment to 32
+  stx PPU_MASK      ; Disable rendering
+  bit PPU_STATUS    ; Acknowledge stray vblank NMI across reset
+  stx DMC_FREQ      ; Disable DMC IRQ
+  bit SND_CHN       ; Acknowledge DMC IRQ
+  lda #$40
+  sta $4017         ; Disable APU Frame IRQ
+  stx SND_CHN       ; Disable all audio channels
+  cld               ; turn off BCD for post-patent famiclone compatibility.
+
+-
+  bit PPU_STATUS
+  bpl -
+  txa
+-
+  sta $00, x
+  inx
+  bne -
+  tay
+  dex
+  txs
+-
+  bit PPU_STATUS
+  bpl -
+
+  lda #VBLANK_NMI
+  sta PPU_CTRL
+
+  jsr load_main_palette
+
+  lda #$00
+  ldx #$20
+  ldy #$00
+  jsr ppu_clear_nt
+
+  jsr print_string
+  
+  jsr display_stats
+
+  lda #$00
+  sta PPU_SCROLL
+  sta PPU_SCROLL
+
+  jsr getTVSystem
+
+  lda #BG_ON
+  sta PPU_MASK
+
+  ; irq_rate = ntsc_cpu_clock / (142*8*(16*1+1)) = 92.68 hz
+  ; irq_rate =  pal_cpu_clock / (132*8*(16*1+1)) = 92.61 hz
+  lda #$80|$00|$A
+  sta DMC_FREQ
+  lda #0
+  sta DMC_RAW
+  sta DMC_START
+  lda #1
+  sta DMC_LEN
+
+  lda #$10
+  sta SND_CHN
+
+  dec render_ok
+
+  cli
+
+-
+  jmp -
+
+NMI:
+  inc nmis
+  bne +
+  inc nmis+1
++
+  bit render_ok
+  bmi +
+  rti 
++
+  pha
+  txa
+  pha
+  tya
+  pha
+
+  lda tv_system
+  asl
+  asl
+  tay
+
+  clc
+  lda second_timer
+  adc second_timer_table, y
+  sta second_timer
+  lda second_timer+1
+  adc second_timer_table+1, y
+  sta second_timer+1
+  lda second_timer+2
+  adc second_timer_table+2, y
+  sta second_timer+2
+  lda second_timer+3
+  adc second_timer_table+3, y
+  sta second_timer+3
+
+  bcc ++
+  inc secs
+  bne +
+  inc secs+1
++
+  jsr display_stats
+++
+  pla
+  tay
+  pla
+  tax
+  pla
+  rti
+
+IRQ:
+  inc irqs
+  bne +
+  inc irqs+1
++
+  pha
+  lda #$10
+  sta SND_CHN
+  jsr read_pads
+  lda p1_pad
+  eor #$FF
+  and p1_last_pad
+  beq +
+  inc btns
+  bne +
+  inc btns+1
++
+  pla
+  rti
+
+;----------------------------------------------------------------
+; helper subroutines
+;----------------------------------------------------------------
+
+second_timer_table:
+ntsc_timer:
+  .db $85, $78, $42, $04    ; 71465093
+pal_timer:
+  .db $7E, $89, $1E, $05    ; 85887358
+dendy_timer:
+  .db $85, $78, $42, $04    ; 71465093 ??
+
+print_string:
+  ldx #$20
+  stx PPU_ADDR
+  ldx #$64
+  stx PPU_ADDR
+  ldx #$00
+-
+  lda string_table,x
+  sta PPU_DATA
+  inx
+  cpx #24
+  bcc -
+  rts
+
+string_table:
+  .db "IRQ/s NMI/s  secs button"
+
+display_stats:
+  bit PPU_STATUS
+  lda #$20
+  sta PPU_ADDR
+  lda #$84
+  sta PPU_ADDR
+
+  lda #$24
+  sta PPU_DATA
+
+  lda irqs+1
+  lsr
+  lsr
+  lsr
+  lsr
+  ora #$10
+  sta PPU_DATA
+  lda irqs+1
+  and #$0f
+  ora #$10
+  sta PPU_DATA
+
+  lda irqs
+  lsr
+  lsr
+  lsr
+  lsr
+  ora #$10
+  sta PPU_DATA
+  lda irqs
+  and #$0f
+  ora #$10
+  sta PPU_DATA
+
+  lda #$20
+  sta PPU_DATA
+  lda #$24
+  sta PPU_DATA
+
+  lda nmis+1
+  lsr
+  lsr
+  lsr
+  lsr
+  ora #$10
+  sta PPU_DATA
+  lda nmis+1
+  and #$0f
+  ora #$10
+  sta PPU_DATA
+
+  lda nmis
+  lsr
+  lsr
+  lsr
+  lsr
+  ora #$10
+  sta PPU_DATA
+  lda nmis
+  and #$0f
+  ora #$10
+  sta PPU_DATA
+
+  lda #$20
+  sta PPU_DATA
+  lda #$24
+  sta PPU_DATA
+
+  lda secs+1
+  lsr
+  lsr
+  lsr
+  lsr
+  ora #$10
+  sta PPU_DATA
+  lda secs+1
+  and #$0f
+  ora #$10
+  sta PPU_DATA
+
+  lda secs
+  lsr
+  lsr
+  lsr
+  lsr
+  ora #$10
+  sta PPU_DATA
+  lda secs
+  and #$0f
+  ora #$10
+  sta PPU_DATA
+
+  lda #$20
+  sta PPU_DATA
+  lda #$24
+  sta PPU_DATA
+
+  lda btns+1
+  lsr
+  lsr
+  lsr
+  lsr
+  ora #$10
+  sta PPU_DATA
+  lda btns+1
+  and #$0f
+  ora #$10
+  sta PPU_DATA
+
+  lda btns
+  lsr
+  lsr
+  lsr
+  lsr
+  ora #$10
+  sta PPU_DATA
+  lda btns
+  and #$0f
+  ora #$10
+  sta PPU_DATA
+
+  lda #$00
+  sta PPU_SCROLL
+  sta PPU_SCROLL
+  sta irqs
+  sta nmis
+  sta irqs+1
+  sta nmis+1
+  rts
+
+
+load_main_palette:
+  ldx #$3F
+  stx PPU_ADDR
+  ldx #$00
+  stx PPU_ADDR
+-
+  lda initial_palette,x
+  sta PPU_DATA
+  inx
+  cpx #32
+  bcc -
+  rts
+
+initial_palette:
+  .db $0f,$20,$20,$20,$0F,$06,$16,$26,$0F,$08,$19,$2A,$0F,$02,$12,$22
+  .db $0f,$08,$15,$27,$0F,$06,$16,$26,$0F,$0A,$1A,$2A,$0F,$02,$12,$22
+
+;;
+; http://wiki.nesdev.com/w/index.php/Detect_TV_system
+getTVSystem:
+  ldx #0
+  ldy #0
+  lda nmis
+-
+  cmp nmis
+  beq -
+  lda nmis
+-
+  inx
+  bne +
+  iny
++
+  cmp nmis
+  beq -
+  tya
+  sec
+  sbc #10
+  cmp #3
+  bcc +
+  lda #3
++
+  sta tv_system
+  rts
+
+;;
+; read_pads_once from Damian Yerrick's nrom template
+; http://forums.nesdev.com/viewtopic.php?t=7991.
+; Trashes A (A = p2_pad)
+; Preserves X, Y
+read_pads:
+  lda p1_pad
+  sta p1_last_pad
+  lda p2_pad
+  sta p2_last_pad
+
+  ; Bits from the controllers are shifted into p1_pad and
+  ; p2_pad.  In addition, p2_pad serves as the loop counter:
+  ; once the $01 gets shifted left eight times, the 1 bit will
+  ; end up in carry, terminating the loop.
+  lda #1
+  ;!;sta p1_pad     ; a full 8 bits will be shifted into p1_pad
+  sta p2_pad
+  ; Write 1 then 0 to JOY1 to send a latch signal, telling the
+  ; controllers to copy button states into a shift register
+  sta JOY1
+  lsr a     ;!;lda #0
+  sta JOY1
+-
+  lda JOY1
+  and #%00000011  ; ignore D2-D7
+  cmp #1          ; CLC if A=0, SEC if A>=1
+  rol p1_pad
+  lda JOY2
+  and #%00000011
+  cmp #1
+  rol p2_pad
+  bcc -
+  rts
+
+;;
+; Clears a nametable to a given tile number and attribute value.
+; (Turn off rendering in PPUMASK and set the VRAM address increment
+; to 1 in PPUCTRL first.)
+; @param A tile number
+; @param X base address of nametable ($20, $24, $28, or $2C)
+; @param Y attribute value ($00, $55, $AA, or $FF)
+ppu_clear_nt:
+
+  ; Set base PPU address to XX00
+  stx PPU_ADDR
+  ldx #$00
+  stx PPU_ADDR
+
+  ; Clear the 960 spaces of the main part of the nametable,
+  ; using a 4 times unrolled loop
+  ldx #960/4
+-
+  .rept 4
+    sta PPU_DATA
+  .endr
+  dex
+  bne -
+
+  ; Clear the 64 entries of the attribute table
+  ldx #64
+-
+  sty PPU_DATA
+  dex
+  bne -
+  rts
+
+;----------------------------------------------------------------
+; interrupt vectors
+;----------------------------------------------------------------
+
+.org $fffa
+
+.dw NMI
+.dw RST
+.dw IRQ
+
+;----------------------------------------------------------------
+; CHR-ROM bank
+;----------------------------------------------------------------
+
+; just a normal ascii character chart,
+; with the addition of hexadecimal at $10-$1f
+.incbin "tiles.chr"

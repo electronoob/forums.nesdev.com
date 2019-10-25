@@ -1,0 +1,1426 @@
+  .inesprg 1   ; 1x 16KB PRG code
+  .ineschr 1   ; 1x  8KB CHR data
+  .inesmap 0   ; mapper 0 = NROM, no bank swapping
+  .inesmir 1   ; background mirroring
+  
+;;;;;;;;;;;;;;;
+
+  .rsset $0000
+
+wallcollision .rs 1
+flipleft .rs 1
+flipright .rs 1
+flipleftcheck .rs 1
+fliprightcheck .rs 1
+jumpcout .rs 1
+AddrLow:  .rs 1
+AddrHigh:  .rs 1
+acheck .rs 1
+rightassign .rs 1
+rightcheck .rs 1
+leftcheck .rs 1
+
+scroll     .rs 1  ; horizontal scroll count         ; Scrolling part
+nametable  .rs 1  ; which nametable to use, 0 or 1
+columnLow  .rs 1  ; low byte of new column address
+columnHigh .rs 1  ; high byte of new column address
+sourceLow  .rs 1  ; source for column data
+sourceHigh .rs 1
+columnNumber .rs 1  ; which column of level data to draw
+
+;;;;;;;;;;;;;;;
+
+    
+  .bank 0
+  .org $C000 
+RESET:
+  SEI          ; disable IRQs
+  CLD          ; disable decimal mode
+  LDX #$40
+  STX $4017    ; disable APU frame IRQ
+  LDX #$FF
+  TXS          ; Set up stack
+  INX          ; now X = 0
+  STX $2000    ; disable NMI
+  STX $2001    ; disable rendering
+  STX $4010    ; disable DMC IRQs
+
+vblankwait1:       ; First wait for vblank to make sure PPU is ready
+  BIT $2002
+  BPL vblankwait1
+
+clrmem:
+  LDA #$00
+  STA $0000, x
+  STA $0100, x
+  STA $0300, x
+  STA $0400, x
+  STA $0500, x
+  STA $0600, x
+  STA $0700, x
+  STA $0200, x
+  INX
+  BNE clrmem
+   
+vblankwait2:      ; Second wait for vblank, PPU is ready after this
+  BIT $2002
+  BPL vblankwait2
+
+
+LoadPalettes:
+  LDA $2002             ; read PPU status to reset the high/low latch
+  LDA #$3F
+  STA $2006             ; write the high byte of $3F00 address
+  LDA #$00
+  STA $2006             ; write the low byte of $3F00 address
+  LDX #$00              ; start out at 0
+LoadPalettesLoop:
+  LDA palette, x        ; load data from address (palette + the value in x)
+                          ; 1st time through loop it will load palette+0
+                          ; 2nd time through loop it will load palette+1
+                          ; 3rd time through loop it will load palette+2
+                          ; etc
+  STA $2007             ; write to PPU
+  INX                   ; X = X + 1
+  CPX #$20              ; Compare X to hex $10, decimal 16 - copying 16 bytes = 4 sprites
+  BNE LoadPalettesLoop  ; Branch to LoadPalettesLoop if compare was Not Equal to zero
+                        ; if compare was equal to 32, keep going down
+
+
+
+LoadSprites:
+  LDX #$00              ; start at 0
+LoadSpritesLoop:
+  LDA sprites, x        ; load data from address (sprites +  x)
+  STA $0200, x          ; store into RAM address ($0200 + x)
+  INX                   ; X = X + 1
+  CPX #$20              ; Compare X to hex $20, decimal 32
+  BNE LoadSpritesLoop   ; Branch to LoadSpritesLoop if compare was Not Equal to zero
+                        ; if compare was equal to 32, keep going down
+              
+
+InitializeNametables:
+  LDA #$01
+  STA nametable
+  LDA #$00
+  STA scroll
+  STA columnNumber
+InitializeNametablesLoop:
+  JSR DrawNewColumn     ; draw bg column
+  LDA scroll            ; go to next column
+  CLC
+  ADC #$08
+  STA scroll
+  INC columnNumber
+  LDA columnNumber      ; repeat for first nametable 
+  CMP #$20
+  BNE InitializeNametablesLoop
+  
+  LDA #$00
+  STA nametable
+  LDA #$00
+  STA scroll
+  JSR DrawNewColumn     ; draw first column of second nametable
+  INC columnNumber
+  
+  LDA #$00              ; set back to increment +1 mode
+  STA $2000
+InitializeNametablesDone:
+  
+
+InitializeAttributes:
+  LDA #$01
+  STA nametable
+  LDA #$00
+  STA scroll
+  STA columnNumber
+InitializeAttributesLoop:
+  JSR DrawNewAttributes     ; draw attribs
+  LDA scroll                ; go to next column
+  CLC
+  ADC #$20
+  STA scroll
+
+  LDA columnNumber      ; repeat for first nametable 
+  CLC 
+  ADC #$04
+  STA columnNumber
+  CMP #$20
+  BNE InitializeAttributesLoop
+  
+  LDA #$00
+  STA nametable
+  LDA #$00
+  STA scroll
+  JSR DrawNewAttributes     ; draw first column of second nametable
+InitializeAttributesDone:
+
+  LDA #$21
+  STA columnNumber
+
+RightAssign:
+  LDA #$01
+  STA flipright  
+  LDA #$01
+  STA flipleftcheck
+  LDA #$00
+  STA flipleft 
+  INC rightassign
+              
+  LDA #%10010000   ; enable NMI, sprites from Pattern Table 0, background from Pattern Table 1
+  STA $2000
+
+  LDA #%00011110   ; enable sprites, enable background, no clipping on left side
+  STA $2001
+
+  INC scroll       ; scroll by one
+
+Forever:
+  JMP Forever     ;jump back to Forever, infinite loop
+  
+
+NMI:
+
+  LDA scroll       ; check if the scroll just wrapped from 255 to 0
+  BNE NTSwapCheckDone
+  INC scroll       ; to block infinity swaps  
+NTSwap:
+  LDA nametable    ; load current nametable number (0 or 1)
+  EOR #$01         ; exclusive OR of bit 0 will flip that bit
+  STA nametable    ; so if nametable was 0, now 1
+                   ;    if nametable was 1, now 0
+NTSwapCheckDone:
+
+NewAttribCheck:
+  LDA scroll
+  AND #%00011111            ; check for multiple of 32
+  BNE NewAttribCheckDone    ; if low 5 bits = 0, time to write new attribute bytes
+  jsr DrawNewAttributes
+NewAttribCheckDone:
+
+NewColumnCheck:
+  LDA scroll
+  AND #%00000111            ; throw away higher bits to check for multiple of 8
+  BNE NewColumnCheckDone    ; done if lower bits != 0
+  JSR DrawNewColumn         ; if lower bits = 0, time for new column
+  
+  lda columnNumber
+  clc
+  adc #$01             ; go to next column
+  and #%11111111       ; only 128 columns of data, throw away top bit to wrap
+  sta columnNumber
+NewColumnCheckDone:
+
+  LDA #$00
+  STA $2003       
+  LDA #$02
+  STA $4014       ; sprite DMA from $0200
+ 
+
+  LDA #$00
+  STA $2006        ; clean up PPU address registers
+  STA $2006
+  
+  LDA scroll
+  STA $2005        ; write the horizontal scroll count register
+
+  LDA #$00         ; no vertical scrolling
+  STA $2005
+
+  ;;This is the PPU clean up section, so rendering the next frame starts properly.
+  LDA #%10010000   ; enable NMI, sprites from Pattern Table 0, background from Pattern Table 1
+  ORA nametable    ; select correct nametable for bit 0
+  STA $2000
+  LDA #%00011110   ; enable sprites, enable background, no clipping on left side
+  STA $2001
+  
+  ; run other game graphics updating code here
+LatchController:
+  LDA #$01
+  STA $4016
+  LDA #$00
+  STA $4016       ; tell both the controllers to latch buttons
+
+
+
+WallCollisionCheck:
+  LDA #$00
+  STA wallcollision
+  LDA $0214
+  CMP #$C7
+  BNE WallCollisionCheckDone
+  LDA #$01
+  STA wallcollision
+  LDA #$08
+  STA jumpcout
+  WallCollisionCheckDone:
+
+
+Gravity:
+  LDA wallcollision
+  BNE GravityDone
+
+  LDA $0200       ; load sprite X position
+  CLC             ; make sure the carry flag is clear
+  ADC #$01        ; A = A + 1
+  STA $0200       ; save sprite X position
+  LDA $0204       ; load sprite X position
+  CLC             ; make sure the carry flag is clear
+  ADC #$01        ; A = A + 1
+  STA $0204       ; save sprite X position
+  LDA $0208       ; load sprite X position
+  CLC             ; make sure the carry flag is clear
+  ADC #$01        ; A = A + 1
+  STA $0208       ; save sprite X position
+  LDA $020C       ; load sprite X position
+  CLC             ; make sure the carry flag is clear
+  ADC #$01        ; A = A + 1
+  STA $020C       ; save sprite X position
+  LDA $0210       ; load sprite X position
+  CLC             ; make sure the carry flag is clear
+  ADC #$01        ; A = A + 1
+  STA $0210       ; save sprite X position
+  LDA $0214       ; load sprite X position
+  CLC             ; make sure the carry flag is clear
+  ADC #$01        ; A = A + 1
+  STA $0214       ; save sprite X position
+  LDA $0218       ; load sprite X position
+  CLC             ; make sure the carry flag is clear
+  ADC #$01        ; A = A + 1
+  STA $0218       ; save sprite X position
+GravityDone:       ; if wall meet
+
+
+JumpCheck2:
+  LDA acheck
+  AND #%00000001
+  BEQ JumpCheck2Done
+  LDA $0214
+  CMP #$C7
+  BNE JumpCheck2Done
+  LDA #$00
+  STA jumpcout
+JumpCheck2Done:
+
+  
+ReadJump:
+  LDA $4016       ; player 1 - A
+  STA acheck
+  AND #%00000001  ; only look at bit 0
+  BEQ ReadJumpDone  ; branch to ReadJumpDone if button is NOT pressed (0)
+  LDA jumpcout
+  BEQ ReadJumpDone
+  CLC
+  ADC #$08
+  STA jumpcout
+                  
+  LDX #$02
+  ReadJumpLoop:
+  LDA $0200       ; load sprite X position
+  SEC             ; make sure carry flag is set
+  SBC #$01        ; A = A - 1
+  STA $0200       ; save sprite X position
+  LDA $0204       ; load sprite X position
+  SEC             ; make sure carry flag is set
+  SBC #$01        ; A = A - 1
+  STA $0204       ; save sprite X position
+  LDA $0208       ; load sprite X position
+  SEC             ; make sure carry flag is set
+  SBC #$01        ; A = A - 1
+  STA $0208       ; save sprite X position
+  LDA $020C       ; load sprite X position
+  SEC             ; make sure carry flag is set
+  SBC #$01        ; A = A - 1
+  STA $020C       ; save sprite X position
+  LDA $0210       ; load sprite X position
+  SEC             ; make sure carry flag is set
+  SBC #$01        ; A = A - 1
+  STA $0210       ; save sprite X position
+  LDA $0214       ; load sprite X position
+  SEC             ; make sure carry flag is set
+  SBC #$01        ; A = A - 1
+  STA $0214       ; save sprite X position
+  LDA $0218       ; load sprite X position
+  SEC             ; make sure carry flag is set
+  SBC #$01        ; A = A - 1
+  STA $0218       ; save sprite X position
+  DEX
+  BNE ReadJumpLoop
+ReadJumpDone:
+
+JumpCheck:
+  LDA acheck
+  AND #%00000001
+  BNE JumpCheckDone
+  LDA #$00
+  STA jumpcout
+JumpCheckDone:
+
+  LDA $4016       ; player 1 - B
+  LDA $4016       ; player 1 - Start
+  LDA $4016       ; player 1 - Select
+  LDA $4016       ; ReadUp 
+  LDA $4016       ; ReadDown
+  
+
+ReadLeft: 
+  LDA $4016       ; player 1 - Left
+  STA leftcheck
+  AND #%00000001  ;
+  BEQ ReadLeftDone
+  LDA $0213
+  CMP #$5F
+  BEQ ReadLeftDone ;
+                  ;
+   
+  LDA $0203       ; 
+  SEC             ; 
+  SBC #$01        ;
+  STA $0203       ; 
+  LDA $0207       ; 
+  SEC             ;
+  SBC #$01        ; 
+  STA $0207       ;
+  LDA $020B       ;
+  SEC             ; 
+  SBC #$01        ; 
+  STA $020B       ;
+  LDA $020F       ; 
+  SEC             ; 
+  SBC #$01        ;
+  STA $020F       ; 
+  LDA $0213       ; 
+  SEC             ; 
+  SBC #$01        ;
+  STA $0213       ; 
+  LDA $0217       ;
+  SEC             ; 
+  SBC #$01        ; 
+  STA $0217       ;
+  LDA $021B       ;
+  SEC             ;
+  SBC #$01        ; 
+  STA $021B       ;
+  
+  LDA #$01
+  STA flipleft
+
+  LDA #$01
+  STA fliprightcheck
+  LDA #$00
+  STA flipright
+
+ReadLeftDone:        ; handling this button is done
+
+ScrollLeft:
+  LDA leftcheck
+  AND #%00000001
+  BEQ ScrollLeftDone
+  LDA $0213
+  CMP #$5F
+  BNE ScrollLeftDone
+
+  DEC scroll       ; add one to our scroll variable each frame
+ScrollLeftDone:
+
+
+ReadRight: 
+  LDA $4016       ;
+  STA rightcheck
+  AND #%00000001  ; 
+  BEQ ReadRightDone   ; 
+  LDA $0213
+  CMP #$A0
+  BEQ ReadRightDone
+                  ;  
+
+  
+  LDA $0203       ; 
+  CLC             ;
+  ADC #$01        ;
+  STA $0203       ;
+  LDA $0207       ; 
+  CLC             ;
+  ADC #$01        ;
+  STA $0207       ; 
+  LDA $020B       ;
+  CLC             ;
+  ADC #$01        ;
+  STA $020B       ;
+  LDA $020F       ; 
+  CLC             ; 
+  ADC #$01        ;
+  STA $020F       ;
+  LDA $0213       ; 
+  CLC             ;
+  ADC #$01        ;
+  STA $0213       ;
+  LDA $0217       ;
+  CLC             ;
+  ADC #$01        ;
+  STA $0217       ;
+  LDA $021B       ;
+  CLC             ;
+  ADC #$01        ;
+  STA $021B       ;  
+
+  
+  LDA #$01
+  STA flipright  
+  
+  LDA #$01
+  STA flipleftcheck
+  LDA #$00
+  STA flipleft
+    
+ReadRightDone:        ; handling this button is done
+
+ScrollRight:
+  LDA rightcheck
+  AND #%00000001
+  BEQ ScrollRightDone
+  LDA $0213
+  CMP #$A0
+  BNE ScrollRightDone
+  INC scroll       ; add one to our scroll variable each frame
+ScrollRightDone:
+
+
+
+FlipLeft:
+  LDA flipleft
+  BEQ FlipLeftDone
+  LDA flipleftcheck
+  BEQ FlipLeftDone  
+
+  LDA #%01000000  ; SpriteFlip left
+  STA $0202
+  STA $0206
+  STA $020A
+  STA $020E
+  STA $0212
+  STA $0216 
+  STA $021A  
+
+  LDA $0203
+  CLC
+  ADC #$08
+  STA $0203
+  LDA $0207
+  SEC
+  SBC #$08
+  STA $0207
+  LDA $020B
+  CLC
+  ADC #$08
+  STA $020B
+  LDA $020F
+  SEC
+  SBC #$08
+  STA $020F
+  LDA $0213
+  CLC
+  ADC #$08
+  STA $0213
+  LDA $0217
+  SEC
+  SBC #$08
+  STA $0217
+  LDA $021B
+  SEC
+  SBC #$18
+  STA $021B
+
+  LDA #$00
+  STA flipleftcheck
+FlipLeftDone: 
+
+FlipRight:
+  LDA flipright
+  BEQ FlipRightDone
+  LDA fliprightcheck
+  BEQ FlipRightDone  
+  LDA #%00000000  ; SpriteFlip right
+  STA $0202
+  STA $0206
+  STA $020A
+  STA $020E
+  STA $0212
+  STA $0216 
+  STA $021A
+  
+  LDA $0203
+  SEC
+  SBC #$08
+  STA $0203
+  LDA $0207
+  CLC
+  ADC #$08
+  STA $0207
+  LDA $020B
+  SEC
+  SBC #$08
+  STA $020B
+  LDA $020F
+  CLC
+  ADC #$08
+  STA $020F
+  LDA $0213
+  SEC
+  SBC #$08
+  STA $0213
+  LDA $0217
+  CLC
+  ADC #$08
+  STA $0217
+  LDA $021B
+  CLC
+  ADC #$18
+  STA $021B
+
+  LDA #$00
+  STA fliprightcheck
+FlipRightDone:
+
+  RTI             ; return from interrupt
+ 
+;;;;;;;;;;;;;;  
+  
+
+DrawNewColumn:
+  LDA scroll       ; calculate new column address using scroll register
+  LSR A
+  LSR A
+  LSR A            ; shift right 3 times = divide by 8
+  STA columnLow    ; $00 to $1F, screen is 32 tiles wide
+
+  LDA nametable     ; calculate new column address using current nametable
+  EOR #$01          ; invert low bit, A = $00 or $01
+  ASL A             ; shift up, A = $00 or $02
+  ASL A             ; $00 or $04
+  CLC
+  ADC #$20          ; add high byte of nametable base address ($2000)
+  STA columnHigh    ; now address = $20 or $24 for nametable 0 or 1
+
+  LDA columnNumber  ; column number * 32 = column data offset
+  ASL A
+  ASL A
+  ASL A
+  ASL A
+  ASL A             
+  STA sourceLow
+  LDA columnNumber
+  LSR A
+  LSR A
+  LSR A
+  STA sourceHigh
+  
+  LDA sourceLow       ; column data start + offset = address to load column data from
+  CLC 
+  ADC #LOW(columnData)
+  STA sourceLow
+  LDA sourceHigh
+  ADC #HIGH(columnData)
+  STA sourceHigh
+
+DrawColumn:
+  LDA #%00000100        ; set to increment +32 mode
+  STA $2000
+  
+  LDA $2002             ; read PPU status to reset the high/low latch
+  LDA columnHigh
+  STA $2006             ; write the high byte of column address
+  LDA columnLow
+  STA $2006             ; write the low byte of column address
+  LDX #$1E              ; copy 30 bytes
+  LDY #$00
+DrawColumnLoop:
+  LDA [sourceLow], y
+  STA $2007
+  INY
+  DEX
+  BNE DrawColumnLoop
+
+  RTS
+  
+  
+  
+DrawNewAttributes:
+  LDA nametable
+  EOR #$01          ; invert low bit, A = $00 or $01
+  ASL A             ; shift up, A = $00 or $02
+  ASL A             ; $00 or $04
+  CLC
+  ADC #$23          ; add high byte of attribute base address ($23C0)
+  STA columnHigh    ; now address = $23 or $27 for nametable 0 or 1
+  
+  LDA scroll
+  LSR A
+  LSR A
+  LSR A
+  LSR A
+  LSR A
+  CLC
+  ADC #$C0
+  STA columnLow     ; attribute base + scroll / 32
+
+  LDA columnNumber  ; (column number / 4) * 8 = column data offset
+  AND #%11111100
+  ASL A
+  STA sourceLow
+  LDA columnNumber
+  LSR A
+  LSR A
+  LSR A
+  LSR A
+  LSR A
+  LSR A
+  LSR A
+  STA sourceHigh
+  
+  LDA sourceLow       ; column data start + offset = address to load column data from
+  CLC 
+  ADC #LOW(attribData)
+  STA sourceLow
+  LDA sourceHigh
+  ADC #HIGH(attribData)
+  STA sourceHigh
+
+  LDY #$00
+  LDA $2002             ; read PPU status to reset the high/low latch
+DrawNewAttributesLoop
+  LDA columnHigh
+  STA $2006             ; write the high byte of column address
+  LDA columnLow
+  STA $2006             ; write the low byte of column address
+  LDA [sourceLow], y    ; copy new attribute byte
+  STA $2007
+  
+  INY
+  CPY #$08              ; copy 8 attribute bytes
+  BEQ DrawNewAttributesLoopDone 
+  
+  LDA columnLow         ; next attribute byte is at address + 8
+  CLC
+  ADC #$08
+  STA columnLow
+  JMP DrawNewAttributesLoop
+DrawNewAttributesLoopDone:
+
+  rts
+;;;;;;;;;;;;;;  
+
+  
+  
+  .bank 1
+  .org $E000
+palette:
+  .db $23,$16,$19,$06,$23,$37,$16,$24,$23,$29,$14,$27,$23,$10,$30,$00
+  .db $23,$00,$13,$16,$23,$06,$0A,$1D,$23,$38,$27,$2D,$23,$37,$16,$24
+sprites:
+     ;vert tile attr horiz
+  .db $80, $00, $00, $80   ;sprite 0 (headleft 200)
+  .db $80, $01, $00, $88   ;sprite 1 (headright 204)
+  .db $88, $10, $00, $80   ;sprite 2 (body 208)
+  .db $88, $11, $00, $88   ;sprite 3 (body 20C)
+  .db $90, $20, $00, $80   ;sprite 4 (legleft 210)
+  .db $90, $21, $00, $88   ;sprite 5 (legright 214)
+  .db $88, $1C, $00, $90   ;sprite 6 (Gun 218)
+
+columnData:
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 1           Title Screen
+  .db $0D,$E7,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$0D,$0D  ;;
+
+  .db $00,$10,$20,$30,$40,$50,$60,$70,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 2
+  .db $0D,$E8,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$0D,$0D  ;;all sky
+
+  .db $01,$11,$21,$31,$41,$51,$61,$71,$81,$91,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 3
+  .db $D9,$E9,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$0D,$0D  ;;all sky
+
+  .db $02,$12,$22,$32,$42,$52,$62,$72,$82,$92,$A2,$B2,$0D,$0D,$0D,$CA  ;;column 4
+  .db $DA,$EA,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$F0  ;;all sky
+
+  .db $03,$13,$23,$33,$43,$53,$63,$73,$83,$93,$0D,$0D,$0D,$0D,$0D,$CB  ;;column 5
+  .db $DB,$EB,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$F0  ;;brick bottoms
+
+  .db $04,$14,$24,$34,$44,$54,$64,$74,$84,$94,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 6
+  .db $DC,$EC,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$F0  ;;brick bottoms
+
+  .db $05,$15,$25,$35,$45,$55,$65,$75,$85,$95,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 7
+  .db $0D,$ED,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $06,$16,$26,$36,$46,$56,$66,$76,$86,$96,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 8
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $07,$17,$27,$37,$47,$57,$67,$77,$87,$97,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 9
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $08,$18,$28,$38,$48,$58,$68,$78,$88,$98,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 10
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $09,$19,$29,$39,$49,$59,$69,$79,$89,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 11
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$9C,$AC,$BC,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0A,$1A,$2A,$3A,$4A,$5A,$6A,$7A,$8A,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 12
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$9D,$AD,$BD,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0B,$1B,$2B,$3B,$4B,$5B,$6B,$7B,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 13
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$9E,$AE,$BE,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0C,$1C,$2C,$3C,$4C,$5C,$6C,$7C,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 14
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$9F,$AF,$BF,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$1D,$2D,$3D,$4D,$5D,$6D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 15
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 16
+  .db $E7,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$FD,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 17
+  .db $E8,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$C5,$D5,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$D9  ;;column 18
+  .db $E9,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$C6,$D6,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$CA,$DA  ;;column 19
+  .db $EA,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$C7,$D7,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$CB,$DB  ;;column 20
+  .db $EB,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$D8,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$DC  ;;column 21
+  .db $EC,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 22
+  .db $ED,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 23
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 24
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 25
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 26
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$FD,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 27
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 28
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$DE,$EE,$FE,$F0,$F0,$F0,$F0,$F0,$F0  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 29
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$DF,$EF,$FF,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 30
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$F0  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 31
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$DE,$EE,$EE,$FE,$F0,$F0,$F0,$F0,$F0,$F0  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 32
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$DF,$EF,$EF,$FF,$F0,$F0,$F0,$F0,$F0,$F0  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 1           I Screen
+  .db $0D,$E7,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$0D,$0D  ;;
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 2
+  .db $0D,$E8,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$0D,$0D  ;;all sky
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 3
+  .db $D9,$E9,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$0D,$0D  ;;all sky
+
+  .db $0D,$0D,$C5,$D5,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$CA  ;;column 4
+  .db $DA,$EA,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$F0  ;;all sky
+
+  .db $0D,$0D,$C6,$D6,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$CB  ;;column 5
+  .db $DB,$EB,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$F0  ;;brick bottoms
+
+  .db $0D,$0D,$C7,$D7,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 6
+  .db $DC,$EC,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$F0  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$D8,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 7
+  .db $0D,$ED,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 8
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 9
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 10
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 11
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$9C,$AC,$BC,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 12
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$9D,$AD,$BD,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 13
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$9E,$AE,$BE,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 14
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$9F,$AF,$BF,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 15
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 16
+  .db $E7,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$FD,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 17
+  .db $E8,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$C5,$D5,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$D9  ;;column 18
+  .db $E9,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$C6,$D6,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$CA,$DA  ;;column 19
+  .db $EA,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$C7,$D7,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$CB,$DB  ;;column 20
+  .db $EB,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$D8,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$DC  ;;column 21
+  .db $EC,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 22
+  .db $ED,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 23
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 24
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 25
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 26
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$FD,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 27
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 28
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$DE,$EE,$FE,$F0,$F0,$F0,$F0,$F0,$F0  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 29
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$DF,$EF,$FF,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 30
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$F0  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 31
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$DE,$EE,$EE,$FE,$F0,$F0,$F0,$F0,$F0,$F0  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 32
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$DF,$EF,$EF,$FF,$F0,$F0,$F0,$F0,$F0,$F0  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 1           II Screen
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$0D,$0D  ;;
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 2
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$DE,$EE,$FE,$F0,$F0,$F0,$F0,$F0,$F0  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 3
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$DF,$EF,$FF,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 4
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$F0  ;;all sky
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 5
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$F0  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 6
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$DE,$EE,$FE,$F0,$F0,$F0,$F0,$F0,$F0  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$E7,$0D,$0D  ;;column 7
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$DF,$EF,$FF,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$E8,$0D,$0D  ;;column 8
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$C5,$D5,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$D9,$E9,$0D,$0D  ;;column 9
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$DE,$EE,$EE,$FE,$F0,$F0,$F0,$F0,$F0,$F0  ;;brick bottoms
+
+  .db $0D,$0D,$C6,$D6,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$CA,$DA,$EA,$0D,$0D  ;;column 10
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$DF,$EF,$EF,$FF,$F0,$F0,$F0,$F0,$F0,$F0  ;;brick bottoms
+
+  .db $0D,$0D,$C7,$D7,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$CB,$DB,$EB,$0D,$0D  ;;column 11
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$D8,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$DC,$EC,$0D,$0D  ;;column 12
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$DE,$EE,$FE,$F0,$F0,$F0,$F0,$F0,$F0  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$ED,$0D,$0D  ;;column 13
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$DF,$EF,$FF,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 14
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 15
+  .db $0D,$0D,$0D,$E7,$0D,$0D,$DE,$EE,$EE,$FE,$F0,$F0,$F0,$F0,$F0,$F0  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 16
+  .db $0D,$0D,$0D,$E8,$0D,$0D,$DF,$EF,$EF,$FF,$F0,$F0,$F0,$F0,$F0,$F0  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 17
+  .db $0D,$0D,$D9,$E9,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 18
+  .db $0D,$CA,$DA,$EA,$0D,$0D,$0D,$DE,$EE,$FE,$F0,$F0,$F0,$F0,$F0,$F0  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 19
+  .db $0D,$CB,$DB,$EB,$0D,$0D,$0D,$DF,$EF,$FF,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 20
+  .db $0D,$0D,$DC,$EC,$0D,$0D,$0D,$DE,$EE,$FE,$F0,$F0,$F0,$F0,$F0,$F0  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 21
+  .db $0D,$0D,$0D,$ED,$0D,$0D,$0D,$DF,$EF,$FF,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 22
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 23
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$E7  ;;column 24
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$DE,$EE,$FE,$F0,$F0,$F0,$F0,$F0,$F0  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$E8  ;;column 25
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$DF,$EF,$FF,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$D9,$E9  ;;column 26
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$CA,$DA,$EA  ;;column 27
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$C5,$D5,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$CB,$DB,$EB  ;;column 28
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$F0  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$C6,$D6,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$DC,$EC  ;;column 29
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$DE,$EE,$EE,$FE,$F0,$F0,$F0,$F0,$F0,$F0  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$C7,$D7,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$ED  ;;column 30
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$DF,$EF,$EF,$FF,$F0,$F0,$F0,$F0,$F0,$F0  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$D8,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 31
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$FD,$F0,$F0,$F0,$F0,$F0,$F0  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 32
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$F0  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 1           III Screen
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$0D,$0D  ;;
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 2
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$DE,$EE,$FE,$F0,$F0,$F0,$F0,$F0,$F0  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 3
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$DF,$EF,$FF,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 4
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$F0  ;;all sky
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 5
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$F0  ;;brick bottoms
+
+  .db $0D,$0D,$C5,$D5,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 6
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$DE,$EE,$FE,$F0,$F0,$F0,$F0,$F0,$F0  ;;brick bottoms
+
+  .db $0D,$0D,$C6,$D6,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 7
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$DF,$EF,$FF,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$C7,$D7,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 8
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$D8,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 9
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$DE,$EE,$EE,$FE,$F0,$F0,$F0,$F0,$F0,$F0  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 10
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$DF,$EF,$EF,$FF,$F0,$F0,$F0,$F0,$F0,$F0  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 11
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$E7,$0D,$0D  ;;column 12
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$DE,$EE,$FE,$F0,$F0,$F0,$F0,$F0,$F0  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$E8,$0D,$0D  ;;column 13
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$DF,$EF,$FF,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$D9,$E9,$0D,$0D  ;;column 14
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$CA,$DA,$EA,$0D,$0D  ;;column 15
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$DE,$EE,$EE,$FE,$F0,$F0,$F0,$F0,$F0,$F0  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$CB,$DB,$EB,$0D,$0D  ;;column 16
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$DF,$EF,$EF,$FF,$F0,$F0,$F0,$F0,$F0,$F0  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$DC,$EC,$0D,$0D  ;;column 17
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$ED,$0D,$0D  ;;column 18
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$DE,$EE,$FE,$F0,$F0,$F0,$F0,$F0,$F0  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 19
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$DF,$EF,$FF,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 20
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$DE,$EE,$FE,$F0,$F0,$F0,$F0,$F0,$F0  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 21
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$DF,$EF,$FF,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$C5,$D5,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 22
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$C6,$D6,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 23
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$C7,$D7,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 24
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$DE,$EE,$FE,$F0,$F0,$F0,$F0,$F0,$F0  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$D8,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 25
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$DF,$EF,$FF,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 26
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 27
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 28
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$F0  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 29
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$DE,$EE,$EE,$FE,$F0,$F0,$F0,$F0,$F0,$F0  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 30
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$DF,$EF,$EF,$FF,$F0,$F0,$F0,$F0,$F0,$F0  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 31
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$FD,$F0,$F0,$F0,$F0,$F0,$F0  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 32
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$F0  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 1          IV Screen
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$0D,$0D  ;;
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$C5,$D5,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 2
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$0D,$0D  ;;all sky
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$C6,$D6,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 3
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$0D,$0D  ;;all sky
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$C7,$D7,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 4
+  .db $E7,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$F0  ;;all sky
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$D8,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 5
+  .db $E8,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$F0  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$D9  ;;column 6
+  .db $E9,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$CA,$DA  ;;column 7
+  .db $EA,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$CB,$DB  ;;column 8
+  .db $EB,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$DC  ;;column 9
+  .db $EC,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 10
+  .db $ED,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 11
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 12
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 13
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 14
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 15
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$C5,$D5,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 16
+  .db $0D,$0D,$0D,$0D,$0D,$8B,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$C6,$D6,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 17
+  .db $0D,$0D,$0D,$0D,$8B,$9B,$1F,$1F,$1F,$2E,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$C7,$D7,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$E7,$0D,$0D,$0D,$0D  ;;column 18
+  .db $0D,$0D,$0D,$8B,$9B,$9B,$1E,$7E,$8E,$1E,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$D8,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$E8,$0D,$0D,$0D,$0D  ;;column 19
+  .db $0D,$0D,$0D,$9B,$9B,$9B,$1E,$7F,$8F,$1E,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$D9,$E9,$0D,$0D,$0D,$0D  ;;column 20
+  .db $0D,$0D,$0D,$9B,$9B,$9B,$1E,$3E,$4E,$5E,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$CA,$DA,$EA,$0D,$0D,$0D,$0D  ;;column 21
+  .db $0D,$0D,$0D,$9B,$9B,$9B,$1E,$3F,$4F,$5F,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$CB,$DB,$EB,$0D,$0D,$0D,$0D  ;;column 22
+  .db $0D,$0D,$0D,$9B,$9B,$9B,$1E,$1E,$1E,$1E,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$DC,$EC,$0D,$0D,$0D,$0D  ;;column 23
+  .db $0D,$0D,$0D,$8C,$9B,$9B,$1E,$1E,$1E,$1E,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$ED,$0D,$0D,$0D,$0D  ;;column 24
+  .db $0D,$0D,$0D,$0D,$8C,$9B,$1F,$1F,$1F,$2F,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 25
+  .db $0D,$0D,$0D,$0D,$0D,$8C,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$C5,$D5,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 26
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$C6,$D6,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 27
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$C7,$D7,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 28
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$F0  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$D8,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 29
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 30
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$F0  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 31
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$F0  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 32
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$F0  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 1          Wooden House Screen
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$0D,$0D  ;;
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$C5,$D5,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 2
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$0D,$0D  ;;all sky
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$C6,$D6,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 3
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$0D,$0D  ;;all sky
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$C7,$D7,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 4
+  .db $E7,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$F0  ;;all sky
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$D8,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 5
+  .db $E8,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$F0  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$D9  ;;column 6
+  .db $E9,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$CA,$DA  ;;column 7
+  .db $EA,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$CB,$DB  ;;column 8
+  .db $EB,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$DC  ;;column 9
+  .db $EC,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 10
+  .db $ED,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 11
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 12
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 13
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 14
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 15
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$C5,$D5,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 16
+  .db $0D,$0D,$0D,$0D,$0D,$8B,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$C6,$D6,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 17
+  .db $0D,$0D,$0D,$0D,$8B,$9B,$1F,$1F,$1F,$2E,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$C7,$D7,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$E7,$0D,$0D,$0D,$0D  ;;column 18
+  .db $0D,$0D,$0D,$8B,$9B,$9B,$1E,$7E,$8E,$1E,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$D8,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$E8,$0D,$0D,$0D,$0D  ;;column 19
+  .db $0D,$0D,$0D,$9B,$9B,$9B,$1E,$7F,$8F,$1E,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$D9,$E9,$0D,$0D,$0D,$0D  ;;column 20
+  .db $0D,$0D,$0D,$9B,$9B,$9B,$1E,$3E,$4E,$5E,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$CA,$DA,$EA,$0D,$0D,$0D,$0D  ;;column 21
+  .db $0D,$0D,$0D,$9B,$9B,$9B,$1E,$3F,$4F,$5F,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$CB,$DB,$EB,$0D,$0D,$0D,$0D  ;;column 22
+  .db $0D,$0D,$0D,$9B,$9B,$9B,$1E,$1E,$1E,$1E,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$DC,$EC,$0D,$0D,$0D,$0D  ;;column 23
+  .db $0D,$0D,$0D,$8C,$9B,$9B,$1E,$1E,$1E,$1E,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$ED,$0D,$0D,$0D,$0D  ;;column 24
+  .db $0D,$0D,$0D,$0D,$8C,$9B,$1F,$1F,$1F,$2F,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 25
+  .db $0D,$0D,$0D,$0D,$0D,$8C,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$C5,$D5,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 26
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$C6,$D6,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 27
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$C7,$D7,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 28
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$F0  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$D8,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 29
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$0D  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 30
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$F0  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 31
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$F0  ;;brick bottoms
+
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D  ;;column 32
+  .db $0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$0D,$F0,$F0,$F0,$F0,$F0,$F0  ;;brick bottoms
+
+
+attribData:
+  .db %11111111, %11111111, %11111111, %11111111, %11111111, %00000000, %01010000, %00000101    ; Title Screen
+
+  .db %11111111, %11111111, %11111111, %11111111, %11111111, %00000000, %01010000, %01010101
+
+  .db %11111111, %11111111, %11111111, %11111111, %11111111, %01010101, %01010100, %01010101
+
+  .db %11111111, %11111111, %11111111, %11111111, %11111111, %01010101, %01011001, %01010101
+
+  .db %11111111, %11111111, %11111111, %11111111, %11111111, %00000000, %01010000, %01010101
+
+  .db %11111111, %11111111, %11111111, %11111111, %11111111, %00000000, %01010000, %01010101
+
+  .db %11111111, %11111111, %11111111, %11111111, %11111111, %00000000, %01010010, %01010101
+
+  .db %11111111, %11111111, %11111111, %11111111, %11111111, %00000000, %01010000, %01010101
+
+  .db %11111111, %11111111, %11111111, %11111111, %11111111, %00000000, %01010000, %00000101    ; I Screen
+
+  .db %11111111, %11111111, %11111111, %11111111, %11111111, %00000000, %01010000, %01010101
+
+  .db %11111111, %11111111, %11111111, %11111111, %11111111, %01010101, %01010100, %01010101
+
+  .db %11111111, %11111111, %11111111, %11111111, %11111111, %01010101, %01011001, %01010101
+
+  .db %11111111, %11111111, %11111111, %11111111, %11111111, %00000000, %01010000, %01010101
+
+  .db %11111111, %11111111, %11111111, %11111111, %11111111, %00000000, %01010000, %01010101
+
+  .db %11111111, %11111111, %11111111, %11111111, %11111111, %00000000, %01010010, %01010101
+
+  .db %11111111, %11111111, %11111111, %11111111, %11111111, %00000000, %01010000, %01010101
+
+  .db %11111111, %11111111, %11111111, %11111111, %11111111, %00000000, %01010000, %01010101    ; II Screem
+
+  .db %11111111, %11111111, %11111111, %11111111, %11111111, %00000000, %01010000, %01010101
+
+  .db %11111111, %11111111, %11111111, %11111111, %11111111, %00000000, %01010000, %01010101
+
+  .db %11111111, %11111111, %11111111, %11111111, %11111111, %00000000, %01010000, %01010101
+
+  .db %11111111, %11111111, %11111111, %11111111, %11111111, %00000000, %01010000, %01010101
+
+  .db %11111111, %11111111, %11111111, %11111111, %11111111, %00000000, %01010000, %01010101
+
+  .db %11111111, %11111111, %11111111, %11111111, %11111111, %00000000, %01010000, %01010101
+
+  .db %11111111, %11111111, %11111111, %11111111, %11111111, %00000000, %01011000, %01010101
+
+  .db %11111111, %11111111, %11111111, %11111111, %11111111, %00000000, %01010000, %01010101    ; III Screen
+
+  .db %11111111, %11111111, %11111111, %11111111, %11111111, %00000000, %01010000, %01010101
+
+  .db %11111111, %11111111, %11111111, %11111111, %11111111, %00000000, %01010000, %01010101
+
+  .db %11111111, %11111111, %11111111, %11111111, %11111111, %00000000, %01010000, %01010101
+
+  .db %11111111, %11111111, %11111111, %11111111, %11111111, %00000000, %01010000, %01010101
+
+  .db %11111111, %11111111, %11111111, %11111111, %11111111, %00000000, %01010000, %01010101
+
+  .db %11111111, %11111111, %11111111, %11111111, %11111111, %00000000, %01010000, %01010101
+
+  .db %11111111, %11111111, %11111111, %11111111, %11111111, %00000000, %01011000, %01010101
+
+  .db %11111111, %11111111, %11111111, %11111111, %11111111, %00000000, %01010000, %01010101     ; IV Screen
+
+  .db %11111111, %11111111, %11111111, %11111111, %11111111, %00000000, %01010000, %01010101
+
+  .db %11111111, %11111111, %11111111, %11111111, %11111111, %00000000, %01010000, %01010101
+
+  .db %11111111, %11111111, %11111111, %11111111, %11111111, %00000000, %01010000, %01010101
+
+  .db %11111111, %11111111, %11111111, %11111111, %11111111, %00000000, %01010000, %01010101
+
+  .db %11111111, %11111111, %11111111, %11111111, %11111111, %00000000, %01010000, %01010101
+
+  .db %11111111, %11111111, %11111111, %11111111, %11111111, %00000000, %01010000, %01010101
+
+  .db %11111111, %11111111, %11111111, %11111111, %11111111, %00000000, %01010000, %01010101
+
+  .db %11111111, %11111111, %11111111, %11111111, %11111111, %00000000, %01010000, %01010101
+
+  .db %11111111, %11111111, %11111111, %11111111, %11111111, %00000000, %01010000, %01010101
+
+  .db %11111111, %11111111, %11111111, %11111111, %11111111, %00000000, %01010000, %01010101     ; Wooden House Screen
+
+  .db %11111111, %11111111, %11111111, %11111111, %11111111, %00000000, %01010000, %01010101
+
+  .db %11111111, %11111111, %11111111, %11111111, %11111111, %00000000, %01010000, %01010101
+
+  .db %11111111, %11111111, %11111111, %11111111, %11111111, %00000000, %01010000, %01010101
+
+  .db %11111111, %11111111, %11111111, %11111111, %11111111, %00000000, %01010000, %01010101
+
+  .db %11111111, %11111111, %11111111, %11111111, %11111111, %00000000, %01010000, %01010101
+
+  .db %11111111, %11111111, %11111111, %11111111, %11111111, %00000000, %01010000, %01010101
+
+  .db %11111111, %11111111, %11111111, %11111111, %11111111, %00000000, %01010000, %01010101
+
+  .db %11111111, %11111111, %11111111, %11111111, %11111111, %00000000, %01010000, %01010101
+
+  .db %11111111, %11111111, %11111111, %11111111, %11111111, %00000000, %01010000, %01010101
+
+  .org $FFFA     ;first of the three vectors starts here
+  .dw NMI        ;when an NMI happens (once per frame if enabled) the 
+                   ;processor will jump to the label NMI:
+  .dw RESET      ;when the processor first turns on or is reset, it will jump
+                   ;to the label RESET:
+  .dw 0          ;external interrupt IRQ is not used in this tutorial
+  
+  
+;;;;;;;;;;;;;;  
+  
+  
+  .bank 2
+  .org $0000
+  .incbin "MariaBirthday.chr"   ;includes 8KB graphics file from SMB1
